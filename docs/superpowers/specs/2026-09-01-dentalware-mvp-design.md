@@ -24,7 +24,7 @@ Investigación de mercado, dominio y stack (3 agentes Exa, 2026-09-01) confirmó
 
 ## 3. Arquitectura
 
-Monorepo pnpm workspaces (Node 22 LTS, TypeScript strict, ESLint + Prettier, Vitest, Playwright):
+Monorepo pnpm workspaces (Node 24 LTS, TypeScript strict, ESLint + Prettier, Vitest, Playwright):
 
 ```
 dentalware/
@@ -33,6 +33,7 @@ dentalware/
                 + react-hook-form + zod + Tailwind v4 + shadcn/ui + vite-plugin-pwa
     api/        Hono (@hono/node-server) + Drizzle ORM + postgres + zod validators
                 + better-auth (email/password, sesiones cookie, roles)
+                Drizzle ORM 1.0 RC (relaciones v2) fijado en versión exacta; TypeScript 6.0.x hasta que typescript-eslint soporte 7.x.
   packages/
     shared/     zod schemas (DTOs), enums (estados, roles), constantes FDI,
                 máquina de estados del trabajo, días hábiles, formato de código
@@ -131,7 +132,7 @@ Roles: `admin` todo; `recepcion` todo salvo usuarios/config; `tecnico` trabajos 
 
 ## 9. Despliegue y operación
 
-- `infra/docker-compose.yml`: caddy (80/443), api (node:22-alpine multi-stage), postgres:17 con volumen, volumen uploads. Variables en `.env`.
+- `infra/docker-compose.yml`: caddy (80/443), api (node:24-alpine multi-stage), postgres:17 con volumen, volumen uploads. Variables en `.env`.
 - Migraciones Drizzle al arrancar la API. Seed: admin, fases, categorías y productos de ejemplo.
 - Backup diario `pg_dump` + tar de uploads, retención 14 días; opcional `rclone` externo.
 - CI GitHub Actions: lint, typecheck, tests. Deploy por SSH (`git pull && docker compose up -d --build`).

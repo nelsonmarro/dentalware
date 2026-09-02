@@ -1,0 +1,7 @@
+dist
+coverage
+pnpm-lock.yaml
+**/routeTree.gen.ts
+apps/api/drizzle
+docs/**/*.pdf
+docs/caputras_ejemplo
