@@ -39,7 +39,7 @@
 - Nombres de tablas en plural y snake_case (`users`, `sessions`, …). Ids como `text` (better-auth) en tablas de auth; `uuid` en el resto (iteraciones siguientes).
 - Los precios nunca se exponen a `tecnico` ni `mensajero` (aplica desde la Iteración 1; aquí solo se deja el guard de roles).
 - Nada de `drizzle-kit push` fuera de local. Producción aplica migraciones con `migrate()` al arrancar la API.
-- Commits pequeños, mensajes en español con prefijo convencional (`feat:`, `test:`, `chore:`, `docs:`), y trailer `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
+- Commits pequeños, mensajes en español con prefijo convencional (`feat:`, `test:`, `chore:`, `docs:`), y trailer `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.
 - Desarrollo con TDD: test primero, verlo fallar, implementar, verlo pasar, commit.
 
 ---
