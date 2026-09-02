@@ -33,3 +33,6 @@ test-results/
 
 # local session memory
 .remember/
+
+# SDD scratch
+.superpowers/
