@@ -1,0 +1,35 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# data
+infra/data/
+uploads/
+*.dump
+*.sql.gz
+
+# tests
+coverage/
+playwright-report/
+test-results/
+
+# editors / os
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+*.log
+
+# local session memory
+.remember/
