@@ -2715,7 +2715,9 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 - [ ] **Step 1: Instalar navegadores**
 
 ```bash
-pnpm --filter @dentalware/web exec playwright install --with-deps chromium webkit
+pnpm --filter @dentalware/web exec playwright install chromium webkit
+# En la máquina de desarrollo (Arch Linux) `--with-deps` no aplica (usa apt); las dependencias del sistema ya están o se instalan con pacman.
+# En CI (Ubuntu, Tarea 13) sí se usa `--with-deps`.
 ```
 
 - [ ] **Step 2: Configuración**
