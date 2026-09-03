@@ -1631,7 +1631,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 - Produces:
   - `type AppEnv = { Variables: { user: SessionUser | null; session: Auth['$Infer']['Session']['session'] | null } }`
   - `sessionMiddleware(auth)`, `requireAuth`, `requireRole(...roles: UserRole[])`
-  - `createApp({ auth }: AppDeps)`; rutas `GET /api/me → { id, name, email, role }` (401 sin sesión); `/api/auth/*` (better-auth); `POST /api/auth/sign-up/*` solo para `admin` autenticado (403 en otro caso)
+  - `createApp({ auth, webOrigin }: AppDeps)` (CORS con lista blanca = `WEB_ORIGIN`); rutas `GET /api/me → { id, name, email, role }` (401 sin sesión); `/api/auth/*` (better-auth); `POST /api/auth/sign-up/*` solo para `admin` autenticado (403 en otro caso)
   - Test helpers: `setupTestDb()`, `truncateAll(db)`, `createUser(auth, db, { email, password, name, role })`, `loginAs(app, email, password): Promise<string /* cookie */>`
   - Script `pnpm --filter @dentalware/api seed` crea el admin de `ADMIN_EMAIL` si no existe.
 
@@ -1701,7 +1701,7 @@ let app: ReturnType<typeof createApp>
 
 beforeAll(async () => {
   ctx = await setupTestDb()
-  app = createApp({ auth: ctx.auth })
+  app = createApp({ auth: ctx.auth, webOrigin: ctx.config.WEB_ORIGIN })
 })
 beforeEach(async () => {
   await truncateAll(ctx.db)
@@ -1874,14 +1874,14 @@ import { requireRole, sessionMiddleware } from './middleware/session.ts'
 import { healthRoutes } from './routes/health.ts'
 import { meRoutes } from './routes/me.ts'
 
-export type AppDeps = { auth: Auth }
+export type AppDeps = { auth: Auth; webOrigin: string }
 
 // Los errores de HTTPException se devuelven siempre como JSON en español.
 function errorResponse(err: HTTPException) {
   return Response.json({ message: err.message || 'Error' }, { status: err.status })
 }
 
-export function createApp({ auth }: AppDeps) {
+export function createApp({ auth, webOrigin }: AppDeps) {
   const app = new Hono<AppEnv>()
 
   app.use(secureHeaders())
@@ -1889,7 +1889,7 @@ export function createApp({ auth }: AppDeps) {
   app.use(
     '/api/*',
     cors({
-      origin: (origin) => origin, // mismo origen en producción (Caddy); en dev, Vite hace proxy
+      origin: (origin) => (origin === webOrigin ? origin : null), // solo el frontend configurado (WEB_ORIGIN); nunca reflejar cualquier Origin
       credentials: true,
       allowHeaders: ['Content-Type'],
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -1935,7 +1935,7 @@ let ctx: Awaited<ReturnType<typeof setupTestDb>>
 let app: ReturnType<typeof createApp>
 beforeAll(async () => {
   ctx = await setupTestDb()
-  app = createApp({ auth: ctx.auth })
+  app = createApp({ auth: ctx.auth, webOrigin: ctx.config.WEB_ORIGIN })
 })
 afterAll(async () => {
   await ctx.pool.end()
@@ -1971,7 +1971,7 @@ const config = loadConfig()
 const { db } = createDb(config.DATABASE_URL)
 await runMigrations(db)
 const auth = createAuth(db, config)
-const app = createApp({ auth })
+const app = createApp({ auth, webOrigin: config.WEB_ORIGIN })
 
 serve({ fetch: app.fetch, port: config.PORT }, (info) => {
   console.log(`API escuchando en http://localhost:${info.port} (${config.NODE_ENV})`)
