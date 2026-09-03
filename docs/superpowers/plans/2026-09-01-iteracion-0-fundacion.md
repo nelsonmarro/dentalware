@@ -2314,6 +2314,7 @@ console.log('iconos generados')
 ```bash
 pnpm install
 pnpm --filter @dentalware/web icons
+# Si pnpm bloqueó el postinstall de sharp (`ERR_PNPM_IGNORED_BUILDS`), añadir `sharp: true` a `allowBuilds` en pnpm-workspace.yaml y repetir `pnpm install`.
 ls apps/web/public   # icon.svg pwa-192x192.png pwa-512x512.png apple-touch-icon.png favicon.ico
 ```
 
@@ -2321,9 +2322,9 @@ ls apps/web/public   # icon.svg pwa-192x192.png pwa-512x512.png apple-touch-icon
 
 ```bash
 cd apps/web
-pnpm dlx shadcn@4.19.1 init
+pnpm dlx shadcn@4.19.1 init -y --base radix --css-variables --no-monorepo --no-rtl --pointer
 ```
-Responder: estilo `new-york` (o el que ofrezca por defecto), color base `neutral`, CSS variables `yes`. El CLI detecta Vite + Tailwind v4, reescribe `src/index.css` con `@import "tailwindcss"`, `@import "tw-animate-css"`, tokens `@theme inline` y crea `src/lib/utils.ts` y `components.json`. Verificar que `components.json` tenga `"css": "src/index.css"`, `"tailwind.config": ""` y `"aliases.components": "@/components"`.
+Flags no interactivos verificados en la documentación de la CLI (context7, 2026-09-03): `-y` omite confirmaciones, `--base radix` fija la librería de primitivas, `--css-variables` activa tokens CSS, `--no-monorepo`/`--no-rtl` evitan prompts. Si aun así pide el color base, responder `neutral`. El CLI detecta Vite + Tailwind v4, reescribe `src/index.css` con `@import "tailwindcss"`, `@import "tw-animate-css"`, tokens `@theme inline` y crea `src/lib/utils.ts` y `components.json`. Verificar que `components.json` tenga `"css": "src/index.css"`, `"tailwind.config": ""` y `"aliases.components": "@/components"`.
 
 ```bash
 pnpm dlx shadcn@4.19.1 add button input label card
