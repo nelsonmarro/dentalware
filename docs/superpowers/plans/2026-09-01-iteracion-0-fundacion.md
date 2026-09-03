@@ -2854,7 +2854,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 
 **Interfaces:**
 - Consumes: `pnpm -r build`, `node apps/api/dist/main.js` (aplica migraciones al arrancar), `apps/web/dist`.
-- Produces: `docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --build` sirve la app en `https://$DOMAIN` (o `http://localhost:8080` en pruebas locales).
+- Produces: `docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --build` sirve la app en `https://$DOMAIN` (o `http://localhost` en pruebas locales).
 
 - [ ] **Step 1: `.dockerignore` (raíz)**
 
@@ -3015,7 +3015,7 @@ volumes:
 `infra/.env.example`:
 ```
 # Dominio público. En el VPS: lab.midominio.com (Caddy obtiene TLS solo).
-# Para probar en local: SITE_ADDRESS=:8080 y PUBLIC_URL=http://localhost:8080
+# Para probar en local: SITE_ADDRESS=:80 y PUBLIC_URL=http://localhost (el compose solo publica 80/443)
 SITE_ADDRESS=lab.midominio.com
 PUBLIC_URL=https://lab.midominio.com
 
@@ -3056,15 +3056,15 @@ Nota: el volumen se llama `dentalware_uploads` porque el proyecto compose se lla
 
 ```bash
 cp infra/.env.example infra/.env
-sed -i 's|^SITE_ADDRESS=.*|SITE_ADDRESS=:8080|; s|^PUBLIC_URL=.*|PUBLIC_URL=http://localhost:8080|' infra/.env
+sed -i 's|^SITE_ADDRESS=.*|SITE_ADDRESS=:80|; s|^PUBLIC_URL=.*|PUBLIC_URL=http://localhost|' infra/.env
 sed -i 's|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET='"$(openssl rand -base64 32)"'|' infra/.env
 docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env up -d --build
 sleep 10
-curl -s localhost:8080/api/health                 # {"ok":true,...}
-curl -s localhost:8080 | grep -o '<title>.*</title>'   # <title>Dentalware</title>
+curl -s localhost/api/health                      # {"ok":true,...}
+curl -s localhost | grep -o '<title>.*</title>'        # <title>Dentalware</title>
 docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env exec api node -e "console.log('ok')"
 docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env run --rm api node apps/api/dist/scripts/seed.js   # Admin creado
-# Navegador: http://localhost:8080 → login con ADMIN_EMAIL/ADMIN_PASSWORD de infra/.env
+# Navegador: http://localhost → login con ADMIN_EMAIL/ADMIN_PASSWORD de infra/.env
 docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env down
 ```
 Si la imagen de la API falla en `prune --prod` por el flag `--filter`, ejecutar `pnpm prune --prod` sin filtro en su lugar.
