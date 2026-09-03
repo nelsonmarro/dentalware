@@ -14,6 +14,7 @@ export default defineConfig([
     '**/routeTree.gen.ts',
     'apps/api/drizzle/**',
     'apps/web/dev-dist/**',
+    '.remember/**',
   ]),
   {
     files: ['**/*.{js,mjs,ts,tsx}'],
