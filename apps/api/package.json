@@ -25,6 +25,7 @@
     "seed": "tsx src/scripts/seed.ts"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "catalog:",
     "@dentalware/shared": "workspace:*",
     "@hono/node-server": "catalog:",
     "@hono/zod-validator": "catalog:",
