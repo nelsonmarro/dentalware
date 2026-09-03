@@ -28,5 +28,11 @@ export default defineConfig([
     files: ['apps/web/**/*.{ts,tsx}'],
     extends: [reactHooks.configs.flat.recommended],
   },
+  {
+    files: ['**/*.mjs'],
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly' },
+    },
+  },
   eslintConfigPrettier,
 ])
