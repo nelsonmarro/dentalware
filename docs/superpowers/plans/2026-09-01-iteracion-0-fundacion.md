@@ -2729,7 +2729,8 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```bash
 pnpm --filter @dentalware/web exec playwright install chromium webkit
 # En la máquina de desarrollo (Arch Linux) `--with-deps` no aplica (usa apt); las dependencias del sistema ya están o se instalan con pacman.
-# En CI (Ubuntu, Tarea 13) sí se usa `--with-deps`.
+# En CI (Ubuntu, Tarea 13) sí se usa `--with-deps`. En Arch el WebKit de Playwright (compilado contra Ubuntu 24.04) no arranca
+# sin libicu74/libflite1: correr localmente `--project=escritorio --project=android`; el proyecto `iphone` lo cubre CI.
 ```
 
 - [ ] **Step 2: Configuración**
@@ -2746,7 +2747,8 @@ export default defineConfig({
   use: { baseURL: 'http://localhost:5173', trace: 'on-first-retry' },
   webServer: [
     {
-      command: 'pnpm --filter @dentalware/api seed && pnpm --filter @dentalware/api dev',
+      // NODE_ENV=test: desactiva el rate limit fijo de better-auth (3 req/10 s en sign-in) que los 3 proyectos compartirían
+      command: 'NODE_ENV=test pnpm --filter @dentalware/api seed && NODE_ENV=test pnpm --filter @dentalware/api dev',
       url: 'http://localhost:3000/api/health',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
@@ -3163,8 +3165,8 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: cp apps/api/.env.example apps/api/.env
-      - run: pnpm --filter @dentalware/web exec playwright install --with-deps chromium
-      - run: pnpm --filter @dentalware/web exec playwright test --project=escritorio
+      - run: pnpm --filter @dentalware/web exec playwright install --with-deps chromium webkit
+      - run: pnpm --filter @dentalware/web exec playwright test   # los 3 proyectos; WebKit (iphone) solo corre fiable en Ubuntu/CI
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
