@@ -39,7 +39,7 @@
 - Nombres de tablas en plural y snake_case (`users`, `sessions`, …). Ids como `text` (better-auth) en tablas de auth; `uuid` en el resto (iteraciones siguientes).
 - Los precios nunca se exponen a `tecnico` ni `mensajero` (aplica desde la Iteración 1; aquí solo se deja el guard de roles).
 - Nada de `drizzle-kit push` fuera de local. Producción aplica migraciones con `migrate()` al arrancar la API.
-- Commits pequeños, mensajes en español con prefijo convencional (`feat:`, `test:`, `chore:`, `docs:`), y trailer `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.
+- Commits pequeños, mensajes en español con prefijo convencional (`feat:`, `test:`, `chore:`, `docs:`), y trailer `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>` y línea `Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi`.
 - Desarrollo con TDD: test primero, verlo fallar, implementar, verlo pasar, commit.
 
 ---
@@ -378,7 +378,8 @@ Si `pnpm install` falla por una versión inexistente, consultar context7 para es
 git add -A
 git commit -m "chore: bootstrap del monorepo pnpm con tooling raíz (TS 6, ESLint 10, Prettier, Vitest 4)
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
 ---
@@ -677,7 +678,8 @@ pnpm --filter @dentalware/shared build       # genera dist/ sin errores
 git add packages/shared
 git commit -m "feat(shared): paquete compartido con roles y máquina de estados del trabajo
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
 ---
@@ -808,7 +810,8 @@ pnpm --filter @dentalware/shared test   # PASS
 git add packages/shared
 git commit -m "feat(shared): piezas dentales FDI con validación zod
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
 ---
@@ -978,7 +981,8 @@ pnpm --filter @dentalware/shared test && pnpm --filter @dentalware/shared build 
 git add packages/shared
 git commit -m "feat(shared): cálculo de días hábiles y formato de código de trabajo
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
 ---
@@ -1064,7 +1068,8 @@ Expected: todo verde.
 git add packages/shared
 git commit -m "feat(shared): schemas zod de login y rol
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
 ---
@@ -1379,7 +1384,8 @@ Detener el servidor (`kill %1` o Ctrl+C).
 git add infra/docker-compose.dev.yml infra/postgres apps/api pnpm-lock.yaml
 git commit -m "feat(api): esqueleto Hono con config validada, health y Postgres local en Docker
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
 ---
@@ -1580,7 +1586,8 @@ pnpm --filter @dentalware/api typecheck
 git add apps/api
 git commit -m "feat(api): Drizzle 1.0 RC con Postgres, esquema de auth generado por better-auth y migraciones
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
 ---
@@ -2002,7 +2009,8 @@ pnpm --filter @dentalware/api typecheck && pnpm lint
 git add apps/api
 git commit -m "feat(api): autenticación better-auth, sesión por cookie, guard de roles, /api/me y seed del admin
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
 ---
@@ -2314,7 +2322,8 @@ El archivo `src/routeTree.gen.ts` se genera al arrancar `vite`; no editarlo.
 git add apps/web pnpm-lock.yaml
 git commit -m "feat(web): scaffold Vite 8 + React 19 + TanStack Router/Query + Tailwind 4 + shadcn + PWA
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
 ---
@@ -2647,7 +2656,8 @@ kill %1
 git add apps/web
 git commit -m "feat(web): login con better-auth, rutas protegidas y layout responsive con navegación por rol
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
 ---
@@ -2775,7 +2785,8 @@ echo "apps/web/dev-dist/" >> .gitignore
 git add apps/web/playwright.config.ts apps/web/e2e .gitignore
 git commit -m "test(web): E2E de login y navegación en escritorio, Android e iPhone con Playwright
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
 ---
@@ -3008,7 +3019,8 @@ Si la imagen de la API falla en `prune --prod` por el flag `--filter`, ejecutar 
 git add infra .dockerignore
 git commit -m "chore(infra): Docker Compose de producción con Caddy, API y Postgres, y script de backup
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
 ---
@@ -3119,7 +3131,8 @@ Expected: todo verde. Si `format:check` falla, ejecutar `pnpm format` y revisar 
 git add .github .husky package.json
 git commit -m "chore: CI con lint, typecheck, tests y E2E; hooks de pre-commit con husky y lint-staged
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 Expected: en la salida aparecen `lint-staged` y `tsc` antes de crear el commit.
 
@@ -3163,7 +3176,8 @@ Actualizar: `git pull && docker compose -p dentalware -f infra/docker-compose.ym
 git add README.md docs/superpowers/plans/2026-09-01-iteracion-0-fundacion.md
 git commit -m "docs: instrucciones de despliegue y cierre de la iteración 0
 
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
 ---
