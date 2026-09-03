@@ -19,7 +19,7 @@ export default defineConfig({
         description: 'Gestión del laboratorio dental',
         lang: 'es',
         theme_color: '#0f766e',
-        background_color: '#ffffff',
+        background_color: '#F4F6F5',
         display: 'standalone',
         start_url: '/',
         icons: [
