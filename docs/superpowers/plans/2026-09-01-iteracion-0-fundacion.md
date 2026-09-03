@@ -1227,7 +1227,7 @@ ADMIN_PASSWORD=Admin12345!
 ADMIN_NAME=Administrador
 ```
 
-`apps/api/.env.test` (se commitea; solo apunta a la BD de test local):
+`apps/api/.env.test` (se commitea; solo apunta a la BD de test local). El `.gitignore` raíz tiene `.env.*`: añadir la excepción `!.env.test` justo después de `!.env.example` e incluir `.gitignore` en el commit de esta tarea:
 ```
 NODE_ENV=test
 PORT=3999
