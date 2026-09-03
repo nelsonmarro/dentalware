@@ -3151,7 +3151,7 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: cp apps/api/.env.example apps/api/.env
-      - run: pnpm --filter @dentalware/web exec playwright install --with-deps chromium webkit
+      - run: pnpm --filter @dentalware/web exec playwright install --with-deps chromium
       - run: pnpm --filter @dentalware/web exec playwright test --project=escritorio
       - uses: actions/upload-artifact@v4
         if: failure()
