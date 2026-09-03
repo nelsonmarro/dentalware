@@ -58,7 +58,7 @@ Mapeo a variables de shadcn (`src/index.css`, bloque `:root`):
 
 - **UI y texto**: `Instrument Sans` (variable), 400/500/600. Legible en pantallas pequeñas, personalidad geométrica sin parecer plantilla.
 - **Datos**: `JetBrains Mono` para códigos de trabajo (`26-00123`), piezas FDI, fechas cortas y montos. Cifras tabulares hacen las listas escaneables.
-- Ambas **autoalojadas** vía paquetes `@fontsource-variable/instrument-sans` y `@fontsource-variable/jetbrains-mono` (versiones a confirmar con context7/npm al instalar). Fallbacks: `system-ui, sans-serif` y `ui-monospace, monospace`.
+- Ambas **autoalojadas** vía paquetes `@fontsource-variable/instrument-sans` y `@fontsource-variable/jetbrains-mono` (versión 5.3.0 en ambas, verificada en npm el 2026-09-03). Fallbacks: `system-ui, sans-serif` y `ui-monospace, monospace`.
 - Escala: 12 / 14 (base móvil) / 16 (base PC) / 18 / 24 / 32. Títulos de página 24 semibold, sin mayúsculas forzadas. Interlineado 1.45.
 
 ```css

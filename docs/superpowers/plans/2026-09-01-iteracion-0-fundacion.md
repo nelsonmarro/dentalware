@@ -221,6 +221,8 @@ catalog:
   react-hook-form: 7.87.0
   '@hookform/resolvers': 5.9.1
   lucide-react: 1.39.0
+  '@fontsource-variable/instrument-sans': 5.3.0
+  '@fontsource-variable/jetbrains-mono': 5.3.0
   sharp: 0.35.4
 ```
 
@@ -2042,6 +2044,8 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 
 - [ ] **Step 1: package.json y tsconfig**
 
+Antes, añadir al `catalog` de `pnpm-workspace.yaml` raíz (versiones verificadas en npm el 2026-09-03): `'@fontsource-variable/instrument-sans': 5.3.0` y `'@fontsource-variable/jetbrains-mono': 5.3.0`.
+
 `apps/web/package.json`:
 ```json
 {
@@ -2065,6 +2069,8 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
     "@tanstack/react-router": "catalog:",
     "better-auth": "catalog:",
     "hono": "catalog:",
+    "@fontsource-variable/instrument-sans": "catalog:",
+    "@fontsource-variable/jetbrains-mono": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
@@ -2317,7 +2323,11 @@ cd ../..
 ```
 Expected: `src/components/ui/{button,input,label,card}.tsx`.
 
-Ajustar el color primario al verde del laboratorio en `src/index.css`, dentro de `:root`: `--primary: oklch(0.51 0.1 180);` (teal), y en `.dark`: `--primary: oklch(0.7 0.1 180);`.
+Aplicar la dirección de diseño (`docs/superpowers/specs/2026-09-01-dentalware-design-direction.md`, §2) en `src/index.css`:
+- Sustituir los valores de las variables de `:root` por el bloque de mapeo shadcn de la dirección de diseño (`--background: #F4F6F5`, `--primary: #0F766E`, `--destructive: #D6453D`, `--radius: 0.75rem`, etc.). Dejar `.dark` como lo generó shadcn (tema oscuro fuera del alcance).
+- Añadir los tokens propios en `:root`: `--articulating-red: #D6453D; --wax-amber: #D99A16; --ok-green: #2F8F5B; --teal-lab-soft: #D9EFEC;` y exponerlos en `@theme inline` como `--color-articulating-red`, `--color-wax-amber`, `--color-ok-green`, `--color-teal-lab-soft`.
+- Importar las fuentes al inicio del archivo: `@import '@fontsource-variable/instrument-sans';` y `@import '@fontsource-variable/jetbrains-mono';` y definir en `@theme inline`: `--font-sans: 'Instrument Sans Variable', system-ui, sans-serif; --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;`.
+- `body` con `@apply bg-background text-foreground font-sans antialiased` y `line-height: 1.45`.
 
 Ahora que `apps/web/src/index.css` existe, añadir en el `.prettierrc` raíz la clave `"tailwindStylesheet": "./apps/web/src/index.css"` (junto a `plugins`) y comprobar `pnpm format:check` en verde.
 
