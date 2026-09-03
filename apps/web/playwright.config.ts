@@ -8,7 +8,9 @@ export default defineConfig({
   use: { baseURL: 'http://localhost:5173', trace: 'on-first-retry' },
   webServer: [
     {
-      command: 'pnpm --filter @dentalware/api seed && pnpm --filter @dentalware/api dev',
+      // NODE_ENV=test: desactiva el rate limit fijo de better-auth (3 req/10 s en sign-in) que los 3 proyectos compartirían
+      command:
+        'NODE_ENV=test pnpm --filter @dentalware/api seed && NODE_ENV=test pnpm --filter @dentalware/api dev',
       url: 'http://localhost:3000/api/health',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
