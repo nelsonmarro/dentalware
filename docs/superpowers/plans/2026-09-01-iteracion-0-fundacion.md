@@ -2407,6 +2407,8 @@ export const api = hc<AppType>(window.location.origin, {
 
 - [ ] **Step 2: AppShell responsive**
 
+Aplicar la dirección de diseño §9 (`docs/superpowers/specs/2026-09-01-dentalware-design-direction.md`) sobre el código de este paso y del Step 3 (login): tokens, pestaña del ticket en la tarjeta de login, estados activo/inactivo de la navegación, iconos lucide, `aria-label` en botones de solo icono, `motion-reduce`. Mantener intactos los `data-testid` (`sidebar`, `bottom-nav`, `api-status`) y las etiquetas "Correo"/"Contraseña" que usa la Tarea 11.
+
 `apps/web/src/components/app-shell.tsx`:
 ```tsx
 import type { UserRole } from '@dentalware/shared'

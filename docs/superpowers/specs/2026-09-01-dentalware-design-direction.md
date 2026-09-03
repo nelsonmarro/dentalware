@@ -124,3 +124,13 @@ Casi nulo: transición de 150ms en hover/foco y al cambiar de chip de estado. Ni
 - Se evitó el fondo negro con acento ácido: los técnicos trabajan en bancos muy iluminados; un tema claro con acento teal lee mejor con polvo en la pantalla. El tema oscuro queda como opción futura.
 - Se evitó Inter/Roboto por defecto: Instrument Sans + JetBrains Mono dan carácter con costo cero.
 - Un solo elemento con riesgo: la pestaña de color del ticket como lenguaje transversal. Todo lo demás, silencioso.
+
+## 9. Pantallas de la Iteración 0 (login y cascarón)
+
+**Login** (`/login`): fondo `--porcelain`; una sola tarjeta `--zirconia` de 400px máximo centrada vertical y horizontalmente (en móvil ocupa el ancho con 16px de margen). La tarjeta lleva la **pestaña del ticket**: borde izquierdo de 4px en `--teal-lab`. Arriba, la marca "Dentalware" (24 semibold) y debajo "Laboratorio dental" en `--graphite-60`. Campos "Correo" y "Contraseña" con etiqueta visible, altura 44px, `autocomplete` correcto (`email`, `current-password`). Botón primario de ancho completo "Ingresar"; mientras envía, "Ingresando…" y deshabilitado. Error bajo el formulario en `--articulating-red`, con `role="alert"`: "Correo o contraseña incorrectos". Nada más en la pantalla: ni ilustración, ni degradado, ni texto de marketing.
+
+**Cascarón** (`AppShell`): PC con sidebar de 240px (`w-60`) sobre `--zirconia` y borde derecho `--plaster`; marca arriba, navegación en el medio, usuario y "Cerrar sesión" al pie. Elemento activo: fondo `--teal-lab-soft`, texto e icono `--teal-lab`, radio 8px; inactivo: `--graphite-60`. Móvil: cabecera con la marca y el botón de cerrar sesión (solo icono, con `aria-label`), contenido con `pb-24`, barra inferior fija sobre `--zirconia` con borde superior, 4‑5 destinos con icono lucide de 24px y etiqueta de 12px, activo en `--teal-lab`, `safe-area-inset-bottom`. Área principal con ancho máximo 1200px. Títulos de página 24 semibold sin mayúsculas forzadas.
+
+**Inicio provisional**: título "Inicio", línea "Estado del servidor" con el resultado de `/api/health` en monoespaciado (`font-mono`), y el texto "Bienvenido, {nombre}". Es un marcador de posición: sin tarjetas de métricas inventadas.
+
+Iconos: `lucide-react` (Home, ClipboardList, Truck, Wallet, Settings, LogOut). Transiciones de 150ms solo en hover/foco; `motion-reduce:transition-none`.
