@@ -28,7 +28,10 @@ export function createAuth(db: Db, config: Config) {
       expiresIn: 60 * 60 * 24 * 14, // 14 días
       updateAge: 60 * 60 * 24,
     },
-    rateLimit: { enabled: true, window: 60, max: 30 },
+    // better-auth aplica una regla especial fija de 3 solicitudes/10s a /sign-in*
+    // y /sign-up*, sin importar window/max aquí; eso rompe la suite de tests
+    // (varios sign-up/sign-in por caso). Se deshabilita solo en test.
+    rateLimit: { enabled: config.NODE_ENV !== 'test', window: 60, max: 30 },
     advanced: {
       useSecureCookies: config.NODE_ENV === 'production',
       defaultCookieAttributes: { httpOnly: true, sameSite: 'lax' },
