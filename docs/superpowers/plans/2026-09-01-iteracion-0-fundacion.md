@@ -224,6 +224,7 @@ catalog:
   lucide-react: 1.39.0
   '@fontsource-variable/instrument-sans': 5.3.0
   '@fontsource-variable/jetbrains-mono': 5.3.0
+  workbox-window: 7.4.1   # peer de vite-plugin-pwa (necesario para `vite build`)
   sharp: 0.35.4
 ```
 
@@ -2102,7 +2103,8 @@ Antes, añadir al `catalog` de `pnpm-workspace.yaml` raíz (versiones verificada
     "tw-animate-css": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plugin-pwa": "catalog:"
+    "vite-plugin-pwa": "catalog:",
+    "workbox-window": "catalog:"
   }
 }
 ```
@@ -2116,10 +2118,9 @@ Antes, añadir al `catalog` de `pnpm-workspace.yaml` raíz (versiones verificada
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
     "lib": ["es2023", "dom", "dom.iterable"],
-    "types": ["vite/client", "vite-plugin-pwa/react"],
+    "types": ["vite/client", "vite-plugin-pwa/client"],
     "noEmit": true,
     "allowImportingTsExtensions": true,
-    "baseUrl": ".",
     "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src", "e2e", "vite.config.ts", "playwright.config.ts"]
@@ -2209,7 +2210,7 @@ export default defineConfig({
 `apps/web/src/vite-env.d.ts`:
 ```ts
 /// <reference types="vite/client" />
-/// <reference types="vite-plugin-pwa/react" />
+/// <reference types="vite-plugin-pwa/client" />
 ```
 
 `apps/web/src/main.tsx`:
@@ -2281,6 +2282,8 @@ export const Route = createFileRoute('/')({
 
 - [ ] **Step 4: Iconos PWA**
 
+`scripts/gen-icons.mjs` usa `console`/`process`: añadir en `eslint.config.js` raíz un bloque `{ files: ['**/*.mjs'], languageOptions: { globals: { console: 'readonly', process: 'readonly' } } }`. Añadir `apps/web/.tanstack/` al `.gitignore` raíz (caché del plugin de rutas).
+
 `apps/web/public/icon.svg`:
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
@@ -2323,7 +2326,9 @@ ls apps/web/public   # icon.svg pwa-192x192.png pwa-512x512.png apple-touch-icon
 
 ```bash
 cd apps/web
-pnpm dlx shadcn@4.19.1 init -y --base radix --css-variables --no-monorepo --no-rtl --pointer
+pnpm dlx shadcn@4.19.1 init -y -p nova --base radix --css-variables --no-monorepo --no-rtl --pointer
+# shadcn 4.19 pide un preset en lugar del color base: `-p nova` (Lucide). El preset inyecta `shadcn` y `@fontsource-variable/geist`
+# en package.json: quitarlos (no aprobados) y reinstalar.
 ```
 Flags no interactivos verificados en la documentación de la CLI (context7, 2026-09-03): `-y` omite confirmaciones, `--base radix` fija la librería de primitivas, `--css-variables` activa tokens CSS, `--no-monorepo`/`--no-rtl` evitan prompts. Si aun así pide el color base, responder `neutral`. El CLI detecta Vite + Tailwind v4, reescribe `src/index.css` con `@import "tailwindcss"`, `@import "tw-animate-css"`, tokens `@theme inline` y crea `src/lib/utils.ts` y `components.json`. Verificar que `components.json` tenga `"css": "src/index.css"`, `"tailwind.config": ""` y `"aliases.components": "@/components"`.
 
