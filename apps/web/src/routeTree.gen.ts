@@ -9,50 +9,172 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppConfiguracionRouteImport } from './routes/_app/configuracion'
+import { Route as AppCuentasRouteImport } from './routes/_app/cuentas'
+import { Route as AppEntregasRouteImport } from './routes/_app/entregas'
+import { Route as AppTrabajosRouteImport } from './routes/_app/trabajos'
 
-const IndexRoute = IndexRouteImport.update({
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppRoute,
+} as any)
+const AppConfiguracionRoute = AppConfiguracionRouteImport.update({
+  id: '/configuracion',
+  path: '/configuracion',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCuentasRoute = AppCuentasRouteImport.update({
+  id: '/cuentas',
+  path: '/cuentas',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEntregasRoute = AppEntregasRouteImport.update({
+  id: '/entregas',
+  path: '/entregas',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTrabajosRoute = AppTrabajosRouteImport.update({
+  id: '/trabajos',
+  path: '/trabajos',
+  getParentRoute: () => AppRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof AppIndexRoute
+  '/login': typeof LoginRoute
+  '/configuracion': typeof AppConfiguracionRoute
+  '/cuentas': typeof AppCuentasRoute
+  '/entregas': typeof AppEntregasRoute
+  '/trabajos': typeof AppTrabajosRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/configuracion': typeof AppConfiguracionRoute
+  '/cuentas': typeof AppCuentasRoute
+  '/entregas': typeof AppEntregasRoute
+  '/trabajos': typeof AppTrabajosRoute
+  '/': typeof AppIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_app/configuracion': typeof AppConfiguracionRoute
+  '/_app/cuentas': typeof AppCuentasRoute
+  '/_app/entregas': typeof AppEntregasRoute
+  '/_app/trabajos': typeof AppTrabajosRoute
+  '/_app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    '/' | '/login' | '/configuracion' | '/cuentas' | '/entregas' | '/trabajos'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/login' | '/configuracion' | '/cuentas' | '/entregas' | '/trabajos' | '/'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/login'
+    | '/_app/configuracion'
+    | '/_app/cuentas'
+    | '/_app/entregas'
+    | '/_app/trabajos'
+    | '/_app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/': {
+      id: '/_app/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/configuracion': {
+      id: '/_app/configuracion'
+      path: '/configuracion'
+      fullPath: '/configuracion'
+      preLoaderRoute: typeof AppConfiguracionRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/cuentas': {
+      id: '/_app/cuentas'
+      path: '/cuentas'
+      fullPath: '/cuentas'
+      preLoaderRoute: typeof AppCuentasRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/entregas': {
+      id: '/_app/entregas'
+      path: '/entregas'
+      fullPath: '/entregas'
+      preLoaderRoute: typeof AppEntregasRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/trabajos': {
+      id: '/_app/trabajos'
+      path: '/trabajos'
+      fullPath: '/trabajos'
+      preLoaderRoute: typeof AppTrabajosRouteImport
+      parentRoute: typeof AppRoute
     }
   }
 }
 
+interface AppRouteChildren {
+  AppConfiguracionRoute: typeof AppConfiguracionRoute
+  AppCuentasRoute: typeof AppCuentasRoute
+  AppEntregasRoute: typeof AppEntregasRoute
+  AppTrabajosRoute: typeof AppTrabajosRoute
+  AppIndexRoute: typeof AppIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppConfiguracionRoute: AppConfiguracionRoute,
+  AppCuentasRoute: AppCuentasRoute,
+  AppEntregasRoute: AppEntregasRoute,
+  AppTrabajosRoute: AppTrabajosRoute,
+  AppIndexRoute: AppIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
