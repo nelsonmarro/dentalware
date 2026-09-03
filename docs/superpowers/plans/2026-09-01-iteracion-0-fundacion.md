@@ -2890,7 +2890,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 COPY packages/shared packages/shared
 COPY apps/api apps/api
 RUN pnpm --filter @dentalware/api... build
-RUN pnpm --filter @dentalware/api... prune --prod
+# --ignore-scripts: `prune` relanza `prepare` (husky) tras borrar husky y rompe el build.
+RUN pnpm prune --prod --ignore-scripts
 
 FROM base AS runtime
 ENV NODE_ENV=production
@@ -3067,7 +3068,7 @@ docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env r
 # Navegador: http://localhost → login con ADMIN_EMAIL/ADMIN_PASSWORD de infra/.env
 docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env down
 ```
-Si la imagen de la API falla en `prune --prod` por el flag `--filter`, ejecutar `pnpm prune --prod` sin filtro en su lugar.
+`pnpm prune` no acepta `--filter` en pnpm 11 y sin `--ignore-scripts` relanza el `prepare` raíz (`husky`), ya eliminado → `sh: husky: not found`. Por eso el Dockerfile usa `pnpm prune --prod --ignore-scripts` y exporta `HUSKY=0`.
 
 - [ ] **Step 6: Commit**
 
