@@ -2862,14 +2862,21 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 node_modules
 **/node_modules
 **/dist
+**/dev-dist
+**/.tanstack
+**/*.tsbuildinfo
 **/coverage
 **/playwright-report
 **/test-results
+**/.env
 .git
+.superpowers
+.remember
 docs
 infra/data
 *.md
 ```
+> `**/*.tsbuildinfo` es imprescindible: en `.dockerignore` un `*.tsbuildinfo` sin `**/` no cubre subcarpetas (a diferencia de gitignore); si un `tsconfig.tsbuildinfo` local entra en la imagen, `tsc -b` cree que está al día y no emite `dist/`.
 
 - [ ] **Step 2: Dockerfile de la API**
 
