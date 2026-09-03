@@ -225,6 +225,11 @@ catalog:
   '@fontsource-variable/instrument-sans': 5.3.0
   '@fontsource-variable/jetbrains-mono': 5.3.0
   workbox-window: 7.4.1   # peer de vite-plugin-pwa (necesario para `vite build`)
+  # inyectadas por `shadcn add` — se fijan en el catalog como todo lo demás
+  class-variance-authority: 0.7.1
+  clsx: 2.1.1
+  radix-ui: 1.6.7
+  tailwind-merge: 3.6.0
   sharp: 0.35.4
 ```
 
@@ -2151,7 +2156,7 @@ export default defineConfig({
         description: 'Gestión del laboratorio dental',
         lang: 'es',
         theme_color: '#0f766e',
-        background_color: '#ffffff',
+        background_color: '#F4F6F5' // porcelana (--background),
         display: 'standalone',
         start_url: '/',
         icons: [
@@ -2328,7 +2333,8 @@ ls apps/web/public   # icon.svg pwa-192x192.png pwa-512x512.png apple-touch-icon
 cd apps/web
 pnpm dlx shadcn@4.19.1 init -y -p nova --base radix --css-variables --no-monorepo --no-rtl --pointer
 # shadcn 4.19 pide un preset en lugar del color base: `-p nova` (Lucide). El preset inyecta `shadcn` y `@fontsource-variable/geist`
-# en package.json: quitarlos (no aprobados) y reinstalar.
+# en package.json: quitarlos (no aprobados) y reinstalar. `shadcn add` añade `class-variance-authority`, `clsx`, `radix-ui`
+# y `tailwind-merge` con rangos `^`: cambiarlos a `catalog:` (versiones en el catalog raíz).
 ```
 Flags no interactivos verificados en la documentación de la CLI (context7, 2026-09-03): `-y` omite confirmaciones, `--base radix` fija la librería de primitivas, `--css-variables` activa tokens CSS, `--no-monorepo`/`--no-rtl` evitan prompts. Si aun así pide el color base, responder `neutral`. El CLI detecta Vite + Tailwind v4, reescribe `src/index.css` con `@import "tailwindcss"`, `@import "tw-animate-css"`, tokens `@theme inline` y crea `src/lib/utils.ts` y `components.json`. Verificar que `components.json` tenga `"css": "src/index.css"`, `"tailwind.config": ""` y `"aliases.components": "@/components"`.
 
