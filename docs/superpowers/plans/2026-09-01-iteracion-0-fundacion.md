@@ -257,10 +257,11 @@ strict-peer-dependencies=false
   "semi": false,
   "singleQuote": true,
   "printWidth": 100,
-  "plugins": ["prettier-plugin-tailwindcss"],
-  "tailwindStylesheet": "./apps/web/src/index.css"
+  "plugins": ["prettier-plugin-tailwindcss"]
 }
 ```
+
+> `tailwindStylesheet` se añade en la Tarea 9 (Step 5), cuando exista `apps/web/src/index.css`; si se pone antes, `prettier-plugin-tailwindcss` lanza `ENOENT` en todo archivo `.js/.ts`.
 
 `.prettierignore`:
 ```
@@ -2301,6 +2302,8 @@ cd ../..
 Expected: `src/components/ui/{button,input,label,card}.tsx`.
 
 Ajustar el color primario al verde del laboratorio en `src/index.css`, dentro de `:root`: `--primary: oklch(0.51 0.1 180);` (teal), y en `.dark`: `--primary: oklch(0.7 0.1 180);`.
+
+Ahora que `apps/web/src/index.css` existe, añadir en el `.prettierrc` raíz la clave `"tailwindStylesheet": "./apps/web/src/index.css"` (junto a `plugins`) y comprobar `pnpm format:check` en verde.
 
 - [ ] **Step 6: Arrancar y verificar**
 
