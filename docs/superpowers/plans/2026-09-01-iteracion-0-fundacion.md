@@ -19,7 +19,7 @@
 | hono | 4.13.5 | @hono/node-server | 2.1.1 |
 | @hono/zod-validator | 0.9.1 | zod | 4.5.4 |
 | drizzle-orm / drizzle-kit | 1.0.0-rc.4 (ambos, exactos) | pg / @types/pg | 8.23.0 / 8.23.1 |
-| better-auth | 1.7.2 | @types/node | ^24 |
+| better-auth / @better-auth/drizzle-adapter | 1.7.2 / 1.7.2 (CLI: @better-auth/cli 1.4.22, versionada aparte) | @types/node | ^24 |
 | vite / @vitejs/plugin-react | 8.2.2 / 6.1.1 | react / react-dom | 19.2.8 |
 | @tanstack/react-router | 1.170.32 | @tanstack/router-plugin | 1.168.35 |
 | @tanstack/react-router-devtools | 1.167.1 | @tanstack/react-query (+devtools) | 5.102.8 |
@@ -202,6 +202,7 @@ catalog:
   pg: 8.23.0
   '@types/pg': 8.23.1
   better-auth: 1.7.2
+  '@better-auth/drizzle-adapter': 1.7.2
   # web
   vite: 8.2.2
   '@vitejs/plugin-react': 6.1.1
@@ -1156,6 +1157,7 @@ docker exec dentalware-postgres psql -U dentalware -d dentalware_test -c 'select
     "@dentalware/shared": "workspace:*",
     "@hono/node-server": "catalog:",
     "@hono/zod-validator": "catalog:",
+    "@better-auth/drizzle-adapter": "catalog:",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
     "hono": "catalog:",
@@ -1527,7 +1529,7 @@ Crear `apps/api/src/db/schema/auth.ts` vacío con `export {}` temporalmente.
 ```ts
 import { USER_ROLES } from '@dentalware/shared'
 import { betterAuth } from 'better-auth'
-import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { drizzleAdapter } from '@better-auth/drizzle-adapter/relations-v2' // Drizzle 1.0: relaciones v2
 import type { Config } from './config.ts'
 import type { Db } from './db/index.ts'
 import * as schema from './db/schema/index.ts'
@@ -1580,9 +1582,14 @@ export const auth = createAuth(createDb(config.DATABASE_URL).db, config)
 Generar el esquema Drizzle con la CLI oficial (versión fijada igual que better-auth):
 ```bash
 cd apps/api
-pnpm dlx @better-auth/cli@1.7.2 generate --config src/auth.instance.ts --output src/db/schema/auth.ts -y
+pnpm dlx @better-auth/cli@1.4.22 generate --config src/auth.instance.ts --output src/db/schema/auth.ts -y
+# La CLI se versiona aparte de better-auth (no existe 1.7.2). Con el adaptador `relations-v2` la CLI delega en `adapter.createSchema`
+# y genera relaciones con `defineRelationsPart` (compatibles con drizzle-orm 1.0). Si la salida trae `relations(` de la API v1,
+# probar `@better-auth/cli@1.5.0-beta.13`; nunca editar a mano el archivo generado.
 cd ../..
 ```
+Antes de la CLI: añadir `"@better-auth/drizzle-adapter": "catalog:"` a `apps/api/package.json` (y `'@better-auth/drizzle-adapter': 1.7.2` al catalog raíz) y `pnpm install`.
+
 Expected: `src/db/schema/auth.ts` contiene `pgTable('users', …)` con columnas `id, name, email, emailVerified, image, createdAt, updatedAt, role` (role `text().notNull().default('tecnico')`), más `sessions`, `accounts`, `verifications`. Revisar el archivo: si la CLI generó nombres en singular, verificar que `usePlural: true` esté en el adapter y regenerar. Si la CLI pide confirmar sobreescritura, aceptar.
 
 Generar y aplicar la migración:
