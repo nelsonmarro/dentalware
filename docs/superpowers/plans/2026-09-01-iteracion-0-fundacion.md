@@ -19,7 +19,7 @@
 | hono | 4.13.5 | @hono/node-server | 2.1.1 |
 | @hono/zod-validator | 0.9.1 | zod | 4.5.4 |
 | drizzle-orm / drizzle-kit | 1.0.0-rc.4 (ambos, exactos) | pg / @types/pg | 8.23.0 / 8.23.1 |
-| better-auth / @better-auth/drizzle-adapter | 1.7.2 / 1.7.2 (CLI: @better-auth/cli 1.4.22, versionada aparte) | @types/node | ^24 |
+| better-auth / @better-auth/drizzle-adapter | 1.7.2 / 1.7.2 (CLI: paquete npm `auth` 1.7.2; `@better-auth/cli` está estancada en 1.4.22) | @types/node | ^24 |
 | vite / @vitejs/plugin-react | 8.2.2 / 6.1.1 | react / react-dom | 19.2.8 |
 | @tanstack/react-router | 1.170.32 | @tanstack/router-plugin | 1.168.35 |
 | @tanstack/react-router-devtools | 1.167.1 | @tanstack/react-query (+devtools) | 5.102.8 |
@@ -1582,10 +1582,11 @@ export const auth = createAuth(createDb(config.DATABASE_URL).db, config)
 Generar el esquema Drizzle con la CLI oficial (versión fijada igual que better-auth):
 ```bash
 cd apps/api
-pnpm dlx @better-auth/cli@1.4.22 generate --config src/auth.instance.ts --output src/db/schema/auth.ts -y
-# La CLI se versiona aparte de better-auth (no existe 1.7.2). Con el adaptador `relations-v2` la CLI delega en `adapter.createSchema`
-# y genera relaciones con `defineRelationsPart` (compatibles con drizzle-orm 1.0). Si la salida trae `relations(` de la API v1,
-# probar `@better-auth/cli@1.5.0-beta.13`; nunca editar a mano el archivo generado.
+pnpm dlx auth@1.7.2 generate --config src/auth.instance.ts --output src/db/schema/auth.ts -y
+# La CLI de Better Auth es el paquete npm `auth` (bins `auth`/`better-auth`), versionado junto al core (1.7.2).
+# `@better-auth/cli` quedó estancada en 1.4.22 (marzo 2026): despacha por `adapter.id` a un generador interno que emite
+# `relations()` de la API v1, incompatible con drizzle-orm 1.0. Con `auth@1.7.2` + adaptador `relations-v2` la salida usa
+# `defineRelationsPart`. Nunca editar a mano el archivo generado.
 cd ../..
 ```
 Antes de la CLI: añadir `"@better-auth/drizzle-adapter": "catalog:"` a `apps/api/package.json` (y `'@better-auth/drizzle-adapter': 1.7.2` al catalog raíz) y `pnpm install`.
