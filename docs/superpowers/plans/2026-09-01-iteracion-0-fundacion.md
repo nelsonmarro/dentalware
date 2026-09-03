@@ -1100,7 +1100,8 @@ services:
       POSTGRES_PASSWORD: dentalware
       POSTGRES_DB: dentalware
     ports:
-      - '5432:5432'
+      - '5433:5432'
+    # Puerto 5433 en el host: 5432 suele estar ocupado por otro Postgres local (ruling del controlador, 2026-09-03).
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
       - ./postgres/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
@@ -1217,7 +1218,7 @@ export default defineConfig({
 ```
 NODE_ENV=development
 PORT=3000
-DATABASE_URL=postgres://dentalware:dentalware@localhost:5432/dentalware
+DATABASE_URL=postgres://dentalware:dentalware@localhost:5433/dentalware
 BETTER_AUTH_SECRET=cambia-esto-por-32-caracteres-aleatorios-minimo
 BETTER_AUTH_URL=http://localhost:3000
 WEB_ORIGIN=http://localhost:5173
@@ -1230,7 +1231,7 @@ ADMIN_NAME=Administrador
 ```
 NODE_ENV=test
 PORT=3999
-DATABASE_URL=postgres://dentalware:dentalware@localhost:5432/dentalware_test
+DATABASE_URL=postgres://dentalware:dentalware@localhost:5433/dentalware_test
 BETTER_AUTH_SECRET=secreto-de-test-no-usar-en-produccion-0123456789
 BETTER_AUTH_URL=http://localhost:3999
 WEB_ORIGIN=http://localhost:5173
@@ -3068,7 +3069,7 @@ jobs:
           POSTGRES_USER: dentalware
           POSTGRES_PASSWORD: dentalware
           POSTGRES_DB: dentalware_test
-        ports: ['5432:5432']
+        ports: ['5433:5432']
         options: >-
           --health-cmd "pg_isready -U dentalware -d dentalware_test"
           --health-interval 5s --health-timeout 3s --health-retries 10
@@ -3097,7 +3098,7 @@ jobs:
           POSTGRES_USER: dentalware
           POSTGRES_PASSWORD: dentalware
           POSTGRES_DB: dentalware
-        ports: ['5432:5432']
+        ports: ['5433:5432']
         options: >-
           --health-cmd "pg_isready -U dentalware -d dentalware"
           --health-interval 5s --health-timeout 3s --health-retries 10
