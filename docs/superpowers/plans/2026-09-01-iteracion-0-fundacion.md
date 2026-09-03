@@ -1557,7 +1557,8 @@ export function createAuth(db: Db, config: Config) {
       expiresIn: 60 * 60 * 24 * 14, // 14 días
       updateAge: 60 * 60 * 24,
     },
-    rateLimit: { enabled: true, window: 60, max: 30 },
+    // better-auth fija además 3 req/10 s en sign-in/sign-up; en tests se desactiva para no romper la suite.
+    rateLimit: { enabled: config.NODE_ENV !== 'test', window: 60, max: 30 },
     advanced: {
       useSecureCookies: config.NODE_ENV === 'production',
       defaultCookieAttributes: { httpOnly: true, sameSite: 'lax' },
@@ -1839,8 +1840,8 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
 export const requireRole = (...roles: UserRole[]) =>
   createMiddleware<AppEnv>(async (c, next) => {
     const user = c.var.user
-    if (!user) throw new HTTPException(401, { message: 'No autenticado' })
-    if (!roles.includes(user.role as UserRole)) {
+    // Sin sesión o rol incorrecto: ambos 403, no se revela si la ruta exige autenticación.
+    if (!user || !roles.includes(user.role as UserRole)) {
       throw new HTTPException(403, { message: 'Sin permiso' })
     }
     await next()
