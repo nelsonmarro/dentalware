@@ -106,6 +106,22 @@ Color de cada estado (chip + texto, nunca solo color): `por_recoger` gris azulad
 | Cancelar | ≠ entregado, ≠ cobrado | cancelado | admin, recepción | motivo obligatorio |
 | Editar datos/precios | nuevo, en_proceso | = | admin, recepción | cambios de precio quedan en eventos |
 
+### Orden de trabajo actual del laboratorio (referencia obligatoria)
+La orden en papel que usa hoy el laboratorio **Arte Dental** (`docs/planilla de ingreso actual.jpeg`; talonario con original para el cliente y copia celeste para el emisor) define los campos mínimos del formulario digital y el diseño de la ficha impresa:
+
+| Bloque en papel | En Dentalware |
+|---|---|
+| Encabezado: logo, "Arte Dental", dirección Puerto Rico N27-33 y La Isla, celulares, número de orden | `lab_settings` (nombre, dirección, teléfonos, logo) + código del trabajo `AA-NNNNN` y QR en la ficha impresa |
+| Clínica / Doctor, Paciente, Edad, M/F, Fecha ingreso, Fecha entrega | `clinic_id`, `doctor_id`, `patient_ref` (alias), `patient_age`, `patient_sex`, `received_at`, `due_date`/`promised_date` |
+| Color, Referencia, esquemas de arcada y de pieza | `shade` + `shade_system` (VITA), campo `reference` (referencia de color/guía), imágenes del odontograma seleccionado en la ficha impresa |
+| Numeración dental 18…28 / 48…38 | odontograma FDI interactivo (mismo orden y numeración) |
+| Descripción de trabajo: Prótesis fija (Zirconio, Disilicato de litio, Metal porcelana) · Prótesis removible (Acrílico, Cromo cobalto, Prótesis híbrida) | seeds de `product_categories` (Prótesis fija, Prótesis removible) y `products` iniciales con esos seis nombres; el catálogo es editable en Configuración |
+| Observaciones (líneas) | `observations` / `prescription` |
+| IMPORTANTE: Enviar antagonista, mordida, color, fotos | lista de verificación de lo que la clínica debe entregar; forma parte de los **datos obligatorios al recibir** (§7): se marca lo recibido y lo que falta bloquea Aceptar o queda registrado como pendiente con aviso a la clínica |
+| Firmas: Técnico responsable · Dr./Cliente | `assigned_technician_id` y constancia de entrega (firma o foto) en Entregas |
+
+La ficha imprimible (Iteración 3) reproduce esta hoja en A5/A4 con los mismos bloques y orden, para que el equipo y las clínicas la reconozcan; se imprime en dos copias (cliente y laboratorio) o se envía en PDF por WhatsApp.
+
 ### Importación de trabajos
 Plantilla CSV/XLSX descargable (una fila por línea de trabajo: clínica, doctor, referencia de paciente, producto, piezas FDI, color, fecha deseada, observaciones). La importación valida cada fila con los mismos schemas zod que el formulario, muestra un informe de errores por fila y solo crea los trabajos cuando el archivo está limpio. Sirve para migrar el histórico de VEVI y para clínicas que envían pedidos en hoja de cálculo.
 
@@ -133,7 +149,7 @@ Roles: `admin` todo; `recepcion` todo salvo usuarios/config; `tecnico` trabajos 
 
 ## 7. Errores y calidad de datos
 
-- Datos obligatorios al recibir un trabajo (no se puede **Aceptar** sin ellos): clínica, doctor, referencia de paciente, al menos una línea con producto y piezas FDI o arcada, fecha deseada, color cuando el producto lo exige, y foto o documento de la prescripción si la clínica no la entregó en papel. El formulario marca lo que falta y la API lo rechaza con 422 y mensajes en español.
+- Datos obligatorios al recibir un trabajo (no se puede **Aceptar** sin ellos): clínica, doctor, referencia de paciente, al menos una línea con producto y piezas FDI o arcada, fecha deseada, color cuando el producto lo exige, y foto o documento de la prescripción si la clínica no la entregó en papel; además la lista de verificación de la orden en papel (antagonista, mordida, color, fotos) con lo recibido marcado. El formulario marca lo que falta y la API lo rechaza con 422 y mensajes en español.
 
 - Validación zod compartida con mensajes en español.
 - Transición inválida → 409 con mensaje claro; la UI solo muestra acciones válidas.
