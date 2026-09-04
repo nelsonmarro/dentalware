@@ -3,6 +3,9 @@ import { Pool } from 'pg'
 
 export function createDb(url: string) {
   const pool = new Pool({ connectionString: url, max: 10 })
+  pool.on('error', (err) => {
+    console.error('Error en el pool de Postgres:', err)
+  })
   const db = drizzle({ client: pool })
   return { db, pool }
 }

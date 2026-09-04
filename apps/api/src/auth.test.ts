@@ -108,6 +108,14 @@ describe('CORS', () => {
     })
     expect(res.headers.get('access-control-allow-origin')).toBe(ctx.config.WEB_ORIGIN)
   })
+
+  it('conserva la cabecera CORS en una respuesta de error (401)', async () => {
+    const res = await app.request('/api/me', {
+      headers: { origin: ctx.config.WEB_ORIGIN },
+    })
+    expect(res.status).toBe(401)
+    expect(res.headers.get('access-control-allow-origin')).toBe(ctx.config.WEB_ORIGIN)
+  })
 })
 
 describe('requireRole', () => {

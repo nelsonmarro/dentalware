@@ -11,11 +11,6 @@ import { meRoutes } from './routes/me.ts'
 
 export type AppDeps = { auth: Auth; webOrigin: string }
 
-// Los errores de HTTPException se devuelven siempre como JSON en español.
-function errorResponse(err: HTTPException) {
-  return Response.json({ message: err.message || 'Error' }, { status: err.status })
-}
-
 export function createApp({ auth, webOrigin }: AppDeps) {
   const app = new Hono<AppEnv>()
 
@@ -49,9 +44,9 @@ export function createApp({ auth, webOrigin }: AppDeps) {
 
   app.notFound((c) => c.json({ message: 'Recurso no encontrado' }, 404))
   app.onError((err, c) => {
-    if (err instanceof HTTPException) return errorResponse(err)
+    if (err instanceof HTTPException) return c.json({ message: err.message || 'Error' }, err.status)
     console.error(err)
-    return c.json({ message: 'Error interno del servidor' }, 500)
+    return c.json({ message: 'Error interno' }, 500)
   })
 
   return routes
