@@ -2962,6 +2962,7 @@ header /assets/* Cache-Control "public, max-age=31536000, immutable"
 
 `infra/docker-compose.yml`:
 ```yaml
+name: dentalware # fija el proyecto: volúmenes dentalware_uploads, etc., sin depender de -p
 services:
   caddy:
     build: { context: .., dockerfile: infra/web.Dockerfile }
@@ -3036,6 +3037,9 @@ BETTER_AUTH_SECRET=genera-32-o-mas-caracteres-aleatorios-con-openssl-rand-base64
 ADMIN_EMAIL=admin@lab.local
 ADMIN_PASSWORD=cambia-esta-clave-tambien
 ADMIN_NAME=Administrador
+
+# Carpeta de respaldos del script infra/backup.sh (opcional)
+# BACKUP_DIR=/opt/dentalware-backups
 ```
 
 `infra/backup.sh`:
