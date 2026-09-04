@@ -1,7 +1,7 @@
 import type { UserRole } from '@dentalware/shared'
 import { createMiddleware } from 'hono/factory'
 import { HTTPException } from 'hono/http-exception'
-import type { Auth, SessionUser } from '../auth.ts'
+import type { Auth, SessionUser } from '../../auth.ts'
 
 export type AppEnv = {
   Variables: {

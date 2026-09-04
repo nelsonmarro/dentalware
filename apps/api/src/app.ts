@@ -4,10 +4,10 @@ import { HTTPException } from 'hono/http-exception'
 import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
 import type { Auth } from './auth.ts'
-import type { AppEnv } from './middleware/session.ts'
-import { requireRole, sessionMiddleware } from './middleware/session.ts'
-import { healthRoutes } from './routes/health.ts'
-import { meRoutes } from './routes/me.ts'
+import { meRoutes } from './features/auth/me.routes.ts'
+import type { AppEnv } from './features/auth/session.ts'
+import { requireRole, sessionMiddleware } from './features/auth/session.ts'
+import { healthRoutes } from './features/health/routes.ts'
 
 export type AppDeps = { auth: Auth; webOrigin: string }
 

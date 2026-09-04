@@ -3,7 +3,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { ClipboardList, Home, LogOut, Settings, Truck, Wallet } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
-import { authClient } from '@/lib/auth-client'
+import { authClient } from '@/features/auth/auth-client'
 
 type NavItem = { to: string; label: string; icon: typeof Home; roles?: UserRole[] }
 
