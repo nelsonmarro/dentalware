@@ -81,14 +81,19 @@ Cuentas:
 - `payments`: clinic_id, amount, method (`efectivo | transferencia | tarjeta | cheque | otro`), paid_at, reference, notes, created_by.
 - `invoice_refs` + `invoice_ref_cases`: número SRI emitido fuera, fecha, monto, trabajos incluidos.
 - Saldo = Σ trabajos entregados + Σ ajustes − Σ pagos. Estado de cuenta por rango con saldo inicial/final y antigüedad (0-30 / 31-60 / 61-90 / 90+).
+- `payment_allocations`: (payment_id, case_id, amount). Un pago se reparte entre trabajos entregados de la clínica (por defecto los más antiguos primero, editable); cuando la suma asignada a un trabajo alcanza su `total`, el trabajo pasa a `cobrado`. Vista "Por cobrar" por trabajo con días desde la entrega.
 
 ## 5. Ciclo de vida del trabajo (máquina de estados en `packages/shared`)
 
-Estados: `nuevo → en_proceso ⇄ (en_espera | en_prueba) → terminado → enviado → entregado`, más `cancelado` desde cualquier estado distinto de `entregado`.
+Estados: `por_recoger → nuevo → en_proceso ⇄ (en_espera | en_prueba) → terminado → enviado → entregado → cobrado`, más `cancelado` desde cualquier estado distinto de `entregado` y `cobrado`. (Ampliado el 2026-09-04: `por_recoger` coordina la recogida con el mensajero antes de recibir el trabajo; `cobrado` cierra la orden cuando el pago cubre su total. La máquina de estados de `packages/shared` implementada en la Iteración 0 se amplía en la Iteración 3.)
+
+Color de cada estado (chip + texto, nunca solo color): `por_recoger` gris azulado `#6B7C93`; `nuevo` `--teal-lab-soft` con texto `--teal-lab`; `en_proceso` `--teal-lab`; `en_espera` `--wax-amber`; `en_prueba` violeta `#7C5CBF`; `terminado` verde claro `#8CC9A6`; `enviado` azul `#2F6FB0`; `entregado` `--ok-green`; `cobrado` `--graphite`; `cancelado` `--articulating-red`. Los mismos colores se usan en la lista, la tarjeta móvil, el tablero, el calendario y la ficha impresa.
 
 | Acción | Desde | Hacia | Quién | Regla |
 |---|---|---|---|---|
-| Aceptar | nuevo | en_proceso | admin, recepción | fija `promised_date` (días hábiles del mayor `turnaround_days`) y fase inicial |
+| Programar recogida | (nuevo caso) | por_recoger | admin, recepción | crea `delivery` tipo `recogida` asignada al mensajero con fecha; avisa por WhatsApp al mensajero y a la clínica |
+| Recibir | por_recoger | nuevo | mensajero, recepción, admin | cierra la recogida; el trabajo queda como recibido. Un trabajo que la clínica trae directamente se crea en `nuevo` |
+| Aceptar | nuevo | en_proceso | admin, recepción | exige los datos obligatorios completos (§7); fija `promised_date` (días hábiles del mayor `turnaround_days`) y fase inicial |
 | Cambiar fase | en_proceso | en_proceso | técnico, admin, recepción | evento con fase anterior/nueva; retroceder exige motivo |
 | Asignar técnico | activo | = | admin, recepción | |
 | Pausar / Reanudar | en_proceso ⇄ en_espera | | admin, recepción | motivo obligatorio |
@@ -96,9 +101,21 @@ Estados: `nuevo → en_proceso ⇄ (en_espera | en_prueba) → terminado → env
 | Finalizar | en_proceso | terminado | admin, recepción, técnico | fase debe ser la última o confirmar |
 | Marcar enviado | terminado | enviado | mensajero, recepción, admin | crea/cierra `delivery` |
 | Marcar entregado | enviado | entregado | mensajero, recepción, admin | fija `delivered_at`; pasa a ser cargo |
+| Registrar cobro | entregado | cobrado | admin, recepción | automático al aplicar pagos que cubran el `total` del trabajo (§4 `payment_allocations`); fija `paid_at` y cierra la orden |
 | Repetir (remake) | terminado/enviado/entregado | nuevo caso hijo | admin, recepción | motivo + responsable + % cobro; copia líneas y odontograma |
-| Cancelar | ≠ entregado | cancelado | admin, recepción | motivo obligatorio |
+| Cancelar | ≠ entregado, ≠ cobrado | cancelado | admin, recepción | motivo obligatorio |
 | Editar datos/precios | nuevo, en_proceso | = | admin, recepción | cambios de precio quedan en eventos |
+
+### Importación de trabajos
+Plantilla CSV/XLSX descargable (una fila por línea de trabajo: clínica, doctor, referencia de paciente, producto, piezas FDI, color, fecha deseada, observaciones). La importación valida cada fila con los mismos schemas zod que el formulario, muestra un informe de errores por fila y solo crea los trabajos cuando el archivo está limpio. Sirve para migrar el histórico de VEVI y para clínicas que envían pedidos en hoja de cálculo.
+
+### Notificaciones y calendario
+- **WhatsApp** (canal principal de aviso a clínicas y mensajero): mensajes al programar recogida, al recibir, al enviar, al entregar y **recordatorio un día antes** de la fecha comprometida de entrega. Integración con la API oficial de WhatsApp Business (Meta Cloud API) con plantillas aprobadas; mientras no exista la cuenta verificada, enlace `wa.me` con el mensaje prellenado que recepción envía con un toque. Cada envío queda en `notifications` (destinatario, canal, plantilla, estado).
+- **Calendario de entregas**: vista mensual/semanal de recogidas y entregas por clínica y mensajero; cada trabajo aceptado crea su evento en la fecha comprometida; feed ICS por clínica para que lo vean en su propio calendario; alarma interna y WhatsApp **un día antes**.
+
+### Productividad del personal
+- **Producción por persona**: por técnico y período: trabajos y fases completadas, piezas, tiempo por fase, a tiempo vs. atrasadas, repeticiones atribuibles. Se calcula desde `case_events` (cada cambio de fase registra actor y fecha).
+- **Puntos de recompensa y penalización**: reglas configurables por el administrador (p. ej. +puntos por fase cerrada a tiempo o por trabajo sin repetición; −puntos por atraso o repetición atribuible al técnico), tablero mensual por persona y exportación. Los puntos nunca alteran los datos del trabajo; son una vista derivada de los eventos.
 
 ## 6. Pantallas
 
@@ -115,6 +132,8 @@ Estados: `nuevo → en_proceso ⇄ (en_espera | en_prueba) → terminado → env
 Roles: `admin` todo; `recepcion` todo salvo usuarios/config; `tecnico` trabajos sin precios, fases, fotos, comentarios; `mensajero` entregas + ficha básica sin precios.
 
 ## 7. Errores y calidad de datos
+
+- Datos obligatorios al recibir un trabajo (no se puede **Aceptar** sin ellos): clínica, doctor, referencia de paciente, al menos una línea con producto y piezas FDI o arcada, fecha deseada, color cuando el producto lo exige, y foto o documento de la prescripción si la clínica no la entregó en papel. El formulario marca lo que falta y la API lo rechaza con 422 y mensajes en español.
 
 - Validación zod compartida con mensajes en español.
 - Transición inválida → 409 con mensaje claro; la UI solo muestra acciones válidas.
@@ -143,11 +162,15 @@ Roles: `admin` todo; `recepcion` todo salvo usuarios/config; `tecnico` trabajos 
 1. Configuración: catálogos y usuarios (CRUD + seeds).
 2. Trabajos I: crear/editar/listar/ficha, odontograma, líneas con precios, fotos, comentarios.
 3. Trabajos II: estados y fases con historial, asignación, pausas, pruebas, remake, cancelación, dashboard, ficha imprimible con QR y `/t/:code`.
-4. Entregas: recogidas y envíos, vista del mensajero, prueba con foto, nota de entrega.
-5. Cuentas: saldos, pagos, ajustes, referencia SRI, estado de cuenta, antigüedad.
-6. Cierre MVP: E2E, despliegue en VPS con TLS, backups, instalación de la PWA en Android e iPhone, datos reales.
+4. Entregas y calendario: recogidas coordinadas con el mensajero (`por_recoger`), envíos, vista del mensajero, prueba con foto, nota de entrega, calendario de entregas con feed ICS.
+5. Cuentas y cobro: saldos, pagos con asignación por trabajo, cierre `cobrado`, ajustes, referencia SRI, estado de cuenta, antigüedad, vista "Por cobrar".
+6. Notificaciones: WhatsApp (Meta Cloud API con plantillas; `wa.me` como respaldo) para recogida, recepción, envío, entrega y recordatorio un día antes; alarmas internas.
+7. Productividad: producción por persona y sistema de puntos de recompensa/penalización configurable.
+8. Cierre MVP: E2E, despliegue en VPS con TLS, backups, instalación de la PWA en Android e iPhone, importación del histórico y datos reales.
 
-Post-MVP: Capacitor iOS/Android, fases por línea, listas de precios completas, almacén con lotes (ARCSA), notificaciones WhatsApp, portal del odontólogo, facturación electrónica SRI, reportes.
+Post-MVP: Capacitor iOS/Android, fases por línea, listas de precios completas, almacén con lotes (ARCSA), portal del odontólogo, facturación electrónica SRI.
+
+Cambios del 2026-09-04 (pedido de Nelson): recogida coordinada con el mensajero, cierre al cobrar con énfasis en pagos, colores por estado, validación de datos obligatorios al recibir, formato de importación, alertas por WhatsApp y calendario de entregas con aviso un día antes, producción por persona y sistema de puntos. La Iteración 1 (Configuración) no cambia; la máquina de estados de `shared` se amplía en la 3.
 
 ## 11. Supuestos
 
