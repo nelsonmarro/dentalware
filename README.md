@@ -24,3 +24,15 @@ pnpm e2e
 ```
 
 Spec: `docs/superpowers/specs/2026-09-01-dentalware-mvp-design.md`.
+
+## Despliegue (VPS con Docker)
+
+```bash
+git clone <repo> /opt/dentalware && cd /opt/dentalware
+cp infra/.env.example infra/.env   # editar dominio, claves y admin
+docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env up -d --build
+docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env run --rm api node apps/api/dist/scripts/seed.js
+```
+
+Caddy obtiene el certificado TLS automáticamente para `SITE_ADDRESS`. Backups: `infra/backup.sh` en cron diario.
+Actualizar: `git pull && docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env up -d --build`.

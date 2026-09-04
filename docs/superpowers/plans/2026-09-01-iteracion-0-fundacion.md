@@ -114,7 +114,7 @@ dentalware/
 **Interfaces:**
 - Produces: nombres de paquetes `@dentalware/shared`, `@dentalware/api`, `@dentalware/web`; scripts raíz `dev`, `build`, `typecheck`, `lint`, `format`, `test`, `e2e`; catálogo pnpm con las versiones de la tabla.
 
-- [ ] **Step 1: Activar Node 24 y pnpm 11 (local)**
+- [x] **Step 1: Activar Node 24 y pnpm 11 (local)**
 
 ```bash
 cd /home/nelson/workspace/github/nelsonmarro/dentalware
@@ -127,7 +127,7 @@ corepack enable && corepack use pnpm@11.25.0 && pnpm --version   # 11.25.0
 echo 24 > .nvmrc
 ```
 
-- [ ] **Step 2: Escribir `package.json` raíz**
+- [x] **Step 2: Escribir `package.json` raíz**
 
 ```json
 {
@@ -167,7 +167,7 @@ echo 24 > .nvmrc
 }
 ```
 
-- [ ] **Step 3: Escribir `pnpm-workspace.yaml` con el catálogo de versiones**
+- [x] **Step 3: Escribir `pnpm-workspace.yaml` con el catálogo de versiones**
 
 ```yaml
 packages:
@@ -233,7 +233,7 @@ catalog:
   sharp: 0.35.4
 ```
 
-- [ ] **Step 4: Escribir `.npmrc`, `tsconfig.base.json`, Prettier, ESLint, lint-staged, vitest raíz**
+- [x] **Step 4: Escribir `.npmrc`, `tsconfig.base.json`, Prettier, ESLint, lint-staged, vitest raíz**
 
 `.npmrc`:
 ```
@@ -338,7 +338,7 @@ export default defineConfig({
 })
 ```
 
-- [ ] **Step 5: Corregir el spec (Node 24, Drizzle RC) y escribir README**
+- [x] **Step 5: Corregir el spec (Node 24, Drizzle RC) y escribir README**
 
 En `docs/superpowers/specs/2026-09-01-dentalware-mvp-design.md`:
 - Reemplazar todas las apariciones de `Node 22 LTS` por `Node 24 LTS` y de `node:22-alpine` por `node:24-alpine`.
@@ -371,7 +371,7 @@ pnpm e2e
 Spec: `docs/superpowers/specs/2026-09-01-dentalware-mvp-design.md`.
 ```
 
-- [ ] **Step 6: Instalar dependencias raíz y verificar herramientas**
+- [x] **Step 6: Instalar dependencias raíz y verificar herramientas**
 
 ```bash
 pnpm install
@@ -382,7 +382,7 @@ pnpm exec vitest --version   # vitest/4.1.11
 ```
 Si `pnpm install` falla por una versión inexistente, consultar context7 para esa librería y ajustar solo esa entrada del catálogo.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A
@@ -410,7 +410,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
   - `ACTIONS_REQUIRING_REASON: readonly CaseAction[]`
   - `canPerform(role: UserRole, action: CaseAction): boolean`
 
-- [ ] **Step 1: Crear el paquete**
+- [x] **Step 1: Crear el paquete**
 
 `packages/shared/package.json`:
 ```json
@@ -487,7 +487,7 @@ export * from './case-status.ts'
 pnpm install
 ```
 
-- [ ] **Step 2: Escribir el test de la máquina de estados (falla)**
+- [x] **Step 2: Escribir el test de la máquina de estados (falla)**
 
 `packages/shared/src/case-status.test.ts`:
 ```ts
@@ -595,14 +595,14 @@ describe('motivo obligatorio y permisos por rol', () => {
 })
 ```
 
-- [ ] **Step 3: Ejecutar y ver fallar**
+- [x] **Step 3: Ejecutar y ver fallar**
 
 ```bash
 pnpm --filter @dentalware/shared test
 ```
 Expected: FAIL — `Failed to load url ./case-status.ts` (el módulo no existe).
 
-- [ ] **Step 4: Implementar `case-status.ts`**
+- [x] **Step 4: Implementar `case-status.ts`**
 
 ```ts
 import type { UserRole } from './roles.ts'
@@ -675,14 +675,14 @@ export function canPerform(role: UserRole, action: CaseAction): boolean {
 }
 ```
 
-- [ ] **Step 5: Ejecutar tests y typecheck**
+- [x] **Step 5: Ejecutar tests y typecheck**
 
 ```bash
 pnpm --filter @dentalware/shared test        # PASS (5 archivos de describe, todos verdes)
 pnpm --filter @dentalware/shared build       # genera dist/ sin errores
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/shared
@@ -704,7 +704,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 **Interfaces:**
 - Produces: `FDI_TEETH: readonly number[]` (32 valores), `isFdiTooth(n: unknown): n is FdiTooth`, `type FdiTooth`, `FDI_QUADRANTS: Record<1|2|3|4, readonly FdiTooth[]>`, `toothLabel(n: FdiTooth): string`, `fdiToothSchema` (zod), `fdiTeethSchema` (zod, array sin duplicados, ordenado)
 
-- [ ] **Step 1: Test (falla)**
+- [x] **Step 1: Test (falla)**
 
 `packages/shared/src/fdi.test.ts`:
 ```ts
@@ -747,14 +747,14 @@ describe('FDI', () => {
 })
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 ```bash
 pnpm --filter @dentalware/shared test
 ```
 Expected: FAIL — `Failed to load url ./fdi.ts`.
 
-- [ ] **Step 3: Implementar `fdi.ts`**
+- [x] **Step 3: Implementar `fdi.ts`**
 
 ```ts
 import { z } from 'zod'
@@ -808,13 +808,13 @@ export const fdiTeethSchema = z
 
 Añadir a `src/index.ts`: `export * from './fdi.ts'`.
 
-- [ ] **Step 4: Ejecutar tests**
+- [x] **Step 4: Ejecutar tests**
 
 ```bash
 pnpm --filter @dentalware/shared test   # PASS
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/shared
@@ -841,7 +841,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
   - `parseCaseCode(code: string): { year: number; seq: number } | null`
   - `CASE_CODE_REGEX`
 
-- [ ] **Step 1: Tests (fallan)**
+- [x] **Step 1: Tests (fallan)**
 
 `packages/shared/src/business-days.test.ts`:
 ```ts
@@ -910,14 +910,14 @@ describe('código de trabajo', () => {
 })
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 ```bash
 pnpm --filter @dentalware/shared test
 ```
 Expected: FAIL en ambos archivos por módulo inexistente.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 `packages/shared/src/business-days.ts`:
 ```ts
@@ -979,13 +979,13 @@ export * from './business-days.ts'
 export * from './case-code.ts'
 ```
 
-- [ ] **Step 4: Ejecutar tests y build**
+- [x] **Step 4: Ejecutar tests y build**
 
 ```bash
 pnpm --filter @dentalware/shared test && pnpm --filter @dentalware/shared build   # PASS
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/shared
@@ -1007,7 +1007,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 **Interfaces:**
 - Produces: `loginSchema = z.object({ email, password })`, `type LoginInput`; `userRoleSchema = z.enum(USER_ROLES)`.
 
-- [ ] **Step 1: Test (falla)**
+- [x] **Step 1: Test (falla)**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -1039,14 +1039,14 @@ describe('userRoleSchema', () => {
 })
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 ```bash
 pnpm --filter @dentalware/shared test
 ```
 Expected: FAIL — módulo `./auth.ts` no existe.
 
-- [ ] **Step 3: Implementar `schemas/auth.ts`**
+- [x] **Step 3: Implementar `schemas/auth.ts`**
 
 ```ts
 import { z } from 'zod'
@@ -1065,14 +1065,14 @@ export const loginSchema = z.object({
 export type LoginInput = z.infer<typeof loginSchema>
 ```
 
-- [ ] **Step 4: Ejecutar tests, build, lint**
+- [x] **Step 4: Ejecutar tests, build, lint**
 
 ```bash
 pnpm --filter @dentalware/shared test && pnpm --filter @dentalware/shared build && pnpm lint
 ```
 Expected: todo verde.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/shared
@@ -1096,7 +1096,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
   - `createApp(deps: AppDeps): Hono` y `type AppType` (en esta tarea `AppDeps = {}`; Task 8 lo amplía a `{ auth }`)
   - `GET /api/health → { ok: true, ts: string }`
 
-- [ ] **Step 1: Compose de desarrollo y script de BD de test**
+- [x] **Step 1: Compose de desarrollo y script de BD de test**
 
 `infra/docker-compose.dev.yml`:
 ```yaml
@@ -1135,7 +1135,7 @@ docker compose -f infra/docker-compose.dev.yml ps    # postgres healthy
 docker exec dentalware-postgres psql -U dentalware -d dentalware_test -c 'select 1'   # 1 fila
 ```
 
-- [ ] **Step 2: Crear el paquete `apps/api`**
+- [x] **Step 2: Crear el paquete `apps/api`**
 
 `apps/api/package.json`:
 ```json
@@ -1255,7 +1255,7 @@ cp apps/api/.env.example apps/api/.env
 pnpm install
 ```
 
-- [ ] **Step 3: Test del health endpoint (falla)**
+- [x] **Step 3: Test del health endpoint (falla)**
 
 `apps/api/src/app.test.ts`:
 ```ts
@@ -1281,14 +1281,14 @@ describe('GET /api/health', () => {
 })
 ```
 
-- [ ] **Step 4: Ejecutar y ver fallar**
+- [x] **Step 4: Ejecutar y ver fallar**
 
 ```bash
 pnpm --filter @dentalware/api test
 ```
 Expected: FAIL — `./app.ts` no existe.
 
-- [ ] **Step 5: Implementar config, health y app**
+- [x] **Step 5: Implementar config, health y app**
 
 `apps/api/src/config.ts`:
 ```ts
@@ -1395,7 +1395,7 @@ serve({ fetch: app.fetch, port: config.PORT }, (info) => {
 })
 ```
 
-- [ ] **Step 6: Ejecutar tests, arrancar y probar**
+- [x] **Step 6: Ejecutar tests, arrancar y probar**
 
 ```bash
 pnpm --filter @dentalware/api test          # PASS
@@ -1405,7 +1405,7 @@ curl -s localhost:3000/api/health           # {"ok":true,"ts":"..."}
 ```
 Detener el servidor (`kill %1` o Ctrl+C).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add infra/docker-compose.dev.yml infra/postgres apps/api pnpm-lock.yaml
@@ -1430,7 +1430,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
   - Tablas `users` (con `role`), `sessions`, `accounts`, `verifications` exportadas desde `db/schema/index.ts`
   - `createAuth(db: Db, config: Config): Auth`, `type Auth`, `type SessionUser = Auth['$Infer']['Session']['user']`
 
-- [ ] **Step 1: Test de migraciones (falla)**
+- [x] **Step 1: Test de migraciones (falla)**
 
 `apps/api/src/db/migrate.test.ts`:
 ```ts
@@ -1468,14 +1468,14 @@ describe('migraciones', () => {
 })
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 ```bash
 pnpm --filter @dentalware/api test
 ```
 Expected: FAIL — módulos `./index.ts` / `./migrate.ts` no existen.
 
-- [ ] **Step 3: Conexión y migrador**
+- [x] **Step 3: Conexión y migrador**
 
 `apps/api/src/db/index.ts`:
 ```ts
@@ -1523,7 +1523,7 @@ export default defineConfig({
 })
 ```
 
-- [ ] **Step 4: Configuración de better-auth y generación del esquema**
+- [x] **Step 4: Configuración de better-auth y generación del esquema**
 
 `apps/api/src/db/schema/index.ts` (inicialmente vacío para que la CLI pueda cargar la config):
 ```ts
@@ -1606,14 +1606,14 @@ pnpm --filter @dentalware/api db:generate      # crea drizzle/0000_<nombre>.sql 
 cat apps/api/drizzle/0000_*.sql | head -30      # CREATE TABLE "users" ... "role" text DEFAULT 'tecnico' NOT NULL
 ```
 
-- [ ] **Step 5: Ejecutar tests de migración**
+- [x] **Step 5: Ejecutar tests de migración**
 
 ```bash
 pnpm --filter @dentalware/api test
 ```
 Expected: PASS (las 2 pruebas de `migrate.test.ts` y las de `app.test.ts`).
 
-- [ ] **Step 6: Typecheck y commit**
+- [x] **Step 6: Typecheck y commit**
 
 ```bash
 pnpm --filter @dentalware/api typecheck
@@ -1642,7 +1642,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
   - Test helpers: `setupTestDb()`, `truncateAll(db)`, `createUser(auth, db, { email, password, name, role })`, `loginAs(app, email, password): Promise<string /* cookie */>`
   - Script `pnpm --filter @dentalware/api seed` crea el admin de `ADMIN_EMAIL` si no existe.
 
-- [ ] **Step 1: Helpers de test**
+- [x] **Step 1: Helpers de test**
 
 `apps/api/src/test/setup.ts`:
 ```ts
@@ -1695,7 +1695,7 @@ export async function loginAs(app: AppType, email: string, password: string): Pr
 }
 ```
 
-- [ ] **Step 2: Test de autenticación (falla)**
+- [x] **Step 2: Test de autenticación (falla)**
 
 `apps/api/src/auth.test.ts`:
 ```ts
@@ -1807,14 +1807,14 @@ describe('requireRole', () => {
 })
 ```
 
-- [ ] **Step 3: Ejecutar y ver fallar**
+- [x] **Step 3: Ejecutar y ver fallar**
 
 ```bash
 pnpm --filter @dentalware/api test
 ```
 Expected: FAIL — `createApp` no acepta `auth`; `./middleware/session.ts` no existe.
 
-- [ ] **Step 4: Middleware de sesión y roles**
+- [x] **Step 4: Middleware de sesión y roles**
 
 `apps/api/src/middleware/session.ts`:
 ```ts
@@ -1866,7 +1866,7 @@ export const meRoutes = new Hono<AppEnv>().get('/', requireAuth, (c) => {
 })
 ```
 
-- [ ] **Step 5: Ampliar `app.ts` y `main.ts`**
+- [x] **Step 5: Ampliar `app.ts` y `main.ts`**
 
 `apps/api/src/app.ts` (reemplazo completo):
 ```ts
@@ -1985,14 +1985,14 @@ serve({ fetch: app.fetch, port: config.PORT }, (info) => {
 })
 ```
 
-- [ ] **Step 6: Ejecutar tests**
+- [x] **Step 6: Ejecutar tests**
 
 ```bash
 pnpm --filter @dentalware/api test
 ```
 Expected: PASS. Si `sign-in` devuelve 403 por CSRF/origen, confirmar que `WEB_ORIGIN` de `.env.test` está en `trustedOrigins` y que el test envía la cabecera `origin`.
 
-- [ ] **Step 7: Script de seed**
+- [x] **Step 7: Script de seed**
 
 `apps/api/src/scripts/seed.ts`:
 ```ts
@@ -2026,7 +2026,7 @@ pnpm --filter @dentalware/api seed        # "Admin creado: admin@lab.local"
 pnpm --filter @dentalware/api seed        # "Admin ya existe: admin@lab.local"
 ```
 
-- [ ] **Step 8: Prueba manual del flujo completo**
+- [x] **Step 8: Prueba manual del flujo completo**
 
 ```bash
 pnpm --filter @dentalware/api dev &
@@ -2036,7 +2036,7 @@ curl -s -b /tmp/cj localhost:3000/api/me      # {"id":"...","name":"Administrado
 kill %1
 ```
 
-- [ ] **Step 9: Typecheck, lint y commit**
+- [x] **Step 9: Typecheck, lint y commit**
 
 ```bash
 pnpm --filter @dentalware/api typecheck && pnpm lint
@@ -2057,7 +2057,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 **Interfaces:**
 - Produces: app web en `http://localhost:5173` con proxy `/api` → `:3000`, alias `@/*`, Tailwind v4 + shadcn (button, input, label, card), PWA instalable (manifest + service worker), TanStack Router file-based con `routeTree.gen.ts`, `QueryClientProvider`.
 
-- [ ] **Step 1: package.json y tsconfig**
+- [x] **Step 1: package.json y tsconfig**
 
 Antes, añadir al `catalog` de `pnpm-workspace.yaml` raíz (versiones verificadas en npm el 2026-09-03): `'@fontsource-variable/instrument-sans': 5.3.0` y `'@fontsource-variable/jetbrains-mono': 5.3.0`.
 
@@ -2132,7 +2132,7 @@ Antes, añadir al `catalog` de `pnpm-workspace.yaml` raíz (versiones verificada
 }
 ```
 
-- [ ] **Step 2: vite.config.ts con Router, React, Tailwind, PWA, alias y proxy**
+- [x] **Step 2: vite.config.ts con Router, React, Tailwind, PWA, alias y proxy**
 
 ```ts
 import path from 'node:path'
@@ -2180,7 +2180,7 @@ export default defineConfig({
 })
 ```
 
-- [ ] **Step 3: index.html, CSS, main.tsx, rutas mínimas**
+- [x] **Step 3: index.html, CSS, main.tsx, rutas mínimas**
 
 `apps/web/index.html`:
 ```html
@@ -2285,7 +2285,7 @@ export const Route = createFileRoute('/')({
 })
 ```
 
-- [ ] **Step 4: Iconos PWA**
+- [x] **Step 4: Iconos PWA**
 
 `scripts/gen-icons.mjs` usa `console`/`process`: añadir en `eslint.config.js` raíz un bloque `{ files: ['**/*.mjs'], languageOptions: { globals: { console: 'readonly', process: 'readonly' } } }`. Añadir `apps/web/.tanstack/` al `.gitignore` raíz (caché del plugin de rutas).
 
@@ -2327,7 +2327,7 @@ pnpm --filter @dentalware/web icons
 ls apps/web/public   # icon.svg pwa-192x192.png pwa-512x512.png apple-touch-icon.png favicon.ico
 ```
 
-- [ ] **Step 5: shadcn/ui init y componentes base**
+- [x] **Step 5: shadcn/ui init y componentes base**
 
 ```bash
 cd apps/web
@@ -2352,7 +2352,7 @@ Aplicar la dirección de diseño (`docs/superpowers/specs/2026-09-01-dentalware-
 
 Ahora que `apps/web/src/index.css` existe, añadir en el `.prettierrc` raíz la clave `"tailwindStylesheet": "./apps/web/src/index.css"` (junto a `plugins`) y comprobar `pnpm format:check` en verde.
 
-- [ ] **Step 6: Arrancar y verificar**
+- [x] **Step 6: Arrancar y verificar**
 
 ```bash
 pnpm --filter @dentalware/shared build
@@ -2366,7 +2366,7 @@ pnpm --filter @dentalware/web typecheck
 ```
 El archivo `src/routeTree.gen.ts` se genera al arrancar `vite`; no editarlo.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web pnpm-lock.yaml
@@ -2388,7 +2388,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 - Consumes: `AppType` de `@dentalware/api/app`, `Auth` de `@dentalware/api/auth`, `loginSchema`, `UserRole` de `@dentalware/shared`.
 - Produces: `authClient` (better-auth react), `api` (cliente `hc<AppType>`), rutas `/login` y layout `/_app` (protegido) con `Inicio /`, `/trabajos`, `/entregas`, `/cuentas`, `/configuracion` (solo admin/recepcion ven el enlace); `AppShell` con sidebar ≥1024px y barra inferior en móvil; cerrar sesión.
 
-- [ ] **Step 1: Clientes**
+- [x] **Step 1: Clientes**
 
 `apps/web/src/lib/auth-client.ts`:
 ```ts
@@ -2417,7 +2417,7 @@ export const api = hc<AppType>(window.location.origin, {
 })
 ```
 
-- [ ] **Step 2: AppShell responsive**
+- [x] **Step 2: AppShell responsive**
 
 Aplicar la dirección de diseño §9 (`docs/superpowers/specs/2026-09-01-dentalware-design-direction.md`) sobre el código de este paso y del Step 3 (login): tokens, pestaña del ticket en la tarjeta de login, estados activo/inactivo de la navegación, iconos lucide, `aria-label` en botones de solo icono, `motion-reduce`. Mantener intactos los `data-testid` (`sidebar`, `bottom-nav`, `api-status`) y las etiquetas "Correo"/"Contraseña" que usa la Tarea 11.
 
@@ -2516,7 +2516,7 @@ export function AppShell({
 }
 ```
 
-- [ ] **Step 3: Rutas**
+- [x] **Step 3: Rutas**
 
 `apps/web/src/routes/login.tsx`:
 ```tsx
@@ -2687,7 +2687,7 @@ export const Route = createFileRoute('/_app/configuracion')({
 
 Eliminar `apps/web/src/routes/index.tsx` (la raíz ahora vive en `_app/index.tsx`).
 
-- [ ] **Step 4: Construir la API (para los tipos) y verificar**
+- [x] **Step 4: Construir la API (para los tipos) y verificar**
 
 ```bash
 pnpm --filter @dentalware/api build          # genera dist/app.d.ts y dist/auth.d.ts
@@ -2702,7 +2702,7 @@ pnpm dev &
 kill %1
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web
@@ -2724,7 +2724,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 - Consumes: seed del admin (`ADMIN_EMAIL`/`ADMIN_PASSWORD` de `apps/api/.env`), rutas `/login`, `/`.
 - Produces: `pnpm e2e` levanta API y web y ejecuta el flujo de login en 3 dispositivos.
 
-- [ ] **Step 1: Instalar navegadores**
+- [x] **Step 1: Instalar navegadores**
 
 ```bash
 pnpm --filter @dentalware/web exec playwright install chromium webkit
@@ -2733,7 +2733,7 @@ pnpm --filter @dentalware/web exec playwright install chromium webkit
 # sin libicu74/libflite1: correr localmente `--project=escritorio --project=android`; el proyecto `iphone` lo cubre CI.
 ```
 
-- [ ] **Step 2: Configuración**
+- [x] **Step 2: Configuración**
 
 `apps/web/playwright.config.ts`:
 ```ts
@@ -2770,7 +2770,7 @@ export default defineConfig({
 })
 ```
 
-- [ ] **Step 3: Test (falla hasta que exista la config; con la app ya hecha debe pasar)**
+- [x] **Step 3: Test (falla hasta que exista la config; con la app ya hecha debe pasar)**
 
 `apps/web/e2e/login.spec.ts`:
 ```ts
@@ -2826,7 +2826,7 @@ test('cierra sesión', async ({ page }) => {
 })
 ```
 
-- [ ] **Step 4: Ejecutar**
+- [x] **Step 4: Ejecutar**
 
 ```bash
 pnpm db:up
@@ -2834,7 +2834,7 @@ pnpm e2e
 ```
 Expected: 12 tests (4 × 3 proyectos) PASS. Si en `iphone` (WebKit) falla el `getByLabel`, comprobar que `Label` de shadcn renderiza `htmlFor` y que los ids coinciden.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 echo "apps/web/dev-dist/" >> .gitignore
@@ -2856,7 +2856,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 - Consumes: `pnpm -r build`, `node apps/api/dist/main.js` (aplica migraciones al arrancar), `apps/web/dist`.
 - Produces: `docker compose -f infra/docker-compose.yml --env-file infra/.env up -d --build` sirve la app en `https://$DOMAIN` (o `http://localhost` en pruebas locales).
 
-- [ ] **Step 1: `.dockerignore` (raíz)**
+- [x] **Step 1: `.dockerignore` (raíz)**
 
 ```
 node_modules
@@ -2878,7 +2878,7 @@ infra/data
 ```
 > `**/*.tsbuildinfo` es imprescindible: en `.dockerignore` un `*.tsbuildinfo` sin `**/` no cubre subcarpetas (a diferencia de gitignore); si un `tsconfig.tsbuildinfo` local entra en la imagen, `tsc -b` cree que está al día y no emite `dist/`.
 
-- [ ] **Step 2: Dockerfile de la API**
+- [x] **Step 2: Dockerfile de la API**
 
 `infra/api.Dockerfile`:
 ```dockerfile
@@ -2911,7 +2911,7 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
 CMD ["node", "apps/api/dist/main.js"]
 ```
 
-- [ ] **Step 3: Dockerfile de la web y Caddyfile**
+- [x] **Step 3: Dockerfile de la web y Caddyfile**
 
 `infra/web.Dockerfile`:
 ```dockerfile
@@ -2958,7 +2958,7 @@ header @nocache Cache-Control "no-cache"
 header /assets/* Cache-Control "public, max-age=31536000, immutable"
 ```
 
-- [ ] **Step 4: docker-compose de producción y env**
+- [x] **Step 4: docker-compose de producción y env**
 
 `infra/docker-compose.yml`:
 ```yaml
@@ -3064,7 +3064,7 @@ chmod +x infra/backup.sh
 ```
 Nota: el volumen se llama `dentalware_uploads` porque el proyecto compose se llama `dentalware` (carpeta padre); si se despliega desde otra carpeta, ajustar el nombre o pasar `-p dentalware`.
 
-- [ ] **Step 5: Prueba local del stack de producción**
+- [x] **Step 5: Prueba local del stack de producción**
 
 ```bash
 cp infra/.env.example infra/.env
@@ -3081,7 +3081,7 @@ docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env d
 ```
 `pnpm prune` no acepta `--filter` en pnpm 11 y sin `--ignore-scripts` relanza el `prepare` raíz (`husky`), ya eliminado → `sh: husky: not found`. Por eso el Dockerfile usa `pnpm prune --prod --ignore-scripts` y exporta `HUSKY=0`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add infra .dockerignore
@@ -3101,7 +3101,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 **Interfaces:**
 - Produces: en cada push/PR se ejecutan lint, typecheck, tests unitarios/API (con Postgres) y E2E (chromium); pre-commit local corre lint-staged + typecheck.
 
-- [ ] **Step 1: Husky**
+- [x] **Step 1: Husky**
 
 ```bash
 pnpm exec husky init
@@ -3112,7 +3112,7 @@ pnpm lint-staged
 pnpm typecheck
 ```
 
-- [ ] **Step 2: Workflow**
+- [x] **Step 2: Workflow**
 
 `.github/workflows/ci.yml`:
 ```yaml
@@ -3189,14 +3189,14 @@ jobs:
           path: apps/web/playwright-report
 ```
 
-- [ ] **Step 3: Verificar localmente lo que corre el CI**
+- [x] **Step 3: Verificar localmente lo que corre el CI**
 
 ```bash
 pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test
 ```
 Expected: todo verde. Si `format:check` falla, ejecutar `pnpm format` y revisar el diff.
 
-- [ ] **Step 4: Commit (el hook de pre-commit debe ejecutarse solo)**
+- [x] **Step 4: Commit (el hook de pre-commit debe ejecutarse solo)**
 
 ```bash
 git add .github .husky package.json
@@ -3214,7 +3214,7 @@ Expected: en la salida aparecen `lint-staged` y `tsc` antes de crear el commit.
 **Files:**
 - Modify: `README.md` (sección Despliegue), `docs/superpowers/plans/2026-09-01-iteracion-0-fundacion.md` (marcar checkboxes)
 
-- [ ] **Step 1: Ejecutar la verificación end-to-end de la iteración**
+- [x] **Step 1: Ejecutar la verificación end-to-end de la iteración**
 
 ```bash
 pnpm db:up
@@ -3223,11 +3223,11 @@ pnpm --filter @dentalware/web e2e --project=escritorio --project=android   # en 
 ```
 Expected: todos los comandos en verde; `pnpm test` muestra proyectos `shared` y `api`; E2E 8 pruebas en 2 dispositivos en local (12 en 3 en CI).
 
-- [ ] **Step 2: Prueba manual en un celular real** (la hace Nelson; el implementador solo deja las instrucciones en el informe)
+- [x] **Step 2: Prueba manual en un celular real** (la hace Nelson; el implementador solo deja las instrucciones en el informe)
 
 Con `pnpm dev` corriendo y el celular en la misma red Wi-Fi: abrir `http://<IP-del-PC>:5173` (añadir `server.host: true` en `vite.config.ts` si Vite no expone la red; quitarlo después o dejarlo, es solo dev). Verificar: login, barra inferior, "API: conectada". La instalación como PWA (Añadir a pantalla de inicio) requiere HTTPS o `localhost`, así que se valida en el VPS en la Iteración 6.
 
-- [ ] **Step 3: Documentar despliegue en el README**
+- [x] **Step 3: Documentar despliegue en el README**
 
 Añadir al final de `README.md`:
 ```markdown
@@ -3242,7 +3242,7 @@ Caddy obtiene el certificado TLS automáticamente para `SITE_ADDRESS`. Backups: 
 Actualizar: `git pull && docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env up -d --build`.
 ```
 
-- [ ] **Step 4: Commit final**
+- [x] **Step 4: Commit final**
 
 ```bash
 git add README.md docs/superpowers/plans/2026-09-01-iteracion-0-fundacion.md
