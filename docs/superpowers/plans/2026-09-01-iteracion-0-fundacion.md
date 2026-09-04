@@ -3215,11 +3215,12 @@ Expected: en la salida aparecen `lint-staged` y `tsc` antes de crear el commit.
 
 ```bash
 pnpm db:up
-pnpm build && pnpm lint && pnpm typecheck && pnpm test && pnpm e2e
+pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test
+pnpm --filter @dentalware/web e2e --project=escritorio --project=android   # en Arch no arranca WebKit; el proyecto iphone corre en CI
 ```
-Expected: todos los comandos en verde; `pnpm test` muestra proyectos `shared` y `api`; `pnpm e2e` 12 pruebas en 3 dispositivos.
+Expected: todos los comandos en verde; `pnpm test` muestra proyectos `shared` y `api`; E2E 8 pruebas en 2 dispositivos en local (12 en 3 en CI).
 
-- [ ] **Step 2: Prueba manual en un celular real**
+- [ ] **Step 2: Prueba manual en un celular real** (la hace Nelson; el implementador solo deja las instrucciones en el informe)
 
 Con `pnpm dev` corriendo y el celular en la misma red Wi-Fi: abrir `http://<IP-del-PC>:5173` (añadir `server.host: true` en `vite.config.ts` si Vite no expone la red; quitarlo después o dejarlo, es solo dev). Verificar: login, barra inferior, "API: conectada". La instalación como PWA (Añadir a pantalla de inicio) requiere HTTPS o `localhost`, así que se valida en el VPS en la Iteración 6.
 
