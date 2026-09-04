@@ -1,3 +1,6 @@
+# fija el proyecto: volúmenes dentalware_uploads, etc., sin depender de -p
+name: dentalware
+
 services:
   caddy:
     build: { context: .., dockerfile: infra/web.Dockerfile }
