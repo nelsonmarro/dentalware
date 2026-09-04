@@ -23,6 +23,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      TZ: America/Guayaquil # las fechas de shared usan hora local
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${PUBLIC_URL}
