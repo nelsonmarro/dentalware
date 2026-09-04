@@ -4,14 +4,16 @@ import { HTTPException } from 'hono/http-exception'
 import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
 import type { Auth } from './auth.ts'
+import type { Db } from './db/index.ts'
 import { meRoutes } from './features/auth/me.routes.ts'
 import type { AppEnv } from './features/auth/session.ts'
 import { requireRole, sessionMiddleware } from './features/auth/session.ts'
 import { healthRoutes } from './features/health/routes.ts'
+import { labSettingsRoutes } from './features/lab-settings/routes.ts'
 
-export type AppDeps = { auth: Auth; webOrigin: string }
+export type AppDeps = { auth: Auth; db: Db; webOrigin: string }
 
-export function createApp({ auth, webOrigin }: AppDeps) {
+export function createApp({ auth, db, webOrigin }: AppDeps) {
   const app = new Hono<AppEnv>()
 
   app.use(secureHeaders())
@@ -41,6 +43,7 @@ export function createApp({ auth, webOrigin }: AppDeps) {
     .route('/api/health', healthRoutes)
     .route('/api/me', meRoutes)
     .route('/api/admin', adminRoutes)
+    .route('/api/config/laboratorio', labSettingsRoutes(db))
 
   app.notFound((c) => c.json({ message: 'Recurso no encontrado' }, 404))
   app.onError((err, c) => {
