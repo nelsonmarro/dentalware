@@ -3126,6 +3126,7 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17-alpine
@@ -3154,6 +3155,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: quality
     services:
       postgres:
@@ -3178,6 +3180,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: cp apps/api/.env.example apps/api/.env
       - run: pnpm --filter @dentalware/web exec playwright install --with-deps chromium webkit
+      - run: pnpm --filter @dentalware/shared build   # la API importa @dentalware/shared desde dist/ al arrancar
       - run: pnpm --filter @dentalware/web exec playwright test   # los 3 proyectos; WebKit (iphone) solo corre fiable en Ubuntu/CI
       - uses: actions/upload-artifact@v4
         if: failure()
