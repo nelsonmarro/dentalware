@@ -61,3 +61,4 @@ catalog:
   clsx: 2.1.1
   radix-ui: 1.6.7
   tailwind-merge: 3.6.0
+  sonner: 2.0.8
