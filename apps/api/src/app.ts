@@ -13,6 +13,7 @@ import { doctorsRoutes } from './features/doctors/routes.ts'
 import { healthRoutes } from './features/health/routes.ts'
 import { labSettingsRoutes } from './features/lab-settings/routes.ts'
 import { productsRoutes } from './features/products/routes.ts'
+import { stagesRoutes } from './features/stages/routes.ts'
 
 export type AppDeps = { auth: Auth; db: Db; webOrigin: string }
 
@@ -50,6 +51,7 @@ export function createApp({ auth, db, webOrigin }: AppDeps) {
     .route('/api/config/clinicas', clinicsRoutes(db))
     .route('/api/config/doctores', doctorsRoutes(db))
     .route('/api/config/productos', productsRoutes(db))
+    .route('/api/config/fases', stagesRoutes(db))
 
   app.notFound((c) => c.json({ message: 'Recurso no encontrado' }, 404))
   app.onError((err, c) => {
