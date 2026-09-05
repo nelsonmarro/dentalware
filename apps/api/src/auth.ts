@@ -1,5 +1,6 @@
 import { USER_ROLES } from '@dentalware/shared'
 import { betterAuth } from 'better-auth'
+import { admin } from 'better-auth/plugins'
 import { drizzleAdapter } from '@better-auth/drizzle-adapter/relations-v2' // Drizzle 1.0: relaciones v2
 import type { Config } from './config.ts'
 import type { Db } from './db/index.ts'
@@ -36,6 +37,7 @@ export function createAuth(db: Db, config: Config) {
       useSecureCookies: config.NODE_ENV === 'production',
       defaultCookieAttributes: { httpOnly: true, sameSite: 'lax' },
     },
+    plugins: [admin({ adminRoles: ['admin'], defaultRole: 'tecnico' })],
   })
 }
 
