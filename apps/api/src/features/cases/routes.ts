@@ -30,6 +30,16 @@ export const todayIso = () => toIsoDate(new Date())
 const canWrite = requireRole('admin', 'recepcion')
 const hidesPrices = (role: string | undefined) => role === 'tecnico' || role === 'mensajero'
 
+/** Oculta los valores de los eventos `price_changed` (llevan "productId:precio") a quien no debe ver precios. */
+export function maskPriceEvents<
+  T extends { type: string; fromValue: string | null; toValue: string | null },
+>(events: T[], hide: boolean): T[] {
+  if (!hide) return events
+  return events.map((e) =>
+    e.type === 'price_changed' ? { ...e, fromValue: null, toValue: null } : e,
+  )
+}
+
 function readiness(
   c: NonNullable<Awaited<ReturnType<typeof getCase>>>,
   hasPrescriptionDocument: boolean,
@@ -88,9 +98,9 @@ export const casesRoutes = (db: Db) =>
       validate('json', caseInputSchema),
       async (c) => {
         const { id } = c.req.valid('param')
+        let updated: boolean
         try {
-          if (!(await updateCase(db, id, c.req.valid('json'), c.var.user!.id)))
-            throw new HTTPException(404, { message: 'El trabajo no existe' })
+          updated = await updateCase(db, id, c.req.valid('json'), c.var.user!.id)
         } catch (e) {
           if (e instanceof CaseInputError)
             return c.json(
@@ -100,11 +110,20 @@ export const casesRoutes = (db: Db) =>
           if (e instanceof CaseStateError) throw new HTTPException(409, { message: e.message })
           throw e
         }
+        if (!updated) throw new HTTPException(404, { message: 'El trabajo no existe' })
         return c.json({ case: (await getCase(db, id))! }, 200)
       },
     )
     .get('/:id/eventos', requireAuth, validate('param', idParamSchema), async (c) =>
-      c.json({ events: await listEvents(db, c.req.valid('param').id) }, 200),
+      c.json(
+        {
+          events: maskPriceEvents(
+            await listEvents(db, c.req.valid('param').id),
+            hidesPrices(c.var.user?.role),
+          ),
+        },
+        200,
+      ),
     )
     .post(
       '/:id/comentarios',
@@ -121,7 +140,7 @@ export const casesRoutes = (db: Db) =>
           toValue: c.req.valid('json').text,
           actorId: c.var.user!.id,
         })
-        const events = await listEvents(db, id)
+        const events = maskPriceEvents(await listEvents(db, id), hidesPrices(c.var.user?.role))
         return c.json({ event: events[events.length - 1]! }, 201)
       },
     )

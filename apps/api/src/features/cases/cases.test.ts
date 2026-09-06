@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
@@ -253,5 +254,40 @@ describe('/api/trabajos', () => {
     expect(r.status).toBe(200)
     const { missing } = (await r.json()) as { missing: string[] }
     expect(missing).toContain('Fecha deseada')
+  })
+
+  it('técnico no ve precios en el historial', async () => {
+    const id = await createOne(admin)
+    await app.request(
+      `/api/trabajos/${id}`,
+      req(admin, 'PUT', caseInput({ items: [{ productId: zr, quantity: 1, unitPrice: '30.00' }] })),
+    )
+
+    const comoTecnico = await app.request(`/api/trabajos/${id}/eventos`, req(tecnico, 'GET'))
+    const { events: eventosTecnico } = (await comoTecnico.json()) as {
+      events: { type: string; fromValue: string | null; toValue: string | null }[]
+    }
+    const cambioTecnico = eventosTecnico.find((e) => e.type === 'price_changed')
+    expect(cambioTecnico).toBeDefined()
+    expect(cambioTecnico).toMatchObject({ fromValue: null, toValue: null })
+
+    const comoAdmin = await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
+    const { events: eventosAdmin } = (await comoAdmin.json()) as {
+      events: { type: string; fromValue: string | null; toValue: string | null }[]
+    }
+    const cambioAdmin = eventosAdmin.find((e) => e.type === 'price_changed')
+    expect(cambioAdmin?.fromValue).not.toBeNull()
+    expect(cambioAdmin?.toValue).not.toBeNull()
+  })
+
+  it('404 en GET /:id y PUT /:id con id desconocido', async () => {
+    const idDesconocido = randomUUID()
+    const get = await app.request(`/api/trabajos/${idDesconocido}`, req(admin, 'GET'))
+    expect(get.status).toBe(404)
+    expect(await get.json()).toMatchObject({ message: 'El trabajo no existe' })
+
+    const put = await app.request(`/api/trabajos/${idDesconocido}`, req(admin, 'PUT', caseInput()))
+    expect(put.status).toBe(404)
+    expect(await put.json()).toMatchObject({ message: 'El trabajo no existe' })
   })
 })
