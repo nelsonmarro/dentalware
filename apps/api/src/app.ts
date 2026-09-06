@@ -8,6 +8,7 @@ import type { Db } from './db/index.ts'
 import { meRoutes } from './features/auth/me.routes.ts'
 import type { AppEnv } from './features/auth/session.ts'
 import { requireRole, sessionMiddleware } from './features/auth/session.ts'
+import { casesRoutes } from './features/cases/routes.ts'
 import { clinicsRoutes } from './features/clinics/routes.ts'
 import { doctorsRoutes } from './features/doctors/routes.ts'
 import { healthRoutes } from './features/health/routes.ts'
@@ -60,6 +61,7 @@ export function createApp({ auth, db, webOrigin }: AppDeps) {
     .route('/api/config/doctores', doctorsRoutes(db))
     .route('/api/config/productos', productsRoutes(db))
     .route('/api/config/fases', stagesRoutes(db))
+    .route('/api/trabajos', casesRoutes(db))
     .route('/api/users', usersRoutes(db, auth))
 
   app.notFound((c) => c.json({ message: 'Recurso no encontrado' }, 404))
