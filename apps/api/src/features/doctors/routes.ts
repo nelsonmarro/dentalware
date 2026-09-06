@@ -22,12 +22,15 @@ export const doctorsRoutes = (db: Db) =>
   new Hono<AppEnv>()
     .get('/', requireAuth, validate('query', listQuery), async (c) => {
       const q = c.req.valid('query')
-      return c.json({
-        doctors: await listDoctors(db, {
-          clinicId: q.clinicId,
-          includeInactive: q.incluirInactivos,
-        }),
-      })
+      return c.json(
+        {
+          doctors: await listDoctors(db, {
+            clinicId: q.clinicId,
+            includeInactive: q.incluirInactivos,
+          }),
+        },
+        200,
+      )
     })
     .post('/', requireRole('admin'), validate('json', doctorSchema), async (c) => {
       const input = c.req.valid('json')
@@ -44,7 +47,7 @@ export const doctorsRoutes = (db: Db) =>
         await assertClinic(db, input.clinicId)
         const doctor = await updateDoctor(db, c.req.valid('param').id, input)
         if (!doctor) throw new HTTPException(404, { message: 'El doctor no existe' })
-        return c.json({ doctor })
+        return c.json({ doctor }, 200)
       },
     )
     .patch(
@@ -59,6 +62,6 @@ export const doctorsRoutes = (db: Db) =>
           c.req.valid('json').active,
         )
         if (!doctor) throw new HTTPException(404, { message: 'El doctor no existe' })
-        return c.json({ doctor })
+        return c.json({ doctor }, 200)
       },
     )

@@ -19,12 +19,12 @@ const activeBody = z.object({ active: z.boolean({ error: 'Debe indicar activo o 
 export const clinicsRoutes = (db: Db) =>
   new Hono<AppEnv>()
     .get('/', requireAuth, validate('query', activeQuerySchema), async (c) =>
-      c.json({ clinics: await listClinics(db, c.req.valid('query').incluirInactivos) }),
+      c.json({ clinics: await listClinics(db, c.req.valid('query').incluirInactivos) }, 200),
     )
     .get('/:id', requireAuth, validate('param', idParamSchema), async (c) => {
       const clinic = await getClinicWithDoctors(db, c.req.valid('param').id)
       if (!clinic) throw new HTTPException(404, { message: 'La clínica no existe' })
-      return c.json({ clinic })
+      return c.json({ clinic }, 200)
     })
     .post('/', requireRole('admin'), validate('json', clinicSchema), async (c) =>
       c.json({ clinic: await createClinic(db, c.req.valid('json')) }, 201),
@@ -37,7 +37,7 @@ export const clinicsRoutes = (db: Db) =>
       async (c) => {
         const clinic = await updateClinic(db, c.req.valid('param').id, c.req.valid('json'))
         if (!clinic) throw new HTTPException(404, { message: 'La clínica no existe' })
-        return c.json({ clinic })
+        return c.json({ clinic }, 200)
       },
     )
     .patch(
@@ -52,6 +52,6 @@ export const clinicsRoutes = (db: Db) =>
           c.req.valid('json').active,
         )
         if (!clinic) throw new HTTPException(404, { message: 'La clínica no existe' })
-        return c.json({ clinic })
+        return c.json({ clinic }, 200)
       },
     )
