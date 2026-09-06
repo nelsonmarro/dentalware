@@ -58,7 +58,7 @@ export const caseItemSchema = z.object({
     .int({ error: 'Cantidad inválida' })
     .min(1, { error: 'La cantidad mínima es 1' })
     .max(99, { error: 'La cantidad máxima es 99' }),
-  teeth: z.preprocess((v) => v ?? [], fdiTeethSchema),
+  teeth: fdiTeethSchema.default([]),
   unitPrice: nullable(priceString), // null → la API resuelve el precio de la clínica
   discountPct: z.coerce
     .number({ error: 'Descuento inválido' })

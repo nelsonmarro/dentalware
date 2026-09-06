@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { caseInputSchema, caseListQuerySchema, commentSchema } from './cases.ts'
+import { describe, expect, expectTypeOf, it } from 'vitest'
+import type { z } from 'zod'
+import { caseInputSchema, caseItemSchema, caseListQuerySchema, commentSchema } from './cases.ts'
 
 const clinicId = '11111111-1111-4111-8111-111111111111'
 const doctorId = '22222222-2222-4222-8222-222222222222'
@@ -58,6 +59,15 @@ describe('caseInputSchema', () => {
     expect(r.items[0]!.unitPrice).toBe('40.00')
     expect(r.dueDate).toBe('2026-09-15')
     expect(caseInputSchema.safeParse({ ...base(), dueDate: '15/09/2026' }).success).toBe(false)
+  })
+})
+
+describe('caseItemSchema', () => {
+  it('teeth conserva number[] | undefined en z.input (formularios)', () => {
+    expectTypeOf<z.input<typeof caseItemSchema>['teeth']>().toEqualTypeOf<number[] | undefined>()
+  })
+  it('sin teeth, aplica el arreglo vacío por defecto', () => {
+    expect(caseItemSchema.parse({ productId, quantity: 1 })).toMatchObject({ teeth: [] })
   })
 })
 
