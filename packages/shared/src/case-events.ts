@@ -1,0 +1,20 @@
+export const CASE_EVENT_TYPES = [
+  'created',
+  'status_changed',
+  'stage_changed',
+  'assigned',
+  'hold',
+  'resumed',
+  'tryin_sent',
+  'tryin_returned',
+  'comment',
+  'attachment_added',
+  'attachment_removed',
+  'shipped',
+  'delivered',
+  'cancelled',
+  'remake_created',
+  'edited',
+  'price_changed',
+] as const
+export type CaseEventType = (typeof CASE_EVENT_TYPES)[number]

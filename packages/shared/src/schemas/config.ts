@@ -13,14 +13,14 @@ const nombre = z
 // vacía: '' y los espacios en blanco se normalizan a null (tanto al enviar el
 // formulario como al re-validar en el servidor un valor ya limpiado, que llega como
 // `null` explícito en el JSON).
-const textoOpcional = (max: number) =>
+export const textoOpcional = (max: number) =>
   z
     .string()
     .trim()
     .max(max, { error: `Máximo ${max} caracteres` })
     .nullish()
     .transform((v) => (v ? v : null))
-const uuid = z.uuid({ error: 'Identificador inválido' })
+export const uuid = z.uuid({ error: 'Identificador inválido' })
 export const priceString = z
   .string()
   .trim()
