@@ -60,6 +60,19 @@ describe('caseInputSchema', () => {
     expect(r.dueDate).toBe('2026-09-15')
     expect(caseInputSchema.safeParse({ ...base(), dueDate: '15/09/2026' }).success).toBe(false)
   })
+  it('patientAge vacío o solo espacios se normaliza a null en vez de a 0', () => {
+    expect(caseInputSchema.parse({ ...base(), patientAge: '' }).patientAge).toBeNull()
+    expect(caseInputSchema.parse({ ...base(), patientAge: '   ' }).patientAge).toBeNull()
+    expect(caseInputSchema.parse({ ...base(), patientAge: '35' }).patientAge).toBe(35)
+    expect(caseInputSchema.parse({ ...base(), patientAge: 35 }).patientAge).toBe(35)
+  })
+  it('items[].unitPrice vacío se normaliza a null (precio automático) en vez de fallar', () => {
+    const r = caseInputSchema.parse({
+      ...base(),
+      items: [{ productId, quantity: 1, unitPrice: '' }],
+    })
+    expect(r.items[0]!.unitPrice).toBeNull()
+  })
 })
 
 describe('caseItemSchema', () => {

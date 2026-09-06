@@ -39,6 +39,18 @@ export const isoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, { error: 'Fecha inválida (AAAA-MM-DD)' })
 const nullable = <T extends z.ZodTypeAny>(s: T) => s.nullish().transform((v) => v ?? null)
+// Un campo numérico/de precio opcional llega del formulario como `''` cuando está
+// vacío (un <input> controlado nunca pasa a `undefined`); sin este preprocesado,
+// `z.coerce.number()` convertiría `''` en `0` y `priceString` rechazaría `''` por no
+// cumplir su regex. Se normaliza `''`/espacios a `null` antes de validar, igual que ya
+// se hace con `null`/`undefined`.
+const emptyToNull = (v: string | number | null | undefined): string | number | null | undefined =>
+  typeof v === 'string' && v.trim() === '' ? null : v
+const emptyStringToNull = (v: string | null | undefined): string | null | undefined =>
+  typeof v === 'string' && v.trim() === '' ? null : v
+const nullableNumber = (min: number, max: number) =>
+  z.preprocess(emptyToNull, nullable(z.coerce.number().int().min(min).max(max)))
+const nullablePrice = z.preprocess(emptyStringToNull, nullable(priceString))
 
 export const checklistSchema = z
   .object({
@@ -59,7 +71,7 @@ export const caseItemSchema = z.object({
     .min(1, { error: 'La cantidad mínima es 1' })
     .max(99, { error: 'La cantidad máxima es 99' }),
   teeth: fdiTeethSchema.default([]),
-  unitPrice: nullable(priceString), // null → la API resuelve el precio de la clínica
+  unitPrice: nullablePrice, // null → la API resuelve el precio de la clínica
   discountPct: z.coerce
     .number({ error: 'Descuento inválido' })
     .min(0, { error: 'El descuento no puede ser negativo' })
@@ -78,7 +90,7 @@ export const caseInputSchema = z.object({
     .trim()
     .min(1, { error: 'La referencia del paciente es obligatoria' })
     .max(120, { error: 'Máximo 120 caracteres' }),
-  patientAge: nullable(z.coerce.number().int().min(0).max(120)),
+  patientAge: nullableNumber(0, 120),
   patientSex: nullable(z.enum(PATIENT_SEXES)),
   boxNumber: textoOpcional(30),
   priority: z.enum(CASE_PRIORITIES).default('normal'),
