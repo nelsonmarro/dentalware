@@ -1,7 +1,5 @@
 import { expect, test } from '@playwright/test'
-
-const EMAIL = process.env.ADMIN_EMAIL ?? 'admin@lab.local'
-const PASSWORD = process.env.ADMIN_PASSWORD ?? 'Admin12345!'
+import { loginAsAdmin } from './helpers'
 
 test('redirige a /login sin sesión', async ({ page }) => {
   await page.goto('/')
@@ -19,12 +17,8 @@ test('muestra errores de validación en español', async ({ page }) => {
 })
 
 test('inicia sesión y ve el inicio con la API conectada', async ({ page, isMobile }) => {
-  await page.goto('/login')
-  await page.getByLabel('Correo').fill(EMAIL)
-  await page.getByLabel('Contraseña').fill(PASSWORD)
-  await page.getByRole('button', { name: 'Ingresar' }).click()
+  await loginAsAdmin(page)
   await expect(page).toHaveURL('/')
-  await expect(page.getByRole('heading', { name: 'Inicio' })).toBeVisible()
   await expect(page.getByTestId('api-status')).toHaveText('API: conectada')
 
   if (isMobile) {
@@ -40,11 +34,7 @@ test('inicia sesión y ve el inicio con la API conectada', async ({ page, isMobi
 })
 
 test('cierra sesión', async ({ page }) => {
-  await page.goto('/login')
-  await page.getByLabel('Correo').fill(EMAIL)
-  await page.getByLabel('Contraseña').fill(PASSWORD)
-  await page.getByRole('button', { name: 'Ingresar' }).click()
-  await expect(page).toHaveURL('/')
+  await loginAsAdmin(page)
   await page.getByRole('button', { name: 'Cerrar sesión' }).first().click()
   await expect(page).toHaveURL(/\/login/)
 })
