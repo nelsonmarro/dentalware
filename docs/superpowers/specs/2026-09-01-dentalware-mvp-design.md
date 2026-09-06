@@ -158,12 +158,14 @@ Roles: `admin` todo; `recepcion` todo salvo usuarios/config; `tecnico` trabajos 
 - Toda mutación de trabajo escribe `case_event` en la misma transacción.
 - Borrado lógico en catálogos; los trabajos se cancelan, nunca se borran.
 
-## 8. Pruebas
+## 8. Pruebas (TDD obligatorio)
 
+- **Regla de trabajo (Nelson, 2026-09-05):** todo feature o fix se desarrolla con TDD invocando la skill `superpowers:test-driven-development` antes de empezar: test que falla (RED) → implementación mínima (GREEN) → refactor. Ninguna tarea de un plan se cierra sin su prueba; en revisión, el código sin test es un hallazgo *Important*. El software debe quedar probado en todas las capas; seguimiento en la épica de pruebas #29 (una historia por capa y una de E2E por iteración).
 - Unit (Vitest) en `packages/shared`: máquina de estados, días hábiles, totales y precio por clínica, FDI, código.
-- API (Vitest + Postgres en Docker): crear trabajo, transiciones, pagos y saldo, permisos por rol.
-- E2E (Playwright, móvil y escritorio): crear trabajo → aceptar → fases por QR → finalizar → entregar → cargo y pago → imprimir ficha.
-- Desarrollo con TDD.
+- API (Vitest + Postgres real en 5433): cada ruta con casos de éxito, 422 de validación, 401/403 por rol y conflictos (409); crear trabajo, transiciones, pagos y saldo.
+- Web (Vitest + Testing Library): componentes transversales, formularios con validación en español y envío de datos normalizados, hooks de datos con la API simulada.
+- E2E (Playwright: escritorio y android en local, iphone/WebKit en CI): el flujo principal de cada iteración; en el cierre del MVP, el flujo completo crear trabajo → aceptar → fases por QR → finalizar → entregar → cargo y pago → imprimir ficha.
+- Cobertura mínima en CI con `@vitest/coverage-v8`: 80 % de líneas en shared y api, 70 % en web.
 
 ## 9. Despliegue y operación
 
