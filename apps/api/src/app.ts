@@ -35,6 +35,13 @@ export function createApp({ auth, db, webOrigin }: AppDeps) {
 
   app.use('/api/*', sessionMiddleware(auth))
 
+  // El plugin admin de better-auth (set-role sin auto-guard, remove-user con borrado
+  // físico, impersonate-user) no lo usa el frontend: toda la administración de
+  // usuarios pasa por /api/users, que valida en español y respeta las reglas del
+  // negocio (nadie se bloquea ni se degrada a sí mismo, borrado lógico). Se bloquea
+  // la superficie HTTP del plugin antes de llegar al handler de better-auth.
+  app.all('/api/auth/admin/*', (c) => c.json({ message: 'No encontrado' }, 404))
+
   // Solo un admin autenticado puede crear usuarios.
   app.use('/api/auth/sign-up/*', requireRole('admin'))
   app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw))

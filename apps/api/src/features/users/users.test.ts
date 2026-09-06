@@ -92,6 +92,38 @@ describe('/api/users', () => {
     await expect(loginAs(app, 'ana@t.local', 'Nueva12345')).rejects.toThrow()
   })
 
+  it('la superficie HTTP del plugin admin de better-auth está bloqueada; /api/users sigue funcionando', async () => {
+    const setRole = await app.request(
+      '/api/auth/admin/set-role',
+      req(admin, 'POST', { userId: adminId, role: 'tecnico' }),
+    )
+    expect(setRole.status).toBe(404)
+    expect(await setRole.json()).toEqual({ message: 'No encontrado' })
+
+    const listUsers = await app.request('/api/auth/admin/list-users', req(admin, 'GET'))
+    expect(listUsers.status).toBe(404)
+    expect(await listUsers.json()).toEqual({ message: 'No encontrado' })
+
+    expect((await app.request('/api/users', req(admin, 'GET'))).status).toBe(200)
+    const created = await app.request(
+      '/api/users',
+      req(admin, 'POST', {
+        name: 'Beta',
+        email: 'beta@t.local',
+        password: 'Secreta123',
+        role: 'tecnico',
+      }),
+    )
+    expect(created.status).toBe(201)
+    const { user } = (await created.json()) as { user: { id: string } }
+    const patched = await app.request(
+      `/api/users/${user.id}`,
+      req(admin, 'PATCH', { role: 'recepcion' }),
+    )
+    expect(patched.status).toBe(200)
+    expect(((await patched.json()) as { user: { role: string } }).user.role).toBe('recepcion')
+  })
+
   it('el admin no puede bloquearse ni degradarse a sí mismo', async () => {
     const self = await app.request(
       `/api/users/${adminId}/bloqueo`,
