@@ -17,6 +17,10 @@ pnpm --filter @dentalware/api seed   # crea el admin inicial
 pnpm dev                        # shared (watch) + api :3000 + web :5173
 ```
 
+## Configuración inicial
+
+Tras el `seed`, entra como administrador y completa **Configuración**: datos del laboratorio (nombre, dirección, teléfonos), fases de producción (se crean 7 por defecto), categorías y productos (se crean los 6 de la orden en papel con precio base 0.00: pon los precios reales), clínicas con sus doctores y precios especiales, y los usuarios del equipo con su rol (recepción, técnico, mensajero). Los técnicos y mensajeros nunca ven precios.
+
 ## Calidad
 
 ```bash

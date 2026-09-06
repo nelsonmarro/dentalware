@@ -9,7 +9,7 @@ const config = loadConfig()
 const { db } = createDb(config.DATABASE_URL)
 await runMigrations(db)
 const auth = createAuth(db, config)
-const app = createApp({ auth, webOrigin: config.WEB_ORIGIN })
+const app = createApp({ auth, db, webOrigin: config.WEB_ORIGIN })
 
 serve({ fetch: app.fetch, port: config.PORT }, (info) => {
   console.log(`API escuchando en http://localhost:${info.port} (${config.NODE_ENV})`)

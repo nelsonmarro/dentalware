@@ -72,7 +72,7 @@ apps/web/src/
 **Interfaces:**
 - Produces: `validate(target, schema)` (wrapper de `zValidator` que responde 422 `{ message: 'Datos inválidos', issues: [{ path: string; message: string }] }`), `AppEnv`, `sessionMiddleware`, `requireAuth`, `requireRole` ahora en `features/auth/session.ts`; `authClient` en `@/features/auth/auth-client`.
 
-- [ ] **Step 1: Test del validador (falla)**
+- [x] **Step 1: Test del validador (falla)**
 
 `apps/api/src/lib/validate.test.ts`:
 ```ts
@@ -113,14 +113,14 @@ describe('validate', () => {
 })
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 ```bash
 pnpm --filter @dentalware/api exec vitest run src/lib/validate.test.ts
 ```
 Expected: FAIL — `Failed to load url ./validate.ts`.
 
-- [ ] **Step 3: Implementar `validate`**
+- [x] **Step 3: Implementar `validate`**
 
 `apps/api/src/lib/validate.ts`:
 ```ts
@@ -147,14 +147,14 @@ export function validate<T extends ZodType, Target extends keyof ValidationTarge
 }
 ```
 
-- [ ] **Step 4: Ejecutar y ver pasar**
+- [x] **Step 4: Ejecutar y ver pasar**
 
 ```bash
 pnpm --filter @dentalware/api exec vitest run src/lib/validate.test.ts
 ```
 Expected: PASS (2 tests).
 
-- [ ] **Step 5: Mover auth y health a features (sin cambiar comportamiento)**
+- [x] **Step 5: Mover auth y health a features (sin cambiar comportamiento)**
 
 ```bash
 cd apps/api/src
@@ -178,7 +178,7 @@ import { healthRoutes } from './features/health/routes.ts'
 - `apps/api/src/test/setup.ts`: sin cambios de import (usa `../auth.ts`, `../app.ts`).
 - Eliminar los directorios `routes/` y `middleware/` si quedan vacíos.
 
-- [ ] **Step 6: Web — feature auth**
+- [x] **Step 6: Web — feature auth**
 
 ```bash
 mkdir -p apps/web/src/features/auth
@@ -299,7 +299,7 @@ Si el `login.tsx` actual tiene clases o estructura distintas (leerlo primero), c
 
 Actualizar `apps/web/src/routes/_app.tsx` y `apps/web/src/components/app-shell.tsx`: `import { authClient } from '@/features/auth/auth-client'`.
 
-- [ ] **Step 7: Verificar**
+- [x] **Step 7: Verificar**
 
 ```bash
 pnpm --filter @dentalware/api test
@@ -308,7 +308,7 @@ pnpm --filter @dentalware/web e2e --project=escritorio --project=android
 ```
 Expected: api 17/17 (15 + 2 nuevos); typecheck/lint/format verdes; E2E 8/8.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/api apps/web
@@ -332,7 +332,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 **Interfaces:**
 - Produces: `PRICING_UNITS = ['por_pieza','por_arcada','por_trabajo'] as const`, `type PricingUnit`, `labSettingsSchema`, `clinicSchema`, `doctorSchema`, `productCategorySchema`, `productSchema`, `clinicPriceSchema`, `stageSchema`, `createUserSchema`, `updateUserSchema`, `idParamSchema`, `activeQuerySchema`, y los tipos `LabSettingsInput`, `ClinicInput`, `DoctorInput`, `ProductCategoryInput`, `ProductInput`, `ClinicPriceInput`, `StageInput`, `CreateUserInput`, `UpdateUserInput`. Todos los mensajes en español. Los precios son `string` decimal con 2 decimales (`'45.00'`) para no perder precisión (Drizzle `numeric` devuelve string).
 
-- [ ] **Step 1: Test (falla)**
+- [x] **Step 1: Test (falla)**
 
 `packages/shared/src/schemas/config.test.ts`:
 ```ts
@@ -416,14 +416,14 @@ describe('schemas de configuración', () => {
 })
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 ```bash
 pnpm --filter @dentalware/shared test
 ```
 Expected: FAIL — `Failed to load url ./config.ts`.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 `packages/shared/src/schemas/config.ts`:
 ```ts
@@ -531,14 +531,14 @@ export const activeQuerySchema = z.object({
 
 Añadir a `packages/shared/src/index.ts`: `export * from './schemas/config.ts'`.
 
-- [ ] **Step 4: Ejecutar y ver pasar; build**
+- [x] **Step 4: Ejecutar y ver pasar; build**
 
 ```bash
 pnpm --filter @dentalware/shared test && pnpm --filter @dentalware/shared build
 ```
 Expected: PASS (7 tests nuevos; 40 en total en shared).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/shared
@@ -562,7 +562,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 **Interfaces:**
 - Produces: tablas `labSettings`, `clinics`, `doctors`, `productCategories`, `products`, `clinicProductPrices`, `stages` (exportadas desde `db/schema/index.ts`); `relations` (defineRelations) usadas por `createDb`; `db.query.clinics.findMany({ with: { doctors: true } })` disponible.
 
-- [ ] **Step 1: Test (falla)**
+- [x] **Step 1: Test (falla)**
 
 `apps/api/src/db/schema.test.ts`:
 ```ts
@@ -603,14 +603,14 @@ describe('esquema de configuración', () => {
 })
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 ```bash
 pnpm --filter @dentalware/api exec vitest run src/db/schema.test.ts
 ```
 Expected: FAIL — `ctx.schema` no existe / tablas no existen.
 
-- [ ] **Step 3: Tablas por feature**
+- [x] **Step 3: Tablas por feature**
 
 Columnas comunes en cada tabla: `id: uuid().defaultRandom().primaryKey()`, `createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()`, `updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()` (se actualiza desde el repositorio con `updatedAt: new Date()`).
 
@@ -805,7 +805,7 @@ export async function truncateAll(db: Db) {
 }
 ```
 
-- [ ] **Step 4: Generar la migración y aplicarla en test**
+- [x] **Step 4: Generar la migración y aplicarla en test**
 
 ```bash
 pnpm --filter @dentalware/api db:generate
@@ -815,7 +815,7 @@ pnpm --filter @dentalware/api exec vitest run src/db/schema.test.ts
 ```
 Expected: 7 `CREATE TABLE` en la nueva migración + `CREATE TYPE "public"."pricing_unit"`; test PASS (runMigrations la aplica en `dentalware_test`).
 
-- [ ] **Step 5: Suite completa, typecheck y commit**
+- [x] **Step 5: Suite completa, typecheck y commit**
 
 ```bash
 pnpm --filter @dentalware/api test && pnpm typecheck && pnpm lint && pnpm format:check
@@ -841,7 +841,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 - Consumes: `labSettings` (Task 3), `labSettingsSchema` (Task 2), `validate` (Task 1), `requireAuth`/`requireRole`.
 - Produces: `getLabSettings(db)` (devuelve la fila única o `null`), `upsertLabSettings(db, input)`; rutas `GET /api/config/laboratorio` (cualquier usuario autenticado; 200 `{ settings: LabSettings | null }`) y `PUT /api/config/laboratorio` (admin; 200 `{ settings }`). `AppType` incluye `api.config.laboratorio`.
 
-- [ ] **Step 1: Test (falla)**
+- [x] **Step 1: Test (falla)**
 
 `apps/api/src/features/lab-settings/lab-settings.test.ts`:
 ```ts
@@ -910,14 +910,14 @@ describe('/api/config/laboratorio', () => {
 })
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 ```bash
 pnpm --filter @dentalware/api exec vitest run src/features/lab-settings
 ```
 Expected: FAIL — 404 `Recurso no encontrado` en las rutas.
 
-- [ ] **Step 3: Repositorio y rutas**
+- [x] **Step 3: Repositorio y rutas**
 
 `apps/api/src/features/lab-settings/repo.ts`:
 ```ts
@@ -978,14 +978,14 @@ export function createApp({ auth, db, webOrigin }: AppDeps) {
 ```
 Actualizar los call sites: `main.ts` → `createApp({ auth, db, webOrigin: config.WEB_ORIGIN })`; `app.test.ts`, `auth.test.ts` y los tests nuevos → `createApp({ auth: ctx.auth, db: ctx.db, webOrigin: ctx.config.WEB_ORIGIN })`. (Los tests existentes fallan en typecheck hasta hacerlo.)
 
-- [ ] **Step 4: Ejecutar y ver pasar**
+- [x] **Step 4: Ejecutar y ver pasar**
 
 ```bash
 pnpm --filter @dentalware/api test && pnpm typecheck && pnpm lint && pnpm format:check
 ```
 Expected: PASS (3 tests nuevos).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api
@@ -1012,7 +1012,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
   - `GET /api/config/clinicas?incluirInactivos=true|false` → `{ clinics: Clinic[] }` ordenadas por nombre (autenticado); `GET /api/config/clinicas/:id` → `{ clinic: Clinic & { doctors: Doctor[] } }` (404 si no existe); `POST /api/config/clinicas` (admin) → 201 `{ clinic }`; `PUT /api/config/clinicas/:id` (admin) → `{ clinic }`; `PATCH /api/config/clinicas/:id/activo` body `{ active: boolean }` (admin) → `{ clinic }`.
   - `GET /api/config/doctores?clinicId=<uuid>&incluirInactivos=` → `{ doctors }`; `POST /api/config/doctores` (admin) → 201; `PUT /api/config/doctores/:id` (admin); `PATCH /api/config/doctores/:id/activo` (admin). `POST` responde 422 `{ message: 'La clínica no existe' }` si `clinicId` no existe.
 
-- [ ] **Step 1: Tests (fallan)**
+- [x] **Step 1: Tests (fallan)**
 
 `apps/api/src/features/clinics/clinics.test.ts`:
 ```ts
@@ -1136,14 +1136,14 @@ describe('/api/config/doctores', () => {
 })
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 ```bash
 pnpm --filter @dentalware/api exec vitest run src/features/clinics src/features/doctors
 ```
 Expected: FAIL (404 en todas las rutas).
 
-- [ ] **Step 3: Repositorios**
+- [x] **Step 3: Repositorios**
 
 `apps/api/src/features/clinics/repo.ts`:
 ```ts
@@ -1221,7 +1221,7 @@ export async function setDoctorActive(db: Db, id: string, active: boolean) {
 }
 ```
 
-- [ ] **Step 4: Rutas**
+- [x] **Step 4: Rutas**
 
 `apps/api/src/features/clinics/routes.ts`:
 ```ts
@@ -1308,7 +1308,7 @@ export const doctorsRoutes = (db: Db) =>
 
 Montar en `app.ts`: `.route('/api/config/clinicas', clinicsRoutes(db)).route('/api/config/doctores', doctorsRoutes(db))`.
 
-- [ ] **Step 5: Ejecutar, verificar y commit**
+- [x] **Step 5: Ejecutar, verificar y commit**
 
 ```bash
 pnpm --filter @dentalware/api test && pnpm typecheck && pnpm lint && pnpm format:check
@@ -1338,7 +1338,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
   - `GET /api/config/productos/precios/:clinicId` → `{ prices: { productId, price }[] }`; `PUT /api/config/productos/precios/:clinicId/:productId` body `{ price }` → `{ price: { clinicId, productId, price } }` (upsert); `DELETE /api/config/productos/precios/:clinicId/:productId` → 204 (vuelve al precio base).
   - `resolvePrice(db, clinicId, productId)` → precio especial o base (string) — lo usará la Iteración 2.
 
-- [ ] **Step 1: Test (falla)**
+- [x] **Step 1: Test (falla)**
 
 `apps/api/src/features/products/products.test.ts`:
 ```ts
@@ -1419,14 +1419,14 @@ describe('/api/config/productos', () => {
 })
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar**
+- [x] **Step 2: Ejecutar y ver fallar**
 
 ```bash
 pnpm --filter @dentalware/api exec vitest run src/features/products
 ```
 Expected: FAIL.
 
-- [ ] **Step 3: Repositorio**
+- [x] **Step 3: Repositorio**
 
 `apps/api/src/features/products/repo.ts`:
 ```ts
@@ -1519,7 +1519,7 @@ export async function resolvePrice(db: Db, clinicId: string, productId: string):
 }
 ```
 
-- [ ] **Step 4: Rutas**
+- [x] **Step 4: Rutas**
 
 `apps/api/src/features/products/routes.ts`:
 ```ts
@@ -1608,7 +1608,7 @@ export const productsRoutes = (db: Db) =>
 ```
 Nota de orden: las rutas literales `/categorias` y `/precios/...` van **antes** de `/:id` para que Hono no las capture como id (además `idParamSchema` rechazaría `categorias` con 422, lo que enmascararía el error). Montar en `app.ts`: `.route('/api/config/productos', productsRoutes(db))`.
 
-- [ ] **Step 5: Ejecutar, verificar y commit**
+- [x] **Step 5: Ejecutar, verificar y commit**
 
 ```bash
 pnpm --filter @dentalware/api test && pnpm typecheck && pnpm lint && pnpm format:check
@@ -1633,7 +1633,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 **Interfaces:**
 - Produces: `GET /api/config/fases?incluirInactivos=` → `{ stages }` (orden `sort`; autenticado — los técnicos las ven en la ficha), `POST` (admin) → 201 `{ stage }`, `PUT /:id`, `PATCH /:id/activo`, `PUT /api/config/fases/orden` body `{ ids: uuid[] }` → `{ stages }` (reasigna `sort` = índice).
 
-- [ ] **Step 1: Test (falla)**
+- [x] **Step 1: Test (falla)**
 
 `apps/api/src/features/stages/stages.test.ts`:
 ```ts
@@ -1691,9 +1691,9 @@ describe('/api/config/fases', () => {
 })
 ```
 
-- [ ] **Step 2: Ejecutar y ver fallar** — `pnpm --filter @dentalware/api exec vitest run src/features/stages` → FAIL.
+- [x] **Step 2: Ejecutar y ver fallar** — `pnpm --filter @dentalware/api exec vitest run src/features/stages` → FAIL.
 
-- [ ] **Step 3: Repositorio y rutas**
+- [x] **Step 3: Repositorio y rutas**
 
 `apps/api/src/features/stages/repo.ts`:
 ```ts
@@ -1772,7 +1772,7 @@ export const stagesRoutes = (db: Db) =>
 ```
 Montar en `app.ts`: `.route('/api/config/fases', stagesRoutes(db))`.
 
-- [ ] **Step 4: Ejecutar, verificar y commit**
+- [x] **Step 4: Ejecutar, verificar y commit**
 
 ```bash
 pnpm --filter @dentalware/api test && pnpm typecheck && pnpm lint && pnpm format:check
@@ -1805,7 +1805,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
   - `createUser` del test setup pasa a usar `auth.api.createUser` con `role`.
   - Seed: `seedCatalogs(db)` idempotente (por nombre/código) con `lab_settings` de Arte Dental, categorías y productos de la orden en papel y fases por defecto; `seed.ts` lo llama después de crear el admin.
 
-- [ ] **Step 1: Plugin admin y regeneración del esquema**
+- [x] **Step 1: Plugin admin y regeneración del esquema**
 
 `apps/api/src/auth.ts`: añadir `import { admin } from 'better-auth/plugins'` y en `betterAuth({...})`:
 ```ts
@@ -1824,7 +1824,7 @@ grep -n "banned\|impersonated_by" apps/api/drizzle/*/migration.sql
 ```
 Expected: nueva carpeta de migración con `ALTER TABLE "users" ADD COLUMN "banned"…` y `ALTER TABLE "sessions" ADD COLUMN "impersonated_by"…`. Si la CLI reescribe `authRelations` con otro nombre, ajustar `db/index.ts`. `auth.instance.ts` debe seguir compilando (usa `createDb`, que ahora requiere `relations` — ya definidas en Task 3).
 
-- [ ] **Step 2: Test (falla)**
+- [x] **Step 2: Test (falla)**
 
 `apps/api/src/features/users/users.test.ts`:
 ```ts
@@ -1893,9 +1893,9 @@ describe('/api/users', () => {
 })
 ```
 
-- [ ] **Step 3: Ejecutar y ver fallar** — `pnpm --filter @dentalware/api exec vitest run src/features/users` → FAIL (404).
+- [x] **Step 3: Ejecutar y ver fallar** — `pnpm --filter @dentalware/api exec vitest run src/features/users` → FAIL (404).
 
-- [ ] **Step 4: Rutas de usuarios**
+- [x] **Step 4: Rutas de usuarios**
 
 `apps/api/src/features/users/routes.ts`:
 ```ts
@@ -1989,7 +1989,7 @@ export async function createUser(auth: Auth, db: Db, input: { email: string; pas
 ```
 (Igual que hoy; se deja explícito porque `defaultRole` ahora es `tecnico` por el plugin.) `truncateAll` no cambia.
 
-- [ ] **Step 5: Seed de catálogos**
+- [x] **Step 5: Seed de catálogos**
 
 `apps/api/src/scripts/seed-data.ts`:
 ```ts
@@ -2039,7 +2039,7 @@ export async function seedCatalogs(db: Db) {
 
 `apps/api/src/scripts/seed.ts`: tras crear/verificar el admin, `await seedCatalogs(db)` y `console.log('Catálogos iniciales listos')`; envolver todo en `try { … } finally { await pool.end() }`.
 
-- [ ] **Step 6: Ejecutar todo, seed local y commit**
+- [x] **Step 6: Ejecutar todo, seed local y commit**
 
 ```bash
 pnpm --filter @dentalware/api test && pnpm typecheck && pnpm lint && pnpm format:check
@@ -2073,7 +2073,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
   - `queryKeys` — `labSettings: ['config','laboratorio']`, `clinics: (inactive) => ['config','clinicas', { inactive }]`, `clinic: (id) => ['config','clinicas', id]`, `doctors: (clinicId?, inactive?) => [...]`, `categories`, `products: (inactive)`, `clinicPrices: (clinicId)`, `stages: (inactive)`, `users: ['users']`.
   - `apiError(res)`: lee `{ message, issues? }` de una respuesta no-ok y devuelve `{ message, issues }`; `toastApiError(err)` muestra `toast.error(message)`.
 
-- [ ] **Step 1: Componentes shadcn y sonner**
+- [x] **Step 1: Componentes shadcn y sonner**
 
 ```bash
 cd apps/web
@@ -2083,7 +2083,7 @@ grep -n '"sonner"' apps/web/package.json
 ```
 Añadir al catalog raíz `sonner: 2.0.8` y cambiar `apps/web/package.json` a `"sonner": "catalog:"`; `pnpm install`. Si el CLI añade otras deps con `^`, fijarlas igual en el catalog (verificar la versión con `npm view <pkg> dist-tags.latest`) o quitarlas si no se usan.
 
-- [ ] **Step 2: Utilidades**
+- [x] **Step 2: Utilidades**
 
 `apps/web/src/lib/query-keys.ts`:
 ```ts
@@ -2132,7 +2132,7 @@ export function toastApiError(err: unknown) {
 }
 ```
 
-- [ ] **Step 3: Componentes transversales**
+- [x] **Step 3: Componentes transversales**
 
 `apps/web/src/components/page-header.tsx`:
 ```tsx
@@ -2332,7 +2332,7 @@ export function ConfirmDialog({
 
 `apps/web/src/routes/__root.tsx`: importar `import { Toaster } from '@/components/ui/sonner'` y renderizar `<Toaster position="top-center" richColors />` junto al `<Outlet />`.
 
-- [ ] **Step 4: Verificar**
+- [x] **Step 4: Verificar**
 
 ```bash
 pnpm --filter @dentalware/web typecheck && pnpm lint && pnpm format:check
@@ -2340,7 +2340,7 @@ pnpm --filter @dentalware/web build
 ```
 Expected: sin errores (los componentes aún no se usan; `noUnusedLocals` no aplica a exports).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web pnpm-workspace.yaml pnpm-lock.yaml
@@ -2364,7 +2364,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 - Consumes: `api` (hc), `queryKeys`, `throwIfNotOk`, `toastApiError`, `PageHeader`, `DataTable`, `FormDialog`, `ConfirmDialog`, `ActiveBadge`; schemas `labSettingsSchema`, `stageSchema`.
 - Produces: patrón de feature web reutilizado en Tasks 11-13: `features/<f>/api.ts` (funciones `list/create/update/setActive` sobre `api.api.config.<ruta>`), `features/<f>/use-<f>.ts` (hooks `useX()` con `useQuery`, `useCreateX()`/`useUpdateX()`/`useSetXActive()` con `useMutation` + `invalidateQueries` + toasts), `features/<f>/<f>-form.tsx` (react-hook-form + zodResolver + `Field`), `features/<f>/<f>-table.tsx` (DataTable + acciones). `ConfigNav` con las secciones: Laboratorio, Usuarios, Clínicas, Productos, Fases.
 
-- [ ] **Step 1: Layout y guard**
+- [x] **Step 1: Layout y guard**
 
 `apps/web/src/routes/_app/configuracion.tsx`:
 ```tsx
@@ -2433,7 +2433,7 @@ export const Route = createFileRoute('/_app/configuracion/')({
 })
 ```
 
-- [ ] **Step 2: Feature laboratorio**
+- [x] **Step 2: Feature laboratorio**
 
 `apps/web/src/features/config/api.ts`:
 ```ts
@@ -2560,7 +2560,7 @@ function LabSettingsPage() {
 }
 ```
 
-- [ ] **Step 3: Feature fases**
+- [x] **Step 3: Feature fases**
 
 `apps/web/src/features/stages/api.ts`:
 ```ts
@@ -2805,7 +2805,7 @@ function StagesPage() {
 }
 ```
 
-- [ ] **Step 4: Verificar en el navegador y con las herramientas**
+- [x] **Step 4: Verificar en el navegador y con las herramientas**
 
 ```bash
 pnpm --filter @dentalware/api build && pnpm --filter @dentalware/web typecheck && pnpm lint && pnpm format:check
@@ -2813,7 +2813,7 @@ pnpm dev &   # http://localhost:5173/configuracion → redirige a /configuracion
 ```
 Con Chrome DevTools (1280×800 y 390×844): guardar datos del laboratorio (toast), crear una fase, reordenar, desactivar y mostrar inactivas; sin errores de consola; foco visible; botones de icono con `aria-label`. Cerrar los servidores.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web
@@ -2837,7 +2837,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 - Consumes: rutas `/api/config/clinicas*` y `/api/config/doctores*` (Task 5); componentes de Task 9; patrón de Task 10.
 - Produces: `/configuracion/clinicas` (lista con búsqueda por nombre, alta/edición en diálogo, activar/desactivar) y `/configuracion/clinicas/$clinicId` (detalle: datos, doctores de la clínica con alta/edición/activar, pestaña "Precios especiales" que completa Task 12). `useClinics(inactive)`, `useClinic(id)`, `useSaveClinic()`, `useSetClinicActive()`, `useDoctors(clinicId, inactive)`, `useSaveDoctor()`, `useSetDoctorActive()`.
 
-- [ ] **Step 1: API y hooks de clínicas**
+- [x] **Step 1: API y hooks de clínicas**
 
 `apps/web/src/features/clinics/api.ts`:
 ```ts
@@ -2908,7 +2908,7 @@ export function useSetClinicActive() {
 }
 ```
 
-- [ ] **Step 2: Formulario y tabla de clínicas**
+- [x] **Step 2: Formulario y tabla de clínicas**
 
 `apps/web/src/features/clinics/clinic-form.tsx`:
 ```tsx
@@ -3015,7 +3015,7 @@ export function ClinicsTable({ clinics, onEdit, onToggle, emptyAction }: {
 }
 ```
 
-- [ ] **Step 3: Página de lista**
+- [x] **Step 3: Página de lista**
 
 `apps/web/src/routes/_app/configuracion/clinicas.tsx`:
 ```tsx
@@ -3079,7 +3079,7 @@ function ClinicsPage() {
 }
 ```
 
-- [ ] **Step 4: Doctores (feature) y detalle de clínica**
+- [x] **Step 4: Doctores (feature) y detalle de clínica**
 
 `apps/web/src/features/doctors/api.ts`:
 ```ts
@@ -3168,7 +3168,7 @@ function ClinicDetailPage() {
 ```
 (Task 12 sustituye el texto de la pestaña "Precios especiales" por `ClinicPricesTable`.)
 
-- [ ] **Step 5: Verificar y commit**
+- [x] **Step 5: Verificar y commit**
 
 ```bash
 pnpm --filter @dentalware/web typecheck && pnpm lint && pnpm format:check
@@ -3197,7 +3197,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 - Consumes: rutas `/api/config/productos*` (Task 6).
 - Produces: `/configuracion/productos` con dos pestañas — **Productos** (tabla: código mono, nombre, categoría, unidad, precio base `$ 45.00` mono, días, prueba sí/no, estado, acciones) y **Categorías** (lista simple con alta/edición/activar); `ClinicPricesTable({ clinicId })` (todos los productos activos con su precio base y un campo de precio especial editable en línea con guardar/quitar) usada en el detalle de clínica. `PRICING_UNIT_LABEL: Record<PricingUnit, string>` = `{ por_pieza: 'Por pieza', por_arcada: 'Por arcada', por_trabajo: 'Por trabajo' }`. `formatMoney(value: string)` → `'$ 45.00'` (se reutilizará en Iteración 2).
 
-- [ ] **Step 1: API, etiquetas y hooks**
+- [x] **Step 1: API, etiquetas y hooks**
 
 `apps/web/src/features/products/pricing-unit-label.ts`:
 ```ts
@@ -3254,7 +3254,7 @@ export async function deleteClinicPrice(clinicId: string, productId: string) {
 
 `apps/web/src/features/products/use-products.ts`: hooks `useCategories(inactive)`, `useSaveCategory()`, `useSetCategoryActive()`, `useProducts(inactive)`, `useSaveProduct()`, `useSetProductActive()`, `useClinicPrices(clinicId)`, `useSaveClinicPrice()` (`{ clinicId, productId, price }`), `useDeleteClinicPrice()` — mismo patrón que `use-stages.ts`: `useMutation` + `invalidateQueries` sobre `['config','categorias']`, `['config','productos']` o `queryKeys.clinicPrices(clinicId)`; toasts: "Categoría creada/actualizada", "Producto creado/actualizado", "Producto activado/desactivado", "Precio especial guardado", "Precio especial quitado"; `onError: toastApiError` (muestra el 409 "Ya existe un producto con ese código").
 
-- [ ] **Step 2: Formularios**
+- [x] **Step 2: Formularios**
 
 `apps/web/src/features/products/category-form.tsx`: `FormDialog` con campo Nombre y Orden (`type="number"`), `productCategorySchema`, `id="category-form"`.
 
@@ -3357,7 +3357,7 @@ export function ProductForm({ open, onOpenChange, product, categories, onSubmit,
 }
 ```
 
-- [ ] **Step 3: Tablas y página**
+- [x] **Step 3: Tablas y página**
 
 `apps/web/src/features/products/products-table.tsx`: `DataTable` con columnas Código (`font-mono`), Producto, Categoría (`p.category.name`), Se cobra (`PRICING_UNIT_LABEL`), Precio base (`formatMoney`, `font-mono`, alineado a la derecha), Días, Prueba ("Sí"/"No"), Estado (`ActiveBadge`), acciones (editar + switch con `aria-label`); tarjeta móvil: código + nombre, categoría · unidad, precio en mono, acciones. `emptyMessage="Aún no hay productos. Crea el primero con Nuevo producto."`
 
@@ -3418,7 +3418,7 @@ export function ClinicPricesTable({ clinicId }: { clinicId: string }) {
 
 `apps/web/src/routes/_app/configuracion/clinicas.$clinicId.tsx`: en la pestaña `precios` reemplazar el párrafo por `<ClinicPricesTable clinicId={clinicId} />`.
 
-- [ ] **Step 4: Verificar y commit**
+- [x] **Step 4: Verificar y commit**
 
 ```bash
 pnpm --filter @dentalware/web typecheck && pnpm lint && pnpm format:check
@@ -3447,7 +3447,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 - Consumes: rutas `/api/users*` (Task 8); `createUserSchema`, `updateUserSchema`, `USER_ROLES`.
 - Produces: `/configuracion/usuarios`: tabla (nombre, correo, rol como chip, estado Activo/Bloqueado, acciones), diálogo "Nuevo usuario" (nombre, correo, contraseña, rol), diálogo "Editar" (nombre, rol, nueva contraseña opcional), bloquear/desbloquear con `ConfirmDialog` (motivo opcional). El propio admin no puede bloquearse ni cambiar su rol (controles deshabilitados con `title` explicativo). `ROLE_LABEL: Record<UserRole, string>` = `{ admin: 'Administrador', recepcion: 'Recepción', tecnico: 'Técnico', mensajero: 'Mensajero' }`.
 
-- [ ] **Step 1: API, etiquetas y hooks**
+- [x] **Step 1: API, etiquetas y hooks**
 
 `apps/web/src/features/users/role-label.ts`:
 ```ts
@@ -3479,17 +3479,17 @@ export async function setUserBanned(id: string, banned: boolean, reason?: string
 
 `apps/web/src/features/users/use-users.ts`: `useUsers()` (`queryKeys.users`), `useCreateUser()`, `useUpdateUser()` (`{ id, input }`), `useSetUserBanned()` (`{ id, banned, reason }`); invalidan `queryKeys.users`; toasts "Usuario creado", "Usuario actualizado", "Acceso bloqueado"/"Acceso restablecido"; `onError: toastApiError`.
 
-- [ ] **Step 2: Formulario y tabla**
+- [x] **Step 2: Formulario y tabla**
 
 `apps/web/src/features/users/user-form.tsx`: un solo componente `UserForm({ open, onOpenChange, user, onCreate, onUpdate, pending })`: si `user` es `null` usa `createUserSchema` (campos Nombre, Correo, Contraseña con `autoComplete="new-password"`, Rol con `Select` de `USER_ROLES` etiquetado con `ROLE_LABEL`); si existe, usa `updateUserSchema` (Nombre, Rol, "Nueva contraseña (opcional)"), con el `Select` de rol deshabilitado cuando `user.id === currentUserId` y `FieldDescription` "No puedes cambiar tu propio rol". Estructura idéntica a `ProductForm` (Controller + Field + FormDialog, `id="user-form"`).
 
 `apps/web/src/features/users/users-table.tsx`: `DataTable` con columnas Nombre, Correo (`font-mono text-sm`), Rol (`<Badge variant="outline">{ROLE_LABEL[role]}</Badge>`), Estado (`banned ? <Badge variant="destructive">Bloqueado</Badge> : <ActiveBadge active />`), acciones: editar (icono `Pencil`, `aria-label`), y botón "Bloquear"/"Desbloquear" (variant `outline`, deshabilitado para el usuario actual con `title="No puedes modificar tu propio acceso"`). Tarjeta móvil con nombre + rol, correo, estado, acciones.
 
-- [ ] **Step 3: Página**
+- [x] **Step 3: Página**
 
 `apps/web/src/routes/_app/configuracion/usuarios.tsx`: `PageHeader` "Usuarios" ("Quién puede entrar y con qué permisos.") con acción "Nuevo usuario"; `useUsers()`; `UsersTable`; `UserForm` (`currentUserId` desde `Route.useRouteContext().user.id` de `/_app`); `ConfirmDialog` para bloquear (`title="Bloquear acceso"`, `description="La persona no podrá iniciar sesión y sus sesiones abiertas se cerrarán."`, `confirmLabel="Bloquear"`, `destructive`) y para desbloquear (`confirmLabel="Restablecer acceso"`).
 
-- [ ] **Step 4: Verificar y commit**
+- [x] **Step 4: Verificar y commit**
 
 ```bash
 pnpm --filter @dentalware/web typecheck && pnpm lint && pnpm format:check
@@ -3517,7 +3517,7 @@ Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 **Interfaces:**
 - Consumes: toda la UI de las Tasks 10-13 y el seed de Task 8 (admin `admin@lab.local`).
 
-- [ ] **Step 1: E2E**
+- [x] **Step 1: E2E**
 
 `apps/web/e2e/helpers.ts`:
 ```ts
@@ -3585,7 +3585,7 @@ pnpm --filter @dentalware/web e2e --project=escritorio --project=android
 ```
 Expected: 7 pruebas × 2 proyectos = 14/14. Si las pruebas dejan datos en la BD de desarrollo, es aceptable (nombres con sufijo de tiempo).
 
-- [ ] **Step 2: Verificación completa y UI**
+- [x] **Step 2: Verificación completa y UI**
 
 ```bash
 pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test
@@ -3593,7 +3593,7 @@ pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test
 Expected: todo verde; `pnpm test` ≈ 40 (shared) + 15 (api Iteración 0) + 2 (validate) + 2 (schema) + 3 (lab) + 3 (clinics) + 2 (doctors) + 4 (products) + 2 (stages) + 3 (users) = 76.
 Recorrido final en Chrome DevTools a 1280px y 390px por las cinco secciones sin errores de consola.
 
-- [ ] **Step 3: README**
+- [x] **Step 3: README**
 
 Añadir tras "Desarrollo" en `README.md`:
 ```markdown
@@ -3602,7 +3602,7 @@ Añadir tras "Desarrollo" en `README.md`:
 Tras el `seed`, entra como administrador y completa **Configuración**: datos del laboratorio (nombre, dirección, teléfonos), fases de producción (se crean 7 por defecto), categorías y productos (se crean los 6 de la orden en papel con precio base 0.00: pon los precios reales), clínicas con sus doctores y precios especiales, y los usuarios del equipo con su rol (recepción, técnico, mensajero). Los técnicos y mensajeros nunca ven precios.
 ```
 
-- [ ] **Step 4: Marcar el plan y commit final**
+- [x] **Step 4: Marcar el plan y commit final**
 
 ```bash
 sed -i 's/^- \[ \]/- [x]/' docs/superpowers/plans/2026-09-04-iteracion-1-configuracion.md

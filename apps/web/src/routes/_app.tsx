@@ -1,7 +1,7 @@
 import type { UserRole } from '@dentalware/shared'
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { AppShell } from '@/components/app-shell'
-import { authClient } from '@/lib/auth-client'
+import { authClient } from '@/features/auth/auth-client'
 
 export const Route = createFileRoute('/_app')({
   beforeLoad: async ({ location }) => {

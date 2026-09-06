@@ -147,6 +147,8 @@ Plantilla CSV/XLSX descargable (una fila por línea de trabajo: clínica, doctor
 
 Roles: `admin` todo; `recepcion` todo salvo usuarios/config; `tecnico` trabajos sin precios, fases, fotos, comentarios; `mensajero` entregas + ficha básica sin precios.
 
+Precisión sobre catálogos de Configuración: la **lectura** de clínicas, doctores, fases y datos del laboratorio solo exige una sesión iniciada (cualquier rol), porque Trabajos (Iteración 2) los necesita para técnico y mensajero; productos, categorías y precios se restringen en lectura a `admin`/`recepcion` (los precios nunca llegan a técnico ni mensajero); toda escritura de Configuración es exclusiva de `admin`.
+
 ## 7. Errores y calidad de datos
 
 - Datos obligatorios al recibir un trabajo (no se puede **Aceptar** sin ellos): clínica, doctor, referencia de paciente, al menos una línea con producto y piezas FDI o arcada, fecha deseada, color cuando el producto lo exige, y foto o documento de la prescripción si la clínica no la entregó en papel; además la lista de verificación de la orden en papel (antagonista, mordida, color, fotos) con lo recibido marcado. El formulario marca lo que falta y la API lo rechaza con 422 y mensajes en español.
@@ -158,12 +160,14 @@ Roles: `admin` todo; `recepcion` todo salvo usuarios/config; `tecnico` trabajos 
 - Toda mutación de trabajo escribe `case_event` en la misma transacción.
 - Borrado lógico en catálogos; los trabajos se cancelan, nunca se borran.
 
-## 8. Pruebas
+## 8. Pruebas (TDD obligatorio)
 
+- **Regla de trabajo (Nelson, 2026-09-05):** todo feature o fix se desarrolla con TDD invocando la skill `superpowers:test-driven-development` antes de empezar: test que falla (RED) → implementación mínima (GREEN) → refactor. Ninguna tarea de un plan se cierra sin su prueba; en revisión, el código sin test es un hallazgo *Important*. El software debe quedar probado en todas las capas; seguimiento en la épica de pruebas #29 (una historia por capa y una de E2E por iteración).
 - Unit (Vitest) en `packages/shared`: máquina de estados, días hábiles, totales y precio por clínica, FDI, código.
-- API (Vitest + Postgres en Docker): crear trabajo, transiciones, pagos y saldo, permisos por rol.
-- E2E (Playwright, móvil y escritorio): crear trabajo → aceptar → fases por QR → finalizar → entregar → cargo y pago → imprimir ficha.
-- Desarrollo con TDD.
+- API (Vitest + Postgres real en 5433): cada ruta con casos de éxito, 422 de validación, 401/403 por rol y conflictos (409); crear trabajo, transiciones, pagos y saldo.
+- Web (Vitest + Testing Library): componentes transversales, formularios con validación en español y envío de datos normalizados, hooks de datos con la API simulada.
+- E2E (Playwright: escritorio y android en local, iphone/WebKit en CI): el flujo principal de cada iteración; en el cierre del MVP, el flujo completo crear trabajo → aceptar → fases por QR → finalizar → entregar → cargo y pago → imprimir ficha.
+- Cobertura mínima en CI con `@vitest/coverage-v8`: 80 % de líneas en shared y api, 70 % en web.
 
 ## 9. Despliegue y operación
 

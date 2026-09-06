@@ -4,14 +4,21 @@ import { HTTPException } from 'hono/http-exception'
 import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
 import type { Auth } from './auth.ts'
-import type { AppEnv } from './middleware/session.ts'
-import { requireRole, sessionMiddleware } from './middleware/session.ts'
-import { healthRoutes } from './routes/health.ts'
-import { meRoutes } from './routes/me.ts'
+import type { Db } from './db/index.ts'
+import { meRoutes } from './features/auth/me.routes.ts'
+import type { AppEnv } from './features/auth/session.ts'
+import { requireRole, sessionMiddleware } from './features/auth/session.ts'
+import { clinicsRoutes } from './features/clinics/routes.ts'
+import { doctorsRoutes } from './features/doctors/routes.ts'
+import { healthRoutes } from './features/health/routes.ts'
+import { labSettingsRoutes } from './features/lab-settings/routes.ts'
+import { productsRoutes } from './features/products/routes.ts'
+import { stagesRoutes } from './features/stages/routes.ts'
+import { usersRoutes } from './features/users/routes.ts'
 
-export type AppDeps = { auth: Auth; webOrigin: string }
+export type AppDeps = { auth: Auth; db: Db; webOrigin: string }
 
-export function createApp({ auth, webOrigin }: AppDeps) {
+export function createApp({ auth, db, webOrigin }: AppDeps) {
   const app = new Hono<AppEnv>()
 
   app.use(secureHeaders())
@@ -28,6 +35,13 @@ export function createApp({ auth, webOrigin }: AppDeps) {
 
   app.use('/api/*', sessionMiddleware(auth))
 
+  // El plugin admin de better-auth (set-role sin auto-guard, remove-user con borrado
+  // físico, impersonate-user) no lo usa el frontend: toda la administración de
+  // usuarios pasa por /api/users, que valida en español y respeta las reglas del
+  // negocio (nadie se bloquea ni se degrada a sí mismo, borrado lógico). Se bloquea
+  // la superficie HTTP del plugin antes de llegar al handler de better-auth.
+  app.all('/api/auth/admin/*', (c) => c.json({ message: 'No encontrado' }, 404))
+
   // Solo un admin autenticado puede crear usuarios.
   app.use('/api/auth/sign-up/*', requireRole('admin'))
   app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw))
@@ -41,6 +55,12 @@ export function createApp({ auth, webOrigin }: AppDeps) {
     .route('/api/health', healthRoutes)
     .route('/api/me', meRoutes)
     .route('/api/admin', adminRoutes)
+    .route('/api/config/laboratorio', labSettingsRoutes(db))
+    .route('/api/config/clinicas', clinicsRoutes(db))
+    .route('/api/config/doctores', doctorsRoutes(db))
+    .route('/api/config/productos', productsRoutes(db))
+    .route('/api/config/fases', stagesRoutes(db))
+    .route('/api/users', usersRoutes(db, auth))
 
   app.notFound((c) => c.json({ message: 'Recurso no encontrado' }, 404))
   app.onError((err, c) => {

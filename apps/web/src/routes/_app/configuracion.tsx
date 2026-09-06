@@ -1,5 +1,18 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { ConfigNav } from '@/features/config/config-nav'
 
 export const Route = createFileRoute('/_app/configuracion')({
-  component: () => <h1 className="text-2xl font-semibold">Configuración</h1>,
+  beforeLoad: ({ context }) => {
+    if (context.user.role !== 'admin') throw redirect({ to: '/' })
+  },
+  component: ConfigLayout,
 })
+
+function ConfigLayout() {
+  return (
+    <div className="flex flex-col gap-6">
+      <ConfigNav />
+      <Outlet />
+    </div>
+  )
+}

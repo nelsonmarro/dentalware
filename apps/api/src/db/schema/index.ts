@@ -1,1 +1,6 @@
 export * from './auth.ts'
+export * from '../../features/lab-settings/schema.ts'
+export * from '../../features/clinics/schema.ts'
+export * from '../../features/doctors/schema.ts'
+export * from '../../features/products/schema.ts'
+export * from '../../features/stages/schema.ts'

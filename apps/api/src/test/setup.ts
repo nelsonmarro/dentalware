@@ -6,6 +6,7 @@ import { loadConfig } from '../config.ts'
 import type { Db } from '../db/index.ts'
 import { createDb } from '../db/index.ts'
 import { runMigrations } from '../db/migrate.ts'
+import * as schema from '../db/schema/index.ts'
 import { users } from '../db/schema/index.ts'
 import type { AppType } from '../app.ts'
 
@@ -14,11 +15,13 @@ export async function setupTestDb() {
   const { db, pool } = createDb(config.DATABASE_URL)
   await runMigrations(db)
   const auth = createAuth(db, config)
-  return { config, db, pool, auth }
+  return { config, db, pool, auth, schema }
 }
 
 export async function truncateAll(db: Db) {
-  await db.execute(sql`truncate table "sessions", "accounts", "verifications", "users" cascade`)
+  await db.execute(
+    sql`truncate table "clinic_product_prices", "products", "product_categories", "doctors", "clinics", "stages", "lab_settings", "sessions", "accounts", "verifications", "users" cascade`,
+  )
 }
 
 export async function createUser(

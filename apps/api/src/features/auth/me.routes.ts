@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
-import type { AppEnv } from '../middleware/session.ts'
-import { requireAuth } from '../middleware/session.ts'
+import type { AppEnv } from './session.ts'
+import { requireAuth } from './session.ts'
 
 export const meRoutes = new Hono<AppEnv>().get('/', requireAuth, (c) => {
   const u = c.var.user!
