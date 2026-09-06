@@ -44,7 +44,7 @@ export const usersRoutes = (db: Db, auth: Auth) =>
   new Hono<AppEnv>()
     .use(requireRole('admin'))
     .get('/', async (c) =>
-      c.json({ users: await db.select(publicUser).from(users).orderBy(asc(users.name)) }),
+      c.json({ users: await db.select(publicUser).from(users).orderBy(asc(users.name)) }, 200),
     )
     .post('/', validate('json', createUserSchema), async (c) => {
       const input = c.req.valid('json')
@@ -98,7 +98,7 @@ export const usersRoutes = (db: Db, auth: Auth) =>
       }
       const [row] = await db.select(publicUser).from(users).where(eq(users.id, id))
       if (!row) throw new HTTPException(404, { message: 'El usuario no existe' })
-      return c.json({ user: row })
+      return c.json({ user: row }, 200)
     })
     .patch('/:id/bloqueo', validate('param', idParam), validate('json', banBody), async (c) => {
       const { id } = c.req.valid('param')
@@ -119,5 +119,5 @@ export const usersRoutes = (db: Db, auth: Auth) =>
       }
       const [row] = await db.select(publicUser).from(users).where(eq(users.id, id))
       if (!row) throw new HTTPException(404, { message: 'El usuario no existe' })
-      return c.json({ user: row })
+      return c.json({ user: row }, 200)
     })
