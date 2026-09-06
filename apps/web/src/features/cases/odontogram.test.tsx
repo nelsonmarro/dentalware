@@ -56,6 +56,28 @@ describe('Odontogram', () => {
     expect(onChange).toHaveBeenLastCalledWith(upper)
   })
 
+  it('con la arcada superior completa seleccionada, "Arcada superior" la limpia y conserva la inferior', async () => {
+    const onChange = vi.fn()
+    const { user } = renderWithProviders(
+      <Odontogram
+        value={[11, 12, 13, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 26, 27, 28, 31]}
+        onChange={onChange}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Arcada superior' }))
+    expect(onChange).toHaveBeenLastCalledWith([31])
+  })
+
+  it('con una selección superior parcial, "Arcada superior" completa las 16 piezas', async () => {
+    const onChange = vi.fn()
+    const { user } = renderWithProviders(<Odontogram value={[11]} onChange={onChange} />)
+
+    await user.click(screen.getByRole('button', { name: 'Arcada superior' }))
+    const upper = [11, 12, 13, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 26, 27, 28]
+    expect(onChange).toHaveBeenLastCalledWith(upper)
+  })
+
   it('"Limpiar" llama a onChange con un arreglo vacío', async () => {
     const onChange = vi.fn()
     const { user } = renderWithProviders(<Odontogram value={[11, 12]} onChange={onChange} />)

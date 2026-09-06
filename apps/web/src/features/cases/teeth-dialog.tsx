@@ -49,7 +49,9 @@ export function TeethDialog({
     >
       <div className="flex flex-col gap-4">
         <Odontogram value={draft} onChange={setDraft} />
-        <p className="text-sm text-muted-foreground">{draft.length} piezas</p>
+        <p className="text-sm text-muted-foreground">
+          {draft.length} {draft.length === 1 ? 'pieza' : 'piezas'}
+        </p>
       </div>
     </FormDialog>
   )
