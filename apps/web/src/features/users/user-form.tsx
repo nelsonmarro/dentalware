@@ -70,7 +70,10 @@ export function UserForm({
   const resolver: Resolver<UserFormValues> = async (values) => {
     const schema = isEdit ? editUserFormSchema : createUserSchema
     const result = await schema.safeParseAsync(values)
-    if (result.success) return { values, errors: {} }
+    // result.data viene recortado/normalizado por el esquema (trim, email en minúsculas);
+    // en edición no incluye "email" (fuera de updateUserSchema), pero submit() no lo lee
+    // en ese caso, así que el cast es seguro.
+    if (result.success) return { values: result.data as UserFormValues, errors: {} }
     const errors: Partial<Record<keyof UserFormValues, RhfFieldError>> = {}
     for (const issue of result.error.issues) {
       const key = issue.path[0] as keyof UserFormValues | undefined
@@ -84,7 +87,7 @@ export function UserForm({
       name: user?.name ?? '',
       email: user?.email ?? '',
       password: '',
-      role: user?.role ?? USER_ROLES[0],
+      role: user?.role ?? 'tecnico',
     },
   })
   const roleDisabled = isEdit && user.id === currentUserId
