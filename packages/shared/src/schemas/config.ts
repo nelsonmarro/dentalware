@@ -9,13 +9,17 @@ const nombre = z
   .trim()
   .min(1, { error: 'El nombre es obligatorio' })
   .max(120, { error: 'Máximo 120 caracteres' })
+// Los campos de texto opcionales se guardan como NULL en la base, nunca como cadena
+// vacía: '' y los espacios en blanco se normalizan a null (tanto al enviar el
+// formulario como al re-validar en el servidor un valor ya limpiado, que llega como
+// `null` explícito en el JSON).
 const textoOpcional = (max: number) =>
   z
     .string()
     .trim()
     .max(max, { error: `Máximo ${max} caracteres` })
-    .optional()
-    .or(z.literal('').transform(() => undefined))
+    .nullish()
+    .transform((v) => (v ? v : null))
 const uuid = z.uuid({ error: 'Identificador inválido' })
 export const priceString = z
   .string()
@@ -24,18 +28,18 @@ export const priceString = z
 const whatsappE164 = z
   .string()
   .trim()
-  .regex(/^\+[1-9]\d{7,14}$/, {
+  .nullish()
+  .refine((v) => !v || /^\+[1-9]\d{7,14}$/.test(v), {
     error: 'El WhatsApp debe ir en formato internacional, ej. +593991234567',
   })
-  .optional()
-  .or(z.literal('').transform(() => undefined))
+  .transform((v) => (v ? v : null))
 const correoOpcional = z
   .string()
   .trim()
   .toLowerCase()
-  .pipe(z.email({ error: 'Correo inválido' }))
-  .optional()
-  .or(z.literal('').transform(() => undefined))
+  .nullish()
+  .refine((v) => !v || z.email().safeParse(v).success, { error: 'Correo inválido' })
+  .transform((v) => (v ? v : null))
 
 export const labSettingsSchema = z.object({
   name: nombre,
@@ -43,12 +47,7 @@ export const labSettingsSchema = z.object({
   address: textoOpcional(200),
   phone: textoOpcional(60),
   logoUrl: textoOpcional(500),
-  codePrefix: z
-    .string()
-    .trim()
-    .max(6, { error: 'Máximo 6 caracteres' })
-    .optional()
-    .or(z.literal('').transform(() => undefined)),
+  codePrefix: textoOpcional(6),
   ivaPct: z.coerce.number().int().min(0).max(100).default(15),
 })
 export type LabSettingsInput = z.infer<typeof labSettingsSchema>
@@ -141,4 +140,7 @@ export const activeQuerySchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .transform((v) => v === 'true'),
+})
+export const activeBodySchema = z.object({
+  active: z.boolean({ error: 'Debe indicar activo o inactivo' }),
 })

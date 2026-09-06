@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
 import { createUser, loginAs, setupTestDb, truncateAll } from '../../test/setup.ts'
@@ -6,6 +7,7 @@ describe('/api/config/doctores', () => {
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
   let app: ReturnType<typeof createApp>
   let admin: string
+  let tecnico: string
   let clinicId: string
 
   beforeAll(async () => {
@@ -20,16 +22,23 @@ describe('/api/config/doctores', () => {
       name: 'Admin',
       role: 'admin',
     })
+    await createUser(ctx.auth, ctx.db, {
+      email: 'tec@t.local',
+      password: 'Tecnico1234',
+      name: 'Técnico',
+      role: 'tecnico',
+    })
     admin = await loginAs(app, 'admin@t.local', 'Admin12345!')
+    tecnico = await loginAs(app, 'tec@t.local', 'Tecnico1234')
     const [c] = await ctx.db.insert(ctx.schema.clinics).values({ name: 'Sonrisa' }).returning()
     clinicId = c!.id
   })
   afterAll(async () => {
     await ctx.pool.end()
   })
-  const req = (method: string, body?: unknown) => ({
+  const req = (method: string, body?: unknown, cookie = admin) => ({
     method,
-    headers: { 'content-type': 'application/json', cookie: admin, origin: ctx.config.WEB_ORIGIN },
+    headers: { 'content-type': 'application/json', cookie, origin: ctx.config.WEB_ORIGIN },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
 
@@ -68,5 +77,56 @@ describe('/api/config/doctores', () => {
       req('PATCH', { active: false }),
     )
     expect(((await off.json()) as { doctor: { active: boolean } }).doctor.active).toBe(false)
+  })
+
+  it('PUT /:id actualiza campos válidos, 422 en datos inválidos y limpia el correo a NULL', async () => {
+    const { doctor } = (await (
+      await app.request(
+        '/api/config/doctores',
+        req('POST', { clinicId, name: 'Dra. Paredes', email: 'a@b.com', phone: '0991234567' }),
+      )
+    ).json()) as { doctor: { id: string } }
+
+    const bad = await app.request(
+      `/api/config/doctores/${doctor.id}`,
+      req('PUT', { clinicId, name: '', email: 'a@b.com' }),
+    )
+    expect(bad.status).toBe(422)
+
+    const upd = await app.request(
+      `/api/config/doctores/${doctor.id}`,
+      req('PUT', { clinicId, name: 'Dra. Paredes Actualizada', email: '', phone: '' }),
+    )
+    expect(upd.status).toBe(200)
+    const body = (await upd.json()) as {
+      doctor: { name: string; email: string | null; phone: string | null }
+    }
+    expect(body.doctor.name).toBe('Dra. Paredes Actualizada')
+    expect(body.doctor.email).toBeNull()
+    expect(body.doctor.phone).toBeNull()
+
+    const [row] = await ctx.db
+      .select()
+      .from(ctx.schema.doctors)
+      .where(eq(ctx.schema.doctors.id, doctor.id))
+    expect(row!.email).toBeNull()
+    expect(row!.phone).toBeNull()
+  })
+
+  it('un técnico no puede crear ni editar doctores (403)', async () => {
+    const post = await app.request(
+      '/api/config/doctores',
+      req('POST', { clinicId, name: 'Dr. X' }, tecnico),
+    )
+    expect(post.status).toBe(403)
+
+    const { doctor } = (await (
+      await app.request('/api/config/doctores', req('POST', { clinicId, name: 'Dr. Y' }))
+    ).json()) as { doctor: { id: string } }
+    const put = await app.request(
+      `/api/config/doctores/${doctor.id}`,
+      req('PUT', { clinicId, name: 'Dr. Y editado' }, tecnico),
+    )
+    expect(put.status).toBe(403)
   })
 })

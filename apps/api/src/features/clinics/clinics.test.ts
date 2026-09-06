@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
 import { createUser, loginAs, setupTestDb, truncateAll } from '../../test/setup.ts'
@@ -92,6 +93,33 @@ describe('/api/config/clinicas', () => {
       ).status,
     ).toBe(404)
     expect((await app.request('/api/config/clinicas/no-uuid', req(admin, 'GET'))).status).toBe(422)
+  })
+
+  it('un PUT con whatsapp/email vacíos limpia esos campos a NULL (no los conserva)', async () => {
+    const { clinic } = (await (
+      await app.request(
+        '/api/config/clinicas',
+        req(admin, 'POST', { name: 'Clínica Norte', whatsapp: '+593991234567', email: 'a@b.com' }),
+      )
+    ).json()) as { clinic: { id: string; whatsapp: string; email: string } }
+    expect(clinic.whatsapp).toBe('+593991234567')
+    expect(clinic.email).toBe('a@b.com')
+
+    const upd = await app.request(
+      `/api/config/clinicas/${clinic.id}`,
+      req(admin, 'PUT', { name: 'Clínica Norte', whatsapp: '', email: '' }),
+    )
+    expect(upd.status).toBe(200)
+    const body = (await upd.json()) as { clinic: { whatsapp: string | null; email: string | null } }
+    expect(body.clinic.whatsapp).toBeNull()
+    expect(body.clinic.email).toBeNull()
+
+    const [row] = await ctx.db
+      .select()
+      .from(ctx.schema.clinics)
+      .where(eq(ctx.schema.clinics.id, clinic.id))
+    expect(row!.whatsapp).toBeNull()
+    expect(row!.email).toBeNull()
   })
 
   it('detalle incluye sus doctores', async () => {

@@ -1,7 +1,11 @@
-import { activeQuerySchema, clinicSchema, idParamSchema } from '@dentalware/shared'
+import {
+  activeBodySchema,
+  activeQuerySchema,
+  clinicSchema,
+  idParamSchema,
+} from '@dentalware/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
-import { z } from 'zod'
 import type { Db } from '../../db/index.ts'
 import { validate } from '../../lib/validate.ts'
 import type { AppEnv } from '../auth/session.ts'
@@ -13,8 +17,6 @@ import {
   setClinicActive,
   updateClinic,
 } from './repo.ts'
-
-const activeBody = z.object({ active: z.boolean({ error: 'Debe indicar activo o inactivo' }) })
 
 export const clinicsRoutes = (db: Db) =>
   new Hono<AppEnv>()
@@ -44,7 +46,7 @@ export const clinicsRoutes = (db: Db) =>
       '/:id/activo',
       requireRole('admin'),
       validate('param', idParamSchema),
-      validate('json', activeBody),
+      validate('json', activeBodySchema),
       async (c) => {
         const clinic = await setClinicActive(
           db,

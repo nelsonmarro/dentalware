@@ -1,4 +1,4 @@
-import { activeQuerySchema, idParamSchema, stageSchema } from '@dentalware/shared'
+import { activeBodySchema, activeQuerySchema, idParamSchema, stageSchema } from '@dentalware/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
@@ -8,7 +8,6 @@ import type { AppEnv } from '../auth/session.ts'
 import { requireAuth, requireRole } from '../auth/session.ts'
 import { createStage, listStages, reorderStages, setStageActive, updateStage } from './repo.ts'
 
-const activeBody = z.object({ active: z.boolean({ error: 'Debe indicar activo o inactivo' }) })
 const orderBody = z.object({
   ids: z
     .array(z.uuid({ error: 'Identificador inválido' }))
@@ -41,7 +40,7 @@ export const stagesRoutes = (db: Db) =>
       '/:id/activo',
       requireRole('admin'),
       validate('param', idParamSchema),
-      validate('json', activeBody),
+      validate('json', activeBodySchema),
       async (c) => {
         const stage = await setStageActive(db, c.req.valid('param').id, c.req.valid('json').active)
         if (!stage) throw new HTTPException(404, { message: 'La fase no existe' })

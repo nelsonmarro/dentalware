@@ -1,4 +1,5 @@
 import {
+  activeBodySchema,
   activeQuerySchema,
   clinicPriceSchema,
   idParamSchema,
@@ -28,7 +29,6 @@ import {
   upsertClinicPrice,
 } from './repo.ts'
 
-const activeBody = z.object({ active: z.boolean({ error: 'Debe indicar activo o inactivo' }) })
 const priceParams = z.object({
   clinicId: z.uuid({ error: 'Identificador inválido' }),
   productId: z.uuid({ error: 'Identificador inválido' }),
@@ -70,7 +70,7 @@ export const productsRoutes = (db: Db) =>
       '/categorias/:id/activo',
       canWrite,
       validate('param', idParamSchema),
-      validate('json', activeBody),
+      validate('json', activeBodySchema),
       async (c) => {
         const category = await setCategoryActive(
           db,
@@ -140,7 +140,7 @@ export const productsRoutes = (db: Db) =>
       '/:id/activo',
       canWrite,
       validate('param', idParamSchema),
-      validate('json', activeBody),
+      validate('json', activeBodySchema),
       async (c) => {
         const product = await setProductActive(
           db,

@@ -96,6 +96,59 @@ describe('schemas de configuración', () => {
     expect(clinicPriceSchema.safeParse({ price: 'abc' }).success).toBe(false)
   })
 
+  it('los campos de texto opcionales normalizan vacío/espacios a null, no a undefined', () => {
+    const r = clinicSchema.safeParse({
+      name: 'Clínica Sonrisa',
+      ruc: '',
+      address: '   ',
+      city: '',
+      phone: '',
+      whatsapp: '',
+      email: '',
+      notes: '',
+    })
+    expect(r.success).toBe(true)
+    if (r.success) {
+      expect(r.data.ruc).toBeNull()
+      expect(r.data.address).toBeNull()
+      expect(r.data.city).toBeNull()
+      expect(r.data.phone).toBeNull()
+      expect(r.data.whatsapp).toBeNull()
+      expect(r.data.email).toBeNull()
+      expect(r.data.notes).toBeNull()
+    }
+    // null explícito (lo que llega al re-validar en el servidor un valor ya limpiado) también es válido
+    const r2 = clinicSchema.safeParse({
+      name: 'X',
+      ruc: null,
+      whatsapp: null,
+      email: null,
+    })
+    expect(r2.success).toBe(true)
+    if (r2.success) {
+      expect(r2.data.ruc).toBeNull()
+      expect(r2.data.whatsapp).toBeNull()
+      expect(r2.data.email).toBeNull()
+    }
+    // un valor válido pasa sin cambios
+    const r3 = clinicSchema.safeParse({
+      name: 'X',
+      whatsapp: '+593991234567',
+      email: 'Clinica@Sonrisa.COM',
+    })
+    expect(r3.success).toBe(true)
+    if (r3.success) {
+      expect(r3.data.whatsapp).toBe('+593991234567')
+      expect(r3.data.email).toBe('clinica@sonrisa.com')
+    }
+  })
+
+  it('labSettings normaliza codePrefix vacío a null (sin la rama muerta anterior)', () => {
+    const r = labSettingsSchema.safeParse({ name: 'Arte Dental', codePrefix: '' })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.codePrefix).toBeNull()
+  })
+
   it('createUser exige correo, contraseña de 8+ y rol válido', () => {
     expect(
       createUserSchema.safeParse({

@@ -1,4 +1,9 @@
-import { activeQuerySchema, doctorSchema, idParamSchema } from '@dentalware/shared'
+import {
+  activeBodySchema,
+  activeQuerySchema,
+  doctorSchema,
+  idParamSchema,
+} from '@dentalware/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
@@ -11,8 +16,6 @@ import { clinicExists, createDoctor, listDoctors, setDoctorActive, updateDoctor 
 const listQuery = activeQuerySchema.extend({
   clinicId: z.uuid({ error: 'Identificador inválido' }).optional(),
 })
-const activeBody = z.object({ active: z.boolean({ error: 'Debe indicar activo o inactivo' }) })
-
 async function assertClinic(db: Db, clinicId: string) {
   if (!(await clinicExists(db, clinicId)))
     throw new HTTPException(422, { message: 'La clínica no existe' })
@@ -54,7 +57,7 @@ export const doctorsRoutes = (db: Db) =>
       '/:id/activo',
       requireRole('admin'),
       validate('param', idParamSchema),
-      validate('json', activeBody),
+      validate('json', activeBodySchema),
       async (c) => {
         const doctor = await setDoctorActive(
           db,
