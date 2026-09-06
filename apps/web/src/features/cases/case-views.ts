@@ -1,4 +1,5 @@
-import type { CaseStatus, CaseView } from '@dentalware/shared'
+import type { CaseListQuery, CaseStatus, CaseView } from '@dentalware/shared'
+import { caseListQuerySchema } from '@dentalware/shared'
 
 export const CASE_VIEW_LABEL: Record<CaseView, string> = {
   nuevos: 'Nuevos',
@@ -22,4 +23,15 @@ export function dueBadge(
   if (date === today) return 'hoy'
   if (date < today) return 'atrasado'
   return null
+}
+
+// `.partial()` deja cada campo opcional pero conserva sus validaciones (enum, uuid,
+// coerce.number…); `.catch({})` evita que un parámetro corrupto en la URL (por ejemplo
+// `?vista=x` o `?pagina=abc`) tumbe la ruta con el errorComponent del router: en ese
+// caso se cae a `{}` (los defaults de la página) en vez de lanzar.
+const casesSearchSchema = caseListQuerySchema.partial().catch({})
+
+/** Valida `search` de `/trabajos`; parámetros inválidos caen a `{}` en vez de lanzar. */
+export function parseCasesSearch(input: unknown): Partial<CaseListQuery> {
+  return casesSearchSchema.parse(input)
 }

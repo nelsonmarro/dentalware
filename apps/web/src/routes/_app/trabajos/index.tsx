@@ -1,11 +1,11 @@
 import type { CaseView } from '@dentalware/shared'
-import { CASE_VIEWS, caseListQuerySchema } from '@dentalware/shared'
+import { CASE_VIEWS } from '@dentalware/shared'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { CaseListQueryInput } from '@/features/cases/api'
-import { CASE_VIEW_LABEL } from '@/features/cases/case-views'
+import { CASE_VIEW_LABEL, parseCasesSearch } from '@/features/cases/case-views'
 import { CasesFilters } from '@/features/cases/cases-filters'
 import { CasesTable } from '@/features/cases/cases-table'
 import { useCases } from '@/features/cases/use-cases'
@@ -14,7 +14,7 @@ import { useDoctors } from '@/features/doctors/use-doctors'
 import { useUsers } from '@/features/users/use-users'
 
 export const Route = createFileRoute('/_app/trabajos/')({
-  validateSearch: (s) => caseListQuerySchema.partial().parse(s),
+  validateSearch: parseCasesSearch,
   component: TrabajosPage,
 })
 
@@ -64,7 +64,7 @@ function TrabajosPage() {
         }
       />
       <Tabs value={vista} onValueChange={(v) => updateSearch({ vista: v as CaseView })}>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-hidden">
           <TabsList>
             {CASE_VIEWS.map((v) => (
               <TabsTrigger key={v} value={v}>
