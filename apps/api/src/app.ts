@@ -5,6 +5,7 @@ import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
 import type { Auth } from './auth.ts'
 import type { Db } from './db/index.ts'
+import { attachmentsRoutes } from './features/attachments/routes.ts'
 import { meRoutes } from './features/auth/me.routes.ts'
 import type { AppEnv } from './features/auth/session.ts'
 import { requireRole, sessionMiddleware } from './features/auth/session.ts'
@@ -16,10 +17,11 @@ import { labSettingsRoutes } from './features/lab-settings/routes.ts'
 import { productsRoutes } from './features/products/routes.ts'
 import { stagesRoutes } from './features/stages/routes.ts'
 import { usersRoutes } from './features/users/routes.ts'
+import type { Storage } from './lib/storage.ts'
 
-export type AppDeps = { auth: Auth; db: Db; webOrigin: string }
+export type AppDeps = { auth: Auth; db: Db; webOrigin: string; storage: Storage }
 
-export function createApp({ auth, db, webOrigin }: AppDeps) {
+export function createApp({ auth, db, webOrigin, storage }: AppDeps) {
   const app = new Hono<AppEnv>()
 
   app.use(secureHeaders())
@@ -63,6 +65,7 @@ export function createApp({ auth, db, webOrigin }: AppDeps) {
     .route('/api/config/fases', stagesRoutes(db))
     .route('/api/trabajos', casesRoutes(db))
     .route('/api/users', usersRoutes(db, auth))
+    .route('/api/adjuntos', attachmentsRoutes(db, storage))
 
   app.notFound((c) => c.json({ message: 'Recurso no encontrado' }, 404))
   app.onError((err, c) => {

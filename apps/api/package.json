@@ -33,6 +33,7 @@
     "drizzle-orm": "catalog:",
     "hono": "catalog:",
     "pg": "catalog:",
+    "sharp": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

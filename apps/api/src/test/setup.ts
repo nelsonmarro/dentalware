@@ -1,5 +1,8 @@
 import type { UserRole } from '@dentalware/shared'
 import { eq, sql } from 'drizzle-orm'
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Auth } from '../auth.ts'
 import { createAuth } from '../auth.ts'
 import { loadConfig } from '../config.ts'
@@ -9,13 +12,15 @@ import { runMigrations } from '../db/migrate.ts'
 import * as schema from '../db/schema/index.ts'
 import { users } from '../db/schema/index.ts'
 import type { AppType } from '../app.ts'
+import { LocalStorage } from '../lib/storage.ts'
 
 export async function setupTestDb() {
   const config = loadConfig()
   const { db, pool } = createDb(config.DATABASE_URL)
   await runMigrations(db)
   const auth = createAuth(db, config)
-  return { config, db, pool, auth, schema }
+  const storage = new LocalStorage(await mkdtemp(join(tmpdir(), 'dentalware-')))
+  return { config, db, pool, auth, schema, storage }
 }
 
 export async function truncateAll(db: Db) {

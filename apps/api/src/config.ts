@@ -25,6 +25,7 @@ const configSchema = z.object({
     .string()
     .min(1, { error: 'ADMIN_NAME no puede estar vacío' })
     .default('Administrador'),
+  UPLOAD_DIR: z.string().min(1).default('./data/uploads'),
 })
 
 export type Config = z.infer<typeof configSchema>
