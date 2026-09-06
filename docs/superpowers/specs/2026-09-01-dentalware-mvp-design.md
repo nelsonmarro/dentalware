@@ -147,6 +147,8 @@ Plantilla CSV/XLSX descargable (una fila por línea de trabajo: clínica, doctor
 
 Roles: `admin` todo; `recepcion` todo salvo usuarios/config; `tecnico` trabajos sin precios, fases, fotos, comentarios; `mensajero` entregas + ficha básica sin precios.
 
+Precisión sobre catálogos de Configuración: la **lectura** de clínicas, doctores, fases y datos del laboratorio solo exige una sesión iniciada (cualquier rol), porque Trabajos (Iteración 2) los necesita para técnico y mensajero; productos, categorías y precios se restringen en lectura a `admin`/`recepcion` (los precios nunca llegan a técnico ni mensajero); toda escritura de Configuración es exclusiva de `admin`.
+
 ## 7. Errores y calidad de datos
 
 - Datos obligatorios al recibir un trabajo (no se puede **Aceptar** sin ellos): clínica, doctor, referencia de paciente, al menos una línea con producto y piezas FDI o arcada, fecha deseada, color cuando el producto lo exige, y foto o documento de la prescripción si la clínica no la entregó en papel; además la lista de verificación de la orden en papel (antagonista, mordida, color, fotos) con lo recibido marcado. El formulario marca lo que falta y la API lo rechaza con 422 y mensajes en español.
