@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { loginAsAdmin } from './helpers'
+import { login, loginAsAdmin } from './helpers'
 
 test.describe('Configuración', () => {
   test.beforeEach(async ({ page }) => {
@@ -34,8 +34,23 @@ test.describe('Configuración', () => {
     await expect(page.getByText('Ya existe un producto con ese código')).toBeVisible()
   })
 
-  test('un técnico no ve Configuración', async ({ page }) => {
-    // El seed no crea técnicos: se valida que el enlace exista para admin y que la ruta redirija cuando el rol no es admin
-    await expect(page.getByRole('link', { name: 'Configuración' }).first()).toBeVisible()
+  test('un técnico no ve Configuración', async ({ page, browser }) => {
+    const email = `tecnico-e2e-${Date.now()}@t.local`
+    const password = 'Tecnico1234'
+    const created = await page.request.post('/api/users', {
+      data: { name: 'Técnico E2E', email, password, role: 'tecnico' },
+    })
+    expect(created.ok()).toBe(true)
+
+    const tecnicoContext = await browser.newContext()
+    const tecnicoPage = await tecnicoContext.newPage()
+    await login(tecnicoPage, { email, password })
+    await expect(tecnicoPage).toHaveURL('/')
+    await expect(tecnicoPage.getByRole('link', { name: 'Configuración' })).toHaveCount(0)
+
+    await tecnicoPage.goto('/configuracion/laboratorio')
+    await expect(tecnicoPage).toHaveURL('/')
+
+    await tecnicoContext.close()
   })
 })
