@@ -12,8 +12,8 @@ export class ApiError extends Error {
 }
 
 /** Convierte una respuesta no-ok de la API en ApiError con el mensaje en español del servidor. */
-export async function throwIfNotOk(res: Response): Promise<Response> {
-  if (res.ok) return res
+export async function throwIfNotOk<T extends Response>(res: T): Promise<Extract<T, { ok: true }>> {
+  if (res.ok) return res as Extract<T, { ok: true }>
   let body: { message?: string; issues?: ApiIssue[] } = {}
   try {
     body = (await res.json()) as typeof body

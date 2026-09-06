@@ -18,10 +18,10 @@ const orderBody = z.object({
 export const stagesRoutes = (db: Db) =>
   new Hono<AppEnv>()
     .get('/', requireAuth, validate('query', activeQuerySchema), async (c) =>
-      c.json({ stages: await listStages(db, c.req.valid('query').incluirInactivos) }),
+      c.json({ stages: await listStages(db, c.req.valid('query').incluirInactivos) }, 200),
     )
     .put('/orden', requireRole('admin'), validate('json', orderBody), async (c) =>
-      c.json({ stages: await reorderStages(db, c.req.valid('json').ids) }),
+      c.json({ stages: await reorderStages(db, c.req.valid('json').ids) }, 200),
     )
     .post('/', requireRole('admin'), validate('json', stageSchema), async (c) =>
       c.json({ stage: await createStage(db, c.req.valid('json')) }, 201),
@@ -34,7 +34,7 @@ export const stagesRoutes = (db: Db) =>
       async (c) => {
         const stage = await updateStage(db, c.req.valid('param').id, c.req.valid('json'))
         if (!stage) throw new HTTPException(404, { message: 'La fase no existe' })
-        return c.json({ stage })
+        return c.json({ stage }, 200)
       },
     )
     .patch(
@@ -45,6 +45,6 @@ export const stagesRoutes = (db: Db) =>
       async (c) => {
         const stage = await setStageActive(db, c.req.valid('param').id, c.req.valid('json').active)
         if (!stage) throw new HTTPException(404, { message: 'La fase no existe' })
-        return c.json({ stage })
+        return c.json({ stage }, 200)
       },
     )
