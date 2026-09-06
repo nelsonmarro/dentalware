@@ -1,5 +1,4 @@
 import { FDI_QUADRANTS, toothLabel, type FdiTooth } from '@dentalware/shared'
-import { Fragment } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -34,67 +33,90 @@ export function Odontogram({
     onChange([...next].sort((a, b) => a - b))
   }
   const allOn = (teeth: readonly FdiTooth[]) => teeth.every((t) => selected.has(t))
-  const cell = size === 'md' ? 'size-11' : 'size-7 text-[10px]'
-  // Ancho fijo por columna (igual al tamaño de la celda) en vez de `minmax(0,1fr)`: con
-  // columnas elásticas, en una pantalla angosta (390 px) las 16 celdas de 44 px se
-  // encogían por debajo de su tamaño real y los botones vecinos quedaban superpuestos
-  // (el clic en uno activaba el de al lado). Con columnas de ancho fijo la fila no se
-  // encoge; si no cabe, se desplaza horizontalmente dentro de `overflow-x-auto`.
-  const trackSize = size === 'md' ? '2.75rem' : '1.75rem'
-  const row = (teeth: readonly FdiTooth[], label: string) => (
-    <div className="flex flex-col gap-1">
+  // Cada arcada son dos cuadrantes de 8 piezas. Por debajo de `sm` cada cuadrante es su
+  // propia fila de 8 columnas elásticas (`grid-cols-8`) con celdas cuadradas sin ancho
+  // fijo (`w-full aspect-square`): así 8 piezas siempre caben en el ancho del diálogo
+  // (≈ 42 px en 390 px, ≈ 38 px en 360 px) sin recortar la última ni superponer botones
+  // — la superposición de antes venía de celdas de ancho FIJO dentro de columnas `1fr`
+  // que se encogían por debajo de ese ancho. Desde `sm` los cuadrantes pasan a
+  // `sm:contents` (dejan de generar caja propia) y sus botones se vuelven hijos directos
+  // de la fila de 16 columnas fijas de 44 px más el separador; si esa fila no cabe, se
+  // desplaza dentro de `overflow-x-auto`.
+  const cell =
+    size === 'md' ? 'aspect-square w-full min-w-0 sm:aspect-auto sm:size-11' : 'size-7 text-[10px]'
+  const quadrantCols =
+    size === 'md' ? 'grid-cols-8 gap-0.5 sm:gap-1' : 'grid-cols-[repeat(8,1.75rem)] gap-1'
+  const fullRowCols =
+    size === 'md'
+      ? 'sm:grid-cols-[repeat(8,2.75rem)_4px_repeat(8,2.75rem)]'
+      : 'sm:grid-cols-[repeat(8,1.75rem)_4px_repeat(8,1.75rem)]'
+
+  const tooth = (n: FdiTooth) => (
+    <button
+      key={n}
+      type="button"
+      disabled={readOnly}
+      aria-pressed={selected.has(n)}
+      aria-label={toothLabel(n)}
+      onClick={() => toggle(n)}
+      className={cn(
+        'flex flex-col items-center justify-center rounded-md border font-mono text-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-default motion-reduce:transition-none',
+        cell,
+        selected.has(n)
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-border bg-card text-foreground hover:bg-accent/60',
+      )}
+    >
+      <svg viewBox="0 0 16 20" className={size === 'md' ? 'h-4 w-3' : 'h-3 w-2'} aria-hidden>
+        <path
+          d={TOOTH_PATH}
+          fill={selected.has(n) ? 'currentColor' : 'none'}
+          stroke="currentColor"
+          strokeWidth="1.2"
+        />
+      </svg>
+      {n}
+    </button>
+  )
+
+  const row = (right: readonly FdiTooth[], left: readonly FdiTooth[], label: string) => (
+    <div className="flex min-w-0 flex-col gap-1">
       <span className="text-xs text-muted-foreground">{label}</span>
-      <div className="overflow-x-auto">
-        <div
-          className="grid w-fit gap-1"
-          style={{ gridTemplateColumns: `repeat(8, ${trackSize}) 4px repeat(8, ${trackSize})` }}
-        >
-          {teeth.map((n, i) => (
-            <Fragment key={n}>
-              {i === 8 && (
-                <span
-                  aria-hidden
-                  className="w-1 self-stretch justify-self-center rounded bg-border"
-                />
-              )}
-              <button
-                type="button"
-                disabled={readOnly}
-                aria-pressed={selected.has(n)}
-                aria-label={toothLabel(n)}
-                onClick={() => toggle(n)}
-                className={cn(
-                  'flex flex-col items-center justify-center rounded-md border font-mono text-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-default motion-reduce:transition-none',
-                  cell,
-                  selected.has(n)
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-card text-foreground hover:bg-accent/60',
-                )}
-              >
-                <svg
-                  viewBox="0 0 16 20"
-                  className={size === 'md' ? 'h-4 w-3' : 'h-3 w-2'}
-                  aria-hidden
-                >
-                  <path
-                    d={TOOTH_PATH}
-                    fill={selected.has(n) ? 'currentColor' : 'none'}
-                    stroke="currentColor"
-                    strokeWidth="1.2"
-                  />
-                </svg>
-                {n}
-              </button>
-            </Fragment>
-          ))}
+      {/* `min-w-0`: sin esto, un `div` dentro de ancestros `flex flex-col` no se encoge
+          por debajo del contenido de sus hijos (el ancho fijo de 348 px de cada
+          cuadrante), así que `overflow-x-auto` nunca llega a recortar/desplazar nada:
+          el ancestro simplemente crece con el hijo y el desborde termina reventando el
+          diálogo entero. Con `min-w-0` este contenedor sí se limita al ancho disponible
+          y es el que scrollea si hace falta. */}
+      <div className="min-w-0 overflow-x-auto">
+        <div className={cn('flex flex-col gap-1 sm:grid sm:w-fit sm:gap-1', fullRowCols)}>
+          <div
+            role="group"
+            aria-label={`${label} derecho`}
+            className={cn('grid sm:contents', quadrantCols)}
+          >
+            {right.map((n) => tooth(n))}
+          </div>
+          <span
+            aria-hidden
+            className="hidden w-1 self-stretch justify-self-center rounded bg-border sm:block"
+          />
+          <div
+            role="group"
+            aria-label={`${label} izquierdo`}
+            className={cn('grid sm:contents', quadrantCols)}
+          >
+            {left.map((n) => tooth(n))}
+          </div>
         </div>
       </div>
     </div>
   )
+
   return (
-    <div className="flex flex-col gap-3" data-testid="odontogram">
-      {row(UPPER, 'Superior')}
-      {row(LOWER, 'Inferior')}
+    <div className="flex min-w-0 flex-col gap-3" data-testid="odontogram">
+      {row(FDI_QUADRANTS[1], FDI_QUADRANTS[2], 'Superior')}
+      {row(FDI_QUADRANTS[4], FDI_QUADRANTS[3], 'Inferior')}
       {!readOnly && (
         <div className="flex flex-wrap gap-2">
           <Button

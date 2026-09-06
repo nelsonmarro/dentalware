@@ -36,6 +36,7 @@ export function TeethDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={title}
+      size="wide"
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -47,7 +48,7 @@ export function TeethDialog({
         </>
       }
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4">
         <Odontogram value={draft} onChange={setDraft} />
         <p className="text-sm text-muted-foreground">
           {draft.length} {draft.length === 1 ? 'pieza' : 'piezas'}

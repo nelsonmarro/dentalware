@@ -56,15 +56,22 @@ export function CaseItemsEditor({
   const productsById = new Map(products.map((p) => [p.id, p]))
 
   // Piezas/precio editados a mano: no se pisan al recalcular por cambio de clínica.
-  // `initialClinicId` fija la clínica con la que se abrió el formulario (nueva o de
-  // edición, cuando `prices`/`products` ya traen los precios resueltos por el servidor);
-  // solo se recalcula cuando la clínica actual deja de ser esa, es decir, cuando la
-  // persona realmente la cambia en este formulario — nunca por la sola llegada
-  // asíncrona de `prices`/`products` al montar.
+  // `mountClinicId` fija la clínica con la que se abrió el formulario (nueva o de
+  // edición, cuando `prices`/`products` ya traen los precios resueltos por el
+  // servidor); mientras la persona no la haya cambiado ni una vez (`hasLeftMountClinic`
+  // sigue en `false`), cualquier disparo del efecto se ignora — así la llegada
+  // asíncrona de `prices`/`products` al montar no pisa el precio ya guardado. En
+  // cuanto cambia de clínica una sola vez, `hasLeftMountClinic` queda en `true` para
+  // siempre: si más tarde vuelve a la clínica original, el efecto sigue recalculando
+  // (con los precios vigentes de esa clínica) en vez de asumir que "ya está resuelto"
+  // solo por coincidir el id, que es justo lo que dejaba los precios de la clínica
+  // anterior pegados al volver (A → B → A).
   const manualPrice = useRef<Set<string>>(new Set())
-  const initialClinicId = useRef(clinicId)
+  const mountClinicId = useRef(clinicId)
+  const hasLeftMountClinic = useRef(false)
   useEffect(() => {
-    if (clinicId === initialClinicId.current) return
+    if (clinicId !== mountClinicId.current) hasLeftMountClinic.current = true
+    if (clinicId === mountClinicId.current && !hasLeftMountClinic.current) return
     fields.forEach((field, index) => {
       if (manualPrice.current.has(field.id)) return
       const productId = getValues(`items.${index}.productId`)

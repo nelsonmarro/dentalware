@@ -1,5 +1,5 @@
 import { FDI_TEETH, toothLabel } from '@dentalware/shared'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { renderWithProviders } from '@/test/render'
 import { Odontogram } from './odontogram'
@@ -103,6 +103,20 @@ describe('Odontogram', () => {
       'false',
     )
     expect(screen.queryByRole('button', { name: 'Limpiar' })).not.toBeInTheDocument()
+  })
+
+  it('agrupa cada arcada en dos cuadrantes de 8 piezas (para apilarlos en pantallas angostas)', () => {
+    renderWithProviders(<Odontogram value={[]} />)
+
+    for (const name of [
+      'Superior derecho',
+      'Superior izquierdo',
+      'Inferior derecho',
+      'Inferior izquierdo',
+    ]) {
+      const group = screen.getByRole('group', { name })
+      expect(within(group).getAllByRole('button')).toHaveLength(8)
+    }
   })
 
   it('el teclado (Enter/Espacio) alterna la selección de una pieza', async () => {

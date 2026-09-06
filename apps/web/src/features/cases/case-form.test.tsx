@@ -13,77 +13,86 @@ import { describe, expect, it, vi } from 'vitest'
 import type { CaseDetail } from './api'
 import { CaseForm } from './case-form'
 
-const { CLINIC, DOCTOR, PRODUCT_ZR, PRODUCT_AC, CLINIC_PRICES } = vi.hoisted(() => {
-  const now = '2026-01-01T00:00:00.000Z'
-  const CLINIC = {
-    id: '11111111-1111-4111-8111-111111111111',
-    name: 'Clínica Uno',
-    ruc: null,
-    address: null,
-    city: null,
-    phone: null,
-    whatsapp: null,
-    email: null,
-    paymentTermsDays: 0,
-    notes: null,
-    active: true,
-    createdAt: now,
-    updatedAt: now,
-  }
-  const DOCTOR = {
-    id: '22222222-2222-4222-8222-222222222222',
-    clinicId: '11111111-1111-4111-8111-111111111111',
-    name: 'Dr. Pérez',
-    phone: null,
-    email: null,
-    notes: null,
-    active: true,
-    createdAt: now,
-    updatedAt: now,
-  }
-  const CATEGORY = { id: '55555555-5555-4555-8555-555555555555', name: 'Coronas' }
-  const PRODUCT_ZR = {
-    id: '33333333-3333-4333-8333-333333333333',
-    code: 'ZR',
-    name: 'Corona de zirconio',
-    categoryId: CATEGORY.id,
-    category: CATEGORY,
-    pricingUnit: 'por_pieza' as const,
-    basePrice: '45.00',
-    turnaroundDays: 5,
-    requiresTryIn: false,
-    active: true,
-    createdAt: now,
-    updatedAt: now,
-  }
-  const PRODUCT_AC = {
-    id: '44444444-4444-4444-8444-444444444444',
-    code: 'AC',
-    name: 'Acrílico removible',
-    categoryId: CATEGORY.id,
-    category: CATEGORY,
-    pricingUnit: 'por_arcada' as const,
-    basePrice: '80.00',
-    turnaroundDays: 7,
-    requiresTryIn: false,
-    active: true,
-    createdAt: now,
-    updatedAt: now,
-  }
-  const CLINIC_PRICES = [{ productId: PRODUCT_ZR.id, price: '40.00' }]
-  return { CLINIC, DOCTOR, PRODUCT_ZR, PRODUCT_AC, CLINIC_PRICES }
-})
+const { CLINIC, CLINIC_2, DOCTOR, PRODUCT_ZR, PRODUCT_AC, CLINIC_PRICES, CLINIC_2_PRICES } =
+  vi.hoisted(() => {
+    const now = '2026-01-01T00:00:00.000Z'
+    const CLINIC = {
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Clínica Uno',
+      ruc: null,
+      address: null,
+      city: null,
+      phone: null,
+      whatsapp: null,
+      email: null,
+      paymentTermsDays: 0,
+      notes: null,
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    }
+    const DOCTOR = {
+      id: '22222222-2222-4222-8222-222222222222',
+      clinicId: '11111111-1111-4111-8111-111111111111',
+      name: 'Dr. Pérez',
+      phone: null,
+      email: null,
+      notes: null,
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    }
+    const CATEGORY = { id: '55555555-5555-4555-8555-555555555555', name: 'Coronas' }
+    const PRODUCT_ZR = {
+      id: '33333333-3333-4333-8333-333333333333',
+      code: 'ZR',
+      name: 'Corona de zirconio',
+      categoryId: CATEGORY.id,
+      category: CATEGORY,
+      pricingUnit: 'por_pieza' as const,
+      basePrice: '45.00',
+      turnaroundDays: 5,
+      requiresTryIn: false,
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    }
+    const PRODUCT_AC = {
+      id: '44444444-4444-4444-8444-444444444444',
+      code: 'AC',
+      name: 'Acrílico removible',
+      categoryId: CATEGORY.id,
+      category: CATEGORY,
+      pricingUnit: 'por_arcada' as const,
+      basePrice: '80.00',
+      turnaroundDays: 7,
+      requiresTryIn: false,
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    }
+    const CLINIC_2 = {
+      ...CLINIC,
+      id: '66666666-6666-4666-8666-666666666666',
+      name: 'Clínica Dos',
+    }
+    const CLINIC_PRICES = [{ productId: PRODUCT_ZR.id, price: '40.00' }]
+    const CLINIC_2_PRICES = [{ productId: PRODUCT_ZR.id, price: '42.00' }]
+    return { CLINIC, CLINIC_2, DOCTOR, PRODUCT_ZR, PRODUCT_AC, CLINIC_PRICES, CLINIC_2_PRICES }
+  })
 
 vi.mock('@/features/cases/api')
 vi.mock('@/features/clinics/api', () => ({
-  fetchClinics: vi.fn().mockResolvedValue([CLINIC]),
+  fetchClinics: vi.fn().mockResolvedValue([CLINIC, CLINIC_2]),
 }))
 vi.mock('@/features/doctors/api', () => ({
   fetchDoctors: vi.fn().mockResolvedValue([DOCTOR]),
 }))
 vi.mock('@/features/products/api', () => ({
   fetchProducts: vi.fn().mockResolvedValue([PRODUCT_ZR, PRODUCT_AC]),
-  fetchClinicPrices: vi.fn().mockResolvedValue(CLINIC_PRICES),
+  fetchClinicPrices: vi.fn((clinicId: string) =>
+    Promise.resolve(clinicId === CLINIC_2.id ? CLINIC_2_PRICES : CLINIC_PRICES),
+  ),
 }))
 
 function renderForm(ui: ReactElement) {
@@ -273,5 +282,89 @@ describe('CaseForm', () => {
     expect(within(row).getByRole('spinbutton', { name: 'Precio unitario' })).toHaveValue(55)
     // No debe haber botón "Guardar y nuevo" al editar.
     expect(screen.queryByRole('button', { name: 'Guardar y nuevo' })).not.toBeInTheDocument()
+  })
+
+  it('al editar, cambiar de clínica y volver recalcula el precio de cada una (A → B → A)', async () => {
+    const now = '2026-01-01T00:00:00.000Z'
+    const initial = {
+      id: 'caso-1',
+      code: '26-00001',
+      boxNumber: null,
+      clinicId: CLINIC.id,
+      doctorId: DOCTOR.id,
+      patientRef: 'Juan Pérez',
+      patientAge: null,
+      patientSex: null,
+      status: 'nuevo',
+      currentStageId: null,
+      assignedTechnicianId: null,
+      priority: 'normal',
+      receivedAt: '2026-01-01',
+      dueDate: '2026-01-15',
+      promisedDate: null,
+      finishedAt: null,
+      shippedAt: null,
+      deliveredAt: null,
+      paidAt: null,
+      shade: null,
+      shadeSystem: null,
+      reference: null,
+      checklist: { antagonista: false, mordida: false, color: false, fotos: false },
+      observations: null,
+      prescription: 'Prescripción en papel',
+      internalNotes: null,
+      holdReason: null,
+      parentCaseId: null,
+      remakeReason: null,
+      remakeResponsibility: null,
+      remakeChargePct: null,
+      total: '55.00',
+      createdBy: 'user-1',
+      createdAt: now,
+      updatedAt: now,
+      clinic: { id: CLINIC.id, name: CLINIC.name },
+      doctor: { id: DOCTOR.id, name: DOCTOR.name },
+      technician: null,
+      stage: null,
+      items: [
+        {
+          id: 'item-1',
+          caseId: 'caso-1',
+          productId: PRODUCT_ZR.id,
+          description: null,
+          quantity: 1,
+          teeth: [11],
+          unitPrice: '55.00',
+          discountPct: '0.00',
+          lineTotal: '55.00',
+          material: null,
+          notes: null,
+          sort: 0,
+          product: {
+            id: PRODUCT_ZR.id,
+            code: PRODUCT_ZR.code,
+            name: PRODUCT_ZR.name,
+            pricingUnit: PRODUCT_ZR.pricingUnit,
+          },
+        },
+      ],
+    } as unknown as CaseDetail
+
+    const { user } = renderForm(
+      <CaseForm role="admin" pending={false} initial={initial} onSubmit={vi.fn()} />,
+    )
+
+    const row = await screen.findByTestId('case-item-row')
+    const price = () => within(row).getByRole('spinbutton', { name: 'Precio unitario' })
+    expect(price()).toHaveValue(55)
+
+    // Cambiar a la Clínica Dos recalcula con su propio precio especial (42.00).
+    await pickOption(user, 'Clínica', 'Clínica Dos')
+    await waitFor(() => expect(price()).toHaveValue(42))
+
+    // Volver a la Clínica Uno debe recalcular de nuevo (40.00), no dejar pegado el
+    // precio de la Clínica Dos.
+    await pickOption(user, 'Clínica', 'Clínica Uno')
+    await waitFor(() => expect(price()).toHaveValue(40))
   })
 })
