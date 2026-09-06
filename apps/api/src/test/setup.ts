@@ -1,6 +1,6 @@
 import type { UserRole } from '@dentalware/shared'
 import { eq, sql } from 'drizzle-orm'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Auth } from '../auth.ts'
@@ -19,8 +19,14 @@ export async function setupTestDb() {
   const { db, pool } = createDb(config.DATABASE_URL)
   await runMigrations(db)
   const auth = createAuth(db, config)
-  const storage = new LocalStorage(await mkdtemp(join(tmpdir(), 'dentalware-')))
-  return { config, db, pool, auth, schema, storage }
+  const storageDir = await mkdtemp(join(tmpdir(), 'dentalware-'))
+  const storage = new LocalStorage(storageDir)
+  return { config, db, pool, auth, schema, storage, storageDir }
+}
+
+/** Borra el directorio temporal de `storage` creado por `setupTestDb` (no toca otros). */
+export async function cleanupTestStorage(ctx: { storageDir: string }) {
+  await rm(ctx.storageDir, { recursive: true, force: true })
 }
 
 export async function truncateAll(db: Db) {

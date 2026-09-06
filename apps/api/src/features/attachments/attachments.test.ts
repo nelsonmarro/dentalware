@@ -1,8 +1,16 @@
 import { caseInputSchema } from '@dentalware/shared'
+import { readdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
-import { createUser, loginAs, setupTestDb, truncateAll } from '../../test/setup.ts'
+import {
+  cleanupTestStorage,
+  createUser,
+  loginAs,
+  setupTestDb,
+  truncateAll,
+} from '../../test/setup.ts'
 import { createCase } from '../cases/repo.ts'
 
 describe('/api/adjuntos', () => {
@@ -25,6 +33,7 @@ describe('/api/adjuntos', () => {
   })
   afterAll(async () => {
     await ctx.pool.end()
+    await cleanupTestStorage(ctx)
   })
   beforeEach(async () => {
     await truncateAll(ctx.db)
@@ -143,6 +152,7 @@ describe('/api/adjuntos', () => {
     const res = await app.request(`/api/adjuntos/${attachment.id}`, { headers: { cookie: admin } })
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('image/jpeg')
+    expect(res.headers.get('content-disposition')).toContain(`filename*=UTF-8''`)
     const bytes = new Uint8Array(await res.arrayBuffer())
     expect(bytes.byteLength).toBeGreaterThan(0)
     const meta = await sharp(bytes).metadata()
@@ -177,6 +187,36 @@ describe('/api/adjuntos', () => {
       headers: { cookie: admin },
     })
     expect(thumbRes.status).toBe(404)
+  })
+
+  it('rechaza bytes que no son una imagen válida aunque el mime declarado sea image/jpeg', async () => {
+    const file = new File([Buffer.from('no soy una imagen')], 'falsa.jpg', { type: 'image/jpeg' })
+
+    const res = await upload(recepcion, file)
+    expect(res.status).toBe(415)
+    expect((await res.json()) as { message: string }).toEqual({
+      message: 'El archivo no es una imagen válida',
+    })
+
+    const list = await app.request(`/api/adjuntos/trabajo/${caseId}`, {
+      headers: { cookie: recepcion },
+    })
+    const { attachments } = (await list.json()) as { attachments: unknown[] }
+    expect(attachments).toHaveLength(0)
+
+    await expect(readdir(join(ctx.storageDir, caseId))).rejects.toThrow()
+  })
+
+  it('rechaza un PDF cuyos bytes no empiezan con la firma %PDF-', async () => {
+    const file = new File([Buffer.from('esto no es un pdf, son bytes cualquiera')], 'falso.pdf', {
+      type: 'application/pdf',
+    })
+
+    const res = await upload(recepcion, file)
+    expect(res.status).toBe(415)
+    expect((await res.json()) as { message: string }).toEqual({
+      message: 'El archivo no es un PDF válido',
+    })
   })
 
   it('rechaza un tipo no permitido con 415', async () => {
