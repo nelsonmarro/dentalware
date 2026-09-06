@@ -86,6 +86,7 @@ export function useClinicPrices(clinicId: string) {
   return useQuery({
     queryKey: queryKeys.clinicPrices(clinicId),
     queryFn: () => fetchClinicPrices(clinicId),
+    enabled: clinicId !== '',
   })
 }
 export function useSaveClinicPrice() {

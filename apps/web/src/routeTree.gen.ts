@@ -24,7 +24,9 @@ import { Route as AppConfiguracionProductosRouteImport } from './routes/_app/con
 import { Route as AppConfiguracionUsuariosRouteImport } from './routes/_app/configuracion/usuarios'
 import { Route as AppTrabajosIndexRouteImport } from './routes/_app/trabajos/index'
 import { Route as AppTrabajosCaseIdRouteImport } from './routes/_app/trabajos/$caseId'
+import { Route as AppTrabajosNuevoRouteImport } from './routes/_app/trabajos/nuevo'
 import { Route as AppConfiguracionClinicasClinicIdRouteImport } from './routes/_app/configuracion/clinicas.$clinicId'
+import { Route as AppTrabajosCaseIdEditarRouteImport } from './routes/_app/trabajos/$caseId_.editar'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -104,12 +106,22 @@ const AppTrabajosCaseIdRoute = AppTrabajosCaseIdRouteImport.update({
   path: '/$caseId',
   getParentRoute: () => AppTrabajosRoute,
 } as any)
+const AppTrabajosNuevoRoute = AppTrabajosNuevoRouteImport.update({
+  id: '/nuevo',
+  path: '/nuevo',
+  getParentRoute: () => AppTrabajosRoute,
+} as any)
 const AppConfiguracionClinicasClinicIdRoute =
   AppConfiguracionClinicasClinicIdRouteImport.update({
     id: '/$clinicId',
     path: '/$clinicId',
     getParentRoute: () => AppConfiguracionClinicasRoute,
   } as any)
+const AppTrabajosCaseIdEditarRoute = AppTrabajosCaseIdEditarRouteImport.update({
+  id: '/$caseId_/editar',
+  path: '/$caseId/editar',
+  getParentRoute: () => AppTrabajosRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -124,9 +136,11 @@ export interface FileRoutesByFullPath {
   '/configuracion/productos': typeof AppConfiguracionProductosRoute
   '/configuracion/usuarios': typeof AppConfiguracionUsuariosRoute
   '/trabajos/$caseId': typeof AppTrabajosCaseIdRoute
+  '/trabajos/nuevo': typeof AppTrabajosNuevoRoute
   '/configuracion/': typeof AppConfiguracionIndexRoute
   '/trabajos/': typeof AppTrabajosIndexRoute
   '/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
+  '/trabajos/$caseId/editar': typeof AppTrabajosCaseIdEditarRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -139,9 +153,11 @@ export interface FileRoutesByTo {
   '/configuracion/productos': typeof AppConfiguracionProductosRoute
   '/configuracion/usuarios': typeof AppConfiguracionUsuariosRoute
   '/trabajos/$caseId': typeof AppTrabajosCaseIdRoute
+  '/trabajos/nuevo': typeof AppTrabajosNuevoRoute
   '/configuracion': typeof AppConfiguracionIndexRoute
   '/trabajos': typeof AppTrabajosIndexRoute
   '/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
+  '/trabajos/$caseId/editar': typeof AppTrabajosCaseIdEditarRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -158,9 +174,11 @@ export interface FileRoutesById {
   '/_app/configuracion/productos': typeof AppConfiguracionProductosRoute
   '/_app/configuracion/usuarios': typeof AppConfiguracionUsuariosRoute
   '/_app/trabajos/$caseId': typeof AppTrabajosCaseIdRoute
+  '/_app/trabajos/nuevo': typeof AppTrabajosNuevoRoute
   '/_app/configuracion/': typeof AppConfiguracionIndexRoute
   '/_app/trabajos/': typeof AppTrabajosIndexRoute
   '/_app/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
+  '/_app/trabajos/$caseId_/editar': typeof AppTrabajosCaseIdEditarRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -177,9 +195,11 @@ export interface FileRouteTypes {
     | '/configuracion/productos'
     | '/configuracion/usuarios'
     | '/trabajos/$caseId'
+    | '/trabajos/nuevo'
     | '/configuracion/'
     | '/trabajos/'
     | '/configuracion/clinicas/$clinicId'
+    | '/trabajos/$caseId/editar'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -192,9 +212,11 @@ export interface FileRouteTypes {
     | '/configuracion/productos'
     | '/configuracion/usuarios'
     | '/trabajos/$caseId'
+    | '/trabajos/nuevo'
     | '/configuracion'
     | '/trabajos'
     | '/configuracion/clinicas/$clinicId'
+    | '/trabajos/$caseId/editar'
   id:
     | '__root__'
     | '/_app'
@@ -210,9 +232,11 @@ export interface FileRouteTypes {
     | '/_app/configuracion/productos'
     | '/_app/configuracion/usuarios'
     | '/_app/trabajos/$caseId'
+    | '/_app/trabajos/nuevo'
     | '/_app/configuracion/'
     | '/_app/trabajos/'
     | '/_app/configuracion/clinicas/$clinicId'
+    | '/_app/trabajos/$caseId_/editar'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -327,12 +351,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTrabajosCaseIdRouteImport
       parentRoute: typeof AppTrabajosRoute
     }
+    '/_app/trabajos/nuevo': {
+      id: '/_app/trabajos/nuevo'
+      path: '/nuevo'
+      fullPath: '/trabajos/nuevo'
+      preLoaderRoute: typeof AppTrabajosNuevoRouteImport
+      parentRoute: typeof AppTrabajosRoute
+    }
     '/_app/configuracion/clinicas/$clinicId': {
       id: '/_app/configuracion/clinicas/$clinicId'
       path: '/$clinicId'
       fullPath: '/configuracion/clinicas/$clinicId'
       preLoaderRoute: typeof AppConfiguracionClinicasClinicIdRouteImport
       parentRoute: typeof AppConfiguracionClinicasRoute
+    }
+    '/_app/trabajos/$caseId_/editar': {
+      id: '/_app/trabajos/$caseId_/editar'
+      path: '/$caseId/editar'
+      fullPath: '/trabajos/$caseId/editar'
+      preLoaderRoute: typeof AppTrabajosCaseIdEditarRouteImport
+      parentRoute: typeof AppTrabajosRoute
     }
   }
 }
@@ -375,12 +413,16 @@ const AppConfiguracionRouteWithChildren =
 
 interface AppTrabajosRouteChildren {
   AppTrabajosCaseIdRoute: typeof AppTrabajosCaseIdRoute
+  AppTrabajosNuevoRoute: typeof AppTrabajosNuevoRoute
   AppTrabajosIndexRoute: typeof AppTrabajosIndexRoute
+  AppTrabajosCaseIdEditarRoute: typeof AppTrabajosCaseIdEditarRoute
 }
 
 const AppTrabajosRouteChildren: AppTrabajosRouteChildren = {
   AppTrabajosCaseIdRoute: AppTrabajosCaseIdRoute,
+  AppTrabajosNuevoRoute: AppTrabajosNuevoRoute,
   AppTrabajosIndexRoute: AppTrabajosIndexRoute,
+  AppTrabajosCaseIdEditarRoute: AppTrabajosCaseIdEditarRoute,
 }
 
 const AppTrabajosRouteWithChildren = AppTrabajosRoute._addFileChildren(

@@ -1,6 +1,6 @@
 import type { CaseView } from '@dentalware/shared'
 import { CASE_VIEWS } from '@dentalware/shared'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -56,8 +56,8 @@ function TrabajosPage() {
               <Button variant="outline" className="h-11 flex-1 sm:flex-none" disabled>
                 Importar
               </Button>
-              <Button className="h-11 flex-1 sm:flex-none" disabled>
-                Nuevo trabajo
+              <Button asChild className="h-11 flex-1 sm:flex-none">
+                <Link to="/trabajos/nuevo">Nuevo trabajo</Link>
               </Button>
             </div>
           ) : undefined

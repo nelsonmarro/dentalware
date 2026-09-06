@@ -35,48 +35,59 @@ export function Odontogram({
   }
   const allOn = (teeth: readonly FdiTooth[]) => teeth.every((t) => selected.has(t))
   const cell = size === 'md' ? 'size-11' : 'size-7 text-[10px]'
+  // Ancho fijo por columna (igual al tamaño de la celda) en vez de `minmax(0,1fr)`: con
+  // columnas elásticas, en una pantalla angosta (390 px) las 16 celdas de 44 px se
+  // encogían por debajo de su tamaño real y los botones vecinos quedaban superpuestos
+  // (el clic en uno activaba el de al lado). Con columnas de ancho fijo la fila no se
+  // encoge; si no cabe, se desplaza horizontalmente dentro de `overflow-x-auto`.
+  const trackSize = size === 'md' ? '2.75rem' : '1.75rem'
   const row = (teeth: readonly FdiTooth[], label: string) => (
     <div className="flex flex-col gap-1">
       <span className="text-xs text-muted-foreground">{label}</span>
-      <div className="grid grid-cols-[repeat(8,minmax(0,1fr))_4px_repeat(8,minmax(0,1fr))] gap-1">
-        {teeth.map((n, i) => (
-          <Fragment key={n}>
-            {i === 8 && (
-              <span
-                aria-hidden
-                className="w-1 self-stretch justify-self-center rounded bg-border"
-              />
-            )}
-            <button
-              type="button"
-              disabled={readOnly}
-              aria-pressed={selected.has(n)}
-              aria-label={toothLabel(n)}
-              onClick={() => toggle(n)}
-              className={cn(
-                'flex flex-col items-center justify-center rounded-md border font-mono text-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-default motion-reduce:transition-none',
-                cell,
-                selected.has(n)
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border bg-card text-foreground hover:bg-accent/60',
-              )}
-            >
-              <svg
-                viewBox="0 0 16 20"
-                className={size === 'md' ? 'h-4 w-3' : 'h-3 w-2'}
-                aria-hidden
-              >
-                <path
-                  d={TOOTH_PATH}
-                  fill={selected.has(n) ? 'currentColor' : 'none'}
-                  stroke="currentColor"
-                  strokeWidth="1.2"
+      <div className="overflow-x-auto">
+        <div
+          className="grid w-fit gap-1"
+          style={{ gridTemplateColumns: `repeat(8, ${trackSize}) 4px repeat(8, ${trackSize})` }}
+        >
+          {teeth.map((n, i) => (
+            <Fragment key={n}>
+              {i === 8 && (
+                <span
+                  aria-hidden
+                  className="w-1 self-stretch justify-self-center rounded bg-border"
                 />
-              </svg>
-              {n}
-            </button>
-          </Fragment>
-        ))}
+              )}
+              <button
+                type="button"
+                disabled={readOnly}
+                aria-pressed={selected.has(n)}
+                aria-label={toothLabel(n)}
+                onClick={() => toggle(n)}
+                className={cn(
+                  'flex flex-col items-center justify-center rounded-md border font-mono text-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-default motion-reduce:transition-none',
+                  cell,
+                  selected.has(n)
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-card text-foreground hover:bg-accent/60',
+                )}
+              >
+                <svg
+                  viewBox="0 0 16 20"
+                  className={size === 'md' ? 'h-4 w-3' : 'h-3 w-2'}
+                  aria-hidden
+                >
+                  <path
+                    d={TOOTH_PATH}
+                    fill={selected.has(n) ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                  />
+                </svg>
+                {n}
+              </button>
+            </Fragment>
+          ))}
+        </div>
       </div>
     </div>
   )
