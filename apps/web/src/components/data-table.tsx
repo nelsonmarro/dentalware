@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { EmptyState } from '@/components/empty-state'
 import {
   Table,
@@ -18,6 +18,8 @@ export type Column<T> = {
   header: string
   cell: (row: T) => ReactNode
   className?: string
+  /** Estilo inline por fila para la celda (p. ej. la pestaña de color del ticket). */
+  cellStyle?: (row: T) => CSSProperties | undefined
 }
 
 export function DataTable<T>({
@@ -57,7 +59,7 @@ export function DataTable<T>({
             {rows.map((row) => (
               <TableRow key={getRowId(row)}>
                 {columns.map((c) => (
-                  <TableCell key={c.key} className={c.className}>
+                  <TableCell key={c.key} className={c.className} style={c.cellStyle?.(row)}>
                     {c.cell(row)}
                   </TableCell>
                 ))}
