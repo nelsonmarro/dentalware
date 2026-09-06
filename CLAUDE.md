@@ -9,6 +9,7 @@ Gestión de laboratorio dental (Arte Dental, Ecuador). Monorepo pnpm: `packages/
 3. **Organización por features.** `apps/api/src/features/<feature>/{schema,repo,routes,*.test}.ts` y `apps/web/src/features/<feature>/{api.ts,use-*.ts,*-form.tsx,*-table.tsx}`; componentes transversales en `apps/web/src/components/`. Un componente o hook por archivo; las rutas (`routes/`) solo importan de `features/` y `components/`.
 4. **UI con `frontend-design`** y verificada en Chrome DevTools (1280×800 y 390×844: flujo, capturas, consola sin errores) antes de cerrar la tarea.
 5. **Español** en UI, mensajes de validación, commits y documentación; sentence case.
+6. **Revisión UI/UX al cerrar cada iteración.** La tarea de cierre de cada plan crea un issue «Revisión UI/UX de la Iteración N con frontend-design» (historia, area:web, hito de la iteración siguiente) con checklist: recorrer todas las pantallas nuevas a 1280×800, 390×844 y 360 px con `frontend-design`, comprobar jerarquía visual y consistencia con la dirección de diseño, responsividad, usabilidad y accesibilidad (44 px, foco, teclado, contraste AA) y que sea fácil de entender para recepción, técnicos y mensajero; los hallazgos se corrigen en una ola de fixes antes de construir encima. Primer issue: #49.
 
 ## Entorno
 

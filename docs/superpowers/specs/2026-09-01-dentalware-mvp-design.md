@@ -188,6 +188,8 @@ Precisión sobre catálogos de Configuración: la **lectura** de clínicas, doct
 7. Productividad: producción por persona y sistema de puntos de recompensa/penalización configurable.
 8. Cierre MVP: E2E, despliegue en VPS con TLS, backups, instalación de la PWA en Android e iPhone, importación del histórico y datos reales.
 
+Cierre de cada iteración (Nelson, 2026-09-06): además del E2E, se abre un issue «Revisión UI/UX de la Iteración N con frontend-design» que recorre todas las pantallas nuevas y verifica que la UI/UX sea la más óptima, responsiva, usable y fácil de entender para el usuario; sus hallazgos se corrigen antes de la siguiente iteración.
+
 Post-MVP: Capacitor iOS/Android, fases por línea, listas de precios completas, almacén con lotes (ARCSA), portal del odontólogo, facturación electrónica SRI.
 
 Cambios del 2026-09-04 (pedido de Nelson): recogida coordinada con el mensajero, cierre al cobrar con énfasis en pagos, colores por estado, validación de datos obligatorios al recibir, formato de importación, alertas por WhatsApp y calendario de entregas con aviso un día antes, producción por persona y sistema de puntos. La Iteración 1 (Configuración) no cambia; la máquina de estados de `shared` se amplía en la 3.

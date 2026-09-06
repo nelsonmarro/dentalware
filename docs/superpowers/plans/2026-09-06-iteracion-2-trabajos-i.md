@@ -1698,6 +1698,13 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
 
+- [ ] **Step 5: Issue de revisión UI/UX de la iteración** (regla de Nelson, 2026-09-06)
+
+```bash
+gh issue create --title "Revisión UI/UX de la Iteración 2 (Trabajos I) con frontend-design" --label historia --label area:web --label accessibility --milestone "Iteración 3 — Trabajos II" --body "Recorrer con frontend-design todas las pantallas nuevas (lista, nuevo/editar trabajo con odontograma, ficha con fotos e historial, importación) a 1280×800, 390×844 y 360×740; verificar jerarquía visual y dirección de diseño, responsividad, usabilidad y accesibilidad (44 px, foco, teclado, contraste AA), copy claro para recepción/técnico/mensajero y flujos reales (registrar una orden en papel completa, subir fotos desde el celular). Informe priorizado + ola de fixes antes de la Iteración 3. Épica #3."
+```
+Añadirlo al tablero en "Por hacer" y enlazarlo como sub-issue de la épica #3.
+
 ---
 
 ## Self-review (hecho al redactar)
