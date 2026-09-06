@@ -14,6 +14,8 @@ export const SHADE_SYSTEM_LABEL: Record<ShadeSystem, string> = {
   vita_3d_master: 'VITA 3D-Master',
   otro: 'Otro',
 }
+export const ATTACHMENT_KINDS = ['photo', 'document', 'scan'] as const
+export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number]
 export const CHECKLIST_KEYS = ['antagonista', 'mordida', 'color', 'fotos'] as const
 export type ChecklistKey = (typeof CHECKLIST_KEYS)[number]
 export const CHECKLIST_LABEL: Record<ChecklistKey, string> = {
