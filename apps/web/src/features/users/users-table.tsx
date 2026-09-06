@@ -22,7 +22,7 @@ export function UsersTable({
   const actions = (u: User) => {
     const isSelf = u.id === currentUserId
     return (
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-3">
         <Button
           variant="ghost"
           size="icon"

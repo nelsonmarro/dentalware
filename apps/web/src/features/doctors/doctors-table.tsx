@@ -17,7 +17,7 @@ export function DoctorsTable({
   emptyAction?: React.ReactNode
 }) {
   const actions = (d: Doctor) => (
-    <div className="flex items-center justify-end gap-2">
+    <div className="flex items-center justify-end gap-3">
       <Button variant="ghost" size="icon" aria-label={`Editar ${d.name}`} onClick={() => onEdit(d)}>
         <Pencil className="size-4" />
       </Button>

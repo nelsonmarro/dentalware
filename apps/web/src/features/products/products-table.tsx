@@ -18,7 +18,7 @@ export function ProductsTable({
   emptyAction?: React.ReactNode
 }) {
   const actions = (p: Product) => (
-    <div className="flex items-center justify-end gap-2">
+    <div className="flex items-center justify-end gap-3">
       <Button variant="ghost" size="icon" aria-label={`Editar ${p.name}`} onClick={() => onEdit(p)}>
         <Pencil className="size-4" />
       </Button>

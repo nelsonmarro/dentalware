@@ -25,7 +25,7 @@ export function StagesTable({
     </span>
   )
   const actions = (s: Stage, i: number) => (
-    <div className="flex items-center justify-end gap-1">
+    <div className="flex items-center justify-end gap-3">
       <Button
         variant="ghost"
         size="icon"

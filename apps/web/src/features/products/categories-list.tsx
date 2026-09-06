@@ -48,7 +48,7 @@ export function CategoriesList() {
                 <span className="font-medium">{c.name}</span>
                 <span className="font-mono text-xs text-muted-foreground">Orden: {c.sort}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <ActiveBadge active={c.active} />
                 <Button
                   variant="ghost"

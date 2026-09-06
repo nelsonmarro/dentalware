@@ -27,7 +27,7 @@ export function ClinicsTable({
     </Link>
   )
   const actions = (c: Clinic) => (
-    <div className="flex items-center justify-end gap-2">
+    <div className="flex items-center justify-end gap-3">
       <Button variant="ghost" size="icon" aria-label={`Editar ${c.name}`} onClick={() => onEdit(c)}>
         <Pencil className="size-4" />
       </Button>
