@@ -77,6 +77,54 @@ describe('/api/config/fases', () => {
     ])
   })
 
+  it('el reordenamiento exige exactamente todos los ids (activos e inactivos)', async () => {
+    const a = (await (
+      await app.request(
+        '/api/config/fases',
+        req(admin, 'POST', { name: 'Recepción', color: '#5B6A6E' }),
+      )
+    ).json()) as { stage: { id: string } }
+    const b = (await (
+      await app.request(
+        '/api/config/fases',
+        req(admin, 'POST', { name: 'Modelo', color: '#0F766E' }),
+      )
+    ).json()) as { stage: { id: string } }
+    const c = (await (
+      await app.request(
+        '/api/config/fases',
+        req(admin, 'POST', { name: 'Acabado', color: '#2F8F5B' }),
+      )
+    ).json()) as { stage: { id: string } }
+    await app.request(
+      `/api/config/fases/${b.stage.id}/activo`,
+      req(admin, 'PATCH', { active: false }),
+    )
+
+    const partial = await app.request(
+      '/api/config/fases/orden',
+      req(admin, 'PUT', { ids: [c.stage.id, a.stage.id] }),
+    )
+    expect(partial.status).toBe(422)
+    expect(((await partial.json()) as { message: string }).message).toBe(
+      'Debe reordenar todas las fases',
+    )
+
+    const full = await app.request(
+      '/api/config/fases/orden',
+      req(admin, 'PUT', { ids: [c.stage.id, a.stage.id, b.stage.id] }),
+    )
+    expect(full.status).toBe(200)
+    const list = (await (
+      await app.request('/api/config/fases?incluirInactivos=true', req(admin, 'GET'))
+    ).json()) as { stages: { id: string; sort: number }[] }
+    const byId = Object.fromEntries(list.stages.map((s) => [s.id, s.sort]))
+    expect(byId[c.stage.id]).toBe(0)
+    expect(byId[a.stage.id]).toBe(1)
+    expect(byId[b.stage.id]).toBe(2)
+    expect(new Set(list.stages.map((s) => s.sort)).size).toBe(3)
+  })
+
   it('valida color y desactiva', async () => {
     const bad = await app.request(
       '/api/config/fases',

@@ -19,9 +19,17 @@ export const stagesRoutes = (db: Db) =>
     .get('/', requireAuth, validate('query', activeQuerySchema), async (c) =>
       c.json({ stages: await listStages(db, c.req.valid('query').incluirInactivos) }, 200),
     )
-    .put('/orden', requireRole('admin'), validate('json', orderBody), async (c) =>
-      c.json({ stages: await reorderStages(db, c.req.valid('json').ids) }, 200),
-    )
+    .put('/orden', requireRole('admin'), validate('json', orderBody), async (c) => {
+      const ids = c.req.valid('json').ids
+      const all = await listStages(db, true)
+      const allIds = new Set(all.map((s) => s.id))
+      const sameSet =
+        allIds.size === ids.length &&
+        new Set(ids).size === ids.length &&
+        ids.every((id) => allIds.has(id))
+      if (!sameSet) throw new HTTPException(422, { message: 'Debe reordenar todas las fases' })
+      return c.json({ stages: await reorderStages(db, ids) }, 200)
+    })
     .post('/', requireRole('admin'), validate('json', stageSchema), async (c) =>
       c.json({ stage: await createStage(db, c.req.valid('json')) }, 201),
     )

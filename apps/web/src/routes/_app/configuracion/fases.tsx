@@ -22,6 +22,10 @@ function StagesPage() {
   const [showInactive, setShowInactive] = useState(false)
   const [editing, setEditing] = useState<Stage | null | 'new'>(null)
   const stages = useStages(showInactive)
+  // Se necesita la lista completa (activas e inactivas) para reordenar: la API exige
+  // que el PUT /orden incluya exactamente todos los ids, aunque la tabla solo muestre
+  // las activas cuando "Mostrar inactivas" está apagado.
+  const allStages = useStages(true)
   const save = useSaveStage()
   const toggle = useSetStageActive()
   const reorder = useReorderStages()
@@ -33,7 +37,7 @@ function StagesPage() {
     )
   }
   function move(s: Stage, dir: -1 | 1) {
-    const ids = (stages.data ?? []).map((x) => x.id)
+    const ids = (allStages.data ?? []).map((x) => x.id)
     const i = ids.indexOf(s.id)
     const j = i + dir
     if (j < 0 || j >= ids.length) return
