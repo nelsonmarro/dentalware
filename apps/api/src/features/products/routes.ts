@@ -50,7 +50,7 @@ export const productsRoutes = (db: Db) =>
   new Hono<AppEnv>()
     // categorías
     .get('/categorias', canRead, validate('query', activeQuerySchema), async (c) =>
-      c.json({ categories: await listCategories(db, c.req.valid('query').incluirInactivos) }),
+      c.json({ categories: await listCategories(db, c.req.valid('query').incluirInactivos) }, 200),
     )
     .post('/categorias', canWrite, validate('json', productCategorySchema), async (c) =>
       c.json({ category: await createCategory(db, c.req.valid('json')) }, 201),
@@ -63,7 +63,7 @@ export const productsRoutes = (db: Db) =>
       async (c) => {
         const category = await updateCategory(db, c.req.valid('param').id, c.req.valid('json'))
         if (!category) throw new HTTPException(404, { message: 'La categoría no existe' })
-        return c.json({ category })
+        return c.json({ category }, 200)
       },
     )
     .patch(
@@ -78,12 +78,12 @@ export const productsRoutes = (db: Db) =>
           c.req.valid('json').active,
         )
         if (!category) throw new HTTPException(404, { message: 'La categoría no existe' })
-        return c.json({ category })
+        return c.json({ category }, 200)
       },
     )
     // precios por clínica
     .get('/precios/:clinicId', canRead, validate('param', clinicParam), async (c) =>
-      c.json({ prices: await listClinicPrices(db, c.req.valid('param').clinicId) }),
+      c.json({ prices: await listClinicPrices(db, c.req.valid('param').clinicId) }, 200),
     )
     .put(
       '/precios/:clinicId/:productId',
@@ -92,9 +92,12 @@ export const productsRoutes = (db: Db) =>
       validate('json', clinicPriceSchema),
       async (c) => {
         const { clinicId, productId } = c.req.valid('param')
-        return c.json({
-          price: await upsertClinicPrice(db, clinicId, productId, c.req.valid('json').price),
-        })
+        return c.json(
+          {
+            price: await upsertClinicPrice(db, clinicId, productId, c.req.valid('json').price),
+          },
+          200,
+        )
       },
     )
     .delete(
@@ -110,7 +113,7 @@ export const productsRoutes = (db: Db) =>
     )
     // productos
     .get('/', canRead, validate('query', activeQuerySchema), async (c) =>
-      c.json({ products: await listProducts(db, c.req.valid('query').incluirInactivos) }),
+      c.json({ products: await listProducts(db, c.req.valid('query').incluirInactivos) }, 200),
     )
     .post('/', canWrite, validate('json', productSchema), async (c) => {
       const input = c.req.valid('json')
@@ -130,7 +133,7 @@ export const productsRoutes = (db: Db) =>
         await assertCodeFree(db, input.code, id)
         const product = await updateProduct(db, id, input)
         if (!product) throw new HTTPException(404, { message: 'El producto no existe' })
-        return c.json({ product })
+        return c.json({ product }, 200)
       },
     )
     .patch(
@@ -145,6 +148,6 @@ export const productsRoutes = (db: Db) =>
           c.req.valid('json').active,
         )
         if (!product) throw new HTTPException(404, { message: 'El producto no existe' })
-        return c.json({ product })
+        return c.json({ product }, 200)
       },
     )

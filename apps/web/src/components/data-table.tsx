@@ -35,7 +35,7 @@ export function DataTable<T>({
   return (
     <>
       <div className="hidden overflow-x-auto rounded-xl border border-border bg-card lg:block">
-        <Table>
+        <Table className="[&_tr>*:last-child]:pr-5">
           <TableHeader>
             <TableRow>
               {columns.map((c) => (

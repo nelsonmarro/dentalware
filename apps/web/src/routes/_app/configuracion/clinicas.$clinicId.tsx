@@ -10,6 +10,7 @@ import type { Doctor } from '@/features/doctors/api'
 import { DoctorForm } from '@/features/doctors/doctor-form'
 import { DoctorsTable } from '@/features/doctors/doctors-table'
 import { useDoctors, useSaveDoctor, useSetDoctorActive } from '@/features/doctors/use-doctors'
+import { ClinicPricesTable } from '@/features/products/clinic-prices-table'
 
 export const Route = createFileRoute('/_app/configuracion/clinicas/$clinicId')({
   component: ClinicDetailPage,
@@ -69,9 +70,7 @@ function ClinicDetailPage() {
           )}
         </TabsContent>
         <TabsContent value="precios" className="pt-4">
-          <p className="text-sm text-muted-foreground">
-            Los precios especiales se configuran en la siguiente tarea (Productos).
-          </p>
+          <ClinicPricesTable clinicId={clinicId} />
         </TabsContent>
       </Tabs>
       {editing !== null && (
