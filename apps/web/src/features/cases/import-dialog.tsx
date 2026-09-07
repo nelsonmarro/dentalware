@@ -76,18 +76,12 @@ export function ImportDialog({
       size="wide"
       footer={
         <>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11"
-            onClick={() => handleOpenChange(false)}
-          >
+          <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
             Cancelar
           </Button>
           {canImport ? (
             <Button
               type="button"
-              className="h-11"
               onClick={() => void handleImport()}
               disabled={importCases.isPending}
             >
@@ -98,7 +92,6 @@ export function ImportDialog({
           ) : (
             <Button
               type="button"
-              className="h-11"
               onClick={() => void handleValidate()}
               disabled={!file || validate.isPending}
             >
@@ -109,13 +102,11 @@ export function ImportDialog({
       }
     >
       <div className="flex min-w-0 flex-col gap-4">
-        <a
-          href="/api/trabajos/importar/plantilla"
-          download="plantilla-trabajos.csv"
-          className="text-sm font-medium text-primary underline underline-offset-4 hover:no-underline"
-        >
-          Descargar plantilla
-        </a>
+        <Button asChild variant="link" className="h-11 self-start px-0">
+          <a href="/api/trabajos/importar/plantilla" download="plantilla-trabajos.csv">
+            Descargar plantilla
+          </a>
+        </Button>
         <Field>
           <FieldLabel htmlFor="import-file">Archivo CSV</FieldLabel>
           <Input
@@ -123,7 +114,6 @@ export function ImportDialog({
             ref={fileInputRef}
             type="file"
             accept=".csv,text/csv"
-            className="h-11"
             onChange={(e) => {
               setFile(e.target.files?.[0] ?? null)
               setReport(null)

@@ -18,9 +18,13 @@ export function ClinicsTable({
   emptyAction?: React.ReactNode
 }) {
   const nameLink = (c: Clinic) => (
+    // `data-target-size="inline"`: identificador de fila/tarjeta, no una acción — cae en la
+    // excepción "inline" del objetivo táctil (WCAG 2.5.8): el tamaño lo da el texto, como un
+    // enlace dentro de una oración. Las acciones reales de la fila (Editar) sí miden 44 px.
     <Link
       to="/configuracion/clinicas/$clinicId"
       params={{ clinicId: c.id }}
+      data-target-size="inline"
       className="font-medium text-primary hover:underline"
     >
       {c.name}
