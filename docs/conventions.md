@@ -36,7 +36,7 @@ Documento de referencia para cualquier persona o agente que toque el repo. Compl
 - Toda mutación de un trabajo escribe su `case_event` **en la misma transacción**. En las features aún no migradas, las funciones transaccionales exponen `xTx(tx, …)` + wrapper `x(db, …)` (patrón `createCaseTx`/`createCase`); al migrar una feature ese par se sustituye por el puerto `UnitOfWork.run(fn)` con `createXRepo(db | tx)` (ADR 19). Nunca abrir `db.transaction` dentro de otra.
 - Catálogos con borrado lógico (`active`); los trabajos nunca se borran, se cancelan. Código de trabajo `AA-NNNNN` por secuencia anual con `FOR UPDATE`.
 - Subidas: `bodyLimit` antes de `parseBody`, MIME real por magic bytes (imágenes con `sharp`, PDF `%PDF-`), nombre de disco = UUID (el nombre original nunca forma la ruta), servidas solo con sesión. El driver se elige por la interfaz `Storage` (`LocalStorage` hoy).
-- Configuración: `loadConfig` valida con zod y carga `.env` o `.env.test` según `NODE_ENV`; nada de `process.env` suelto fuera de `config.ts`.
+- Configuración: `loadConfig` valida con zod y carga `.env` o `.env.test` según `NODE_ENV`; nada de `process.env` suelto fuera de `config.ts`. Las claves de integraciones externas (p. ej. `RESEND_API_KEY` y el remitente de correo en la Iteración 6) se declaran allí y llegan al adaptador por la raíz de composición, nunca al servicio.
 - Migraciones con drizzle-kit versionadas en `apps/api/drizzle/`; las columnas de iteraciones futuras se crean ya como `nullable` para no repetir migraciones; seed idempotente en `scripts/seed.ts` con datos en `seed-data.ts` (probados).
 
 ## 5. Web (React 19 + TanStack + Tailwind 4 + shadcn)
