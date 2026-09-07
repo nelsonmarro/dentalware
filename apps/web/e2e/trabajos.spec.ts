@@ -92,7 +92,7 @@ test.describe('Trabajos', () => {
     await page.getByRole('tab', { name: /^Historial/ }).click()
     await page.getByLabel('Comentario').fill(comentario)
     await page.getByRole('button', { name: 'Comentar' }).click()
-    const commentEvent = page.locator('li', { hasText: comentario })
+    const commentEvent = page.getByRole('listitem').filter({ hasText: comentario })
     await expect(commentEvent).toBeVisible()
     await expect(commentEvent.getByText('Administrador')).toBeVisible()
 

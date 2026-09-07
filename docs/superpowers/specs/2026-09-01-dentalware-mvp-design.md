@@ -138,7 +138,7 @@ Plantilla CSV/XLSX descargable (una fila por línea de trabajo: clínica, doctor
 1. Login.
 2. Inicio: contadores (nuevos, en proceso, vencen hoy, atrasados, en prueba, listos, saldo por cobrar); "mis trabajos" (técnico); entregas de hoy (mensajero).
 3. Trabajos: vistas rápidas (Nuevos, En curso, Deben salir hoy, Listos, Todos) + filtros; tabla en PC, tarjetas con semáforo en móvil.
-4. Nuevo / editar trabajo: cabecera, odontograma FDI interactivo (SVG, selección múltiple, arrastre para puentes), líneas con precio automático por clínica, color VITA, pruebas, observaciones / prescripción / notas internas, fotos. "Guardar" y "Guardar y nuevo".
+4. Nuevo / editar trabajo: cabecera, odontograma FDI interactivo (SVG, selección múltiple por toque —sin arrastre; puentes seleccionando cada pieza—), líneas con precio automático por clínica, color VITA, pruebas, observaciones / prescripción / notas internas, fotos. "Guardar" y "Guardar y nuevo".
 5. Ficha del trabajo: cabecera; pestañas Detalle · Fotos · Historial y comentarios · Entregas · Documentos; acciones según estado y rol.
 6. `/t/:code` (QR): ficha móvil con "Avanzar fase" y "Añadir foto".
 7. Entregas (mensajero): lista por día agrupada por clínica; marcar hecha con foto.

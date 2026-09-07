@@ -30,13 +30,19 @@ const configSchema = z.object({
 
 export type Config = z.infer<typeof configSchema>
 
-/** Carga `.env` si existe (no sobrescribe variables ya definidas) y valida. */
+/**
+ * Carga `.env.test` cuando `NODE_ENV=test` y `.env` en caso contrario (no sobrescribe
+ * variables ya definidas; tolera que el archivo no exista) y valida. Playwright arranca
+ * la API con `NODE_ENV=test`, así que los E2E usan la BD de `.env.test`
+ * (`dentalware_test`) en vez de escribir sobre la BD de desarrollo.
+ */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (env === process.env) {
+    const file = env.NODE_ENV === 'test' ? '.env.test' : '.env'
     try {
-      process.loadEnvFile()
+      process.loadEnvFile(file)
     } catch {
-      /* sin .env: entorno real */
+      /* sin archivo: entorno real */
     }
   }
   const parsed = configSchema.safeParse(env)

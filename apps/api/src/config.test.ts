@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { loadConfig } from './config.ts'
 
 describe('loadConfig', () => {
@@ -27,5 +27,37 @@ describe('loadConfig', () => {
     expect(config.PORT).toBe(3000)
     expect(config.NODE_ENV).toBe('development')
     expect(config.ADMIN_NAME).toBe('Administrador')
+  })
+})
+
+describe('loadConfig — selección de archivo de entorno (sin `env` inyectado, usa process.env)', () => {
+  const originalNodeEnv = process.env.NODE_ENV
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv
+  })
+
+  it('carga .env.test cuando NODE_ENV=test, para no escribir en la BD de desarrollo', () => {
+    process.env.NODE_ENV = 'test'
+    const spy = vi.spyOn(process, 'loadEnvFile').mockImplementation(() => undefined)
+    try {
+      loadConfig()
+    } catch {
+      /* el resto de variables puede faltar en este proceso; solo interesa qué archivo se pidió */
+    }
+    expect(spy).toHaveBeenCalledWith('.env.test')
+    spy.mockRestore()
+  })
+
+  it('carga .env cuando NODE_ENV no es test', () => {
+    process.env.NODE_ENV = 'development'
+    const spy = vi.spyOn(process, 'loadEnvFile').mockImplementation(() => undefined)
+    try {
+      loadConfig()
+    } catch {
+      /* ídem */
+    }
+    expect(spy).toHaveBeenCalledWith('.env')
+    spy.mockRestore()
   })
 })

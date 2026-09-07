@@ -15,7 +15,7 @@ Gestión de laboratorio dental (Arte Dental, Ecuador). Monorepo pnpm: `packages/
 
 - Node 24 obligatorio en cada shell: `export PATH=$HOME/.nvm/versions/node/v24.19.0/bin:$PATH`.
 - Postgres de desarrollo en Docker, puerto 5433 (`pnpm db:up`); BD de tests `dentalware_test` en el mismo servidor.
-- Verificación completa: `pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test`; E2E: `pnpm e2e -- --project=escritorio --project=android` (iphone solo en CI). Playwright arranca la API con `NODE_ENV=test`; deja libres los puertos 3000 y 5173 antes de correrlo.
+- Verificación completa: `pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test`; E2E: `pnpm e2e --project=escritorio --project=android` (iphone solo en CI; con `--` de más, pnpm 11 lo reenvía y corren los 3 proyectos). Playwright arranca la API con `NODE_ENV=test`; deja libres los puertos 3000 y 5173 antes de correrlo.
 
 ## Git y seguimiento
 
