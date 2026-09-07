@@ -12,16 +12,22 @@ export const STATUS_LABEL: Record<CaseStatus, string> = {
   cancelado: 'Cancelado',
 }
 
-/** Colores del spec §5 (chip + texto, nunca solo color). */
+/**
+ * Colores del spec §5 (chip + texto, nunca solo color). Cada color cumple contraste
+ * AA (>= 4.5:1) como texto sobre el fondo real del chip (`bg-[color]/10` sobre
+ * `--card`), no solo entre sí — ver `status-chip.test.tsx`. `cancelado` reutiliza el
+ * token `--destructive` en vez de un rojo propio, para no duplicar la decisión de
+ * contraste de UX1-02.
+ */
 export const STATUS_COLOR: Record<CaseStatus, string> = {
   nuevo: '#0F766E',
   en_proceso: '#0F766E',
-  en_espera: '#D99A16',
-  en_prueba: '#7C5CBF',
-  terminado: '#8CC9A6',
-  enviado: '#2F6FB0',
-  entregado: '#2F8F5B',
-  cancelado: '#D6453D',
+  en_espera: '#89610E',
+  en_prueba: '#7655BC',
+  terminado: '#367350',
+  enviado: '#2D6BAA',
+  entregado: '#27764B',
+  cancelado: '#B3261E',
 }
 
 export function StatusChip({ status }: { status: CaseStatus }) {
