@@ -3,6 +3,7 @@ import {
   CASE_PAGE_SIZE,
   formatCaseCode,
   fromCents,
+  isEditableStatus,
   lineTotalCents,
   sumCents,
   toCents,
@@ -26,7 +27,6 @@ export class CaseInputError extends Error {
 export class CaseStateError extends Error {}
 
 export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
-const EDITABLE = ['nuevo', 'en_proceso'] as const
 
 export async function nextCaseCode(tx: Tx | Db, year: number): Promise<string> {
   const [row] = await tx
@@ -164,7 +164,7 @@ export function updateCase(
       .where(eq(cases.id, id))
       .for('update')
     if (!current) return false
-    if (!(EDITABLE as readonly string[]).includes(current.status)) {
+    if (!isEditableStatus(current.status)) {
       throw new CaseStateError(`No se puede editar un trabajo en estado "${current.status}"`)
     }
     const before = await tx

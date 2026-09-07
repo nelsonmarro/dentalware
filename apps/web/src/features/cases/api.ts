@@ -1,4 +1,4 @@
-import type { CaseInput, CaseListQuery } from '@dentalware/shared'
+import type { CaseInput, CaseListQuery, ImportReport } from '@dentalware/shared'
 import { api } from '@/lib/api'
 import { throwIfNotOk } from '@/lib/api-error'
 
@@ -52,12 +52,7 @@ export async function postComment(id: string, text: string) {
   ).event
 }
 
-export type ImportReport = {
-  totalRows: number
-  cases: number
-  errors: { row: number; column: string; message: string }[]
-  created: string[]
-}
+export type { ImportReport }
 
 /**
  * `POST /api/trabajos/importar` recibe `multipart/form-data` con `c.req.parseBody()` a

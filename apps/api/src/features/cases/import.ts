@@ -1,4 +1,4 @@
-import type { CaseInput, ImportRow } from '@dentalware/shared'
+import type { CaseInput, ImportError, ImportReport, ImportRow } from '@dentalware/shared'
 import {
   caseInputSchema,
   IMPORT_COLUMNS,
@@ -19,14 +19,6 @@ import { products } from '../products/schema.ts'
 import { createCaseTx } from './repo.ts'
 
 export const MAX_IMPORT_BYTES = 2 * 1024 * 1024 // 2 MB
-
-export type ImportError = { row: number; column: string; message: string }
-export type ImportReport = {
-  totalRows: number
-  cases: number
-  errors: ImportError[]
-  created: string[]
-}
 
 const EXAMPLE_ROW = [
   'Clínica Sonrisa',

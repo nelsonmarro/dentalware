@@ -1,4 +1,4 @@
-import type { CaseStatus } from '@dentalware/shared'
+import { isEditableStatus } from '@dentalware/shared'
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
@@ -20,17 +20,13 @@ export const Route = createFileRoute('/_app/trabajos/$caseId_/editar')({
   component: EditCasePage,
 })
 
-// Debe reflejar `EDITABLE` en `apps/api/src/features/cases/repo.ts`: solo se edita un
-// trabajo en `nuevo` o `en_proceso`; el resto responde 409 si se intenta guardar.
-const EDITABLE: readonly CaseStatus[] = ['nuevo', 'en_proceso']
-
 function EditCasePage() {
   const { caseId } = Route.useParams()
   const navigate = useNavigate()
   const { user } = Route.useRouteContext()
   const detail = useCase(caseId)
   const update = useUpdateCase()
-  const editable = detail.data ? EDITABLE.includes(detail.data.case.status) : true
+  const editable = detail.data ? isEditableStatus(detail.data.case.status) : true
 
   useEffect(() => {
     if (detail.data && !editable) {

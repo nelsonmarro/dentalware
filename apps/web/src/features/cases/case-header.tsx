@@ -1,4 +1,5 @@
-import type { CaseStatus, UserRole } from '@dentalware/shared'
+import type { UserRole } from '@dentalware/shared'
+import { isEditableStatus } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { Pencil } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -9,9 +10,6 @@ import { formatMoney } from '@/features/products/pricing-unit-label'
 import type { CaseDetail } from './api'
 import { formatDate } from './date-format'
 import { STATUS_COLOR, StatusChip } from './status-chip'
-
-// Debe reflejar `EDITABLE` en `apps/api/src/features/cases/repo.ts`.
-const EDITABLE: readonly CaseStatus[] = ['nuevo', 'en_proceso']
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
@@ -35,7 +33,7 @@ export function CaseHeader({
   role: UserRole
 }) {
   const hidePrices = role === 'tecnico' || role === 'mensajero'
-  const canEdit = (role === 'admin' || role === 'recepcion') && EDITABLE.includes(c.status)
+  const canEdit = (role === 'admin' || role === 'recepcion') && isEditableStatus(c.status)
   const patient = [
     c.patientRef,
     c.patientAge !== null ? `${c.patientAge} años` : null,

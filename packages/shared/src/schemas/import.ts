@@ -116,3 +116,14 @@ export const importRowSchema = z.object({
   observaciones: textoOpcional(2000),
 })
 export type ImportRow = z.infer<typeof importRowSchema>
+
+/** Un error de validación o de resolución de catálogo en una fila del CSV importado. */
+export type ImportError = { row: number; column: string; message: string }
+
+/** Resultado de validar (o confirmar) una importación: ver `importCases` en la API. */
+export type ImportReport = {
+  totalRows: number
+  cases: number
+  errors: ImportError[]
+  created: string[]
+}

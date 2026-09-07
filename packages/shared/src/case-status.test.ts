@@ -6,6 +6,8 @@ import {
   canPerform,
   CASE_ACTIONS,
   CASE_STATUSES,
+  EDITABLE_CASE_STATUSES,
+  isEditableStatus,
 } from './case-status.ts'
 
 describe('estados y acciones', () => {
@@ -36,6 +38,18 @@ describe('estados y acciones', () => {
         'cancelar',
       ].sort(),
     )
+  })
+})
+
+describe('isEditableStatus', () => {
+  it('define nuevo y en_proceso como los únicos estados editables', () => {
+    expect(EDITABLE_CASE_STATUSES).toEqual(['nuevo', 'en_proceso'])
+  })
+
+  it('responde true solo para nuevo y en_proceso', () => {
+    for (const s of CASE_STATUSES) {
+      expect(isEditableStatus(s)).toBe(s === 'nuevo' || s === 'en_proceso')
+    }
   })
 })
 

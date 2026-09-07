@@ -1,3 +1,4 @@
+import type { Checklist } from '@dentalware/shared'
 import {
   CASE_EVENT_TYPES,
   CASE_PRIORITIES,
@@ -35,8 +36,6 @@ export const caseSequences = pgTable('case_sequences', {
   year: integer().primaryKey(),
   last: integer().notNull().default(0),
 })
-
-export type Checklist = { antagonista: boolean; mordida: boolean; color: boolean; fotos: boolean }
 
 export const cases = pgTable(
   'cases',

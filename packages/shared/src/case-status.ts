@@ -70,3 +70,14 @@ export function availableActions(status: CaseStatus): CaseAction[] {
 export function canPerform(role: UserRole, action: CaseAction): boolean {
   return CASE_TRANSITIONS[action].roles.includes(role)
 }
+
+/** Estados en los que un trabajo aún se puede editar (formulario de edición y botón
+ * "editar" de la ficha); el resto responde 409 si se intenta guardar. */
+export const EDITABLE_CASE_STATUSES = [
+  'nuevo',
+  'en_proceso',
+] as const satisfies readonly CaseStatus[]
+
+export function isEditableStatus(status: CaseStatus): boolean {
+  return (EDITABLE_CASE_STATUSES as readonly CaseStatus[]).includes(status)
+}
