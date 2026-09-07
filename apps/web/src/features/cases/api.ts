@@ -51,3 +51,31 @@ export async function postComment(id: string, text: string) {
     ).json()
   ).event
 }
+
+export type ImportReport = {
+  totalRows: number
+  cases: number
+  errors: { row: number; column: string; message: string }[]
+  created: string[]
+}
+
+/**
+ * `POST /api/trabajos/importar` recibe `multipart/form-data` con `c.req.parseBody()` a
+ * mano (ver `apps/api/src/features/cases/import.ts`), sin `validate('form', …)`: el
+ * cliente `hc` no tipa `form` para esta ruta, así que se sube con `fetch` directo (mismo
+ * transporte y credenciales que usa `hc`), igual que `uploadAttachment` en adjuntos.
+ */
+async function submitImport(file: File, confirmar: boolean): Promise<ImportReport> {
+  const form = new FormData()
+  form.set('file', file)
+  const res = await fetch(`/api/trabajos/importar?confirmar=${confirmar}`, {
+    method: 'POST',
+    body: form,
+    credentials: 'include',
+  })
+  await throwIfNotOk(res)
+  return (await res.json()) as ImportReport
+}
+
+export const validateImport = (file: File) => submitImport(file, false)
+export const commitImport = (file: File) => submitImport(file, true)

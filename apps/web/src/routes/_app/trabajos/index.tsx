@@ -1,6 +1,7 @@
 import type { CaseView } from '@dentalware/shared'
 import { CASE_VIEWS } from '@dentalware/shared'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { useState } from 'react'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -8,6 +9,7 @@ import type { CaseListQueryInput } from '@/features/cases/api'
 import { CASE_VIEW_LABEL, parseCasesSearch } from '@/features/cases/case-views'
 import { CasesFilters } from '@/features/cases/cases-filters'
 import { CasesTable } from '@/features/cases/cases-table'
+import { ImportDialog } from '@/features/cases/import-dialog'
 import { useCases } from '@/features/cases/use-cases'
 import { useClinics } from '@/features/clinics/use-clinics'
 import { useDoctors } from '@/features/doctors/use-doctors'
@@ -23,6 +25,7 @@ function TrabajosPage() {
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
 
+  const [importOpen, setImportOpen] = useState(false)
   const vista = search.vista ?? 'todos'
   const pagina = search.pagina ?? 1
   const hidePrices = user.role === 'tecnico' || user.role === 'mensajero'
@@ -53,7 +56,11 @@ function TrabajosPage() {
         action={
           canWrite ? (
             <div className="flex w-full gap-2 sm:w-auto">
-              <Button variant="outline" className="h-11 flex-1 sm:flex-none" disabled>
+              <Button
+                variant="outline"
+                className="h-11 flex-1 sm:flex-none"
+                onClick={() => setImportOpen(true)}
+              >
                 Importar
               </Button>
               <Button asChild className="h-11 flex-1 sm:flex-none">
@@ -105,6 +112,7 @@ function TrabajosPage() {
           Siguiente
         </Button>
       </div>
+      {canWrite && <ImportDialog open={importOpen} onOpenChange={setImportOpen} />}
     </div>
   )
 }
