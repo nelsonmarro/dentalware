@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatMoney } from '@/features/products/pricing-unit-label'
 import { cn } from '@/lib/utils'
 import type { CaseDetail } from './api'
-import { computeTotals } from './case-totals'
 import { Odontogram } from './odontogram'
 
 function money(value: string | null) {
@@ -57,13 +56,6 @@ function CaseLineRow({
   item: CaseDetail['items'][number]
   hidePrices: boolean
 }) {
-  const lineTotal = computeTotals([
-    {
-      unitPrice: item.unitPrice,
-      quantity: item.quantity,
-      discountPct: Number(item.discountPct ?? 0),
-    },
-  ]).lines[0]
   return (
     <div
       data-testid="case-detail-line"
@@ -84,9 +76,7 @@ function CaseLineRow({
               value={Number(item.discountPct ?? 0) > 0 ? `${Number(item.discountPct)} %` : '—'}
             />
           )}
-          {!hidePrices && (
-            <LineField label="Total" value={money(lineTotal ?? item.lineTotal)} mono />
-          )}
+          {!hidePrices && <LineField label="Total" value={money(item.lineTotal)} mono />}
         </div>
       </div>
       {item.teeth.length > 0 && <Odontogram value={item.teeth} readOnly size="sm" />}

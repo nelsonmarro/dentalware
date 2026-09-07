@@ -19,7 +19,9 @@ export function useUploadAttachment(caseId: string) {
       void qc.invalidateQueries({ queryKey: queryKeys.attachments(caseId) })
       void qc.invalidateQueries({ queryKey: queryKeys.caseEvents(caseId) })
     },
-    onError: toastApiError,
+    // Sin `onError`: `PhotoUploader` sube en serie y ya muestra un toast por archivo
+    // (con el nombre del archivo y el mensaje del servidor) en su propio `catch`; un
+    // `onError` aquí duplicaría el aviso.
   })
 }
 

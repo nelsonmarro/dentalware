@@ -2,6 +2,7 @@ import { Camera, Paperclip } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { ApiError } from '@/lib/api-error'
 import { compressImage } from '@/lib/image-compress'
 import { useUploadAttachment } from './use-attachments'
 
@@ -27,8 +28,12 @@ export function PhotoUploader({ caseId, onUploaded }: { caseId: string; onUpload
         const form = new FormData()
         form.append('file', compressed, file.name)
         await upload.mutateAsync(form)
-      } catch {
-        toast.error(`No se pudo subir "${file.name}"`)
+      } catch (err) {
+        toast.error(
+          err instanceof ApiError
+            ? `${file.name}: ${err.message}`
+            : `No se pudo subir "${file.name}"`,
+        )
       }
     }
     setProgress(null)
