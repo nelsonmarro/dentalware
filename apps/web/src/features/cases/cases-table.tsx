@@ -1,6 +1,6 @@
 import { toIsoDate } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
-import { Badge } from '@/components/ui/badge'
+import { CircleAlert, Clock, TriangleAlert } from 'lucide-react'
 import { DataTable, type Column } from '@/components/data-table'
 import type { CaseListRow } from './api'
 import { dueBadge } from './case-views'
@@ -11,23 +11,44 @@ function money(value: string | null) {
   return value === null ? '—' : `$ ${Number(value).toFixed(2)}`
 }
 
+/** Icono accesible (UX2-05): reemplaza el chip de texto "Urgente"/"Atrasado"/"Hoy"
+ * para liberar el ancho que exigía scroll horizontal a 1280px; `title` da el tooltip
+ * nativo y `role="img"` + `aria-label` conservan el texto para lectores de pantalla. */
+function StatusIcon({
+  label,
+  className,
+  Icon,
+}: {
+  label: string
+  className: string
+  Icon: typeof TriangleAlert
+}) {
+  return (
+    <span title={label} aria-label={label} role="img" className={className}>
+      <Icon aria-hidden className="size-4" />
+    </span>
+  )
+}
+
 function DueCell({ row, today }: { row: CaseListRow; today: string }) {
   const date = row.promisedDate ?? row.dueDate
   const badge = dueBadge(date, today, row.status)
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
       <span>{formatDate(date)}</span>
       {badge === 'hoy' && (
-        <Badge className="bg-[color:var(--wax-amber)]/15 text-[color:var(--wax-amber)]">Hoy</Badge>
+        <StatusIcon label="Vence hoy" Icon={Clock} className="text-[color:var(--wax-amber)]" />
       )}
-      {badge === 'atrasado' && <Badge variant="destructive">Atrasado</Badge>}
+      {badge === 'atrasado' && (
+        <StatusIcon label="Atrasado" Icon={CircleAlert} className="text-destructive" />
+      )}
     </div>
   )
 }
 
 function CodeCell({ row }: { row: CaseListRow }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
       <Link
         to="/trabajos/$caseId"
         params={{ caseId: row.id }}
@@ -35,7 +56,9 @@ function CodeCell({ row }: { row: CaseListRow }) {
       >
         {row.code}
       </Link>
-      {row.priority === 'urgente' && <Badge variant="destructive">Urgente</Badge>}
+      {row.priority === 'urgente' && (
+        <StatusIcon label="Urgente" Icon={TriangleAlert} className="text-destructive" />
+      )}
     </div>
   )
 }
@@ -53,15 +76,36 @@ export function CasesTable({ rows, hidePrices }: { rows: CaseListRow[]; hidePric
     {
       key: 'clinica',
       header: 'Clínica / Doctor',
+      className: 'max-w-[180px]',
+      cell: (r) => {
+        const label = `${r.clinic.name} · ${r.doctor.name}`
+        return (
+          <span className="block truncate" title={label}>
+            {label}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'paciente',
+      header: 'Paciente',
+      className: 'max-w-[140px]',
       cell: (r) => (
-        <div className="flex flex-col">
-          <span>{r.clinic.name}</span>
-          <span className="text-sm text-muted-foreground">{r.doctor.name}</span>
-        </div>
+        <span className="block truncate" title={r.patientRef}>
+          {r.patientRef}
+        </span>
       ),
     },
-    { key: 'paciente', header: 'Paciente', cell: (r) => r.patientRef },
-    { key: 'trabajo', header: 'Trabajo', cell: (r) => r.itemsSummary ?? '—' },
+    {
+      key: 'trabajo',
+      header: 'Trabajo',
+      className: 'max-w-[160px]',
+      cell: (r) => (
+        <span className="block truncate" title={r.itemsSummary ?? '—'}>
+          {r.itemsSummary ?? '—'}
+        </span>
+      ),
+    },
     { key: 'entrega', header: 'Entrega', cell: (r) => <DueCell row={r} today={today} /> },
     { key: 'estado', header: 'Estado', cell: (r) => <StatusChip status={r.status} /> },
     ...(hidePrices

@@ -354,6 +354,35 @@ describe('CaseForm', () => {
     expect(within(headers).queryByText('Precio unitario')).not.toBeInTheDocument()
   })
 
+  it('con role "admin" (ve el precio), la cabecera y la fila comparten la plantilla de 8 columnas', async () => {
+    setMatchMedia(true)
+    const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Agregar línea' }))
+
+    const headers = screen.getByTestId('case-items-header')
+    const row = screen.getByTestId('case-item-row')
+    // 8 columnas: Producto (col-span-2) + Cantidad + Piezas + Precio unitario +
+    // Descuento + Material + Nota = 8 celdas — sin este ajuste, la cabecera y la fila
+    // usaban `grid-cols-7` con 8 celdas y «Nota» bajaba a una segunda línea.
+    expect(headers.className).toMatch(/(?:^|\s)grid-cols-8(?:\s|$)/)
+    expect(row.className).toMatch(/(?:^|\s)lg:grid-cols-8(?:\s|$)/)
+  })
+
+  it('con role "tecnico" (sin precio), la cabecera y la fila comparten la plantilla de 7 columnas', async () => {
+    setMatchMedia(true)
+    const { user } = renderForm(<CaseForm role="tecnico" pending={false} onSubmit={vi.fn()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Agregar línea' }))
+
+    const headers = screen.getByTestId('case-items-header')
+    const row = screen.getByTestId('case-item-row')
+    expect(headers.className).toMatch(/(?:^|\s)grid-cols-7(?:\s|$)/)
+    expect(headers.className).not.toMatch(/grid-cols-8/)
+    expect(row.className).toMatch(/(?:^|\s)lg:grid-cols-7(?:\s|$)/)
+    expect(row.className).not.toMatch(/grid-cols-8/)
+  })
+
   it('en móvil no se muestran los encabezados de columna de escritorio', async () => {
     setMatchMedia(false)
     const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)

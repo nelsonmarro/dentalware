@@ -6,6 +6,7 @@ import type { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 import {
   Select,
   SelectContent,
@@ -160,18 +161,34 @@ export function CaseItemsEditor({
   )
 }
 
+/** Plantilla del grid de línea, compartida por `CaseItemsHeader` y `CaseItemRow` para
+ * que nunca queden desalineadas entre sí (punto extra de la revisión de la Task 3):
+ * el grid tiene 7 celdas (Producto ocupa 2) sin "Precio unitario" — técnico— y 8 con
+ * ella —admin/recepción—; con `grid-cols-7` fijo y 8 celdas, "Nota" bajaba a una
+ * segunda línea. Los literales completos (`grid-cols-8`, `lg:grid-cols-8`, etc.)
+ * deben aparecer tal cual en el código fuente para que Tailwind los genere. */
+function itemsGridTemplate(canEditPrice: boolean): { header: string; row: string } {
+  return canEditPrice
+    ? { header: 'grid-cols-8', row: 'lg:grid-cols-8' }
+    : { header: 'grid-cols-7', row: 'lg:grid-cols-7' }
+}
+
 /** Fila de encabezados de columna en escritorio (UX2-04): en móvil las `FieldLabel`
  * de cada campo ya son visibles; en `lg:` quedan `sr-only` (repetir la etiqueta en
  * cada línea sería ruido), así que esta fila —oculta a lectores de pantalla, que ya
  * tienen la etiqueta accesible de cada campo— reemplaza esa referencia visual. Usa
- * el mismo grid de 7 columnas y los mismos `col-span` que `CaseItemRow` para que las
- * columnas queden alineadas con los campos de la primera línea. */
+ * la misma plantilla de columnas (`itemsGridTemplate`) y los mismos `col-span` que
+ * `CaseItemRow` para que las columnas queden alineadas con los campos de la primera
+ * línea. */
 function CaseItemsHeader({ canEditPrice }: { canEditPrice: boolean }) {
   return (
     <div
       aria-hidden
       data-testid="case-items-header"
-      className="grid grid-cols-7 gap-2 px-3 text-xs font-medium text-muted-foreground"
+      className={cn(
+        'grid gap-2 px-3 text-xs font-medium text-muted-foreground',
+        itemsGridTemplate(canEditPrice).header,
+      )}
     >
       <span className="col-span-2">Producto</span>
       <span>Cantidad</span>
@@ -218,7 +235,10 @@ function CaseItemRow({
   return (
     <fieldset
       data-testid="case-item-row"
-      className="grid grid-cols-2 gap-3 rounded-lg border border-border p-3 lg:grid-cols-7 lg:items-start lg:gap-2"
+      className={cn(
+        'grid grid-cols-2 gap-3 rounded-lg border border-border p-3 lg:items-start lg:gap-2',
+        itemsGridTemplate(canEditPrice).row,
+      )}
     >
       <legend className="sr-only">Línea {index + 1}</legend>
       <Field className="col-span-2 lg:col-span-2">

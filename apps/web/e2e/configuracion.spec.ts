@@ -34,6 +34,30 @@ test.describe('Configuración', () => {
     await expect(page.getByText('Ya existe un producto con ese código')).toBeVisible()
   })
 
+  test('la tabla de productos no exige scroll horizontal a 1280 px y el CTA de cabecera sigue la pestaña activa', async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== 'escritorio',
+      'Solo aplica al ancho de escritorio (1280 px)',
+    )
+
+    await page.goto('/configuracion/productos')
+
+    // UX1-03: sin scroll horizontal interno a 1280 px, con "Estado" visible.
+    const tabla = page.locator('[data-slot="table-container"]')
+    expect(await tabla.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    await expect(page.getByRole('columnheader', { name: 'Estado' })).toBeInViewport()
+
+    // UX1-10: el CTA de cabecera cambia según la pestaña activa, sin duplicarse.
+    await expect(page.getByRole('button', { name: 'Nuevo producto' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Nueva categoría' })).toHaveCount(0)
+
+    await page.getByRole('tab', { name: 'Categorías' }).click()
+    await expect(page.getByRole('button', { name: 'Nueva categoría' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Nuevo producto' })).toHaveCount(0)
+  })
+
   test('un técnico no ve Configuración', async ({ page, browser }) => {
     const email = `tecnico-e2e-${Date.now()}@t.local`
     const password = 'Tecnico1234'
