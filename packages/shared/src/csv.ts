@@ -75,7 +75,15 @@ function quoteField(v: string): string {
   return NEEDS_QUOTING.test(v) ? `"${v.replace(/"/g, '""')}"` : v
 }
 
-/** Serializa filas a CSV (RFC 4180), citando solo los campos que lo requieren. */
+/**
+ * Serializa filas a CSV (RFC 4180), citando solo los campos que lo requieren.
+ *
+ * NO neutraliza la inyección de fórmulas: un campo que empiece con `=`, `+`, `-` o `@`
+ * se escribe tal cual y Excel/Sheets pueden interpretarlo como fórmula al abrirlo. Usar
+ * solo para contenido estático controlado por el servidor (p. ej. la plantilla de
+ * importación); si en el futuro se genera un CSV a partir de datos de usuario para
+ * descargar, hay que anteponer un `'` (o similar) a esos campos antes de llamar aquí.
+ */
 export function toCsv(rows: string[][]): string {
   return rows.map((r) => r.map(quoteField).join(',')).join('\r\n')
 }

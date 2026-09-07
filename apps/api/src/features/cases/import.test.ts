@@ -159,6 +159,78 @@ describe('/api/trabajos/importar', () => {
     expect(rows).toHaveLength(0)
   })
 
+  it('cantidad mayor a 99: error en la columna cantidad, sin crear nada (nunca 500)', async () => {
+    const csv = csvOf([
+      ['Clínica Sonrisa', 'Dr. Pérez', 'Ana Paciente', 'ZR', '11', '100', '', '', '', ''],
+    ])
+    const r = await upload(recepcion, csv, true)
+    expect(r.status).toBe(200)
+    const report = (await r.json()) as {
+      errors: { row: number; column: string; message: string }[]
+      created: string[]
+    }
+    expect(report.errors).toEqual([
+      { row: 2, column: 'cantidad', message: 'La cantidad máxima es 99' },
+    ])
+    expect(report.created).toEqual([])
+  })
+
+  it('paciente de más de 120 caracteres: error, sin crear nada (nunca 500)', async () => {
+    const csv = csvOf([
+      ['Clínica Sonrisa', 'Dr. Pérez', 'A'.repeat(130), 'ZR', '11', '1', '', '', '', ''],
+    ])
+    const r = await upload(recepcion, csv, true)
+    expect(r.status).toBe(200)
+    const report = (await r.json()) as {
+      errors: { row: number; column: string; message: string }[]
+      created: string[]
+    }
+    expect(report.errors).toEqual([
+      { row: 2, column: 'paciente', message: 'Máximo 120 caracteres' },
+    ])
+    expect(report.created).toEqual([])
+  })
+
+  it('dos clínicas con el mismo nombre normalizado: error de ambigüedad, no crea nada', async () => {
+    await ctx.db.insert(ctx.schema.clinics).values({ name: 'CLINICA SONRISA' })
+    const csv = csvOf([
+      ['Clínica Sonrisa', 'Dr. Pérez', 'Ana Paciente', 'ZR', '11', '1', '', '2026-09-20', '', ''],
+    ])
+    const r = await upload(recepcion, csv, true)
+    expect(r.status).toBe(200)
+    const report = (await r.json()) as {
+      errors: { row: number; column: string; message: string }[]
+      created: string[]
+    }
+    expect(report.errors).toEqual([
+      {
+        row: 2,
+        column: 'clinica',
+        message: 'La clínica "Clínica Sonrisa" es ambigua: hay 2 clínicas con ese nombre',
+      },
+    ])
+    expect(report.created).toEqual([])
+
+    const rows = await ctx.db.select().from(ctx.schema.cases)
+    expect(rows).toHaveLength(0)
+  })
+
+  it('la plantilla lleva BOM UTF-8 y se puede volver a subir sin error de cabecera', async () => {
+    const plantilla = await app.request('/api/trabajos/importar/plantilla', {
+      headers: { cookie: recepcion, origin: ctx.config.WEB_ORIGIN },
+    })
+    const buf = new Uint8Array(await plantilla.arrayBuffer())
+    expect([buf[0], buf[1], buf[2]]).toEqual([0xef, 0xbb, 0xbf])
+
+    const text = new TextDecoder('utf-8').decode(buf)
+    const r = await upload(recepcion, text, false)
+    expect(r.status).toBe(200)
+    const report = (await r.json()) as { errors: unknown[] }
+    // La fila de ejemplo referencia una clínica/doctor/producto que no existen en esta
+    // prueba: se espera que falle por eso, nunca por la cabecera.
+    expect(report.errors).not.toContainEqual(expect.objectContaining({ column: 'cabecera' }))
+  })
+
   it('técnico no puede importar (403)', async () => {
     const csv = csvOf([])
     expect((await upload(tecnico, csv, false)).status).toBe(403)
