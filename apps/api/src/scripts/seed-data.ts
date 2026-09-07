@@ -75,14 +75,18 @@ const CATEGORIES: {
     ],
   },
 ]
-const STAGES = [
+// Colores de fase: distintos entre sí y del teal primario #0F766E, reservado para la
+// acción principal, enlaces activos y el anillo de foco (UX1-06). Cada uno cumple
+// contraste AA (>= 4.5:1) como texto sobre --teal-lab-soft (#D9EFEC), el fondo del
+// chip de fase, y sobre fondos claros en general.
+export const STAGES = [
   ['Recepción', '#5B6A6E'],
-  ['Modelo', '#6B7C93'],
-  ['Diseño', '#7C5CBF'],
-  ['Estructura', '#2F6FB0'],
-  ['Cerámica/Acrílico', '#0F766E'],
-  ['Acabado', '#D99A16'],
-  ['Control de calidad', '#2F8F5B'],
+  ['Modelo', '#59677A'],
+  ['Diseño', '#7351BB'],
+  ['Estructura', '#2C67A4'],
+  ['Cerámica/Acrílico', '#9C4221'],
+  ['Acabado', '#835D0D'],
+  ['Control de calidad', '#267249'],
 ] as const
 
 /** Idempotente: crea lo que falte (por nombre/código) y no toca lo existente. Precios base en 0.00 hasta que el admin los defina. */
