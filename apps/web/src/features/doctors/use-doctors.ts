@@ -5,10 +5,11 @@ import { toastApiError } from '@/lib/api-error'
 import { queryKeys } from '@/lib/query-keys'
 import { createDoctor, fetchDoctors, setDoctorActive, updateDoctor } from './api'
 
-export function useDoctors(clinicId: string, inactive: boolean) {
+export function useDoctors(clinicId: string, inactive: boolean, enabled = true) {
   return useQuery({
     queryKey: queryKeys.doctors(clinicId, inactive),
     queryFn: () => fetchDoctors(clinicId, inactive),
+    enabled: enabled && clinicId !== '',
   })
 }
 function useInvalidateDoctors() {

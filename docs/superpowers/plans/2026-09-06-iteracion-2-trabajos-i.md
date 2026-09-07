@@ -90,7 +90,7 @@ README.md                                       ← Task 12
 **Interfaces:**
 - Produces: `renderWithProviders(ui)` (QueryClientProvider con `retry: false`), `setMatchMedia(matches: boolean)` para simular escritorio/móvil, matchers de jest-dom en todos los tests web, `pnpm --filter @dentalware/web test`.
 
-- [ ] **Step 1: Consultar context7 y fijar versiones**
+- [x] **Step 1: Consultar context7 y fijar versiones**
 
 Verificado el 2026-09-06: `@testing-library/react` 16.3.3 (peer `@testing-library/dom ^10`, React 18/19), `@testing-library/jest-dom` 7.0.1 (`import '@testing-library/jest-dom/vitest'`), `@testing-library/user-event` 14.6.7, `jsdom` 30.0.1. Añadir al `catalog:` de `pnpm-workspace.yaml`:
 
@@ -105,7 +105,7 @@ Verificado el 2026-09-06: `@testing-library/react` 16.3.3 (peer `@testing-librar
 
 y en `apps/web/package.json` (devDependencies con `catalog:` los cinco) más el script `"test": "vitest run"`. Instalar con `pnpm install`.
 
-- [ ] **Step 2: Configuración**
+- [x] **Step 2: Configuración**
 
 `apps/web/vitest.config.ts`:
 ```ts
@@ -179,7 +179,7 @@ export function renderWithProviders(ui: ReactElement) {
 
 Raíz `vitest.config.ts`: `projects: ['packages/*/vitest.config.ts', 'apps/api/vitest.config.ts', 'apps/web/vitest.config.ts']`. En `apps/web/tsconfig.json` añadir `"vitest/globals"` no (no se usan globals); añadir `"@testing-library/jest-dom"` a `types` para que `toBeInTheDocument` tipe en los tests.
 
-- [ ] **Step 3: Tests de los componentes transversales (RED → GREEN)**
+- [x] **Step 3: Tests de los componentes transversales (RED → GREEN)**
 
 `apps/web/src/components/empty-state.test.tsx`:
 ```tsx
@@ -256,7 +256,7 @@ describe('DataTable', () => {
 
 `apps/web/src/lib/use-media-query.test.ts`: `renderHook(() => useMediaQuery('(min-width: 1024px)'))` devuelve `true` con `setMatchMedia(true)`, y cambia a `false` tras `setMatchMedia(false)` + `act(() => notify())` (re-render por `useSyncExternalStore`; usar el `notify` devuelto por el primer `setMatchMedia` y hacer que el mock lea `matches` de una variable mutable, ajustando `match-media.ts` si hace falta para que el mismo mock cambie de valor).
 
-- [ ] **Step 4: Ejecutar y commit**
+- [x] **Step 4: Ejecutar y commit**
 
 ```bash
 pnpm --filter @dentalware/web test      # 5 archivos, ≥ 9 tests
@@ -279,7 +279,7 @@ Refs #31, #29"
 **Interfaces:**
 - Produces: `toCents('12.50') → 1250`, `fromCents(1250) → '12.50'`, `lineTotalCents(unitCents, quantity, discountPct)`, `sumCents(number[])`; `CASE_PRIORITIES`, `PATIENT_SEXES`, `SHADE_SYSTEMS`, `CHECKLIST_KEYS`, `CHECKLIST_LABEL`, `CASE_VIEWS`, `CASE_PAGE_SIZE = 50`, `CASE_EVENT_TYPES`; `caseItemSchema`, `caseInputSchema` (`CaseInput`), `caseListQuerySchema` (`CaseListQuery`), `commentSchema`, `checklistSchema` (`Checklist`); `missingForAccept(input): string[]`.
 
-- [ ] **Step 1: Tests de dinero (RED)**
+- [x] **Step 1: Tests de dinero (RED)**
 
 `packages/shared/src/money.test.ts`:
 ```ts
@@ -313,7 +313,7 @@ describe('money', () => {
 })
 ```
 
-- [ ] **Step 2: Implementar `money.ts` (GREEN)**
+- [x] **Step 2: Implementar `money.ts` (GREEN)**
 
 ```ts
 const MONEY = /^\d{1,10}(\.\d{1,2})?$/
@@ -341,7 +341,7 @@ export function sumCents(list: readonly number[]): number {
 }
 ```
 
-- [ ] **Step 3: Tipos de evento**
+- [x] **Step 3: Tipos de evento**
 
 `packages/shared/src/case-events.ts`:
 ```ts
@@ -353,7 +353,7 @@ export const CASE_EVENT_TYPES = [
 export type CaseEventType = (typeof CASE_EVENT_TYPES)[number]
 ```
 
-- [ ] **Step 4: Tests de schemas (RED)**
+- [x] **Step 4: Tests de schemas (RED)**
 
 `packages/shared/src/schemas/cases.test.ts` — casos mínimos:
 ```ts
@@ -414,7 +414,7 @@ describe('commentSchema', () => {
 })
 ```
 
-- [ ] **Step 5: Implementar `schemas/cases.ts` (GREEN)**
+- [x] **Step 5: Implementar `schemas/cases.ts` (GREEN)**
 
 Primero, en `schemas/config.ts`, exportar los helpers `textoOpcional` y `uuid` (añadir `export` delante; sin cambiar su comportamiento).
 
@@ -519,7 +519,7 @@ export const commentSchema = z.object({
 export type CommentInput = z.infer<typeof commentSchema>
 ```
 
-- [ ] **Step 6: Datos obligatorios para aceptar (RED → GREEN)**
+- [x] **Step 6: Datos obligatorios para aceptar (RED → GREEN)**
 
 `packages/shared/src/case-readiness.test.ts`:
 ```ts
@@ -593,7 +593,7 @@ export function missingForAccept(c: ReadinessInput): string[] {
 ```
 (La lista de verificación de la orden en papel no bloquea: lo no marcado queda registrado como pendiente y se muestra en la ficha; los avisos a la clínica llegan en la Iteración 6.)
 
-- [ ] **Step 7: Exportar, ejecutar y commit**
+- [x] **Step 7: Exportar, ejecutar y commit**
 
 `index.ts`: añadir `export * from './money.ts'`, `'./case-events.ts'`, `'./schemas/cases.ts'`, `'./case-readiness.ts'`.
 
@@ -616,9 +616,9 @@ Refs #3"
 **Interfaces:**
 - Produces: tablas `cases`, `case_items`, `case_events`, `case_sequences`, `attachments`; enums `case_status`, `case_priority`, `patient_sex`, `shade_system`, `case_event_type`, `attachment_kind`; relaciones `cases.{clinic,doctor,technician,stage,creator,items,events,attachments}`, `caseItems.{case,product}`, `caseEvents.{case,actor}`, `attachments.{case,uploader}`.
 
-- [ ] **Step 1: Test de esquema (RED)** — en `db/schema.test.ts` añadir: insertar clínica, doctor, categoría, producto y un `cases` mínimo con dos `case_items` y un `case_events`, y comprobar `db.query.cases.findFirst({ with: { items: { with: { product: true } }, clinic: true, events: true } })` devuelve las relaciones; comprobar que `case_sequences` acepta `insert … on conflict (year) do update set last = case_sequences.last + 1 returning last` dos veces → 1 y 2.
+- [x] **Step 1: Test de esquema (RED)** — en `db/schema.test.ts` añadir: insertar clínica, doctor, categoría, producto y un `cases` mínimo con dos `case_items` y un `case_events`, y comprobar `db.query.cases.findFirst({ with: { items: { with: { product: true } }, clinic: true, events: true } })` devuelve las relaciones; comprobar que `case_sequences` acepta `insert … on conflict (year) do update set last = case_sequences.last + 1 returning last` dos veces → 1 y 2.
 
-- [ ] **Step 2: Schema (GREEN)**
+- [x] **Step 2: Schema (GREEN)**
 
 `apps/api/src/features/cases/schema.ts`:
 ```ts
@@ -792,7 +792,7 @@ export const attachments = pgTable(
 
 `test/setup.ts` → `truncateAll`: `truncate table "attachments", "case_events", "case_items", "cases", "case_sequences", "clinic_product_prices", …` (las nuevas primero).
 
-- [ ] **Step 3: Migración y verificación**
+- [x] **Step 3: Migración y verificación**
 
 ```bash
 pnpm --filter @dentalware/api db:generate     # crea drizzle/<ts>_<name>/ con las 5 tablas y 6 enums
@@ -823,7 +823,7 @@ Refs #3"
   - `addEvent(tx, { caseId, type, fromValue?, toValue?, reason?, actorId })`.
   - `stripPrices<T>(row)` → mismo objeto con `total`, `items[].unitPrice`, `items[].lineTotal`, `items[].discountPct` en `null`.
 
-- [ ] **Step 1: Tests del repo (RED)**
+- [x] **Step 1: Tests del repo (RED)**
 
 `cases.repo.test.ts` (usa `setupTestDb`, `truncateAll`; crea clínica, doctor, categoría, dos productos ZR `45.00` por_pieza y AC `80.00` por_arcada, y precio especial ZR→`40.00` para la clínica; usuario admin con `createUser` para `actorId`):
 
@@ -880,7 +880,7 @@ it('stripPrices anula precios y totales', () => {
 })
 ```
 
-- [ ] **Step 2: Implementar `repo.ts` (GREEN)**
+- [x] **Step 2: Implementar `repo.ts` (GREEN)**
 
 ```ts
 import type { CaseInput, CaseListQuery, CaseEventType } from '@dentalware/shared'
@@ -1055,7 +1055,7 @@ export function stripPrices<T extends Priced>(row: T): T {
 ```
 Quitar la línea `const tech = …` (residuo): el listado no necesita CTE. Si `orderBy` con `sql` mixto no tipa en rc.4, usar `sql` para las tres claves. Si `.for('update')` no existe en rc.4, usar `sql\`select status from cases where id = ${id} for update\``.
 
-- [ ] **Step 3: Ejecutar y commit**
+- [x] **Step 3: Ejecutar y commit**
 
 ```bash
 pnpm --filter @dentalware/api test src/features/cases   # repo 7/7
@@ -1082,7 +1082,7 @@ Refs #3"
   - `POST /api/trabajos/:id/comentarios` → 201 `{ event }` (tipo `comment`, `toValue = text`).
   - Helper exportado `todayIso()` = `toIsoDate(new Date())` (TZ del proceso: `America/Guayaquil` en producción).
 
-- [ ] **Step 1: Tests de rutas (RED)** — `cases.test.ts` con admin, recepción, técnico y mensajero; catálogo mínimo:
+- [x] **Step 1: Tests de rutas (RED)** — `cases.test.ts` con admin, recepción, técnico y mensajero; catálogo mínimo:
   - `crea un trabajo (201) y lo devuelve con código, líneas con precio y total` (recepción).
   - `técnico y mensajero no crean (403)`; `sin sesión 403`.
   - `422 con issues en español si faltan líneas o el producto no existe` (path `items.0.productId`).
@@ -1092,7 +1092,7 @@ Refs #3"
   - `comentario: técnico comenta (201) y aparece en eventos con su nombre; texto vacío 422`.
   - `GET /:id devuelve missing con "Fecha deseada" cuando falta`.
 
-- [ ] **Step 2: Implementar `routes.ts` (GREEN)**
+- [x] **Step 2: Implementar `routes.ts` (GREEN)**
 
 ```ts
 import { caseInputSchema, caseListQuerySchema, commentSchema, idParamSchema, missingForAccept, toIsoDate } from '@dentalware/shared'
@@ -1164,7 +1164,7 @@ export const casesRoutes = (db: Db) =>
 ```
 Nota: `db.query.attachments` existe desde la Tarea 3; hasta la Tarea 6 no hay filas. `stripPrices` devuelve `total: null` y precios `null`: el tipo de respuesta de `GET /:id` es la unión de ambas formas; en `hc` el web trata `unitPrice: string | null`.
 
-- [ ] **Step 3: Montar en `app.ts`, ejecutar y commit**
+- [x] **Step 3: Montar en `app.ts`, ejecutar y commit**
 
 ```bash
 pnpm --filter @dentalware/api test src/features/cases   # rutas ≥ 9 tests + repo
@@ -1195,12 +1195,12 @@ Refs #3"
     - `DELETE /api/adjuntos/:id` (admin|recepcion) → 204; borra archivo(s) y fila; evento `attachment_removed`.
   - `AttachmentDto = { id, caseId, kind, filename, mime, size, width, height, createdAt, uploadedBy: { id, name }, url: '/api/adjuntos/:id', thumbUrl: '/api/adjuntos/:id/miniatura' | null }`.
 
-- [ ] **Step 1: Tests de storage e imágenes (RED)**
+- [x] **Step 1: Tests de storage e imágenes (RED)**
 
 `storage.test.ts`: `LocalStorage` en `mkdtemp`: `put` + `exists` + `open` (leer el stream y comparar bytes) + `remove`; `put('../x')` y `put('/etc/x')` rechazan con error.
 `images.test.ts`: generar con `sharp({ create: { width: 3000, height: 2000, channels: 3, background: '#0f766e' } }).jpeg().toBuffer()` → `normalizeImage` devuelve ≤ 1600 de ancho y `metadata().format === 'jpeg'`; `makeThumbnail` devuelve WebP de 320 px; un PNG pequeño no se agranda.
 
-- [ ] **Step 2: Implementar `storage.ts` e `images.ts` (GREEN)**
+- [x] **Step 2: Implementar `storage.ts` e `images.ts` (GREEN)**
 
 ```ts
 // lib/storage.ts
@@ -1249,9 +1249,9 @@ export function makeThumbnail(input: Uint8Array) {
 ```
 (`sharp` 0.35.4 ya está fijado en el catalog; consultar context7 solo si la API de `resize`/`rotate` difiere: ambas existen desde 0.2x.)
 
-- [ ] **Step 3: Tests de rutas de adjuntos (RED)** — `attachments.test.ts`: crea un trabajo por repo; sube una imagen JPEG de 3000×2000 generada con sharp (`FormData` + `new File`) como técnico → 201 con `width ≤ 1600`, `thumbUrl` no nulo y evento `attachment_added`; `GET /:id` devuelve `image/jpeg` con bytes; `GET /:id/miniatura` `image/webp`; PDF pequeño (`%PDF-1.4\n…`) → `kind: 'document'` sin miniatura; `text/plain` → 415; 26 MB (`Buffer.alloc`) → 413; técnico `DELETE` → 403; admin `DELETE` → 204 y el archivo ya no existe en storage; `GET` de un id borrado → 404.
+- [x] **Step 3: Tests de rutas de adjuntos (RED)** — `attachments.test.ts`: crea un trabajo por repo; sube una imagen JPEG de 3000×2000 generada con sharp (`FormData` + `new File`) como técnico → 201 con `width ≤ 1600`, `thumbUrl` no nulo y evento `attachment_added`; `GET /:id` devuelve `image/jpeg` con bytes; `GET /:id/miniatura` `image/webp`; PDF pequeño (`%PDF-1.4\n…`) → `kind: 'document'` sin miniatura; `text/plain` → 415; 26 MB (`Buffer.alloc`) → 413; técnico `DELETE` → 403; admin `DELETE` → 204 y el archivo ya no existe en storage; `GET` de un id borrado → 404.
 
-- [ ] **Step 4: Implementar `repo.ts` y `routes.ts` (GREEN)**
+- [x] **Step 4: Implementar `repo.ts` y `routes.ts` (GREEN)**
 
 `repo.ts`: `insertAttachment(db, row)`, `listAttachments(db, caseId)` (con `uploader {id,name}`), `getAttachment(db, id)`, `deleteAttachment(db, id)`; `toDto(a)` añade `url`/`thumbUrl`.
 
@@ -1339,7 +1339,7 @@ export const attachmentsRoutes = (db: Db, storage: Storage) =>
 ```
 `config.ts`: `UPLOAD_DIR: z.string().min(1).default('./data/uploads')`. `main.ts`: `const storage = new LocalStorage(config.UPLOAD_DIR)` y pasarlo a `createApp`. `test/setup.ts`: `setupTestDb` crea `storage: new LocalStorage(await mkdtemp(join(tmpdir(), 'dentalware-'))))` y lo devuelve; todos los `createApp({...})` de tests existentes reciben `storage: ctx.storage` (actualizar los 8 archivos de test).
 
-- [ ] **Step 5: Ejecutar, Docker y commit**
+- [x] **Step 5: Ejecutar, Docker y commit**
 
 ```bash
 pnpm --filter @dentalware/api test                       # api completa (≈ 42 + 7 + 9 + 8)
@@ -1362,14 +1362,14 @@ Refs #3"
 - Produces: `fetchCases(query)`, `fetchCase(id)`, `createCase(input)`, `updateCase(id,input)`, `fetchEvents(id)`, `postComment(id, text)`; hooks `useCases(query)`, `useCase(id)`, `useCreateCase()`, `useUpdateCase()`, `useEvents(id)`, `useAddComment(id)`; `queryKeys.cases(query)`, `queryKeys.case(id)`, `queryKeys.caseEvents(id)`, `queryKeys.attachments(caseId)`; `<StatusChip status />` con `STATUS_LABEL` y `STATUS_COLOR` (hex del spec §5); `CASE_VIEW_LABEL: Record<CaseView,string>` = `{ nuevos: 'Nuevos', en_curso: 'En curso', vencen_hoy: 'Vencen hoy', atrasados: 'Atrasados', listos: 'Listos', todos: 'Todos' }`; `formatDate('2026-09-06') → '06/09/2026'`, `dueBadge(date, today, status)` → `'hoy' | 'atrasado' | null`; `<CasesTable rows hidePrices />` (fila con pestaña de 4 px del color de estado, código `font-mono`, clínica · doctor, paciente, líneas, fecha con semáforo, chip de estado, total si no se ocultan) y tarjeta móvil equivalente; `<CasesFilters value onChange clinics doctors technicians? />` (búsqueda con debounce 300 ms, clínica, doctor, técnico, estado, rango de fechas).
 - Ruta `/trabajos` con `validateSearch` (zod `caseListQuerySchema.partial()`): las vistas son pestañas (`Tabs`) que escriben `vista` en la URL; paginación "Anterior / Siguiente" con `pagina`.
 
-- [ ] **Step 1: Tests (RED)**
+- [x] **Step 1: Tests (RED)**
 
 `status-chip.test.tsx`: renderiza texto "En proceso" para `en_proceso` y aplica `style="--chip: #0F766E"` (o la clase equivalente) — comprobar `screen.getByText('En proceso')` y que el elemento tenga `data-status="en_proceso"`.
 `case-views.test.ts`: `CASE_VIEW_LABEL` cubre `CASE_VIEWS`; `dueBadge('2026-09-06','2026-09-06','nuevo') === 'hoy'`, `dueBadge('2026-09-01','2026-09-06','en_proceso') === 'atrasado'`, `dueBadge('2026-09-01','2026-09-06','entregado') === null`, `dueBadge(null, …) === null`.
 `date-format.test.ts`: `formatDate('2026-09-06') === '06/09/2026'`; `formatDate(null) === '—'`.
 `cases-table.test.tsx`: con `setMatchMedia(true)` y dos filas (una `urgente` atrasada) muestra el código como enlace a `/trabajos/$caseId`, el chip de estado, "Atrasado" y el total; con `hidePrices` no renderiza la columna "Total"; en móvil (`setMatchMedia(false)`) renderiza tarjetas con el mismo código. Envolver en un `RouterProvider` de prueba: crear `apps/web/src/test/router.tsx` con `createMemoryRouter`-equivalente de TanStack (`createRouter({ routeTree: createRootRoute({ component: () => ui }) , history: createMemoryHistory() })`) y exportar `renderWithRouter(ui)`.
 
-- [ ] **Step 2: Implementación (GREEN)**
+- [x] **Step 2: Implementación (GREEN)**
 
 `status-chip.tsx`:
 ```tsx
@@ -1414,11 +1414,11 @@ export const Route = createFileRoute('/_app/trabajos')({ component: () => <Outle
 ```
 `routes/_app/trabajos/index.tsx`: `validateSearch: (s) => caseListQuerySchema.partial().parse(s)`; `PageHeader` "Trabajos" con acción "Nuevo trabajo" (`Link to="/trabajos/nuevo"`, solo admin/recepción; el rol viene de `Route.useRouteContext().user.role` del layout `_app`) y botón secundario "Importar" (Task 11, deshabilitado hasta entonces); `Tabs` con las seis vistas; `CasesFilters`; `CasesTable`; paginación. `hidePrices = role === 'tecnico' || role === 'mensajero'`.
 
-- [ ] **Step 3: Verificación en Chrome DevTools**
+- [x] **Step 3: Verificación en Chrome DevTools**
 
 Arrancar API y web; con datos de la Iteración 1 crear 3 trabajos vía `POST /api/trabajos` con `curl` (uno urgente atrasado, uno con fecha de hoy, uno sin fecha); comprobar a 1280×800: pestañas cambian la URL (`?vista=atrasados`), búsqueda filtra, pestaña de color y chips; a 390×844: tarjetas, filtros plegados, sin scroll horizontal; consola limpia. Iniciar sesión como técnico (crear uno en /configuracion/usuarios) y confirmar que no aparece la columna Total ni el botón "Nuevo trabajo".
 
-- [ ] **Step 4: Ejecutar y commit**
+- [x] **Step 4: Ejecutar y commit**
 
 ```bash
 pnpm --filter @dentalware/web test && pnpm typecheck && pnpm lint && pnpm format:check
@@ -1439,14 +1439,14 @@ Refs #3"
 - Produces: `<Odontogram value: number[] onChange?: (teeth: number[]) => void readOnly? size?: 'sm'|'md' />` — 32 botones (`role="button"`, `aria-pressed`, `aria-label={toothLabel(n)}`, mínimo 44×44 en `md`, 28 en `sm`) dispuestos como en la orden en papel: fila superior 18…11 | 21…28, fila inferior 48…41 | 31…38, con un separador vertical en la línea media y etiquetas "Superior"/"Inferior". Botones "Arcada superior" / "Arcada inferior" / "Limpiar" que seleccionan/deseleccionan en bloque. Piezas seleccionadas en `--teal-lab` (fondo) con número en blanco. Cada botón contiene el número en `font-mono` y un pequeño SVG de diente (path único de 16×20, relleno según selección). `readOnly` desactiva interacción y muestra las piezas seleccionadas (para la ficha).
 - `<TeethDialog open onOpenChange value onSave title />` envuelve el odontograma en `Dialog` con botones "Guardar" / "Cancelar" y contador "N piezas".
 
-- [ ] **Step 1: Tests (RED)** — `odontogram.test.tsx`:
+- [x] **Step 1: Tests (RED)** — `odontogram.test.tsx`:
   - renderiza 32 botones con `aria-pressed="false"` y etiquetas FDI en orden `18…11, 21…28, 48…41, 31…38`.
   - clic en `11` llama `onChange([11])`; con `value=[11]`, clic en `11` llama `onChange([])`; clic en `12` con `value=[11]` llama `onChange([11, 12])` (ordenado).
   - "Arcada superior" selecciona las 16 superiores; "Limpiar" llama `onChange([])`.
   - `readOnly`: botones `disabled` y `aria-pressed` refleja `value`.
   - teclado: `Enter`/`Space` sobre un botón alterna (nativo de `<button>`: basta comprobar con `user.keyboard('{Enter}')` tras `focus`).
 
-- [ ] **Step 2: Implementación (GREEN)**
+- [x] **Step 2: Implementación (GREEN)**
 
 ```tsx
 import { FDI_QUADRANTS, toothLabel, type FdiTooth } from '@dentalware/shared'
@@ -1513,7 +1513,7 @@ export function Odontogram({ value, onChange, readOnly = false, size = 'md' }: {
 ```
 (Sustituir el fragmento `<>…</>` con `key` por un `Fragment key={n}` explícito para que React no avise.) `teeth-dialog.tsx`: estado local `draft` inicializado con `value`, `Odontogram` + contador `${draft.length} piezas` + footer Guardar/Cancelar; al guardar `onSave(draft)`.
 
-- [ ] **Step 3: Verificación en Chrome** — montar temporalmente el odontograma en una ruta de prueba no es necesario: se verifica en la Tarea 9 dentro del formulario. Ejecutar tests, typecheck, lint; commit `feat(web): odontograma FDI interactivo y diálogo de piezas` (Refs #3).
+- [x] **Step 3: Verificación en Chrome** — montar temporalmente el odontograma en una ruta de prueba no es necesario: se verifica en la Tarea 9 dentro del formulario. Ejecutar tests, typecheck, lint; commit `feat(web): odontograma FDI interactivo y diálogo de piezas` (Refs #3).
 
 ---
 
@@ -1528,7 +1528,7 @@ export function Odontogram({ value, onChange, readOnly = false, size = 'md' }: {
 - `computeTotals(items: { unitPrice: string | null; quantity: number; discountPct: number }[])` → `{ lines: string[]; total: string }` usando `money.ts` (líneas sin precio cuentan `'0.00'`).
 - Rutas: `/trabajos/nuevo` (`beforeLoad`: solo admin|recepcion → si no, `redirect({ to: '/trabajos' })`), `/trabajos/$caseId/editar` (carga `useCase`, redirige a la ficha con toast si el estado no es editable).
 
-- [ ] **Step 1: Tests (RED)**
+- [x] **Step 1: Tests (RED)**
 
 `case-totals.test.ts`: dos líneas `['45.00'×2 −10 %, '75.00'×1]` → `lines ['81.00','75.00']`, `total '156.00'`; línea sin precio → `'0.00'`.
 `case-form.test.tsx` (con `renderWithProviders` + `renderWithRouter`, y `vi.mock('@/features/cases/api')`, `vi.mock('@/features/clinics/api')`, `vi.mock('@/features/doctors/api')`, `vi.mock('@/features/products/api')` devolviendo catálogos fijos):
@@ -1538,7 +1538,7 @@ export function Odontogram({ value, onChange, readOnly = false, size = 'md' }: {
   - con `role='tecnico'` el campo de precio no se renderiza (el formulario nunca se abre para técnico, pero el componente lo respeta).
   - "Guardar y nuevo" llama `onSubmit(input, true)` con `items[0].teeth` = las piezas guardadas desde el diálogo (abrir "Piezas", pulsar 11 y 12, Guardar).
 
-- [ ] **Step 2: Implementación (GREEN)**
+- [x] **Step 2: Implementación (GREEN)**
 
 `case-form.tsx` usa `useForm<z.input<typeof caseInputSchema>, unknown, CaseInput>({ resolver: zodResolver(caseInputSchema), defaultValues })` y `useFieldArray({ name: 'items' })`; `defaultValues` desde `initial` (mapear `null` → `''` en textos, `teeth` tal cual, `unitPrice` tal cual, `discountPct: Number(i.discountPct)`) o valores de nuevo (`receivedAt: toIsoDate(new Date())`, `priority: 'normal'`, `checklist` en falso, `items: []`). Al cambiar la clínica se limpia el doctor y se recalculan precios automáticos de las líneas cuyo precio no fue editado a mano (flag local `manualPrice[index]`). `CaseItemsEditor` recibe `products`, `prices` (Map productId→precio efectivo), `canEditPrice`, y usa `Controller` por campo; cada fila en PC es una fila de grid de 7 columnas y en móvil una tarjeta apilada. `ChecklistField` renderiza 4 `Switch` con `Label`. Botón primario `h-11`, ancho completo en móvil. El envío mapea `''` → `null` donde el schema lo permite (`nullable(...)`) — el schema ya lo hace en `parse`, así que basta enviar `form.handleSubmit((data) => onSubmit(data, andNew))`.
 
@@ -1565,9 +1565,9 @@ function NewCasePage() {
 ```
 (Con "Guardar y nuevo" el formulario se reinicia con `key` incremental en el padre.)
 
-- [ ] **Step 3: Verificación en Chrome DevTools** — 1280×800: crear un trabajo completo (clínica → doctor, ZR ×2 con piezas 11 y 12, AC ×1 arcada, descuento 10 %, color A2 VITA Classical, checklist con 3 marcados, observaciones), ver totales y "Para aceptar falta" vaciarse al completar; guardar → redirige a la ficha (placeholder hasta la Tarea 10: comprobar la URL y el 200 del POST). 390×844: campos apilados, odontograma con celdas ≥ 44 px, botones al pie de ancho completo; consola limpia. Editar el trabajo creado desde `/trabajos/$caseId/editar` y cambiar un precio → PUT 200.
+- [x] **Step 3: Verificación en Chrome DevTools** — 1280×800: crear un trabajo completo (clínica → doctor, ZR ×2 con piezas 11 y 12, AC ×1 arcada, descuento 10 %, color A2 VITA Classical, checklist con 3 marcados, observaciones), ver totales y "Para aceptar falta" vaciarse al completar; guardar → redirige a la ficha (placeholder hasta la Tarea 10: comprobar la URL y el 200 del POST). 390×844: campos apilados, odontograma con celdas ≥ 44 px, botones al pie de ancho completo; consola limpia. Editar el trabajo creado desde `/trabajos/$caseId/editar` y cambiar un precio → PUT 200.
 
-- [ ] **Step 4: Ejecutar y commit**
+- [x] **Step 4: Ejecutar y commit**
 
 ```bash
 pnpm --filter @dentalware/web test && pnpm typecheck && pnpm lint && pnpm format:check
@@ -1595,13 +1595,13 @@ Refs #3"
   - `<PhotosTab caseId role />`: grilla de miniaturas (`img src=thumbUrl`, `loading="lazy"`, `alt=filename`), clic abre `Dialog` con la imagen completa y botón "Abrir original"; documentos PDF se listan con icono y enlace; botón "Eliminar" (admin|recepcion) con `ConfirmDialog`.
   - Ruta `/trabajos/$caseId`: `Tabs` Detalle · Fotos · Historial, con contador de fotos y de comentarios en las pestañas.
 
-- [ ] **Step 1: Tests (RED)**
+- [x] **Step 1: Tests (RED)**
   - `image-compress.test.ts`: con un `File` `text/plain` devuelve el mismo objeto; con `createImageBitmap` simulado (`vi.stubGlobal`) y `HTMLCanvasElement.prototype.toBlob` simulado, devuelve un `Blob` `image/jpeg` y pide un canvas de ≤ 1600 px (comprobar `canvas.width`).
   - `case-history.test.tsx`: renderiza "Trabajo creado" y un comentario con su texto y autor; orden ascendente.
   - `comment-form.test.tsx`: enviar vacío muestra "Escribe un comentario"; con texto llama `onSubmit({ text })` y limpia el campo.
   - `photo-uploader.test.tsx`: `user.upload(input, file)` llama a la mutación con el `FormData` (mock de `attachments-api.uploadAttachment`) y muestra "1 de 1…" mientras `pending`.
 
-- [ ] **Step 2: Implementación (GREEN)** — `attachments-api.ts` usa `api.api.adjuntos.trabajo[':caseId'].$post({ param, form: { file, kind } })` (hc soporta `form`); `use-attachments.ts` con `useAttachments(caseId)`, `useUploadAttachment(caseId)`, `useDeleteAttachment(caseId)`. La ruta:
+- [x] **Step 2: Implementación (GREEN)** — `attachments-api.ts` usa `api.api.adjuntos.trabajo[':caseId'].$post({ param, form: { file, kind } })` (hc soporta `form`); `use-attachments.ts` con `useAttachments(caseId)`, `useUploadAttachment(caseId)`, `useDeleteAttachment(caseId)`. La ruta:
 ```tsx
 export const Route = createFileRoute('/_app/trabajos/$caseId')({ component: CasePage })
 function CasePage() {
@@ -1636,9 +1636,9 @@ function CasePage() {
 ```
 (`addComment = useAddComment(caseId)` declarado arriba con los demás hooks, antes de los `return` tempranos.)
 
-- [ ] **Step 3: Verificación en Chrome DevTools** — ficha del trabajo de la Tarea 9 a 1280×800 y 390×844: cabecera, líneas con odontograma de solo lectura, checklist, subir una foto real (usar `upload_file` de DevTools con un PNG del scratchpad) → miniatura aparece y el historial registra "Adjunto agregado"; comentar como técnico (sesión aparte) y comprobar que no ve precios ni notas internas; eliminar la foto como admin; consola limpia; el `POST /api/adjuntos/...` devuelve 201 con `width ≤ 1600`.
+- [x] **Step 3: Verificación en Chrome DevTools** — ficha del trabajo de la Tarea 9 a 1280×800 y 390×844: cabecera, líneas con odontograma de solo lectura, checklist, subir una foto real (usar `upload_file` de DevTools con un PNG del scratchpad) → miniatura aparece y el historial registra "Adjunto agregado"; comentar como técnico (sesión aparte) y comprobar que no ve precios ni notas internas; eliminar la foto como admin; consola limpia; el `POST /api/adjuntos/...` devuelve 201 con `width ≤ 1600`.
 
-- [ ] **Step 4: Ejecutar y commit** — `feat(web): ficha del trabajo con detalle, fotos con compresión en cliente y historial con comentarios` (Refs #3).
+- [x] **Step 4: Ejecutar y commit** — `feat(web): ficha del trabajo con detalle, fotos con compresión en cliente y historial con comentarios` (Refs #3).
 
 ---
 
@@ -1655,11 +1655,11 @@ function CasePage() {
 - Rutas: `GET /api/trabajos/importar/plantilla` → `text/csv; charset=utf-8` con cabecera y una fila de ejemplo (`Content-Disposition: attachment; filename="plantilla-trabajos.csv"`); `POST /api/trabajos/importar?confirmar=true|false` (admin|recepcion) multipart `file` (CSV ≤ 2 MB) → 200 `ImportReport` (422 si falta el archivo o la cabecera no coincide).
 - Web: `ImportDialog` con paso 1 (enlace "Descargar plantilla", input de archivo, botón "Validar"), paso 2 (resumen "12 filas → 5 trabajos" o tabla de errores fila/columna/mensaje) y botón "Importar N trabajos" que llama con `confirmar=true` e invalida la lista.
 
-- [ ] **Step 1: Tests (RED)** — `csv.test.ts` (comillas escapadas `""`, coma dentro de comillas, `\r\n`, BOM, línea vacía final, `toCsv` cita valores con coma/comilla/salto); `import.test.ts` (shared: fila válida mapeada, `piezas` inválida → mensaje "Pieza dental FDI inválida", fecha `15/09/2026` → `2026-09-15`); `import.test.ts` (api: plantilla descargable; CSV con 3 filas de 2 trabajos → `cases: 2`, `errors: []`, sin filas creadas cuando `confirmar=false`; con `confirmar=true` crea 2 trabajos con sus líneas y precios; clínica desconocida → error `{ row: 2, column: 'clinica', message: 'La clínica "X" no existe' }` y no crea nada; técnico → 403).
+- [x] **Step 1: Tests (RED)** — `csv.test.ts` (comillas escapadas `""`, coma dentro de comillas, `\r\n`, BOM, línea vacía final, `toCsv` cita valores con coma/comilla/salto); `import.test.ts` (shared: fila válida mapeada, `piezas` inválida → mensaje "Pieza dental FDI inválida", fecha `15/09/2026` → `2026-09-15`); `import.test.ts` (api: plantilla descargable; CSV con 3 filas de 2 trabajos → `cases: 2`, `errors: []`, sin filas creadas cuando `confirmar=false`; con `confirmar=true` crea 2 trabajos con sus líneas y precios; clínica desconocida → error `{ row: 2, column: 'clinica', message: 'La clínica "X" no existe' }` y no crea nada; técnico → 403).
 
-- [ ] **Step 2: Implementación (GREEN)** — `csv.ts` con un autómata de 3 estados (fuera de campo, en campo sin comillas, en campo con comillas); `import.ts` de la API construye `CaseInput` por grupo y llama `createCaseTx`; normalización de nombres con `s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()`.
+- [x] **Step 2: Implementación (GREEN)** — `csv.ts` con un autómata de 3 estados (fuera de campo, en campo sin comillas, en campo con comillas); `import.ts` de la API construye `CaseInput` por grupo y llama `createCaseTx`; normalización de nombres con `s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()`.
 
-- [ ] **Step 3: Verificación en Chrome** — descargar la plantilla desde el diálogo, subir un CSV con un error y otro limpio; ver el informe y la creación; consola limpia. Commit `feat: importación de trabajos desde plantilla CSV con informe de errores` (Refs #3).
+- [x] **Step 3: Verificación en Chrome** — descargar la plantilla desde el diálogo, subir un CSV con un error y otro limpio; ver el informe y la creación; consola limpia. Commit `feat: importación de trabajos desde plantilla CSV con informe de errores` (Refs #3).
 
 ---
 
@@ -1669,23 +1669,23 @@ function CasePage() {
 - Create: `apps/web/e2e/trabajos.spec.ts`, `apps/web/e2e/fixtures/foto.png` (PNG de 640×480 generado con `sharp` en un script de un solo uso o guardado desde el scratchpad; < 50 KB)
 - Modify: `apps/web/e2e/helpers.ts` (helper `createClinicWithDoctor(page)` vía API y `createProduct(page)`), `README.md` (sección "Trabajos"), `docs/superpowers/plans/2026-09-06-iteracion-2-trabajos-i.md` (casillas)
 
-- [ ] **Step 1: E2E** — `trabajos.spec.ts` (escritorio y android):
+- [x] **Step 1: E2E** — `trabajos.spec.ts` (escritorio y android):
   1. `crea un trabajo con odontograma y lo ve en la lista`: admin crea clínica+doctor+producto por API, va a `/trabajos/nuevo`, completa el formulario (piezas 11 y 12 desde el diálogo), guarda, comprueba el código `/^\d{2}-\d{5}$/` en la cabecera de la ficha y que aparece en `/trabajos?vista=nuevos`.
   2. `comenta y sube una foto`: en la ficha, pestaña Historial → comentario visible con autor; pestaña Fotos → `setInputFiles('e2e/fixtures/foto.png')` → miniatura visible y "Adjunto agregado" en el historial.
   3. `un técnico ve el trabajo sin precios`: crea técnico por API, nuevo contexto, abre la ficha: no aparece "$" ni "Total"; puede comentar.
   4. `importa dos trabajos desde CSV`: sube un CSV en memoria (`setInputFiles({ name, mimeType: 'text/csv', buffer })`), valida, importa, ve "2 trabajos" y ambos códigos en la lista.
   Expected: 7 (previos) + 4 = 11 tests × 2 proyectos = 22.
 
-- [ ] **Step 2: Verificación completa** — `pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test` (web incluido) y E2E; recorrido final en Chrome DevTools (lista, nuevo, ficha, importar) a 1280×800 y 390×844 sin errores de consola; servidores detenidos al terminar.
+- [x] **Step 2: Verificación completa** — `pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test` (web incluido) y E2E; recorrido final en Chrome DevTools (lista, nuevo, ficha, importar) a 1280×800 y 390×844 sin errores de consola; servidores detenidos al terminar.
 
-- [ ] **Step 3: README** — tras "Configuración inicial": 
+- [x] **Step 3: README** — tras "Configuración inicial": 
 ```markdown
 ## Trabajos
 
 Recepción registra cada orden en **Trabajos → Nuevo trabajo** siguiendo la hoja en papel: clínica y doctor, referencia del paciente, líneas de trabajo con piezas FDI en el odontograma, color VITA, lista de verificación (antagonista, mordida, color, fotos) y observaciones. El precio sale del catálogo y de los precios especiales de la clínica; técnicos y mensajeros nunca ven montos. La ficha guarda fotos (comprimidas en el navegador) y comentarios con historial. **Importar** acepta la plantilla CSV descargable (una fila por línea de trabajo) y muestra los errores por fila antes de crear nada. Los archivos se guardan en `UPLOAD_DIR` (volumen `uploads` en producción).
 ```
 
-- [ ] **Step 4: Marcar el plan y commit final**
+- [x] **Step 4: Marcar el plan y commit final**
 
 ```bash
 sed -i 's/^- \[ \]/- [x]/' docs/superpowers/plans/2026-09-06-iteracion-2-trabajos-i.md
@@ -1697,6 +1697,13 @@ Refs #33, #3
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01Hohj4e8tVRUyqcq6t4DYSi"
 ```
+
+- [x] **Step 5: Issue de revisión UI/UX de la iteración** (regla de Nelson, 2026-09-06)
+
+```bash
+gh issue create --title "Revisión UI/UX de la Iteración 2 (Trabajos I) con frontend-design" --label historia --label area:web --label accessibility --milestone "Iteración 3 — Trabajos II" --body "Recorrer con frontend-design todas las pantallas nuevas (lista, nuevo/editar trabajo con odontograma, ficha con fotos e historial, importación) a 1280×800, 390×844 y 360×740; verificar jerarquía visual y dirección de diseño, responsividad, usabilidad y accesibilidad (44 px, foco, teclado, contraste AA), copy claro para recepción/técnico/mensajero y flujos reales (registrar una orden en papel completa, subir fotos desde el celular). Informe priorizado + ola de fixes antes de la Iteración 3. Épica #3."
+```
+Añadirlo al tablero en "Por hacer" y enlazarlo como sub-issue de la épica #3.
 
 ---
 

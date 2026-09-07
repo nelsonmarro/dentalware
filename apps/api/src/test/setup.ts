@@ -1,27 +1,35 @@
 import type { UserRole } from '@dentalware/shared'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Auth } from '../auth.ts'
 import { createAuth } from '../auth.ts'
 import { loadConfig } from '../config.ts'
 import type { Db } from '../db/index.ts'
 import { createDb } from '../db/index.ts'
 import { runMigrations } from '../db/migrate.ts'
+import { truncateAll } from '../db/reset.ts'
 import * as schema from '../db/schema/index.ts'
 import { users } from '../db/schema/index.ts'
 import type { AppType } from '../app.ts'
+import { LocalStorage } from '../lib/storage.ts'
+
+export { truncateAll }
 
 export async function setupTestDb() {
   const config = loadConfig()
   const { db, pool } = createDb(config.DATABASE_URL)
   await runMigrations(db)
   const auth = createAuth(db, config)
-  return { config, db, pool, auth, schema }
+  const storageDir = await mkdtemp(join(tmpdir(), 'dentalware-'))
+  const storage = new LocalStorage(storageDir)
+  return { config, db, pool, auth, schema, storage, storageDir }
 }
 
-export async function truncateAll(db: Db) {
-  await db.execute(
-    sql`truncate table "clinic_product_prices", "products", "product_categories", "doctors", "clinics", "stages", "lab_settings", "sessions", "accounts", "verifications", "users" cascade`,
-  )
+/** Borra el directorio temporal de `storage` creado por `setupTestDb` (no toca otros). */
+export async function cleanupTestStorage(ctx: { storageDir: string }) {
+  await rm(ctx.storageDir, { recursive: true, force: true })
 }
 
 export async function createUser(

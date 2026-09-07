@@ -5,8 +5,8 @@ import { toastApiError } from '@/lib/api-error'
 import { queryKeys } from '@/lib/query-keys'
 import { createUser, fetchUsers, setUserBanned, updateUser } from './api'
 
-export function useUsers() {
-  return useQuery({ queryKey: queryKeys.users, queryFn: fetchUsers })
+export function useUsers(enabled = true) {
+  return useQuery({ queryKey: queryKeys.users, queryFn: fetchUsers, enabled })
 }
 
 function useInvalidateUsers() {

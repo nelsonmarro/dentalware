@@ -21,6 +21,10 @@ pnpm dev                        # shared (watch) + api :3000 + web :5173
 
 Tras el `seed`, entra como administrador y completa **Configuración**: datos del laboratorio (nombre, dirección, teléfonos), fases de producción (se crean 7 por defecto), categorías y productos (se crean los 6 de la orden en papel con precio base 0.00: pon los precios reales), clínicas con sus doctores y precios especiales, y los usuarios del equipo con su rol (recepción, técnico, mensajero). Los técnicos y mensajeros nunca ven precios.
 
+## Trabajos
+
+Recepción registra cada orden en **Trabajos → Nuevo trabajo** siguiendo la hoja en papel: clínica y doctor, referencia del paciente, líneas de trabajo con piezas FDI en el odontograma, color VITA, lista de verificación (antagonista, mordida, color, fotos) y observaciones. El precio sale del catálogo y de los precios especiales de la clínica; técnicos y mensajeros nunca ven montos. La ficha guarda fotos (comprimidas en el navegador) y comentarios con historial. **Importar** acepta la plantilla CSV descargable (una fila por línea de trabajo) y muestra los errores por fila antes de crear nada. Los archivos se guardan en `UPLOAD_DIR` (volumen `uploads` en producción).
+
 ## Calidad
 
 ```bash

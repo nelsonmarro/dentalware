@@ -138,7 +138,7 @@ Plantilla CSV/XLSX descargable (una fila por línea de trabajo: clínica, doctor
 1. Login.
 2. Inicio: contadores (nuevos, en proceso, vencen hoy, atrasados, en prueba, listos, saldo por cobrar); "mis trabajos" (técnico); entregas de hoy (mensajero).
 3. Trabajos: vistas rápidas (Nuevos, En curso, Deben salir hoy, Listos, Todos) + filtros; tabla en PC, tarjetas con semáforo en móvil.
-4. Nuevo / editar trabajo: cabecera, odontograma FDI interactivo (SVG, selección múltiple, arrastre para puentes), líneas con precio automático por clínica, color VITA, pruebas, observaciones / prescripción / notas internas, fotos. "Guardar" y "Guardar y nuevo".
+4. Nuevo / editar trabajo: cabecera, odontograma FDI interactivo (SVG, selección múltiple por toque —sin arrastre; puentes seleccionando cada pieza—), líneas con precio automático por clínica, color VITA, pruebas, observaciones / prescripción / notas internas, fotos. "Guardar" y "Guardar y nuevo".
 5. Ficha del trabajo: cabecera; pestañas Detalle · Fotos · Historial y comentarios · Entregas · Documentos; acciones según estado y rol.
 6. `/t/:code` (QR): ficha móvil con "Avanzar fase" y "Añadir foto".
 7. Entregas (mensajero): lista por día agrupada por clínica; marcar hecha con foto.
@@ -187,6 +187,8 @@ Precisión sobre catálogos de Configuración: la **lectura** de clínicas, doct
 6. Notificaciones: WhatsApp (Meta Cloud API con plantillas; `wa.me` como respaldo) para recogida, recepción, envío, entrega y recordatorio un día antes; alarmas internas.
 7. Productividad: producción por persona y sistema de puntos de recompensa/penalización configurable.
 8. Cierre MVP: E2E, despliegue en VPS con TLS, backups, instalación de la PWA en Android e iPhone, importación del histórico y datos reales.
+
+Cierre de cada iteración (Nelson, 2026-09-06): además del E2E, se abre un issue «Revisión UI/UX de la Iteración N con frontend-design» que recorre todas las pantallas nuevas y verifica que la UI/UX sea la más óptima, responsiva, usable y fácil de entender para el usuario; sus hallazgos se corrigen antes de la siguiente iteración.
 
 Post-MVP: Capacitor iOS/Android, fases por línea, listas de precios completas, almacén con lotes (ARCSA), portal del odontólogo, facturación electrónica SRI.
 

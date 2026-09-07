@@ -12,7 +12,12 @@ describe('/api/config/doctores', () => {
 
   beforeAll(async () => {
     ctx = await setupTestDb()
-    app = createApp({ auth: ctx.auth, db: ctx.db, webOrigin: ctx.config.WEB_ORIGIN })
+    app = createApp({
+      auth: ctx.auth,
+      db: ctx.db,
+      webOrigin: ctx.config.WEB_ORIGIN,
+      storage: ctx.storage,
+    })
   })
   beforeEach(async () => {
     await truncateAll(ctx.db)

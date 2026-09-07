@@ -6,7 +6,12 @@ let ctx: Awaited<ReturnType<typeof setupTestDb>>
 let app: ReturnType<typeof createApp>
 beforeAll(async () => {
   ctx = await setupTestDb()
-  app = createApp({ auth: ctx.auth, db: ctx.db, webOrigin: ctx.config.WEB_ORIGIN })
+  app = createApp({
+    auth: ctx.auth,
+    db: ctx.db,
+    webOrigin: ctx.config.WEB_ORIGIN,
+    storage: ctx.storage,
+  })
 })
 afterAll(async () => {
   await ctx.pool.end()
