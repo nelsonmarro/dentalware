@@ -98,7 +98,7 @@ export function ImportDialog({
         </>
       }
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4">
         <a
           href="/api/trabajos/importar/plantilla"
           download="plantilla-trabajos.csv"
