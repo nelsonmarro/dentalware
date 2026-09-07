@@ -1,6 +1,12 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { z } from 'zod'
-import { caseInputSchema, caseItemSchema, caseListQuerySchema, commentSchema } from './cases.ts'
+import {
+  caseInputSchema,
+  caseItemSchema,
+  caseListQuerySchema,
+  commentSchema,
+  isoDate,
+} from './cases.ts'
 
 const clinicId = '11111111-1111-4111-8111-111111111111'
 const doctorId = '22222222-2222-4222-8222-222222222222'
@@ -11,6 +17,21 @@ const base = () => ({
   patientRef: '  Paciente 12 ',
   receivedAt: '2026-09-06',
   items: [{ productId, quantity: 1, teeth: [12, 11] }],
+})
+
+describe('isoDate', () => {
+  it('acepta fechas reales, incluido el 29 de febrero de un año bisiesto', () => {
+    expect(isoDate.safeParse('2026-09-06').success).toBe(true)
+    expect(isoDate.safeParse('2028-02-29').success).toBe(true)
+  })
+
+  it('rechaza fechas de calendario inexistentes con el mensaje de formato', () => {
+    for (const invalid of ['2026-13-40', '2026-02-30', '2025-02-29']) {
+      const result = isoDate.safeParse(invalid)
+      expect(result.success).toBe(false)
+      expect(result.error?.issues[0]?.message).toBe('Fecha inválida (AAAA-MM-DD)')
+    }
+  })
 })
 
 describe('caseInputSchema', () => {

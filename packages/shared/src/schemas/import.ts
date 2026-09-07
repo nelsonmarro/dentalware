@@ -20,16 +20,28 @@ export const IMPORT_COLUMNS = [
 export type ImportColumn = (typeof IMPORT_COLUMNS)[number]
 
 const DDMMYYYY = /^(\d{2})\/(\d{2})\/(\d{4})$/
+const ISO_SHAPE = /^\d{4}-\d{2}-\d{2}$/
 
-/** `''` → `null`; `AAAA-MM-DD` se acepta tal cual; `DD/MM/AAAA` se convierte a ISO. */
+/** Solo arma la cadena ISO candidata; la validez real de calendario la decide `isoDate`. */
+function toIsoCandidate(trimmed: string): string | null {
+  if (ISO_SHAPE.test(trimmed)) return trimmed
+  const m = DDMMYYYY.exec(trimmed)
+  if (!m) return null
+  const [, dd, mm, yyyy] = m
+  return `${yyyy}-${mm}-${dd}`
+}
+
+/**
+ * `''` → `null`; `AAAA-MM-DD` o `DD/MM/AAAA` → ISO, validando que sea una fecha de
+ * calendario real (reutiliza `isoDate`, que hace el chequeo de ida y vuelta con
+ * `Date.UTC`) para rechazar `31/02/2026`, `2026-13-40` o `29/02/2025` (no bisiesto).
+ */
 function parseFlexibleDate(v: string): string | null | undefined {
   const trimmed = v.trim()
   if (!trimmed) return null
-  if (isoDate.safeParse(trimmed).success) return trimmed
-  const m = DDMMYYYY.exec(trimmed)
-  if (!m) return undefined // inválida
-  const [, dd, mm, yyyy] = m
-  return `${yyyy}-${mm}-${dd}`
+  const candidate = toIsoCandidate(trimmed)
+  if (!candidate) return undefined // formato irreconocible
+  return isoDate.safeParse(candidate).success ? candidate : undefined
 }
 
 const fechaDeseadaSchema = z
@@ -74,21 +86,28 @@ const cantidadSchema = z.preprocess(
     .number({ error: 'Cantidad inválida' })
     .int({ error: 'Cantidad inválida' })
     .min(1, { error: 'La cantidad mínima es 1' })
+    .max(99, { error: 'La cantidad máxima es 99' })
     .default(1),
 )
 
-const textoRequerido = (campo: string) =>
-  z
-    .string()
-    .trim()
-    .min(1, { error: `El campo "${campo}" es obligatorio` })
+// Mismos mensajes que caseItemSchema/caseInputSchema en `cases.ts` (patientRef reusa
+// literalmente "La referencia del paciente es obligatoria"): la importación crea el
+// mismo `CaseInput`, así que sus errores deben leerse igual en ambos flujos.
+const clinicaSchema = z.string().trim().min(1, { error: 'La clínica es obligatoria' })
+const doctorSchema = z.string().trim().min(1, { error: 'El doctor es obligatorio' })
+const pacienteSchema = z
+  .string()
+  .trim()
+  .min(1, { error: 'La referencia del paciente es obligatoria' })
+  .max(120, { error: 'Máximo 120 caracteres' })
+const productoSchema = z.string().trim().min(1, { error: 'El producto es obligatorio' })
 
 /** Valida una fila del CSV ya mapeada por cabecera (ver `IMPORT_COLUMNS`). */
 export const importRowSchema = z.object({
-  clinica: textoRequerido('clinica'),
-  doctor: textoRequerido('doctor'),
-  paciente: textoRequerido('paciente'),
-  producto: textoRequerido('producto'),
+  clinica: clinicaSchema,
+  doctor: doctorSchema,
+  paciente: pacienteSchema,
+  producto: productoSchema,
   piezas: piezasSchema,
   cantidad: cantidadSchema,
   color: textoOpcional(30),

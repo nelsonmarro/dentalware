@@ -61,10 +61,51 @@ describe('importRowSchema', () => {
     expect(result.observaciones).toBeNull()
   })
 
-  it('exige clínica, doctor, paciente y producto no vacíos', () => {
-    expect(importRowSchema.safeParse(row({ clinica: '' })).success).toBe(false)
-    expect(importRowSchema.safeParse(row({ doctor: '' })).success).toBe(false)
-    expect(importRowSchema.safeParse(row({ paciente: '' })).success).toBe(false)
-    expect(importRowSchema.safeParse(row({ producto: '' })).success).toBe(false)
+  it('exige clínica, doctor, paciente y producto no vacíos, con mensajes naturales', () => {
+    expect(importRowSchema.safeParse(row({ clinica: '' })).error?.issues[0]?.message).toBe(
+      'La clínica es obligatoria',
+    )
+    expect(importRowSchema.safeParse(row({ doctor: '' })).error?.issues[0]?.message).toBe(
+      'El doctor es obligatorio',
+    )
+    expect(importRowSchema.safeParse(row({ paciente: '' })).error?.issues[0]?.message).toBe(
+      'La referencia del paciente es obligatoria',
+    )
+    expect(importRowSchema.safeParse(row({ producto: '' })).error?.issues[0]?.message).toBe(
+      'El producto es obligatorio',
+    )
+  })
+
+  it('rechaza cantidad mayor a 99', () => {
+    const result = importRowSchema.safeParse(row({ cantidad: '100' }))
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]).toMatchObject({
+      path: ['cantidad'],
+      message: 'La cantidad máxima es 99',
+    })
+  })
+
+  it('rechaza un paciente de más de 120 caracteres', () => {
+    const result = importRowSchema.safeParse(row({ paciente: 'A'.repeat(130) }))
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]).toMatchObject({
+      path: ['paciente'],
+      message: 'Máximo 120 caracteres',
+    })
+  })
+
+  it.each([
+    ['31/02/2026', 'día inexistente en formato DD/MM/AAAA'],
+    ['2026-13-40', 'mes y día inexistentes en formato ISO'],
+    ['29/02/2025', '2025 no es bisiesto'],
+  ])('rechaza %s (%s)', (fecha) => {
+    const result = importRowSchema.safeParse(row({ fecha_deseada: fecha }))
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.message).toBe('Fecha inválida (usa AAAA-MM-DD o DD/MM/AAAA)')
+  })
+
+  it('acepta el 29 de febrero de un año bisiesto (2028)', () => {
+    const result = importRowSchema.parse(row({ fecha_deseada: '29/02/2028' }))
+    expect(result.fecha_deseada).toBe('2028-02-29')
   })
 })

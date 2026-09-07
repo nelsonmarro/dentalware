@@ -35,9 +35,20 @@ export const CASE_VIEWS = [
 export type CaseView = (typeof CASE_VIEWS)[number]
 export const CASE_PAGE_SIZE = 50
 
+const ISO_DATE_FORMAT = 'Fecha inválida (AAAA-MM-DD)'
+/** Descarta fechas con formato correcto pero de calendario inexistente (31/02, 13º mes…)
+ * mediante ida y vuelta por `Date.UTC`: si el mes/día se desbordan, el resultado no
+ * coincide con los componentes originales. */
+function isRealCalendarDate(s: string): boolean {
+  const [y, m, d] = s.split('-').map(Number)
+  const dt = new Date(Date.UTC(y!, m! - 1, d!))
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m! - 1 && dt.getUTCDate() === d
+}
+
 export const isoDate = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: 'Fecha inválida (AAAA-MM-DD)' })
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: ISO_DATE_FORMAT })
+  .refine(isRealCalendarDate, { error: ISO_DATE_FORMAT })
 const nullable = <T extends z.ZodTypeAny>(s: T) => s.nullish().transform((v) => v ?? null)
 // Un campo numérico/de precio opcional llega del formulario como `''` cuando está
 // vacío (un <input> controlado nunca pasa a `undefined`); sin este preprocesado,
