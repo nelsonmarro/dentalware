@@ -48,7 +48,7 @@ export function CaseHeader({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-2xl font-semibold">{c.code}</span>
+              <h1 className="font-mono text-2xl font-semibold">{c.code}</h1>
               <StatusChip status={c.status} />
               {c.priority === 'urgente' && <Badge variant="destructive">Urgente</Badge>}
             </div>

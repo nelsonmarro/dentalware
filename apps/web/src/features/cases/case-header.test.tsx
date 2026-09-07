@@ -57,6 +57,11 @@ describe('CaseHeader', () => {
     expect(screen.getByRole('link', { name: /Editar/ })).toBeInTheDocument()
   })
 
+  it('el código del trabajo se renderiza como encabezado h1', async () => {
+    renderWithRouter(<CaseHeader case={baseCase()} missing={[]} role="admin" />)
+    expect(await screen.findByRole('heading', { level: 1, name: '26-00001' })).toBeInTheDocument()
+  })
+
   it('técnico no ve el total ni el enlace Editar', async () => {
     renderWithRouter(<CaseHeader case={baseCase()} missing={[]} role="tecnico" />)
     await screen.findByText('26-00001')

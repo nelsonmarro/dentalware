@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Controller, useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form'
 import type { z } from 'zod'
 import { Button } from '@/components/ui/button'
-import { Field, FieldError, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -15,8 +15,13 @@ import {
 } from '@/components/ui/select'
 import type { Product } from '@/features/products/api'
 import { formatMoney } from '@/features/products/pricing-unit-label'
+import { useMediaQuery } from '@/lib/use-media-query'
 import { computeTotals } from './case-totals'
 import { TeethDialog } from './teeth-dialog'
+
+// Tailwind `lg` empieza en 1024px; debe coincidir con el breakpoint de `CaseItemRow`
+// (mismo patrón que `DESKTOP_QUERY` en `components/data-table.tsx`).
+const DESKTOP_QUERY = '(min-width: 1024px)'
 
 type CaseFormValues = z.input<typeof caseInputSchema>
 
@@ -94,8 +99,26 @@ export function CaseItemsEditor({
     const product = productsById.get(productId)
     if (product) {
       setValue(`items.${index}.unitPrice`, effectivePrice(product, prices))
-      if (product.pricingUnit !== 'por_pieza') setValue(`items.${index}.teeth`, [])
+      if (product.pricingUnit === 'por_pieza') {
+        // Recalcula con las piezas ya marcadas (si las hay); no se limita a dejar la
+        // cantidad que tuviera el producto anterior, que puede no coincidir (ver
+        // UX2-03: cambiar A → B → A no debe dejar pegada una cantidad vieja).
+        const teeth = getValues(`items.${index}.teeth`) ?? []
+        setValue(`items.${index}.quantity`, teeth.length || 1, {
+          shouldDirty: true,
+          shouldValidate: true,
+        })
+      } else {
+        setValue(`items.${index}.teeth`, [])
+      }
     }
+  }
+
+  function handleTeethSaved(index: number, teeth: number[]) {
+    setValue(`items.${index}.quantity`, teeth.length || 1, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
   }
 
   function handlePriceEdited(index: number) {
@@ -110,9 +133,12 @@ export function CaseItemsEditor({
   const itemsErrorMessage =
     (itemsErrors as { message?: string } | undefined)?.message ?? itemsErrors?.root?.message
 
+  const isDesktop = useMediaQuery(DESKTOP_QUERY)
+
   return (
     <div className="flex flex-col gap-3">
       {itemsErrorMessage && <FieldError errors={[{ message: itemsErrorMessage }]} />}
+      {isDesktop && fields.length > 0 && <CaseItemsHeader canEditPrice={canEditPrice} />}
       {fields.map((field, index) => (
         <CaseItemRow
           key={field.id}
@@ -123,12 +149,37 @@ export function CaseItemsEditor({
           canEditPrice={canEditPrice}
           onProductChange={(productId) => handleProductChange(index, productId)}
           onPriceEdited={() => handlePriceEdited(index)}
+          onTeethSaved={(teeth) => handleTeethSaved(index, teeth)}
           onRemove={() => remove(index)}
         />
       ))}
       <Button type="button" variant="outline" className="h-11 self-start" onClick={handleAdd}>
         <Plus /> Agregar línea
       </Button>
+    </div>
+  )
+}
+
+/** Fila de encabezados de columna en escritorio (UX2-04): en móvil las `FieldLabel`
+ * de cada campo ya son visibles; en `lg:` quedan `sr-only` (repetir la etiqueta en
+ * cada línea sería ruido), así que esta fila —oculta a lectores de pantalla, que ya
+ * tienen la etiqueta accesible de cada campo— reemplaza esa referencia visual. Usa
+ * el mismo grid de 7 columnas y los mismos `col-span` que `CaseItemRow` para que las
+ * columnas queden alineadas con los campos de la primera línea. */
+function CaseItemsHeader({ canEditPrice }: { canEditPrice: boolean }) {
+  return (
+    <div
+      aria-hidden
+      data-testid="case-items-header"
+      className="grid grid-cols-7 gap-2 px-3 text-xs font-medium text-muted-foreground"
+    >
+      <span className="col-span-2">Producto</span>
+      <span>Cantidad</span>
+      <span>Piezas</span>
+      {canEditPrice && <span>Precio unitario</span>}
+      <span>Descuento %</span>
+      <span>Material</span>
+      <span>Nota</span>
     </div>
   )
 }
@@ -141,6 +192,7 @@ function CaseItemRow({
   canEditPrice,
   onProductChange,
   onPriceEdited,
+  onTeethSaved,
   onRemove,
 }: {
   index: number
@@ -150,6 +202,7 @@ function CaseItemRow({
   canEditPrice: boolean
   onProductChange: (productId: string) => void
   onPriceEdited: () => void
+  onTeethSaved: (teeth: number[]) => void
   onRemove: () => void
 }) {
   const [teethOpen, setTeethOpen] = useState(false)
@@ -165,7 +218,7 @@ function CaseItemRow({
   return (
     <fieldset
       data-testid="case-item-row"
-      className="grid grid-cols-2 gap-3 rounded-lg border border-border p-3 lg:grid-cols-7 lg:items-end lg:gap-2"
+      className="grid grid-cols-2 gap-3 rounded-lg border border-border p-3 lg:grid-cols-7 lg:items-start lg:gap-2"
     >
       <legend className="sr-only">Línea {index + 1}</legend>
       <Field className="col-span-2 lg:col-span-2">
@@ -196,23 +249,39 @@ function CaseItemRow({
       <Controller
         name={`items.${index}.quantity`}
         control={control}
-        render={({ field }) => (
-          <Field>
-            <FieldLabel className="text-xs lg:sr-only" htmlFor={`item-${index}-cantidad`}>
-              Cantidad
-            </FieldLabel>
-            <Input
-              {...field}
-              id={`item-${index}-cantidad`}
-              aria-label="Cantidad"
-              type="number"
-              min={1}
-              max={99}
-              className="h-11"
-              value={(field.value ?? '') as string | number}
-            />
-          </Field>
-        )}
+        render={({ field }) => {
+          const isPorPieza = product?.pricingUnit === 'por_pieza'
+          return (
+            <Field>
+              <FieldLabel className="text-xs lg:sr-only" htmlFor={`item-${index}-cantidad`}>
+                Cantidad
+              </FieldLabel>
+              <Input
+                id={`item-${index}-cantidad`}
+                aria-label="Cantidad"
+                // Solo lectura: para `por_pieza` la cantidad la fija el número de piezas
+                // marcadas (ver `handleTeethSaved`/`handleProductChange`), no se escribe a
+                // mano; se usa `type="text"` en vez de "number" para no mostrar flechas de
+                // incremento que en algunos navegadores ignoran `readOnly`.
+                type={isPorPieza ? 'text' : 'number'}
+                inputMode={isPorPieza ? 'numeric' : undefined}
+                min={isPorPieza ? undefined : 1}
+                max={isPorPieza ? undefined : 99}
+                className="h-11"
+                readOnly={isPorPieza}
+                aria-readonly={isPorPieza}
+                name={field.name}
+                ref={field.ref}
+                onBlur={field.onBlur}
+                onChange={isPorPieza ? undefined : field.onChange}
+                value={(field.value ?? '') as string | number}
+              />
+              {isPorPieza && (
+                <FieldDescription className="text-xs">Según las piezas marcadas</FieldDescription>
+              )}
+            </Field>
+          )
+        }}
       />
       <Field>
         <span className="text-xs text-muted-foreground lg:sr-only">Piezas</span>
@@ -234,7 +303,10 @@ function CaseItemRow({
                   open={teethOpen}
                   onOpenChange={setTeethOpen}
                   value={field.value ?? []}
-                  onSave={field.onChange}
+                  onSave={(teeth) => {
+                    field.onChange(teeth)
+                    onTeethSaved(teeth)
+                  }}
                   title={`Piezas — línea ${index + 1}`}
                 />
               )}

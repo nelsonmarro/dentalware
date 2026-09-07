@@ -73,6 +73,13 @@ function relativeTime(iso: string): string {
   return rtf.format(diffDay, 'day')
 }
 
+/** Etiqueta de la pestaña "Historial": el total combinado de eventos y comentarios
+ * (ya vienen juntos desde `/eventos`, ver `useEvents`); sin número cuando el trabajo
+ * todavía no tiene ninguna actividad, en vez de mostrar "Historial (0)" (UX2-10). */
+export function historyTabLabel(total: number): string {
+  return total === 0 ? 'Historial' : `Historial (${total})`
+}
+
 /** Historial cronológico del trabajo: un ícono y texto en español por tipo de evento,
  * autor y fecha relativa; los comentarios muestran su texto en un bloque aparte. */
 export function CaseHistory({ events }: { events: CaseEvent[] }) {

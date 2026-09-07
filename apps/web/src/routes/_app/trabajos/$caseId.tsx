@@ -4,7 +4,7 @@ import { EmptyState } from '@/components/empty-state'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CaseDetailTab } from '@/features/cases/case-detail-tab'
 import { CaseHeader } from '@/features/cases/case-header'
-import { CaseHistory } from '@/features/cases/case-history'
+import { CaseHistory, historyTabLabel } from '@/features/cases/case-history'
 import { CommentForm } from '@/features/cases/comment-form'
 import { PhotosTab } from '@/features/cases/photos-tab'
 import { useAttachments } from '@/features/cases/use-attachments'
@@ -37,7 +37,6 @@ function CasePage() {
   }
 
   const hidePrices = user.role === 'tecnico' || user.role === 'mensajero'
-  const comments = (events.data ?? []).filter((e) => e.type === 'comment').length
 
   return (
     <div className="flex flex-col gap-6">
@@ -46,7 +45,7 @@ function CasePage() {
         <TabsList>
           <TabsTrigger value="detalle">Detalle</TabsTrigger>
           <TabsTrigger value="fotos">Fotos ({attachments.data?.length ?? 0})</TabsTrigger>
-          <TabsTrigger value="historial">Historial ({comments})</TabsTrigger>
+          <TabsTrigger value="historial">{historyTabLabel(events.data?.length ?? 0)}</TabsTrigger>
         </TabsList>
         <TabsContent value="detalle" className="pt-4">
           <CaseDetailTab case={q.data.case} hidePrices={hidePrices} role={user.role} />

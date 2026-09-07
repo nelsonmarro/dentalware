@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { renderWithProviders } from '@/test/render'
 import type { CaseEvent } from './api'
-import { CaseHistory } from './case-history'
+import { CaseHistory, historyTabLabel } from './case-history'
 
 function event(overrides: Partial<CaseEvent>): CaseEvent {
   return {
@@ -45,5 +45,16 @@ describe('CaseHistory', () => {
   it('sin eventos muestra un mensaje de "sin actividad"', () => {
     renderWithProviders(<CaseHistory events={[]} />)
     expect(screen.getByText('Sin actividad todavía.')).toBeInTheDocument()
+  })
+})
+
+describe('historyTabLabel', () => {
+  it('sin eventos devuelve "Historial" sin número', () => {
+    expect(historyTabLabel(0)).toBe('Historial')
+  })
+
+  it('con eventos (incluidos los comentarios) devuelve "Historial (N)" con el total combinado', () => {
+    // 2 eventos automáticos + 1 comentario ya vienen combinados desde `/eventos`.
+    expect(historyTabLabel(3)).toBe('Historial (3)')
   })
 })
