@@ -5,16 +5,24 @@ export const ADMIN = {
   password: process.env.ADMIN_PASSWORD ?? 'Admin12345!',
 }
 
+/**
+ * Inicia sesión y espera a que la transición a `/` termine (encabezado «Inicio»
+ * visible), no solo a que cambie la URL: TanStack Router actualiza la URL antes de
+ * cargar la ruta, y un `page.goto` lanzado mientras esa carga sigue pendiente falla
+ * en WebKit (proyecto iphone) con «Navigation … is interrupted by another
+ * navigation to /».
+ */
 export async function login(page: Page, credentials: { email: string; password: string }) {
   await page.goto('/login')
   await page.getByLabel('Correo').fill(credentials.email)
   await page.getByLabel('Contraseña').fill(credentials.password)
   await page.getByRole('button', { name: 'Ingresar' }).click()
+  await expect(page).toHaveURL('/')
+  await expect(page.getByRole('heading', { name: 'Inicio' })).toBeVisible()
 }
 
 export async function loginAsAdmin(page: Page) {
   await login(page, ADMIN)
-  await expect(page.getByRole('heading', { name: 'Inicio' })).toBeVisible()
 }
 
 /** Crea una clínica y un doctor únicos por API (sesión admin ya iniciada en `page`). */
