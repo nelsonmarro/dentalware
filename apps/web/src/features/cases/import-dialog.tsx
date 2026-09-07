@@ -45,13 +45,23 @@ export function ImportDialog({
 
   async function handleValidate() {
     if (!file) return
-    setReport(await validate.mutateAsync(file))
+    try {
+      setReport(await validate.mutateAsync(file))
+    } catch {
+      // El toast de error ya lo muestra `onError` de `useValidateImport`; aquí solo se
+      // evita dejar la promesa de este manejador (disparado con `void`) sin capturar.
+    }
   }
 
   async function handleImport() {
     if (!file) return
-    await importCases.mutateAsync(file)
-    handleOpenChange(false)
+    try {
+      await importCases.mutateAsync(file)
+      handleOpenChange(false)
+    } catch {
+      // Igual que arriba: el toast ya lo muestra `onError` de `useImportCases`; el
+      // diálogo se queda abierto con el resumen para que el usuario pueda reintentar.
+    }
   }
 
   const hasErrors = report !== null && report.errors.length > 0
