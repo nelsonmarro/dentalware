@@ -25,7 +25,7 @@ export class CaseInputError extends Error {
 }
 export class CaseStateError extends Error {}
 
-type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
 const EDITABLE = ['nuevo', 'en_proceso'] as const
 
 export async function nextCaseCode(tx: Tx | Db, year: number): Promise<string> {
@@ -129,19 +129,26 @@ export async function addEvent(
   })
 }
 
-export function createCase(db: Db, input: CaseInput, actorId: string): Promise<string> {
-  return db.transaction(async (tx) => {
-    const year = Number(input.receivedAt.slice(0, 4))
-    const code = await nextCaseCode(tx, year)
-    const items = await priceItems(tx, input.clinicId, input.items)
-    const [row] = await tx
-      .insert(cases)
-      .values({ ...caseColumns(input), code, total: totalOf(items), createdBy: actorId })
-      .returning({ id: cases.id })
-    await tx.insert(caseItems).values(items.map((i) => ({ ...i, caseId: row!.id })))
-    await addEvent(tx, { caseId: row!.id, type: 'created', toValue: code, actorId })
-    return row!.id
-  })
+/** Crea un trabajo dentro de una transacción ya abierta (la importación CSV crea varios en la misma). */
+export async function createCaseTx(
+  tx: Tx,
+  input: CaseInput,
+  actorId: string,
+): Promise<{ id: string; code: string }> {
+  const year = Number(input.receivedAt.slice(0, 4))
+  const code = await nextCaseCode(tx, year)
+  const items = await priceItems(tx, input.clinicId, input.items)
+  const [row] = await tx
+    .insert(cases)
+    .values({ ...caseColumns(input), code, total: totalOf(items), createdBy: actorId })
+    .returning({ id: cases.id })
+  await tx.insert(caseItems).values(items.map((i) => ({ ...i, caseId: row!.id })))
+  await addEvent(tx, { caseId: row!.id, type: 'created', toValue: code, actorId })
+  return { id: row!.id, code }
+}
+
+export async function createCase(db: Db, input: CaseInput, actorId: string): Promise<string> {
+  return db.transaction(async (tx) => (await createCaseTx(tx, input, actorId)).id)
 }
 
 export function updateCase(

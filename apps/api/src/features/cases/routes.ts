@@ -12,6 +12,7 @@ import type { Db } from '../../db/index.ts'
 import { validate } from '../../lib/validate.ts'
 import type { AppEnv } from '../auth/session.ts'
 import { requireAuth, requireRole } from '../auth/session.ts'
+import { importRoutes } from './import.ts'
 import {
   addEvent,
   CaseInputError,
@@ -59,6 +60,9 @@ function readiness(
 
 export const casesRoutes = (db: Db) =>
   new Hono<AppEnv>()
+    // Montada antes de `/:id` para que el segmento literal "importar" no se confunda
+    // con un identificador de trabajo.
+    .route('/importar', importRoutes(db))
     .get('/', requireAuth, validate('query', caseListQuerySchema), async (c) => {
       const result = await listCases(db, c.req.valid('query'), todayIso())
       const hide = hidesPrices(c.var.user?.role)
