@@ -179,6 +179,36 @@ describe('/api/trabajos', () => {
     })
   })
 
+  it('técnico y mensajero no ven las notas internas; admin sí', async () => {
+    const id = await createOne(recepcion, { internalNotes: 'Nota interna confidencial' })
+
+    const comoTecnico = await app.request(`/api/trabajos/${id}`, req(tecnico, 'GET'))
+    const { case: paraTecnico } = (await comoTecnico.json()) as {
+      case: { internalNotes: string | null }
+    }
+    expect(paraTecnico.internalNotes).toBeNull()
+
+    const comoMensajero = await app.request(`/api/trabajos/${id}`, req(mensajero, 'GET'))
+    const { case: paraMensajero } = (await comoMensajero.json()) as {
+      case: { internalNotes: string | null }
+    }
+    expect(paraMensajero.internalNotes).toBeNull()
+
+    const comoAdmin = await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))
+    const { case: paraAdmin } = (await comoAdmin.json()) as {
+      case: { internalNotes: string | null }
+    }
+    expect(paraAdmin.internalNotes).toBe('Nota interna confidencial')
+  })
+
+  it('la lista de trabajos no expone notas internas', async () => {
+    await createOne(recepcion, { internalNotes: 'Nota interna confidencial' })
+    const r = await app.request('/api/trabajos', req(tecnico, 'GET'))
+    const { cases: rows } = (await r.json()) as { cases: Record<string, unknown>[] }
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows[0]).not.toHaveProperty('internalNotes')
+  })
+
   it('PUT reemplaza líneas y devuelve 409 si el trabajo está terminado', async () => {
     const id = await createOne(recepcion)
     const put = await app.request(

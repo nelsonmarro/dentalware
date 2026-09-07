@@ -302,12 +302,15 @@ export function listEvents(db: Db, caseId: string) {
 
 type Priced = {
   total: string | null
+  internalNotes: string | null
   items: { unitPrice: string | null; lineTotal: string | null; discountPct: string | null }[]
 }
+/** Oculta precios y notas internas a quien no debe verlos (técnico/mensajero). */
 export function stripPrices<T extends Priced>(row: T): T {
   return {
     ...row,
     total: null,
+    internalNotes: null,
     items: row.items.map((i) => ({ ...i, unitPrice: null, lineTotal: null, discountPct: null })),
   }
 }
