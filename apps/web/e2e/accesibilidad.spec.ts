@@ -115,4 +115,16 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await expectTouchTargets(page, TOUCH_CONTROLS)
     await expectTouchTargets(page, TOUCH_SWITCHES, { minHeight: 24 })
   })
+
+  test('configuración → clínica → precios especiales: buscador y precio por fila', async ({
+    page,
+  }) => {
+    const { clinic } = await createClinicWithDoctor(page)
+    await createProduct(page)
+
+    await page.goto(`/configuracion/clinicas/${clinic.id}`)
+    await page.getByRole('tab', { name: 'Precios especiales' }).click()
+    await expect(page.getByLabel('Buscar producto')).toBeVisible()
+    await expectTouchTargets(page, TOUCH_CONTROLS)
+  })
 })

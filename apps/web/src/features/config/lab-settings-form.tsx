@@ -61,10 +61,10 @@ export function LabSettingsForm({
       noValidate
     >
       <FieldGroup>
-        {text('name', 'Nombre del laboratorio')}
-        {text('ruc', 'RUC', { inputMode: 'numeric' })}
-        {text('address', 'Dirección')}
-        {text('phone', 'Teléfonos')}
+        {text('name', 'Nombre del laboratorio', { autoComplete: 'organization' })}
+        {text('ruc', 'RUC', { inputMode: 'numeric', autoComplete: 'off' })}
+        {text('address', 'Dirección', { autoComplete: 'street-address' })}
+        {text('phone', 'Teléfonos', { autoComplete: 'tel' })}
         {text('codePrefix', 'Prefijo del código de trabajo')}
         {text('ivaPct', 'IVA informativo (%)', { type: 'number', inputMode: 'numeric' })}
         {text('logoUrl', 'URL del logo')}

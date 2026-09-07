@@ -181,15 +181,18 @@ export function CasesFilters({
 
   return (
     <div className="flex flex-col gap-3">
-      <Input
-        type="search"
-        name="q"
-        aria-label="Buscar por código, paciente o caja"
-        placeholder="Buscar por código, paciente o caja…"
-        className="h-11"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="filtro-buscar">Buscar por código, paciente o caja</Label>
+        <Input
+          id="filtro-buscar"
+          type="search"
+          name="q"
+          placeholder="Buscar por código, paciente o caja…"
+          className="h-11"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
       {isDesktop ? (
         fields
       ) : (

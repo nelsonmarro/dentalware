@@ -13,4 +13,16 @@ describe('LabSettingsForm', () => {
     expect(button.className).toMatch(/(?:^|\s)w-full(?:\s|$)/)
     expect(button.className).toMatch(/(?:^|\s)sm:w-auto(?:\s|$)/)
   })
+
+  it('fija autoComplete en nombre, RUC, dirección y teléfonos (UX1-08)', () => {
+    render(<LabSettingsForm initial={null} onSubmit={vi.fn()} pending={false} />)
+
+    expect(screen.getByLabelText('Nombre del laboratorio')).toHaveAttribute(
+      'autocomplete',
+      'organization',
+    )
+    expect(screen.getByLabelText('RUC')).toHaveAttribute('autocomplete', 'off')
+    expect(screen.getByLabelText('Dirección')).toHaveAttribute('autocomplete', 'street-address')
+    expect(screen.getByLabelText('Teléfonos')).toHaveAttribute('autocomplete', 'tel')
+  })
 })

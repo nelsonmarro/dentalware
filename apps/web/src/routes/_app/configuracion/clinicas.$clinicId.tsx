@@ -41,7 +41,7 @@ function ClinicDetailPage() {
     <div className="flex flex-col gap-6">
       <Link
         to="/configuracion/clinicas"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:underline"
+        className="-my-2.5 inline-flex min-h-11 items-center gap-1 text-sm text-muted-foreground hover:underline"
       >
         <ArrowLeft className="size-4" /> Clínicas
       </Link>
