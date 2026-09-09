@@ -142,3 +142,29 @@ Todos los 9 hallazgos ya anotados se confirmaron con medición directa salvo el 
 | 6 | `fix(api): reportar errores de resolución de importación por fila, sin bloqueo por archivo; fix(web): h1 en la ficha` | UX2-06, UX2-09 | M | Vitest/API de `import.ts`: CSV con una fila solo con error de resolución y otra fila con error de formato — ambas devuelven su propio error en la misma respuesta; test de componente de `CaseHeader` verificando `getByRole('heading', { level: 1 })` con el código del trabajo |
 
 UX2-10, UX2-11 y UX2-12 quedan fuera de esta ola por alcance (impacto acotado a una pestaña/enlace/buscador puntual) — se registran como mejoras de backlog para cuando se revisite Importar o los selects largos del catálogo.
+
+## Resultado de la ola de fixes (2026-09-07)
+
+Rama `fix/revision-ui-ux-it1-it2`, ejecutada en `docs/superpowers/plans/2026-09-07-ola-fixes-ui-ux-it1-it2.md`. Ledger completo con los rulings: `.superpowers/sdd/2026-09-07-ola-fixes-ui-ux/progress.md`.
+
+| Hallazgo | Estado | Commit / motivo |
+|---|---|---|
+| UX2-01 — `SelectTrigger` mide 32 px pese a que el código pide `h-11` | Corregido | `e22c3a6` — `data-[size=default]:h-8 → h-11` en `select.tsx` (causa raíz de un selector `data-[size=…]` con más especificidad que `className`) (Task 1) |
+| UX2-02 — pestañas (`Tabs`) de la lista y la ficha miden 25 px | Corregido | `e22c3a6` — `TabsList` `h-fit p-1`, `TabsTrigger` `min-h-11` (Task 1) |
+| UX2-03 — "Cantidad" no se sincroniza con las piezas marcadas para productos por pieza | Corregido | `09e11b5` — `TeethDialog.onSave` fija `quantity = teeth.length \|\| 1` para `pricingUnit: 'por_pieza'`, campo de solo lectura con ayuda; E2E ampliado en `bd61fb7`/Task 7 para asertar `Cantidad = 2` tras marcar 2 piezas (Task 3) |
+| UX2-04 — sin etiqueta visible ni encabezado de columna en la fila de línea en escritorio | Corregido | `09e11b5` — `CaseItemsHeader` con el mismo grid que `CaseItemRow` (Task 3) |
+| UX2-05 — tabla de Trabajos con 260 px de scroll horizontal interno a 1280 px | Corregido | `a69d945` — badges "Urgente"/"Atrasado"/"Hoy" como icono accesible con `title`; clínica·doctor/paciente/trabajo compactados a una línea truncada (Task 4) |
+| UX2-06 — errores de resolución de importación ocultos por un error de formato en cualquier fila del archivo | Corregido | `70d19a1` — `importCases` resuelve clínica/doctor/producto por fila, agrupadas o no, y combina errores de formato + resolución en la misma pasada (Task 5) |
+| UX2-07 — celdas del odontograma < 44 px desde 390 px hacia abajo | Aceptado (ruling del controlador) | A 360 px no caben 8 celdas de 44 px + separación en un diálogo de 344 px sin romper la disposición por cuadrante ni añadir scroll horizontal interno, que empeoraría la usabilidad. Las celdas (41 px a 390, 37 px a 360) superan con holgura el mínimo AA de 24 px (WCAG 2.5.8) y el gap evita toques accidentales. Documentado en el plan (`## Rulings del controlador`); se reevaluará si el laboratorio reporta errores de selección en teléfonos pequeños |
+| UX2-08 — pie del diálogo "Piezas" en móvil por debajo de 44 px | Corregido | `e22c3a6` — Guardar/Cancelar/Arcada superior/Arcada inferior/Limpiar heredan la escala nueva de `Button` sin cambios propios en `teeth-dialog.tsx` (Task 1) |
+| UX2-09 — la ficha no tiene ningún elemento de encabezado | Corregido | `09e11b5` — el código del trabajo pasa de `<span>` a `<h1>` en `case-header.tsx` (Task 3) |
+| UX2-10 — el contador "Historial (N)" cuenta solo comentarios | Corregido | `09e11b5` — `historyTabLabel(total)` usa el total combinado de eventos y comentarios (Task 3) |
+| UX2-11 — enlace "Descargar plantilla" de 20 px | Corregido | `e22c3a6` — `Button asChild variant="link"` con `h-11` en `import-dialog.tsx` (Task 1) |
+| UX2-12 — selects de Clínica y Producto sin buscador | Backlog | Issue nuevo (Task 7, junto con UX1-07): «Paginación en Clínicas y Precios especiales; combobox con buscador para Clínica y Producto». El `DataGrid` estándar (#53) aporta paginación; el combobox con buscador para catálogos largos queda como mejora aparte |
+
+### Extras de la ola (no listados como hallazgo, encontrados o pedidos durante la revisión de tareas)
+
+| Extra | Commit / motivo |
+|---|---|
+| Grid de líneas por rol (`itemsGridTemplate`) en 8/7 columnas | `a69d945` — la revisión de la Task 3 encontró que "Nota" bajaba a una segunda fila a 1280 px para admin/recepción (8 columnas) porque cabecera y fila usaban un `grid-cols-7` fijo; `itemsGridTemplate(canEditPrice)` es ahora la única fuente de verdad compartida por `CaseItemsHeader` y `CaseItemRow` (Task 4, ruling de la revisión de Task 3) |
+| Paleta `STATUS_COLOR` con contraste AA en todos los estados | `30b9825` — la revisión de la Task 2 encontró (Important, fuera del alcance original de UX1-02) que `en_espera` (2.25:1), `terminado` (1.76:1) y `entregado` (3.72:1) incumplían AA como texto sobre el chip; se oscureció cada color dentro de su propia familia y `cancelado` pasó al token `--destructive`, con `status-chip.test.tsx` recorriendo los `CASE_STATUSES` completos sobre el fondo real del chip (Task 2, ronda de fixes 1) |

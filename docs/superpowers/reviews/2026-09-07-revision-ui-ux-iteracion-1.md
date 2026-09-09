@@ -123,3 +123,26 @@ Fix propuesto: mostrar la acción de cabecera según el valor de `Tabs` (ocultar
 | 6 | `fix(web): autocomplete en campos de laboratorio y etiqueta visible en buscadores` | UX1-08, UX1-09 | S | Vitest de `LabSettingsForm` verificando `autoComplete` en los 3 campos; snapshot de accesibilidad sin el issue nativo de Chrome DevTools |
 
 UX1-07 (paginación) queda fuera de esta ola por alcance — se registra como mejora de backlog para cuando el catálogo/lista de clínicas reales crezca.
+
+## Resultado de la ola de fixes (2026-09-07)
+
+Rama `fix/revision-ui-ux-it1-it2`, ejecutada en `docs/superpowers/plans/2026-09-07-ola-fixes-ui-ux-it1-it2.md`. Ledger completo con los rulings: `.superpowers/sdd/2026-09-07-ola-fixes-ui-ux/progress.md`.
+
+| Hallazgo | Estado | Commit / motivo |
+|---|---|---|
+| UX1-01 — objetivos táctiles < 44 px en acciones de fila y "Cerrar sesión" | Corregido | `e22c3a6` — escala de `Button`/`Select`/`Tabs`/`Switch` a 44 px por defecto (Task 1) |
+| UX1-02 — contraste insuficiente en rojo destructivo (texto y chip) | Corregido | `d0962a5` — `--destructive` de `#d6453d` a `#b3261e` (≥ 4.5:1), `contrast.ts` + `theme-tokens.test.ts` (Task 2) |
+| UX1-03 — tabla "Productos y precios" con scroll horizontal interno a 1280 px | Corregido | `a69d945` — "Prueba" fusionada como icono junto a "Días"; columnas truncadas con `title` (Task 4) |
+| UX1-04 — "Precios especiales" sin buscador | Corregido | `bd61fb7` — buscador por código/nombre con borrador de precio elevado al padre (Task 6) |
+| UX1-05 — botón "Guardar cambios" de Laboratorio no ocupa el ancho completo en móvil | Ya cumplía | Medido en la Task 4: 308.77 px = 100 % del contenedor del formulario (358 px − 48 px de `p-6`); el informe original comparaba contra el ancho del viewport, no del formulario. Sin cambio de código; test de regresión (`lab-settings-form.test.tsx`) añadido en `a69d945` |
+| UX1-06 — dos fases con el mismo color, coincidente con el primario | Corregido | `d0962a5` — color por defecto de fase `#0F766E → #475569`; 7 colores del seed recalculados, distintos entre sí y ≥ 4.5:1 sobre `--teal-lab-soft` (Task 2) |
+| UX1-07 — sin paginación en Clínicas y Precios especiales | Backlog | Issue nuevo (Task 7, junto con UX2-12): «Paginación en Clínicas y Precios especiales; combobox con buscador para Clínica y Producto». El `DataGrid` estándar (#53) aporta paginación cuando se adopte; el combobox con buscador queda aparte |
+| UX1-08 — 3 campos de Laboratorio sin `autocomplete` | Corregido | `bd61fb7` — `autoComplete="organization"`/`"off"`/`"street-address"`/`"tel"` en Nombre/RUC/Dirección/Teléfonos (Task 6) |
+| UX1-09 — buscador y precio especial sin etiqueta visible persistente | Corregido | `bd61fb7` — `Label` visible con `htmlFor` en los buscadores de Clínicas, Trabajos y Precios especiales (Task 6) |
+| UX1-10 — CTA "Nuevo producto" visible y sin relación en la pestaña "Categorías" | Corregido | `a69d945` — `ProductsHeaderAction` muestra el CTA según la pestaña activa; `CategoriesList` sin botón propio (Task 4) |
+
+### Extras de la ola (no listados como hallazgo, encontrados o pedidos durante la revisión de tareas)
+
+| Extra | Commit / motivo |
+|---|---|
+| Enlace "← Clínicas" (detalle de clínica) a 44 px | `bd61fb7` — el barrido de accesibilidad nuevo de la Task 6 (precios especiales) detectó el enlace de vuelta a 20 px de alto; corregido con `min-h-11` (Task 6, desviación 2) |
