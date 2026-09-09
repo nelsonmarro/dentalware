@@ -18,7 +18,7 @@ import type { Storage } from '../../lib/storage.ts'
 import { validate } from '../../lib/validate.ts'
 import type { AppEnv } from '../auth/session.ts'
 import { requireAuth, requireRole } from '../auth/session.ts'
-import { addEvent, getCase } from '../cases/repo.ts'
+import { createCasesRepo } from '../cases/repo.ts'
 import {
   deleteAttachment,
   getAttachment,
@@ -35,8 +35,9 @@ const safeName = (n: string) => n.replace(/[^\w.\-áéíóúñÁÉÍÓÚÑ ]/g, 
 /** Variante solo-ASCII del nombre, para el parámetro `filename` (RFC 6266) de Content-Disposition. */
 const asciiSafeName = (n: string) => n.replace(/[^\x20-\x7E]/g, '_')
 
-export const attachmentsRoutes = (db: Db, storage: Storage) =>
-  new Hono<AppEnv>()
+export const attachmentsRoutes = (db: Db, storage: Storage) => {
+  const casesRepo = createCasesRepo(db)
+  return new Hono<AppEnv>()
     .use(requireAuth)
     .get('/trabajo/:caseId', validate('param', caseParam), async (c) =>
       c.json(
@@ -53,7 +54,7 @@ export const attachmentsRoutes = (db: Db, storage: Storage) =>
       validate('param', caseParam),
       async (c) => {
         const { caseId } = c.req.valid('param')
-        if (!(await getCase(db, caseId)))
+        if (!(await casesRepo.byId(caseId)))
           throw new HTTPException(404, { message: 'El trabajo no existe' })
 
         const body = await c.req.parseBody()
@@ -128,7 +129,7 @@ export const attachmentsRoutes = (db: Db, storage: Storage) =>
           thumbPath,
           uploadedBy: user.id,
         })
-        await addEvent(db, {
+        await casesRepo.addEvent({
           caseId,
           type: 'attachment_added',
           toValue: row.filename,
@@ -170,7 +171,7 @@ export const attachmentsRoutes = (db: Db, storage: Storage) =>
         await deleteAttachment(db, a.id)
         await storage.remove(a.storagePath)
         if (a.thumbPath) await storage.remove(a.thumbPath)
-        await addEvent(db, {
+        await casesRepo.addEvent({
           caseId: a.caseId,
           type: 'attachment_removed',
           fromValue: a.filename,
@@ -179,3 +180,4 @@ export const attachmentsRoutes = (db: Db, storage: Storage) =>
         return c.body(null, 204)
       },
     )
+}

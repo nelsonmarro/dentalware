@@ -11,7 +11,7 @@ import {
   setupTestDb,
   truncateAll,
 } from '../../test/setup.ts'
-import { createCase } from '../cases/repo.ts'
+import { createCasesRepo } from '../cases/repo.ts'
 
 describe('/api/adjuntos', () => {
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
@@ -86,7 +86,7 @@ describe('/api/adjuntos', () => {
       receivedAt: '2026-09-06',
       items: [{ productId: product!.id, quantity: 1, teeth: [11] }],
     })
-    caseId = await createCase(ctx.db, input, adminId)
+    caseId = (await createCasesRepo(ctx.db).create(input, adminId)).id
   })
 
   function upload(cookie: string, file: File, kind?: string) {

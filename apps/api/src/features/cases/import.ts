@@ -17,7 +17,7 @@ import { requireRole } from '../auth/session.ts'
 import { clinics } from '../clinics/schema.ts'
 import { doctors } from '../doctors/schema.ts'
 import { products } from '../products/schema.ts'
-import { createCaseTx } from './repo.ts'
+import { drizzleUnitOfWork } from './repo.ts'
 
 export const MAX_IMPORT_BYTES = 2 * 1024 * 1024 // 2 MB
 
@@ -332,9 +332,9 @@ export async function importCases(db: Db, opts: Options): Promise<ImportReport> 
   if (!commit) return { totalRows, cases: inputs.length, errors: [], created: [] }
 
   const created: string[] = []
-  await db.transaction(async (tx) => {
+  await drizzleUnitOfWork(db).run(async ({ cases }) => {
     for (const input of inputs) {
-      const { code } = await createCaseTx(tx, input, actorId)
+      const { code } = await cases.create(input, actorId)
       created.push(code)
     }
   })
