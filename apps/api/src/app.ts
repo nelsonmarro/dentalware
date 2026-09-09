@@ -6,7 +6,8 @@ import { secureHeaders } from 'hono/secure-headers'
 import type { Auth } from './auth.ts'
 import type { Db } from './db/index.ts'
 import { attachmentsRoutes } from './features/attachments/routes.ts'
-import { hasDocument } from './features/attachments/repo.ts'
+import { createAttachmentsRepo } from './features/attachments/repo.ts'
+import { createAttachmentsService } from './features/attachments/service.ts'
 import { meRoutes } from './features/auth/me.routes.ts'
 import type { AppEnv } from './features/auth/session.ts'
 import { requireRole, sessionMiddleware } from './features/auth/session.ts'
@@ -23,21 +24,38 @@ import { stagesRoutes } from './features/stages/routes.ts'
 import { usersRoutes } from './features/users/routes.ts'
 import type { Clock } from './lib/clock.ts'
 import { systemClock } from './lib/clock.ts'
+import type { IdGenerator } from './lib/ids.ts'
+import { randomIds } from './lib/ids.ts'
+import { sharpImages } from './lib/images.ts'
 import type { Storage } from './lib/storage.ts'
 
-export type AppDeps = { auth: Auth; db: Db; webOrigin: string; storage: Storage; clock?: Clock }
+export type AppDeps = {
+  auth: Auth
+  db: Db
+  webOrigin: string
+  storage: Storage
+  clock?: Clock
+  ids?: IdGenerator
+}
 
-export function createApp({ auth, db, webOrigin, storage, clock }: AppDeps) {
+export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps) {
   const app = new Hono<AppEnv>()
 
   const casesRepo = createCasesRepo(db)
-  // AttachmentsQuery hasta la Tarea 4 (integra la factoría de adjuntos): misma
-  // consulta que antes hacía la ruta de trabajos directamente contra `db.query`.
+  const attachmentsRepo = createAttachmentsRepo(db)
   const casesService = createCasesService({
     cases: casesRepo,
-    attachments: { hasDocument: (caseId) => hasDocument(db, caseId) },
+    attachments: attachmentsRepo,
     uow: drizzleUnitOfWork(db),
     clock: clock ?? systemClock,
+  })
+  const attachmentsService = createAttachmentsService({
+    attachments: attachmentsRepo,
+    cases: { exists: async (id) => (await casesRepo.byId(id)) !== undefined },
+    events: { add: (e) => casesRepo.addEvent(e) },
+    storage,
+    images: sharpImages,
+    ids: ids ?? randomIds,
   })
 
   app.use(secureHeaders())
@@ -81,7 +99,7 @@ export function createApp({ auth, db, webOrigin, storage, clock }: AppDeps) {
     .route('/api/config/fases', stagesRoutes(db))
     .route('/api/trabajos', casesRoutes(casesService, importRoutes(db)))
     .route('/api/users', usersRoutes(db, auth))
-    .route('/api/adjuntos', attachmentsRoutes(db, storage))
+    .route('/api/adjuntos', attachmentsRoutes(attachmentsService))
 
   app.notFound((c) => c.json({ message: 'Recurso no encontrado' }, 404))
   app.onError((err, c) => {
