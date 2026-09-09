@@ -70,10 +70,24 @@ export async function createProduct(page: Page) {
   return product
 }
 
-// Tolerancia de subpíxel: el DPR no entero de algunos dispositivos emulados (p. ej.
-// Pixel 7) redondea `getBoundingClientRect()` a fracciones de px por debajo del valor
-// exacto de la utilidad Tailwind (44 px medidos como 43.96 px).
-const SUBPIXEL_EPSILON = 0.5
+// Tolerancia de subpíxel: el DPR no entero del Pixel 7 emulado (2.625, ver
+// `devices['Pixel 7'].deviceScaleFactor` de Playwright) redondea cada borde de la caja
+// a un múltiplo de 1/2.625 ≈ 0.381 px de dispositivo al pintar. `getBoundingClientRect()`
+// devuelve `bottom - top` ya con ese redondeo aplicado por separado a cada borde, así
+// que un control con altura exacta de 44 px (p. ej. "Arcada superior"/"Arcada
+// inferior"/"Limpiar" en `odontogram.tsx`, que sí usa la escala fija `h-9
+// pointer-coarse:h-11` de `button.tsx`, no relleno dependiente de línea/fuente) puede
+// medir menos: sus ancestros directos hasta el diálogo (`FormDialog` > `flex flex-col
+// gap-4` > `Odontogram` > `flex flex-wrap gap-2` del pie) también redondean su propia
+// posición de forma independiente, y el error de cada uno se acumula. Confirmado en la
+// Task 6 (43.07 px medidos bajo 8 workers en paralelo, 44 px en corridas aisladas) y
+// no reproducido de forma determinista en la Task 7 pese a >150 repeticiones dirigidas
+// (`pnpm e2e --project=android -g "piezas" --repeat-each=25`, suites completas
+// repetidas) — es redondeo genuino de DPR, no un control sin alto fijo. Con 4-5
+// ancestros en la cadena, el peor caso teórico ronda 4×0.381 ≈ 1.5 px; 1 px cubre con
+// margen el valor medido (0.93 px) sin dejar pasar una regresión real (un control sin
+// escala de 44 px falla por 8+ px, muy por encima de este margen).
+const SUBPIXEL_EPSILON = 1
 
 /**
  * Comprueba que cada elemento visible que coincida con `selector` (o `locator`, para

@@ -66,6 +66,14 @@ test.describe('Trabajos', () => {
     await dialog.getByRole('button', { name: 'Guardar' }).click()
     await expect(page.getByRole('button', { name: 'Piezas (2)' })).toBeVisible()
 
+    // UX2-03: para un producto "por pieza" (ver `createProduct` en helpers.ts) la
+    // cantidad se deriva de las piezas marcadas y el campo queda de solo lectura —
+    // regresión del fix de la Task 3 (09e11b5), sin `expect` propio hasta ahora
+    // (ruling de la revisión de Task 3, `.superpowers/sdd/2026-09-07-ola-fixes-ui-ux/progress.md`).
+    const cantidad = page.getByLabel('Cantidad')
+    await expect(cantidad).toHaveValue('2')
+    await expect(cantidad).toHaveAttribute('readonly', '')
+
     await page.getByRole('button', { name: 'Guardar', exact: true }).click()
 
     await expect(page).toHaveURL(/\/trabajos\/[^/]+$/)

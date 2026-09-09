@@ -49,9 +49,14 @@ function DueCell({ row, today }: { row: CaseListRow; today: string }) {
 function CodeCell({ row }: { row: CaseListRow }) {
   return (
     <div className="flex items-center gap-1.5">
+      {/* `data-target-size="inline"`: el código es el identificador de fila/tarjeta, no
+          una acción — misma excepción "inline" (WCAG 2.5.8) que el nombre de clínica en
+          `clinics-table.tsx`; la fila entera no es clicable y "Editar"/las acciones reales
+          sí miden 44 px donde existen. */}
       <Link
         to="/trabajos/$caseId"
         params={{ caseId: row.id }}
+        data-target-size="inline"
         className="font-mono font-medium text-primary hover:underline"
       >
         {row.code}
