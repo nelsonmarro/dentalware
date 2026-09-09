@@ -56,7 +56,7 @@ export type { ImportReport }
 
 /**
  * `POST /api/trabajos/importar` recibe `multipart/form-data` con `c.req.parseBody()` a
- * mano (ver `apps/api/src/features/cases/import.ts`), sin `validate('form', …)`: el
+ * mano (ver `apps/api/src/features/cases/import.routes.ts`), sin `validate('form', …)`: el
  * cliente `hc` no tipa `form` para esta ruta, así que se sube con `fetch` directo (mismo
  * transporte y credenciales que usa `hc`), igual que `uploadAttachment` en adjuntos.
  */

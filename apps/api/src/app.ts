@@ -11,7 +11,9 @@ import { createAttachmentsService } from './features/attachments/service.ts'
 import { meRoutes } from './features/auth/me.routes.ts'
 import type { AppEnv } from './features/auth/session.ts'
 import { requireRole, sessionMiddleware } from './features/auth/session.ts'
-import { importRoutes } from './features/cases/import.ts'
+import { createImportCatalog } from './features/cases/import.repo.ts'
+import { importRoutes } from './features/cases/import.routes.ts'
+import { createImportService } from './features/cases/import.service.ts'
 import { casesRoutes } from './features/cases/routes.ts'
 import { createCasesRepo, drizzleUnitOfWork } from './features/cases/repo.ts'
 import { createCasesService } from './features/cases/service.ts'
@@ -43,11 +45,17 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
 
   const casesRepo = createCasesRepo(db)
   const attachmentsRepo = createAttachmentsRepo(db)
+  const effectiveClock = clock ?? systemClock
   const casesService = createCasesService({
     cases: casesRepo,
     attachments: attachmentsRepo,
     uow: drizzleUnitOfWork(db),
-    clock: clock ?? systemClock,
+    clock: effectiveClock,
+  })
+  const importService = createImportService({
+    catalog: createImportCatalog(db),
+    uow: drizzleUnitOfWork(db),
+    clock: effectiveClock,
   })
   const attachmentsService = createAttachmentsService({
     attachments: attachmentsRepo,
@@ -97,7 +105,7 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     .route('/api/config/doctores', doctorsRoutes(db))
     .route('/api/config/productos', productsRoutes(db))
     .route('/api/config/fases', stagesRoutes(db))
-    .route('/api/trabajos', casesRoutes(casesService, importRoutes(db)))
+    .route('/api/trabajos', casesRoutes(casesService, importRoutes(importService)))
     .route('/api/users', usersRoutes(db, auth))
     .route('/api/adjuntos', attachmentsRoutes(attachmentsService))
 
