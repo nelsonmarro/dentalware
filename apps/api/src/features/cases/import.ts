@@ -4,6 +4,7 @@ import {
   IMPORT_COLUMNS,
   importRowSchema,
   parseCsv,
+  sortImportErrors,
   toCsv,
   toIsoDate,
 } from '@dentalware/shared'
@@ -90,13 +91,18 @@ type Options = { rows: string[][]; actorId: string; today: string; commit: boole
  * datos es la 2). Agrupa filas consecutivas con la misma (clínica, doctor, paciente,
  * fecha deseada, caja) en un solo trabajo. Con cualquier error no crea nada.
  */
+type RowState = { rowNumber: number; raw: Record<string, string>; parsed?: Row }
+
 export async function importCases(db: Db, opts: Options): Promise<ImportReport> {
   const { rows, actorId, today, commit } = opts
   const totalRows = rows.length
   const errors: ImportError[] = []
-  const parsed: Row[] = []
 
-  rows.forEach((cols, idx) => {
+  // Primera pasada: valida el formato de cada fila de forma independiente. Una fila
+  // con un error de formato (p. ej. fecha_deseada inválida) no se descarta: se
+  // conserva su `raw` para intentar resolver clínica/doctor/producto más abajo, así
+  // el usuario ve en una sola vuelta tanto el error de formato como el de resolución.
+  const rowStates: RowState[] = rows.map((cols, idx) => {
     const rowNumber = idx + 2
     const obj: Record<string, string> = {}
     IMPORT_COLUMNS.forEach((col, i) => {
@@ -107,13 +113,12 @@ export async function importCases(db: Db, opts: Options): Promise<ImportReport> 
       for (const issue of result.error.issues) {
         errors.push({ row: rowNumber, column: String(issue.path[0] ?? ''), message: issue.message })
       }
-      return
+      return { rowNumber, raw: obj }
     }
-    parsed.push({ ...result.data, rowNumber })
+    return { rowNumber, raw: obj, parsed: { ...result.data, rowNumber } }
   })
 
-  if (errors.length > 0) return { totalRows, cases: 0, errors, created: [] }
-
+  const parsed = rowStates.flatMap((s) => (s.parsed ? [s.parsed] : []))
   const groups = groupRows(parsed)
 
   const allClinics = await db
@@ -160,6 +165,67 @@ export async function importCases(db: Db, opts: Options): Promise<ImportReport> 
     const byCode = resolve(allProducts.filter((p) => p.active && normalizeName(p.code) === n))
     if (byCode.kind !== 'not-found') return byCode
     return resolve(allProducts.filter((p) => p.active && normalizeName(p.name) === n))
+  }
+
+  // Filas con error de formato: no forman parte de ningún grupo (no se puede agrupar
+  // con seguridad sin sus datos parseados), pero igual se intenta resolver clínica,
+  // doctor y producto usando los valores crudos de las columnas que sí son válidas
+  // (no vacías) en esa misma fila. Así el informe trae, en una sola pasada, tanto el
+  // error de formato como cualquier error de resolución de la misma fila.
+  for (const state of rowStates) {
+    if (state.parsed) continue
+    const clinicaRaw = (state.raw['clinica'] ?? '').trim()
+    const doctorRaw = (state.raw['doctor'] ?? '').trim()
+    const productoRaw = (state.raw['producto'] ?? '').trim()
+
+    if (clinicaRaw) {
+      const clinic = findClinic(clinicaRaw)
+      if (clinic.kind === 'not-found') {
+        errors.push({
+          row: state.rowNumber,
+          column: 'clinica',
+          message: `La clínica "${clinicaRaw}" no existe`,
+        })
+      } else if (clinic.kind === 'ambiguous') {
+        errors.push({
+          row: state.rowNumber,
+          column: 'clinica',
+          message: `La clínica "${clinicaRaw}" es ambigua: hay ${clinic.count} clínicas con ese nombre`,
+        })
+      } else if (doctorRaw) {
+        const doctor = findDoctor(clinic.value.id, doctorRaw)
+        if (doctor.kind === 'not-found') {
+          errors.push({
+            row: state.rowNumber,
+            column: 'doctor',
+            message: `El doctor "${doctorRaw}" no existe en la clínica "${clinic.value.name}"`,
+          })
+        } else if (doctor.kind === 'ambiguous') {
+          errors.push({
+            row: state.rowNumber,
+            column: 'doctor',
+            message: `El doctor "${doctorRaw}" es ambiguo: hay ${doctor.count} doctores con ese nombre en la clínica "${clinic.value.name}"`,
+          })
+        }
+      }
+    }
+
+    if (productoRaw) {
+      const product = findProduct(productoRaw)
+      if (product.kind === 'not-found') {
+        errors.push({
+          row: state.rowNumber,
+          column: 'producto',
+          message: `El producto "${productoRaw}" no existe`,
+        })
+      } else if (product.kind === 'ambiguous') {
+        errors.push({
+          row: state.rowNumber,
+          column: 'producto',
+          message: `El producto "${productoRaw}" es ambiguo: hay ${product.count} productos con ese nombre`,
+        })
+      }
+    }
   }
 
   const inputs: CaseInput[] = []
@@ -259,7 +325,9 @@ export async function importCases(db: Db, opts: Options): Promise<ImportReport> 
     }
   }
 
-  if (errors.length > 0) return { totalRows, cases: 0, errors, created: [] }
+  if (errors.length > 0) {
+    return { totalRows, cases: 0, errors: sortImportErrors(errors), created: [] }
+  }
 
   if (!commit) return { totalRows, cases: inputs.length, errors: [], created: [] }
 

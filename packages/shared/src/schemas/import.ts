@@ -127,3 +127,22 @@ export type ImportReport = {
   errors: ImportError[]
   created: string[]
 }
+
+/**
+ * Posición de una columna dentro de `IMPORT_COLUMNS`; una columna que no aparece ahí
+ * (por ejemplo un nombre de campo de `CaseInput` usado como último recurso) va al final.
+ */
+function columnOrder(column: string): number {
+  const idx = (IMPORT_COLUMNS as readonly string[]).indexOf(column)
+  return idx === -1 ? IMPORT_COLUMNS.length : idx
+}
+
+/**
+ * Ordena los errores de una importación por fila y, dentro de la misma fila, por
+ * columna según el orden de `IMPORT_COLUMNS`. Permite combinar en una sola lista los
+ * errores de formato de una fila con sus errores de resolución de catálogo (clínica,
+ * doctor, producto) y mostrarlos siempre en el mismo orden predecible.
+ */
+export function sortImportErrors(errors: ImportError[]): ImportError[] {
+  return [...errors].sort((a, b) => a.row - b.row || columnOrder(a.column) - columnOrder(b.column))
+}

@@ -9,8 +9,22 @@ import type { Category } from './api'
 import { CategoryForm } from './category-form'
 import { useCategories, useSaveCategory, useSetCategoryActive } from './use-products'
 
-export function CategoriesList() {
+/**
+ * `newRequestToken`: dispara la apertura del diálogo "Nueva categoría" desde fuera
+ * (la cabecera de la página, ver `ProductsHeaderAction` / UX1-10) cada vez que
+ * cambia — reemplaza el botón propio que esta lista mostraba antes (duplicaba la
+ * acción de la cabecera cuando la pestaña "Categorías" estaba activa).
+ */
+export function CategoriesList({ newRequestToken }: { newRequestToken?: number } = {}) {
   const [editing, setEditing] = useState<Category | null | 'new'>(null)
+  // Ajusta el estado durante el render (no en un efecto) al detectar que
+  // `newRequestToken` cambió — patrón recomendado por React para "reaccionar a un
+  // cambio de prop" sin el repintado extra de un efecto.
+  const [seenToken, setSeenToken] = useState(newRequestToken)
+  if (newRequestToken !== seenToken) {
+    setSeenToken(newRequestToken)
+    if (newRequestToken) setEditing('new')
+  }
   const categories = useCategories(true)
   const save = useSaveCategory()
   const toggle = useSetCategoryActive()
@@ -29,7 +43,6 @@ export function CategoriesList() {
   const rows = categories.data ?? []
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">{newButton}</div>
       {categories.isPending ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
       ) : rows.length === 0 ? (

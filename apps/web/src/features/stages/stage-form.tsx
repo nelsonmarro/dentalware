@@ -27,7 +27,9 @@ export function StageForm({
     resolver: zodResolver(stageSchema),
     defaultValues: {
       name: stage?.name ?? '',
-      color: stage?.color ?? '#0F766E',
+      // Neutro fuera de la paleta de acento: el teal primario (#0F766E) queda reservado
+      // para la acción principal, enlaces activos y el anillo de foco (UX1-06).
+      color: stage?.color ?? '#475569',
       sort: stage?.sort ?? 0,
     },
   })

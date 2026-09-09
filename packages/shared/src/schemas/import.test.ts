@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { importRowSchema } from './import.ts'
+import type { ImportError } from './import.ts'
+import { importRowSchema, sortImportErrors } from './import.ts'
 
 function row(overrides: Record<string, string> = {}) {
   return {
@@ -107,5 +108,33 @@ describe('importRowSchema', () => {
   it('acepta el 29 de febrero de un año bisiesto (2028)', () => {
     const result = importRowSchema.parse(row({ fecha_deseada: '29/02/2028' }))
     expect(result.fecha_deseada).toBe('2028-02-29')
+  })
+})
+
+describe('sortImportErrors', () => {
+  it('ordena por fila y, dentro de la misma fila, por el orden de IMPORT_COLUMNS', () => {
+    const errors: ImportError[] = [
+      { row: 3, column: 'fecha_deseada', message: 'Fecha inválida' },
+      { row: 2, column: 'producto', message: 'El producto "X" no existe' },
+      { row: 2, column: 'clinica', message: 'La clínica "Y" no existe' },
+    ]
+
+    expect(sortImportErrors(errors)).toEqual([
+      { row: 2, column: 'clinica', message: 'La clínica "Y" no existe' },
+      { row: 2, column: 'producto', message: 'El producto "X" no existe' },
+      { row: 3, column: 'fecha_deseada', message: 'Fecha inválida' },
+    ])
+  })
+
+  it('manda las columnas que no son de IMPORT_COLUMNS al final de la fila', () => {
+    const errors: ImportError[] = [
+      { row: 1, column: 'dueDate', message: 'Fecha inválida' },
+      { row: 1, column: 'clinica', message: 'La clínica es obligatoria' },
+    ]
+
+    expect(sortImportErrors(errors)).toEqual([
+      { row: 1, column: 'clinica', message: 'La clínica es obligatoria' },
+      { row: 1, column: 'dueDate', message: 'Fecha inválida' },
+    ])
   })
 })

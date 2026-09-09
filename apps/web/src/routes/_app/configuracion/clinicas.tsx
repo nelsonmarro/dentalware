@@ -1,10 +1,9 @@
 import type { ClinicInput } from '@dentalware/shared'
 import { createFileRoute, Outlet, useMatchRoute } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import type { Clinic } from '@/features/clinics/api'
@@ -23,15 +22,10 @@ function ClinicsRoute() {
 
 function ClinicsPage() {
   const [showInactive, setShowInactive] = useState(false)
-  const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<Clinic | null | 'new'>(null)
   const clinics = useClinics(showInactive)
   const save = useSaveClinic()
   const toggle = useSetClinicActive()
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    return (clinics.data ?? []).filter((c) => !q || c.name.toLowerCase().includes(q))
-  }, [clinics.data, search])
 
   function submit(input: ClinicInput) {
     save.mutate(
@@ -51,31 +45,15 @@ function ClinicsPage() {
         description="Clientes del laboratorio y sus condiciones de crédito."
         action={newButton}
       />
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <Input
-          id="clinicas-buscar"
-          name="buscar"
-          type="search"
-          placeholder="Buscar por nombre"
-          aria-label="Buscar clínica"
-          className="h-11 sm:max-w-xs"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <div className="flex items-center gap-2">
-          <Switch
-            id="clinicas-inactivas"
-            checked={showInactive}
-            onCheckedChange={setShowInactive}
-          />
-          <Label htmlFor="clinicas-inactivas">Mostrar inactivas</Label>
-        </div>
+      <div className="flex items-center gap-2">
+        <Switch id="clinicas-inactivas" checked={showInactive} onCheckedChange={setShowInactive} />
+        <Label htmlFor="clinicas-inactivas">Mostrar inactivas</Label>
       </div>
       {clinics.isPending ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
       ) : (
         <ClinicsTable
-          clinics={filtered}
+          clinics={clinics.data ?? []}
           onEdit={setEditing}
           onToggle={(c, active) => toggle.mutate({ id: c.id, active })}
           emptyAction={newButton}

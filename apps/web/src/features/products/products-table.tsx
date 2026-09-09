@@ -1,4 +1,4 @@
-import { Pencil } from 'lucide-react'
+import { FlaskConical, Pencil } from 'lucide-react'
 import { ActiveBadge } from '@/components/active-badge'
 import { DataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
@@ -44,9 +44,23 @@ export function ProductsTable({
         {
           key: 'name',
           header: 'Producto',
-          cell: (p) => <span className="font-medium">{p.name}</span>,
+          className: 'max-w-[220px]',
+          cell: (p) => (
+            <span className="block truncate font-medium" title={p.name}>
+              {p.name}
+            </span>
+          ),
         },
-        { key: 'category', header: 'Categoría', cell: (p) => p.category?.name ?? '—' },
+        {
+          key: 'category',
+          header: 'Categoría',
+          className: 'max-w-[140px]',
+          cell: (p) => (
+            <span className="block truncate" title={p.category?.name ?? '—'}>
+              {p.category?.name ?? '—'}
+            </span>
+          ),
+        },
         { key: 'unit', header: 'Se cobra', cell: (p) => PRICING_UNIT_LABEL[p.pricingUnit] },
         {
           key: 'price',
@@ -54,8 +68,20 @@ export function ProductsTable({
           cell: (p) => <span className="font-mono">{formatMoney(p.basePrice)}</span>,
           className: 'text-right',
         },
-        { key: 'days', header: 'Días', cell: (p) => p.turnaroundDays },
-        { key: 'tryin', header: 'Prueba', cell: (p) => (p.requiresTryIn ? 'Sí' : 'No') },
+        {
+          key: 'days',
+          header: 'Días',
+          cell: (p) => (
+            <span className="inline-flex items-center gap-1">
+              {p.turnaroundDays}
+              {p.requiresTryIn && (
+                <span title="Requiere prueba" aria-label="Requiere prueba" role="img">
+                  <FlaskConical aria-hidden className="size-3.5 text-muted-foreground" />
+                </span>
+              )}
+            </span>
+          ),
+        },
         { key: 'active', header: 'Estado', cell: (p) => <ActiveBadge active={p.active} /> },
         { key: 'actions', header: '', cell: actions, className: 'text-right' },
       ]}

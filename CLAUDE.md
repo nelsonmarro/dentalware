@@ -2,6 +2,11 @@
 
 Gestión de laboratorio dental (Arte Dental, Ecuador). Monorepo pnpm: `packages/shared` (zod, enums, máquina de estados), `apps/api` (Hono + Drizzle + Postgres + Better Auth), `apps/web` (React 19 + Vite + TanStack Router/Query + Tailwind 4 + shadcn). Spec: `docs/superpowers/specs/2026-09-01-dentalware-mvp-design.md`. Planes por iteración en `docs/superpowers/plans/`.
 
+Contexto adicional obligatorio (se cargan con este archivo y se actualizan en el mismo PR que cambie una convención o una frontera):
+
+@docs/conventions.md
+@docs/architecture.md
+
 ## Reglas de trabajo (pedidas por Nelson)
 
 1. **TDD siempre.** Antes de empezar cualquier feature o fix, invocar la skill `superpowers:test-driven-development` y trabajar RED → GREEN → refactor. Ninguna tarea se cierra sin su prueba; el código sin test es un hallazgo _Important_ en revisión. El software debe quedar probado en todas las capas (unit shared/api/web + E2E Playwright). Épica de pruebas en GitHub: ver etiqueta `epic`.
@@ -10,6 +15,7 @@ Gestión de laboratorio dental (Arte Dental, Ecuador). Monorepo pnpm: `packages/
 4. **UI con `frontend-design`** y verificada en Chrome DevTools (1280×800 y 390×844: flujo, capturas, consola sin errores) antes de cerrar la tarea.
 5. **Español** en UI, mensajes de validación, commits y documentación; sentence case.
 6. **Revisión UI/UX al cerrar cada iteración.** La tarea de cierre de cada plan crea un issue «Revisión UI/UX de la Iteración N con frontend-design» (historia, area:web, hito de la iteración siguiente) con checklist: recorrer todas las pantallas nuevas a 1280×800, 390×844 y 360 px con `frontend-design`, comprobar jerarquía visual y consistencia con la dirección de diseño, responsividad, usabilidad y accesibilidad (44 px, foco, teclado, contraste AA) y que sea fácil de entender para recepción, técnicos y mensajero; los hallazgos se corrigen en una ola de fixes antes de construir encima. Primer issue: #49.
+7. **Arquitectura limpia, patrones probados y SOLID.** La arquitectura de referencia, sus fronteras y el registro de decisiones están en `docs/architecture.md`; las convenciones de código y la definición de hecho en `docs/conventions.md`. Toda tarea se implementa y se revisa contra ambos, y cualquier decisión o convención nueva se anota allí en el mismo PR.
 
 ## Entorno
 

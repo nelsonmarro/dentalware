@@ -66,6 +66,14 @@ test.describe('Trabajos', () => {
     await dialog.getByRole('button', { name: 'Guardar' }).click()
     await expect(page.getByRole('button', { name: 'Piezas (2)' })).toBeVisible()
 
+    // UX2-03: para un producto "por pieza" (ver `createProduct` en helpers.ts) la
+    // cantidad se deriva de las piezas marcadas y el campo queda de solo lectura —
+    // regresión del fix de la Task 3 (09e11b5), sin `expect` propio hasta ahora
+    // (ruling de la revisión de Task 3, `.superpowers/sdd/2026-09-07-ola-fixes-ui-ux/progress.md`).
+    const cantidad = page.getByLabel('Cantidad')
+    await expect(cantidad).toHaveValue('2')
+    await expect(cantidad).toHaveAttribute('readonly', '')
+
     await page.getByRole('button', { name: 'Guardar', exact: true }).click()
 
     await expect(page).toHaveURL(/\/trabajos\/[^/]+$/)
@@ -75,6 +83,15 @@ test.describe('Trabajos', () => {
     await page.goto('/trabajos?vista=nuevos')
     await page.getByLabel('Buscar por código, paciente o caja').fill(code!)
     await expect(page.getByRole('link', { name: code! })).toBeVisible()
+
+    if (testInfo.project.name === 'escritorio') {
+      // UX2-05: a 1280 px la tabla de trabajos no debe exigir scroll horizontal
+      // interno para ver "Estado" y "Total".
+      const tabla = page.locator('[data-slot="table-container"]')
+      expect(await tabla.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+      await expect(page.getByRole('columnheader', { name: 'Estado' })).toBeInViewport()
+      await expect(page.getByRole('columnheader', { name: 'Total' })).toBeInViewport()
+    }
   })
 
   test('comenta y sube una foto', async ({ page }) => {

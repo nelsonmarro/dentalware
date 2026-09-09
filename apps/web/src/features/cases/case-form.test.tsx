@@ -1,4 +1,4 @@
-import { toothLabel } from '@dentalware/shared'
+import { toothLabel, type FdiTooth } from '@dentalware/shared'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   createMemoryHistory,
@@ -10,6 +10,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { setMatchMedia } from '@/test/match-media'
 import type { CaseDetail } from './api'
 import { CaseForm } from './case-form'
 
@@ -120,6 +121,21 @@ async function pickOption(
   await user.click(await screen.findByRole('option', { name: optionName }))
 }
 
+/** Abre el diálogo "Piezas" de la fila (ya visible como "Piezas (N)") y marca los
+ * números de pieza indicados por su `toothLabel` antes de guardar. */
+async function markTeeth(
+  user: ReturnType<typeof userEvent.setup>,
+  currentCount: number,
+  teeth: FdiTooth[],
+) {
+  await user.click(screen.getByRole('button', { name: `Piezas (${currentCount})` }))
+  const dialog = await screen.findByRole('dialog')
+  for (const tooth of teeth) {
+    await user.click(within(dialog).getByRole('button', { name: toothLabel(tooth) }))
+  }
+  await user.click(within(dialog).getByRole('button', { name: 'Guardar' }))
+}
+
 async function fillMinimalCase(user: ReturnType<typeof userEvent.setup>) {
   await pickOption(user, 'Clínica', 'Clínica Uno')
   await pickOption(user, 'Doctor', 'Dr. Pérez')
@@ -155,11 +171,226 @@ describe('CaseForm', () => {
     const row = screen.getByTestId('case-item-row')
     expect(await within(row).findByRole('spinbutton', { name: 'Precio unitario' })).toHaveValue(40)
     expect(within(row).getByText('$ 40.00')).toBeInTheDocument()
+  })
 
-    const quantity = within(row).getByRole('spinbutton', { name: 'Cantidad' })
-    await user.clear(quantity)
-    await user.type(quantity, '2')
+  it('para un producto por pieza, «Cantidad» sigue el número de piezas marcadas', async () => {
+    const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    await pickOption(user, 'Clínica', 'Clínica Uno')
+    await user.click(screen.getByRole('button', { name: 'Agregar línea' }))
+    await pickOption(user, 'Producto', /ZR/)
+
+    const row = screen.getByTestId('case-item-row')
+    const quantity = within(row).getByRole('textbox', { name: 'Cantidad' })
+    expect(quantity).toHaveValue('1')
+    expect(quantity).toHaveAttribute('readonly')
+    expect(within(row).getByText('Según las piezas marcadas')).toBeInTheDocument()
+
+    await markTeeth(user, 0, [11, 12])
+
+    expect(within(row).getByRole('textbox', { name: 'Cantidad' })).toHaveValue('2')
     expect(within(row).getByText('$ 80.00')).toBeInTheDocument()
+
+    // Quitar piezas hasta 0 vuelve la cantidad a 1 (mínimo), no a 0.
+    await user.click(screen.getByRole('button', { name: 'Piezas (2)' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: toothLabel(11) }))
+    await user.click(within(dialog).getByRole('button', { name: toothLabel(12) }))
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar' }))
+
+    expect(within(row).getByRole('textbox', { name: 'Cantidad' })).toHaveValue('1')
+  })
+
+  it('para un producto por arcada, «Cantidad» sigue siendo editable a mano', async () => {
+    const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    await pickOption(user, 'Clínica', 'Clínica Uno')
+    await user.click(screen.getByRole('button', { name: 'Agregar línea' }))
+    await pickOption(user, 'Producto', /AC/)
+
+    const row = screen.getByTestId('case-item-row')
+    const quantity = within(row).getByRole('spinbutton', { name: 'Cantidad' })
+    expect(quantity).not.toHaveAttribute('readonly')
+    expect(within(row).queryByText('Según las piezas marcadas')).not.toBeInTheDocument()
+
+    await user.clear(quantity)
+    await user.type(quantity, '3')
+    expect(within(row).getByText('$ 240.00')).toBeInTheDocument()
+  })
+
+  it('cambiar a un producto por pieza recalcula «Cantidad» según las piezas ya marcadas', async () => {
+    const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    await pickOption(user, 'Clínica', 'Clínica Uno')
+    await user.click(screen.getByRole('button', { name: 'Agregar línea' }))
+    await pickOption(user, 'Producto', /ZR/)
+    const row = screen.getByTestId('case-item-row')
+    await markTeeth(user, 0, [11, 12])
+    expect(within(row).getByRole('textbox', { name: 'Cantidad' })).toHaveValue('2')
+
+    // AC no es por pieza: cambia el input a editable y reinicia las piezas.
+    await pickOption(user, 'Producto', /AC/)
+    expect(within(row).getByRole('spinbutton', { name: 'Cantidad' })).not.toHaveAttribute(
+      'readonly',
+    )
+
+    // Volver a ZR (por pieza) recalcula con las piezas actuales (ya vacías), no con la
+    // cantidad que había quedado de antes.
+    await pickOption(user, 'Producto', /ZR/)
+    expect(within(row).getByRole('textbox', { name: 'Cantidad' })).toHaveValue('1')
+  })
+
+  it('al editar, un trabajo con la cantidad guardada distinta de las piezas no se corrige solo', async () => {
+    const now = '2026-01-01T00:00:00.000Z'
+    const initial = {
+      id: 'caso-1',
+      code: '26-00001',
+      boxNumber: null,
+      clinicId: CLINIC.id,
+      doctorId: DOCTOR.id,
+      patientRef: 'Juan Pérez',
+      patientAge: null,
+      patientSex: null,
+      status: 'nuevo',
+      currentStageId: null,
+      assignedTechnicianId: null,
+      priority: 'normal',
+      receivedAt: '2026-01-01',
+      dueDate: '2026-01-15',
+      promisedDate: null,
+      finishedAt: null,
+      shippedAt: null,
+      deliveredAt: null,
+      paidAt: null,
+      shade: null,
+      shadeSystem: null,
+      reference: null,
+      checklist: { antagonista: false, mordida: false, color: false, fotos: false },
+      observations: null,
+      prescription: 'Prescripción en papel',
+      internalNotes: null,
+      holdReason: null,
+      parentCaseId: null,
+      remakeReason: null,
+      remakeResponsibility: null,
+      remakeChargePct: null,
+      total: '90.00',
+      createdBy: 'user-1',
+      createdAt: now,
+      updatedAt: now,
+      clinic: { id: CLINIC.id, name: CLINIC.name },
+      doctor: { id: DOCTOR.id, name: DOCTOR.name },
+      technician: null,
+      stage: null,
+      items: [
+        {
+          id: 'item-1',
+          caseId: 'caso-1',
+          productId: PRODUCT_ZR.id,
+          description: null,
+          // Guardado con 2 piezas pero cantidad 1: dato histórico que no debe
+          // "corregirse" solo al abrir el formulario (ver UX2-03).
+          quantity: 1,
+          teeth: [11, 12],
+          unitPrice: '45.00',
+          discountPct: '0.00',
+          lineTotal: '45.00',
+          material: null,
+          notes: null,
+          sort: 0,
+          product: {
+            id: PRODUCT_ZR.id,
+            code: PRODUCT_ZR.code,
+            name: PRODUCT_ZR.name,
+            pricingUnit: PRODUCT_ZR.pricingUnit,
+          },
+        },
+      ],
+    } as unknown as CaseDetail
+
+    const { user } = renderForm(
+      <CaseForm role="admin" pending={false} initial={initial} onSubmit={vi.fn()} />,
+    )
+
+    const row = await screen.findByTestId('case-item-row')
+    // Espera a que resuelva el catálogo de productos (async): recién entonces se sabe
+    // que el producto es `por_pieza` y aparece el botón "Piezas (2)".
+    expect(await within(row).findByRole('button', { name: 'Piezas (2)' })).toBeInTheDocument()
+    expect(within(row).getByRole('textbox', { name: 'Cantidad' })).toHaveValue('1')
+
+    // Recién al tocar el diálogo de piezas (aunque no cambie la selección) se
+    // sincroniza la cantidad con lo marcado.
+    await markTeeth(user, 2, [])
+    expect(within(row).getByRole('textbox', { name: 'Cantidad' })).toHaveValue('2')
+  })
+
+  it('en escritorio, la fila de línea muestra encabezados de columna alineados con los campos', async () => {
+    setMatchMedia(true)
+    const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Agregar línea' }))
+
+    const headers = screen.getByTestId('case-items-header')
+    for (const label of [
+      'Producto',
+      'Cantidad',
+      'Piezas',
+      'Precio unitario',
+      'Descuento %',
+      'Material',
+      'Nota',
+    ]) {
+      expect(within(headers).getByText(label)).toBeInTheDocument()
+    }
+  })
+
+  it('con role "tecnico", los encabezados de escritorio no muestran "Precio unitario"', async () => {
+    setMatchMedia(true)
+    const { user } = renderForm(<CaseForm role="tecnico" pending={false} onSubmit={vi.fn()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Agregar línea' }))
+
+    const headers = screen.getByTestId('case-items-header')
+    expect(within(headers).queryByText('Precio unitario')).not.toBeInTheDocument()
+  })
+
+  it('con role "admin" (ve el precio), la cabecera y la fila comparten la plantilla de 8 columnas', async () => {
+    setMatchMedia(true)
+    const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Agregar línea' }))
+
+    const headers = screen.getByTestId('case-items-header')
+    const row = screen.getByTestId('case-item-row')
+    // 8 columnas: Producto (col-span-2) + Cantidad + Piezas + Precio unitario +
+    // Descuento + Material + Nota = 8 celdas — sin este ajuste, la cabecera y la fila
+    // usaban `grid-cols-7` con 8 celdas y «Nota» bajaba a una segunda línea.
+    expect(headers.className).toMatch(/(?:^|\s)grid-cols-8(?:\s|$)/)
+    expect(row.className).toMatch(/(?:^|\s)lg:grid-cols-8(?:\s|$)/)
+  })
+
+  it('con role "tecnico" (sin precio), la cabecera y la fila comparten la plantilla de 7 columnas', async () => {
+    setMatchMedia(true)
+    const { user } = renderForm(<CaseForm role="tecnico" pending={false} onSubmit={vi.fn()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Agregar línea' }))
+
+    const headers = screen.getByTestId('case-items-header')
+    const row = screen.getByTestId('case-item-row')
+    expect(headers.className).toMatch(/(?:^|\s)grid-cols-7(?:\s|$)/)
+    expect(headers.className).not.toMatch(/grid-cols-8/)
+    expect(row.className).toMatch(/(?:^|\s)lg:grid-cols-7(?:\s|$)/)
+    expect(row.className).not.toMatch(/grid-cols-8/)
+  })
+
+  it('en móvil no se muestran los encabezados de columna de escritorio', async () => {
+    setMatchMedia(false)
+    const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Agregar línea' }))
+
+    expect(screen.queryByTestId('case-items-header')).not.toBeInTheDocument()
+    setMatchMedia(true) // restaura el valor por defecto de escritorio para las pruebas siguientes
   })
 
   it('el panel "Para aceptar falta" lista "Fecha deseada" hasta que se completa', async () => {

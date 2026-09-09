@@ -20,6 +20,8 @@ Investigación de mercado, dominio y stack (3 agentes Exa, 2026-09-01) confirmó
 | Fases de producción | Por trabajo (fase actual + historial); por línea de producto queda para después |
 | Facturación | Solo control interno: cargos por trabajo entregado, ajustes, pagos, saldo y estado de cuenta por clínica. La factura electrónica SRI se emite fuera; solo se anota su número. IVA 15% informativo |
 | Hosting | VPS Hostinger con Docker (caddy + api + postgres) |
+| Alertas | Correo electrónico con Resend (cuenta disponible; API key en `.env`). WhatsApp (Meta Cloud API) queda post-MVP; el enlace `wa.me` manual se conserva (decidido el 2026-09-07) |
+| Productividad | Producción por persona y sistema de puntos quedan post-MVP (decidido el 2026-09-07) |
 | Documentación de librerías | Consultar siempre context7 para versión y docs vigentes antes de instalar/usar cualquier librería |
 
 ## 3. Arquitectura
@@ -91,7 +93,7 @@ Color de cada estado (chip + texto, nunca solo color): `por_recoger` gris azulad
 
 | Acción | Desde | Hacia | Quién | Regla |
 |---|---|---|---|---|
-| Programar recogida | (nuevo caso) | por_recoger | admin, recepción | crea `delivery` tipo `recogida` asignada al mensajero con fecha; avisa por WhatsApp al mensajero y a la clínica |
+| Programar recogida | (nuevo caso) | por_recoger | admin, recepción | crea `delivery` tipo `recogida` asignada al mensajero con fecha; avisa por correo al mensajero y a la clínica |
 | Recibir | por_recoger | nuevo | mensajero, recepción, admin | cierra la recogida; el trabajo queda como recibido. Un trabajo que la clínica trae directamente se crea en `nuevo` |
 | Aceptar | nuevo | en_proceso | admin, recepción | exige los datos obligatorios completos (§7); fija `promised_date` (días hábiles del mayor `turnaround_days`) y fase inicial |
 | Cambiar fase | en_proceso | en_proceso | técnico, admin, recepción | evento con fase anterior/nueva; retroceder exige motivo |
@@ -126,12 +128,8 @@ La ficha imprimible (Iteración 3) reproduce esta hoja en A5/A4 con los mismos b
 Plantilla CSV/XLSX descargable (una fila por línea de trabajo: clínica, doctor, referencia de paciente, producto, piezas FDI, color, fecha deseada, observaciones). La importación valida cada fila con los mismos schemas zod que el formulario, muestra un informe de errores por fila y solo crea los trabajos cuando el archivo está limpio. Sirve para migrar el histórico de VEVI y para clínicas que envían pedidos en hoja de cálculo.
 
 ### Notificaciones y calendario
-- **WhatsApp** (canal principal de aviso a clínicas y mensajero): mensajes al programar recogida, al recibir, al enviar, al entregar y **recordatorio un día antes** de la fecha comprometida de entrega. Integración con la API oficial de WhatsApp Business (Meta Cloud API) con plantillas aprobadas; mientras no exista la cuenta verificada, enlace `wa.me` con el mensaje prellenado que recepción envía con un toque. Cada envío queda en `notifications` (destinatario, canal, plantilla, estado).
-- **Calendario de entregas**: vista mensual/semanal de recogidas y entregas por clínica y mensajero; cada trabajo aceptado crea su evento en la fecha comprometida; feed ICS por clínica para que lo vean en su propio calendario; alarma interna y WhatsApp **un día antes**.
-
-### Productividad del personal
-- **Producción por persona**: por técnico y período: trabajos y fases completadas, piezas, tiempo por fase, a tiempo vs. atrasadas, repeticiones atribuibles. Se calcula desde `case_events` (cada cambio de fase registra actor y fecha).
-- **Puntos de recompensa y penalización**: reglas configurables por el administrador (p. ej. +puntos por fase cerrada a tiempo o por trabajo sin repetición; −puntos por atraso o repetición atribuible al técnico), tablero mensual por persona y exportación. Los puntos nunca alteran los datos del trabajo; son una vista derivada de los eventos.
+- **Correo electrónico** (canal de aviso a clínicas y mensajero en el MVP, decidido el 2026-09-07): mensajes al programar recogida, al recibir, al enviar, al entregar y **recordatorio un día antes** de la fecha comprometida de entrega, enviados con Resend (cuenta ya disponible) a los correos de `clinics`/`doctors` y del mensajero. Cada envío queda en `notifications` (destinatario, canal, plantilla, estado); `canal` nace como `email` y admite `whatsapp` después sin cambiar el modelo. El envío pasa por un puerto `Mailer` con adaptador Resend y fake en tests (`docs/architecture.md`, ADR 22). Enlace `wa.me` con el mensaje prellenado como acción manual de recepción, sin integración.
+- **Calendario de entregas**: vista mensual/semanal de recogidas y entregas por clínica y mensajero; cada trabajo aceptado crea su evento en la fecha comprometida; feed ICS por clínica para que lo vean en su propio calendario; alarma interna y correo **un día antes**.
 
 ## 6. Pantallas
 
@@ -184,15 +182,20 @@ Precisión sobre catálogos de Configuración: la **lectura** de clínicas, doct
 3. Trabajos II: estados y fases con historial, asignación, pausas, pruebas, remake, cancelación, dashboard, ficha imprimible con QR y `/t/:code`.
 4. Entregas y calendario: recogidas coordinadas con el mensajero (`por_recoger`), envíos, vista del mensajero, prueba con foto, nota de entrega, calendario de entregas con feed ICS.
 5. Cuentas y cobro: saldos, pagos con asignación por trabajo, cierre `cobrado`, ajustes, referencia SRI, estado de cuenta, antigüedad, vista "Por cobrar".
-6. Notificaciones: WhatsApp (Meta Cloud API con plantillas; `wa.me` como respaldo) para recogida, recepción, envío, entrega y recordatorio un día antes; alarmas internas.
-7. Productividad: producción por persona y sistema de puntos de recompensa/penalización configurable.
-8. Cierre MVP: E2E, despliegue en VPS con TLS, backups, instalación de la PWA en Android e iPhone, importación del histórico y datos reales.
+6. Notificaciones: correo con Resend (puerto `Mailer`) para recogida, recepción, envío, entrega y recordatorio un día antes; alarmas internas; tabla `notifications`; enlace `wa.me` manual.
+7. Cierre MVP: E2E, despliegue en VPS con TLS, backups, instalación de la PWA en Android e iPhone, importación del histórico y datos reales.
 
 Cierre de cada iteración (Nelson, 2026-09-06): además del E2E, se abre un issue «Revisión UI/UX de la Iteración N con frontend-design» que recorre todas las pantallas nuevas y verifica que la UI/UX sea la más óptima, responsiva, usable y fácil de entender para el usuario; sus hallazgos se corrigen antes de la siguiente iteración.
 
-Post-MVP: Capacitor iOS/Android, fases por línea, listas de precios completas, almacén con lotes (ARCSA), portal del odontólogo, facturación electrónica SRI.
+Post-MVP: Capacitor iOS/Android, fases por línea, listas de precios completas, almacén con lotes (ARCSA), portal del odontólogo, facturación electrónica SRI, avisos por WhatsApp (Meta Cloud API con plantillas aprobadas, mismo modelo `notifications` con `canal = whatsapp`), productividad del personal (ver abajo).
 
-Cambios del 2026-09-04 (pedido de Nelson): recogida coordinada con el mensajero, cierre al cobrar con énfasis en pagos, colores por estado, validación de datos obligatorios al recibir, formato de importación, alertas por WhatsApp y calendario de entregas con aviso un día antes, producción por persona y sistema de puntos. La Iteración 1 (Configuración) no cambia; la máquina de estados de `shared` se amplía en la 3.
+Cambios del 2026-09-04 (pedido de Nelson): recogida coordinada con el mensajero, cierre al cobrar con énfasis en pagos, colores por estado, validación de datos obligatorios al recibir, formato de importación, alertas y calendario de entregas con aviso un día antes, producción por persona y sistema de puntos. La Iteración 1 (Configuración) no cambia; la máquina de estados de `shared` se amplía en la 3.
+
+Cambios del 2026-09-07 (pedido de Nelson): las alertas del MVP se envían solo por correo con Resend; WhatsApp pasa a post-MVP. La productividad del personal sale del MVP entera y la antigua Iteración 8 (Cierre MVP) pasa a ser la 7. Hito «Post-MVP» en GitHub con las épicas retiradas.
+
+### Post-MVP: productividad del personal (retirado del MVP el 2026-09-07)
+- **Producción por persona**: por técnico y período: trabajos y fases completadas, piezas, tiempo por fase, a tiempo vs. atrasadas, repeticiones atribuibles. Se calcula desde `case_events` (cada cambio de fase registra actor y fecha), así que el MVP no necesita preparar nada para habilitarlo después.
+- **Puntos de recompensa y penalización**: reglas configurables por el administrador (p. ej. +puntos por fase cerrada a tiempo o por trabajo sin repetición; −puntos por atraso o repetición atribuible al técnico), tablero mensual por persona y exportación. Los puntos nunca alteran los datos del trabajo; son una vista derivada de los eventos.
 
 ## 11. Supuestos
 

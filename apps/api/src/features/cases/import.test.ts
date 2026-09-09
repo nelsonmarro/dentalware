@@ -215,6 +215,59 @@ describe('/api/trabajos/importar', () => {
     expect(rows).toHaveLength(0)
   })
 
+  it('reporta en una sola pasada el error de resolución de una fila y el de formato de otra', async () => {
+    const csv = csvOf([
+      // fila 2: formato correcto, pero la clínica no existe (error de resolución)
+      ['Clínica Fantasma', 'Dr. Pérez', 'Ana Paciente', 'ZR', '11', '1', '', '2026-09-20', '', ''],
+      // fila 3: clínica y doctor válidos, pero fecha_deseada con formato inválido
+      ['Clínica Sonrisa', 'Dr. Pérez', 'Otro Paciente', 'ZR', '12', '1', '', '2026-13-40', '', ''],
+    ])
+    const r = await upload(recepcion, csv, true)
+    expect(r.status).toBe(200)
+    const report = (await r.json()) as {
+      errors: { row: number; column: string; message: string }[]
+      created: string[]
+    }
+    expect(report.errors).toEqual([
+      { row: 2, column: 'clinica', message: 'La clínica "Clínica Fantasma" no existe' },
+      {
+        row: 3,
+        column: 'fecha_deseada',
+        message: 'Fecha inválida (usa AAAA-MM-DD o DD/MM/AAAA)',
+      },
+    ])
+    expect(report.created).toEqual([])
+
+    const rows = await ctx.db.select().from(ctx.schema.cases)
+    expect(rows).toHaveLength(0)
+  })
+
+  it('reporta el error de formato y el de resolución de la misma fila juntos', async () => {
+    const csv = csvOf([
+      // clínica inexistente (resolución) y fecha_deseada con formato inválido, misma fila
+      ['Clínica Fantasma', 'Dr. Pérez', 'Ana Paciente', 'ZR', '11', '1', '', '2026-13-40', '', ''],
+    ])
+    const antes = await ctx.db.select().from(ctx.schema.cases)
+    const r = await upload(recepcion, csv, true)
+    expect(r.status).toBe(200)
+    const report = (await r.json()) as {
+      errors: { row: number; column: string; message: string }[]
+      created: string[]
+    }
+    expect(report.errors).toEqual([
+      { row: 2, column: 'clinica', message: 'La clínica "Clínica Fantasma" no existe' },
+      {
+        row: 2,
+        column: 'fecha_deseada',
+        message: 'Fecha inválida (usa AAAA-MM-DD o DD/MM/AAAA)',
+      },
+    ])
+    expect(report.created).toEqual([])
+
+    const despues = await ctx.db.select().from(ctx.schema.cases)
+    expect(despues).toHaveLength(antes.length)
+  })
+
   it('la plantilla lleva BOM UTF-8 y se puede volver a subir sin error de cabecera', async () => {
     const plantilla = await app.request('/api/trabajos/importar/plantilla', {
       headers: { cookie: recepcion, origin: ctx.config.WEB_ORIGIN },
