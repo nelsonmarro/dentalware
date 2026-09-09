@@ -6,10 +6,14 @@ import { secureHeaders } from 'hono/secure-headers'
 import type { Auth } from './auth.ts'
 import type { Db } from './db/index.ts'
 import { attachmentsRoutes } from './features/attachments/routes.ts'
+import { hasDocument } from './features/attachments/repo.ts'
 import { meRoutes } from './features/auth/me.routes.ts'
 import type { AppEnv } from './features/auth/session.ts'
 import { requireRole, sessionMiddleware } from './features/auth/session.ts'
+import { importRoutes } from './features/cases/import.ts'
 import { casesRoutes } from './features/cases/routes.ts'
+import { createCasesRepo, drizzleUnitOfWork } from './features/cases/repo.ts'
+import { createCasesService } from './features/cases/service.ts'
 import { clinicsRoutes } from './features/clinics/routes.ts'
 import { doctorsRoutes } from './features/doctors/routes.ts'
 import { healthRoutes } from './features/health/routes.ts'
@@ -17,12 +21,24 @@ import { labSettingsRoutes } from './features/lab-settings/routes.ts'
 import { productsRoutes } from './features/products/routes.ts'
 import { stagesRoutes } from './features/stages/routes.ts'
 import { usersRoutes } from './features/users/routes.ts'
+import type { Clock } from './lib/clock.ts'
+import { systemClock } from './lib/clock.ts'
 import type { Storage } from './lib/storage.ts'
 
-export type AppDeps = { auth: Auth; db: Db; webOrigin: string; storage: Storage }
+export type AppDeps = { auth: Auth; db: Db; webOrigin: string; storage: Storage; clock?: Clock }
 
-export function createApp({ auth, db, webOrigin, storage }: AppDeps) {
+export function createApp({ auth, db, webOrigin, storage, clock }: AppDeps) {
   const app = new Hono<AppEnv>()
+
+  const casesRepo = createCasesRepo(db)
+  // AttachmentsQuery hasta la Tarea 4 (integra la factoría de adjuntos): misma
+  // consulta que antes hacía la ruta de trabajos directamente contra `db.query`.
+  const casesService = createCasesService({
+    cases: casesRepo,
+    attachments: { hasDocument: (caseId) => hasDocument(db, caseId) },
+    uow: drizzleUnitOfWork(db),
+    clock: clock ?? systemClock,
+  })
 
   app.use(secureHeaders())
   if (process.env.NODE_ENV !== 'test') app.use(logger())
@@ -63,7 +79,7 @@ export function createApp({ auth, db, webOrigin, storage }: AppDeps) {
     .route('/api/config/doctores', doctorsRoutes(db))
     .route('/api/config/productos', productsRoutes(db))
     .route('/api/config/fases', stagesRoutes(db))
-    .route('/api/trabajos', casesRoutes(db))
+    .route('/api/trabajos', casesRoutes(casesService, importRoutes(db)))
     .route('/api/users', usersRoutes(db, auth))
     .route('/api/adjuntos', attachmentsRoutes(db, storage))
 

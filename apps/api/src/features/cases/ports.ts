@@ -11,10 +11,11 @@ import type { caseEvents, caseItems, cases } from './schema.ts'
 
 export type Named = { id: string; name: string }
 export type CaseDetail = typeof cases.$inferSelect & {
-  // Las relaciones "one" de Drizzle (`relations.ts`) se tipan como nullable aunque la FK
-  // sea NOT NULL: el tipo no puede probar integridad referencial a nivel de esquema.
-  clinic: Named | null
-  doctor: Named | null
+  // `clinic`/`doctor` van con `optional: false` en `relations.ts` (FK NOT NULL en
+  // `cases`): Drizzle Relations v2 los tipa como presentes, no `| null` (ver
+  // docs/architecture.md §3.6). `technician`/`stage` sí son opcionales de verdad.
+  clinic: Named
+  doctor: Named
   technician: Named | null
   stage: { id: string; name: string; color: string } | null
   items: (typeof caseItems.$inferSelect & {

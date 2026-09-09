@@ -190,21 +190,6 @@ async function listCasesWith(db: Db | Tx, q: CaseListQuery, today: string) {
   }
 }
 
-type Priced = {
-  total: string | null
-  internalNotes: string | null
-  items: { unitPrice: string | null; lineTotal: string | null; discountPct: string | null }[]
-}
-/** Oculta precios y notas internas a quien no debe verlos (técnico/mensajero). */
-export function stripPrices<T extends Priced>(row: T): T {
-  return {
-    ...row,
-    total: null,
-    internalNotes: null,
-    items: row.items.map((i) => ({ ...i, unitPrice: null, lineTotal: null, discountPct: null })),
-  }
-}
-
 /**
  * Repositorio de trabajos: opera sobre `db` (conexión) o `tx` (transacción abierta) tal cual
  * se le pase. `create` y `update` no abren transacción propia (ADR 19): el llamador que

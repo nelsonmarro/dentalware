@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createUser, setupTestDb, truncateAll } from '../../test/setup.ts'
 import { CaseInputError, CaseStateError } from './errors.ts'
-import { createCasesRepo, drizzleUnitOfWork, stripPrices } from './repo.ts'
+import { createCasesRepo, drizzleUnitOfWork } from './repo.ts'
 
 describe('features/cases/repo', () => {
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
@@ -198,20 +198,6 @@ describe('features/cases/repo', () => {
       (await repo.list(caseListQuerySchema.parse({ q: '26-00003' }), '2026-09-06')).cases,
     ).toHaveLength(1)
     expect((await repo.list(caseListQuerySchema.parse({}), '2026-09-06')).pageSize).toBe(50)
-  })
-
-  it('stripPrices anula precios y totales', () => {
-    const s = stripPrices({
-      total: '10.00',
-      items: [{ unitPrice: '1.00', lineTotal: '1.00', discountPct: '0.00', quantity: 1 }],
-    })
-    expect(s.total).toBeNull()
-    expect(s.items[0]).toMatchObject({
-      unitPrice: null,
-      lineTotal: null,
-      discountPct: null,
-      quantity: 1,
-    })
   })
 
   it('addEvent registra un evento con actor', async () => {

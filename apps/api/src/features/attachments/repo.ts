@@ -40,6 +40,18 @@ export function getAttachment(db: Db, id: string) {
   })
 }
 
+/**
+ * Implementa el puerto `AttachmentsQuery` de `cases` (misma consulta que hacía antes la
+ * ruta de trabajos). Se integrará en la factoría de adjuntos en la Tarea 4.
+ */
+export async function hasDocument(db: Db, caseId: string): Promise<boolean> {
+  const found = await db.query.attachments.findFirst({
+    where: { caseId, kind: 'document' },
+    columns: { id: true },
+  })
+  return found !== undefined
+}
+
 export async function deleteAttachment(db: Db, id: string) {
   await db.delete(attachments).where(eq(attachments.id, id))
 }
