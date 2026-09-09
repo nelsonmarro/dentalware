@@ -83,10 +83,13 @@ export async function createProduct(page: Page) {
 // Task 6 (43.07 px medidos bajo 8 workers en paralelo, 44 px en corridas aisladas) y
 // no reproducido de forma determinista en la Task 7 pese a >150 repeticiones dirigidas
 // (`pnpm e2e --project=android -g "piezas" --repeat-each=25`, suites completas
-// repetidas) — es redondeo genuino de DPR, no un control sin alto fijo. Con 4-5
-// ancestros en la cadena, el peor caso teórico ronda 4×0.381 ≈ 1.5 px; 1 px cubre con
-// margen el valor medido (0.93 px) sin dejar pasar una regresión real (un control sin
-// escala de 44 px falla por 8+ px, muy por encima de este margen).
+// repetidas) — es redondeo genuino de DPR, no un control sin alto fijo. El epsilon
+// cubre con margen el déficit medido (0.93 px), no un peor caso teórico de la cadena
+// de ancestros (que rondaría los 4-5 × 0.381 ≈ 1.5-1.9 px con 4-5 ancestros): un
+// control real por debajo de 43 px (44 − 1) sigue fallando la aserción, y uno sin
+// escala fija de 44 px falla por 8+ px, muy por encima de este margen. Si el déficit
+// medido volviera a superar 1 px, investigar la causa (¿más ancestros en la cadena?
+// ¿otro DPR?) en vez de subir el epsilon de nuevo sin analizar.
 const SUBPIXEL_EPSILON = 1
 
 /**

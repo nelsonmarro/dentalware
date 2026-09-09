@@ -91,6 +91,14 @@ export function ClinicPricesTable({ clinicId }: { clinicId: string }) {
   // en una fila que luego el buscador oculta (se desmonta del `DataTable`) no se pierda
   // al quitar el filtro y volver a montarse.
   const [drafts, setDrafts] = useState<Record<string, string>>({})
+  // Ajusta el estado durante el render (no en un efecto) al detectar que `clinicId`
+  // cambió, para que un borrador sin guardar de la clínica anterior nunca aparezca
+  // como valor de la clínica nueva (mismo patrón que `categories-list.tsx`).
+  const [seenClinicId, setSeenClinicId] = useState(clinicId)
+  if (clinicId !== seenClinicId) {
+    setSeenClinicId(clinicId)
+    setDrafts({})
+  }
   if (products.isPending || prices.isPending)
     return <p className="text-sm text-muted-foreground">Cargando…</p>
   const byProduct = new Map((prices.data ?? []).map((p) => [p.productId, p.price]))

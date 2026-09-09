@@ -1,3 +1,4 @@
+import { QueryClientProvider } from '@tanstack/react-query'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -90,5 +91,23 @@ describe('ClinicPricesTable', () => {
     await user.clear(search)
 
     expect(await screen.findByLabelText('Precio especial de Zirconio')).toHaveValue('50.00')
+  })
+
+  it('un borrador sin guardar no cruza a otra clínica cuando `clinicId` cambia', async () => {
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    const { rerender, client } = renderWithProviders(<ClinicPricesTable clinicId="clinic-1" />)
+
+    const priceInput = await screen.findByLabelText('Precio especial de Zirconio')
+    await user.type(priceInput, '50.00')
+    expect(priceInput).toHaveValue('50.00')
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <ClinicPricesTable clinicId="clinic-2" />
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByLabelText('Precio especial de Zirconio')).toHaveValue('')
   })
 })
