@@ -38,6 +38,17 @@ const noAdapters = (files, extra = []) => ({
           },
           {
             group: [
+              '../../lib/images.ts',
+              '../../lib/storage.ts',
+              '../../lib/ids.ts',
+              '../../lib/clock.ts',
+            ],
+            allowTypeImports: true,
+            message:
+              'Del adaptador solo se importa su puerto (import type): la implementación se inyecta en createApp.',
+          },
+          {
+            group: [
               './repo',
               './repo.ts',
               './routes',
@@ -55,6 +66,9 @@ const noAdapters = (files, extra = []) => ({
               '../*/import.repo.ts',
               '../*/import.routes.ts',
               '../*/import.service.ts',
+              '**/features/*/repo.ts',
+              '**/features/*/routes.ts',
+              '**/features/*/service.ts',
             ],
             message:
               'Entre features solo se comparten puertos (ports.ts) y errores (errors.ts); la inyección va en createApp.',
@@ -113,7 +127,7 @@ export default defineConfig([
 
   // --- apps/api: servicios y puertos, sin adaptadores (ADR 17-20) ---
   noAdapters(
-    [`${API}/*/service.ts`, `${API}/*/*.service.ts`],
+    [`${API}/*/service.ts`, `${API}/*/*.service.ts`, `${API}/*/errors.ts`],
     [
       {
         group: ['./schema', './schema.ts', '../*/schema.ts'],
@@ -157,6 +171,11 @@ export default defineConfig([
               ],
               message: 'La ruta solo valida, autoriza y traduce: los datos llegan por el servicio.',
             },
+            {
+              group: ['**/db/**'],
+              allowTypeImports: true,
+              message: 'La ruta no toca la base de datos: solo el tipo Db para su factoría.',
+            },
           ],
         },
       ],
@@ -193,6 +212,19 @@ export default defineConfig([
       'no-restricted-globals': [
         'error',
         { name: 'fetch', message: 'La red solo se toca en features/<f>/api.ts.' },
+      ],
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'window',
+          property: 'fetch',
+          message: 'La red solo se toca en features/<f>/api.ts.',
+        },
+        {
+          object: 'globalThis',
+          property: 'fetch',
+          message: 'La red solo se toca en features/<f>/api.ts.',
+        },
       ],
     },
   },

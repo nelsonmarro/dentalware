@@ -1,4 +1,4 @@
-import { ALLOWED_MIME, isImage, MAX_UPLOAD_BYTES } from '../../lib/images.ts'
+import { ALLOWED_MIME, isImage, MAX_UPLOAD_BYTES } from '../../lib/upload-policy.ts'
 import type { IdGenerator } from '../../lib/ids.ts'
 import type { RequestContext } from '../../lib/request-context.ts'
 import type { Storage } from '../../lib/storage.ts'
