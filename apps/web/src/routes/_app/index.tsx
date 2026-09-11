@@ -1,6 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { api } from '@/lib/api'
+import { useHealth } from '@/features/health/use-health'
 
 export const Route = createFileRoute('/_app/')({
   component: HomePage,
@@ -8,13 +7,7 @@ export const Route = createFileRoute('/_app/')({
 
 function HomePage() {
   const { user } = Route.useRouteContext()
-  const health = useQuery({
-    queryKey: ['health'],
-    queryFn: async () => {
-      const res = await api.api.health.$get()
-      return res.json()
-    },
-  })
+  const health = useHealth()
   const status = health.isPending ? 'comprobando…' : health.data?.ok ? 'conectada' : 'sin conexión'
   return (
     <div className="flex flex-col gap-4">

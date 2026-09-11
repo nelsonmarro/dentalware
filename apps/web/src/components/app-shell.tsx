@@ -3,7 +3,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { ClipboardList, Home, LogOut, Settings, Truck, Wallet } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
-import { authClient } from '@/features/auth/auth-client'
+import { signOut } from '@/features/auth/session'
 
 type NavItem = { to: string; label: string; icon: typeof Home; roles?: UserRole[] }
 
@@ -36,7 +36,7 @@ export function AppShell({
   const items = NAV.filter((i) => !i.roles || i.roles.includes(user.role))
 
   async function logout() {
-    await authClient.signOut()
+    await signOut()
     await navigate({ to: '/login' })
   }
 

@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { authClient } from '@/features/auth/auth-client'
+import { signIn } from '@/features/auth/session'
 
 export function LoginForm({ onSuccess }: { onSuccess: () => void | Promise<void> }) {
   const [serverError, setServerError] = useState<string | null>(null)
@@ -16,8 +16,8 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void | Promise<void>
 
   async function onSubmit(values: LoginInput) {
     setServerError(null)
-    const { error } = await authClient.signIn.email(values)
-    if (error) {
+    const result = await signIn(values)
+    if (!result.ok) {
       setServerError('Correo o contraseña incorrectos')
       return
     }
