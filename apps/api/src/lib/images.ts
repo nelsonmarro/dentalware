@@ -1,10 +1,9 @@
 import sharp from 'sharp'
 import type { ImageProcessor } from '../features/attachments/ports.ts'
 
-export const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const
-export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024
-
-export const isImage = (mime: string) => mime.startsWith('image/')
+// Reexportado por compatibilidad (attachments/routes.ts y tests existentes); la política
+// vive en upload-policy.ts, que no importa `sharp` (docs/architecture.md §3.5 I-1).
+export { ALLOWED_MIME, MAX_UPLOAD_BYTES, isImage } from './upload-policy.ts'
 
 /** Rota según EXIF, limita a 1600px (sin agrandar) y recodifica a JPEG sin metadatos. */
 export async function normalizeImage(input: Uint8Array) {

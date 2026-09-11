@@ -1,6 +1,7 @@
 import type { CaseListQueryInput } from '@/features/cases/api'
 
 export const queryKeys = {
+  health: ['health'] as const,
   labSettings: ['config', 'laboratorio'] as const,
   clinics: (inactive: boolean) => ['config', 'clinicas', { inactive }] as const,
   clinic: (id: string) => ['config', 'clinicas', id] as const,
