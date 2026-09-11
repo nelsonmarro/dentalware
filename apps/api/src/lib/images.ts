@@ -1,4 +1,5 @@
 import sharp from 'sharp'
+import type { ImageProcessor } from '../features/attachments/ports.ts'
 
 export const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -22,4 +23,10 @@ export function makeThumbnail(input: Uint8Array) {
     .resize({ width: 320, height: 320, fit: 'inside', withoutEnlargement: true })
     .webp({ quality: 75 })
     .toBuffer()
+}
+
+/** Adaptador del puerto `ImageProcessor` (features/attachments/ports.ts) sobre `sharp`. */
+export const sharpImages: ImageProcessor = {
+  normalize: normalizeImage,
+  thumbnail: makeThumbnail,
 }

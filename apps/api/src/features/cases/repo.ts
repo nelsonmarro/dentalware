@@ -1,4 +1,4 @@
-import type { CaseEventType, CaseInput, CaseListQuery } from '@dentalware/shared'
+import type { CaseInput, CaseListQuery } from '@dentalware/shared'
 import {
   CASE_PAGE_SIZE,
   formatCaseCode,
@@ -9,27 +9,18 @@ import {
   toCents,
 } from '@dentalware/shared'
 import { and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
-import type { Db } from '../../db/index.ts'
+import type { Db, Tx } from '../../db/index.ts'
 import { users } from '../../db/schema/auth.ts'
 import { clinics } from '../clinics/schema.ts'
 import { doctors } from '../doctors/schema.ts'
 import { clinicProductPrices, products } from '../products/schema.ts'
 import { stages } from '../stages/schema.ts'
+import { CaseInputError, CaseStateError } from './errors.ts'
+import type { CasesRepository, NewCaseEvent, UnitOfWork } from './ports.ts'
 import { caseEvents, caseItems, cases, caseSequences } from './schema.ts'
 
-export class CaseInputError extends Error {
-  path: string
-  constructor(message: string, path = '') {
-    super(message)
-    this.path = path
-  }
-}
-export class CaseStateError extends Error {}
-
-export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
-
-export async function nextCaseCode(tx: Tx | Db, year: number): Promise<string> {
-  const [row] = await tx
+async function nextCaseCode(db: Db | Tx, year: number): Promise<string> {
+  const [row] = await db
     .insert(caseSequences)
     .values({ year, last: 1 })
     .onConflictDoUpdate({
@@ -41,10 +32,10 @@ export async function nextCaseCode(tx: Tx | Db, year: number): Promise<string> {
 }
 
 /** Resuelve precio (explícito → especial de la clínica → base) y totales de cada línea. */
-async function priceItems(tx: Tx | Db, clinicId: string, items: CaseInput['items']) {
+async function priceItems(db: Db | Tx, clinicId: string, items: CaseInput['items']) {
   const ids = [...new Set(items.map((i) => i.productId))]
   const found = ids.length
-    ? await tx
+    ? await db
         .select({
           id: products.id,
           basePrice: products.basePrice,
@@ -108,18 +99,8 @@ function caseColumns(input: CaseInput) {
   }
 }
 
-export async function addEvent(
-  tx: Tx | Db,
-  e: {
-    caseId: string
-    type: CaseEventType
-    fromValue?: string | null
-    toValue?: string | null
-    reason?: string | null
-    actorId: string | null
-  },
-) {
-  await tx.insert(caseEvents).values({
+async function addEventWith(db: Db | Tx, e: NewCaseEvent): Promise<void> {
+  await db.insert(caseEvents).values({
     caseId: e.caseId,
     type: e.type,
     fromValue: e.fromValue ?? null,
@@ -129,94 +110,10 @@ export async function addEvent(
   })
 }
 
-/** Crea un trabajo dentro de una transacción ya abierta (la importación CSV crea varios en la misma). */
-export async function createCaseTx(
-  tx: Tx,
-  input: CaseInput,
-  actorId: string,
-): Promise<{ id: string; code: string }> {
-  const year = Number(input.receivedAt.slice(0, 4))
-  const code = await nextCaseCode(tx, year)
-  const items = await priceItems(tx, input.clinicId, input.items)
-  const [row] = await tx
-    .insert(cases)
-    .values({ ...caseColumns(input), code, total: totalOf(items), createdBy: actorId })
-    .returning({ id: cases.id })
-  await tx.insert(caseItems).values(items.map((i) => ({ ...i, caseId: row!.id })))
-  await addEvent(tx, { caseId: row!.id, type: 'created', toValue: code, actorId })
-  return { id: row!.id, code }
-}
-
-export async function createCase(db: Db, input: CaseInput, actorId: string): Promise<string> {
-  return db.transaction(async (tx) => (await createCaseTx(tx, input, actorId)).id)
-}
-
-export function updateCase(
-  db: Db,
-  id: string,
-  input: CaseInput,
-  actorId: string,
-): Promise<boolean> {
-  return db.transaction(async (tx) => {
-    const [current] = await tx
-      .select({ status: cases.status })
-      .from(cases)
-      .where(eq(cases.id, id))
-      .for('update')
-    if (!current) return false
-    if (!isEditableStatus(current.status)) {
-      throw new CaseStateError(`No se puede editar un trabajo en estado "${current.status}"`)
-    }
-    const before = await tx
-      .select({ productId: caseItems.productId, unitPrice: caseItems.unitPrice })
-      .from(caseItems)
-      .where(eq(caseItems.caseId, id))
-    const items = await priceItems(tx, input.clinicId, input.items)
-    await tx
-      .update(cases)
-      .set({ ...caseColumns(input), total: totalOf(items), updatedAt: new Date() })
-      .where(eq(cases.id, id))
-    await tx.delete(caseItems).where(eq(caseItems.caseId, id))
-    await tx.insert(caseItems).values(items.map((i) => ({ ...i, caseId: id })))
-    await addEvent(tx, { caseId: id, type: 'edited', actorId })
-    const beforeMap = new Map(before.map((b) => [b.productId, b.unitPrice]))
-    const changed = items.filter(
-      (i) => beforeMap.has(i.productId) && beforeMap.get(i.productId) !== i.unitPrice,
-    )
-    if (changed.length) {
-      await addEvent(tx, {
-        caseId: id,
-        type: 'price_changed',
-        fromValue: changed.map((c) => `${c.productId}:${beforeMap.get(c.productId)}`).join(','),
-        toValue: changed.map((c) => `${c.productId}:${c.unitPrice}`).join(','),
-        actorId,
-      })
-    }
-    return true
-  })
-}
-
-export function getCase(db: Db, id: string) {
-  return db.query.cases.findFirst({
-    where: { id },
-    with: {
-      clinic: { columns: { id: true, name: true } },
-      doctor: { columns: { id: true, name: true } },
-      technician: { columns: { id: true, name: true } },
-      stage: { columns: { id: true, name: true, color: true } },
-      items: {
-        orderBy: { sort: 'asc' },
-        with: { product: { columns: { id: true, code: true, name: true, pricingUnit: true } } },
-      },
-    },
-  })
-}
-export type CaseDetail = NonNullable<Awaited<ReturnType<typeof getCase>>>
-
 const ACTIVE_FOR_DATES = ['nuevo', 'en_proceso', 'en_espera', 'en_prueba'] as const
 const effectiveDate = sql<string | null>`coalesce(${cases.promisedDate}, ${cases.dueDate})`
 
-export async function listCases(db: Db, q: CaseListQuery, today: string) {
+async function listCasesWith(db: Db | Tx, q: CaseListQuery, today: string) {
   const conds = []
   if (q.vista === 'nuevos') conds.push(eq(cases.status, 'nuevo'))
   if (q.vista === 'en_curso')
@@ -290,27 +187,95 @@ export async function listCases(db: Db, q: CaseListQuery, today: string) {
     pageSize: CASE_PAGE_SIZE,
   }
 }
-export type CaseListRow = Awaited<ReturnType<typeof listCases>>['cases'][number]
 
-export function listEvents(db: Db, caseId: string) {
-  return db.query.caseEvents.findMany({
-    where: { caseId },
-    orderBy: { createdAt: 'asc' },
-    with: { actor: { columns: { id: true, name: true } } },
-  })
-}
-
-type Priced = {
-  total: string | null
-  internalNotes: string | null
-  items: { unitPrice: string | null; lineTotal: string | null; discountPct: string | null }[]
-}
-/** Oculta precios y notas internas a quien no debe verlos (técnico/mensajero). */
-export function stripPrices<T extends Priced>(row: T): T {
+/**
+ * Repositorio de trabajos: opera sobre `db` (conexión) o `tx` (transacción abierta) tal cual
+ * se le pase. `create` y `update` no abren transacción propia (ADR 19): el llamador que
+ * necesite atomicidad lo hace a través de `drizzleUnitOfWork(db).run(...)`.
+ */
+export function createCasesRepo(db: Db | Tx) {
   return {
-    ...row,
-    total: null,
-    internalNotes: null,
-    items: row.items.map((i) => ({ ...i, unitPrice: null, lineTotal: null, discountPct: null })),
-  }
+    async create(input, actorId) {
+      const year = Number(input.receivedAt.slice(0, 4))
+      const code = await nextCaseCode(db, year)
+      const items = await priceItems(db, input.clinicId, input.items)
+      const [row] = await db
+        .insert(cases)
+        .values({ ...caseColumns(input), code, total: totalOf(items), createdBy: actorId })
+        .returning({ id: cases.id })
+      await db.insert(caseItems).values(items.map((i) => ({ ...i, caseId: row!.id })))
+      await addEventWith(db, { caseId: row!.id, type: 'created', toValue: code, actorId })
+      return { id: row!.id, code }
+    },
+
+    async update(id, input, actorId) {
+      const [current] = await db
+        .select({ status: cases.status })
+        .from(cases)
+        .where(eq(cases.id, id))
+        .for('update')
+      if (!current) return false
+      if (!isEditableStatus(current.status)) {
+        throw new CaseStateError(`No se puede editar un trabajo en estado "${current.status}"`)
+      }
+      const before = await db
+        .select({ productId: caseItems.productId, unitPrice: caseItems.unitPrice })
+        .from(caseItems)
+        .where(eq(caseItems.caseId, id))
+      const items = await priceItems(db, input.clinicId, input.items)
+      await db
+        .update(cases)
+        .set({ ...caseColumns(input), total: totalOf(items), updatedAt: new Date() })
+        .where(eq(cases.id, id))
+      await db.delete(caseItems).where(eq(caseItems.caseId, id))
+      await db.insert(caseItems).values(items.map((i) => ({ ...i, caseId: id })))
+      await addEventWith(db, { caseId: id, type: 'edited', actorId })
+      const beforeMap = new Map(before.map((b) => [b.productId, b.unitPrice]))
+      const changed = items.filter(
+        (i) => beforeMap.has(i.productId) && beforeMap.get(i.productId) !== i.unitPrice,
+      )
+      if (changed.length) {
+        await addEventWith(db, {
+          caseId: id,
+          type: 'price_changed',
+          fromValue: changed.map((c) => `${c.productId}:${beforeMap.get(c.productId)}`).join(','),
+          toValue: changed.map((c) => `${c.productId}:${c.unitPrice}`).join(','),
+          actorId,
+        })
+      }
+      return true
+    },
+
+    byId: (id) =>
+      db.query.cases.findFirst({
+        where: { id },
+        with: {
+          clinic: { columns: { id: true, name: true } },
+          doctor: { columns: { id: true, name: true } },
+          technician: { columns: { id: true, name: true } },
+          stage: { columns: { id: true, name: true, color: true } },
+          items: {
+            orderBy: { sort: 'asc' },
+            with: {
+              product: { columns: { id: true, code: true, name: true, pricingUnit: true } },
+            },
+          },
+        },
+      }),
+
+    list: (q, today) => listCasesWith(db, q, today),
+
+    events: (caseId) =>
+      db.query.caseEvents.findMany({
+        where: { caseId },
+        orderBy: { createdAt: 'asc' },
+        with: { actor: { columns: { id: true, name: true } } },
+      }),
+
+    addEvent: (e) => addEventWith(db, e),
+  } satisfies CasesRepository
 }
+
+export const drizzleUnitOfWork = (db: Db): UnitOfWork => ({
+  run: (fn) => db.transaction((tx) => fn({ cases: createCasesRepo(tx) })),
+})

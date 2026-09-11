@@ -38,7 +38,7 @@ Flujo de dependencias, único y verificable:
 1. `routes.ts → service.ts → ports.ts ← repo.ts / storage / auth`. **Las flechas nunca se invierten**: un servicio no importa `hono`, `drizzle-orm`, `./repo.ts` ni `./schema.ts`; conoce solo interfaces.
 2. `shared` no depende de nada salvo `zod` y no hace I/O. Es la **única fuente de verdad** de DTOs, enums y reglas puras (transiciones, días hábiles, totales, código de trabajo, readiness).
 3. `api` depende de `shared`; nunca de `web`. `web` depende de `shared` y solo de **tipos** de `api` (`@dentalware/api/app` para `hc<AppType>`); nunca de su runtime.
-4. Una feature puede depender de **puertos** de otra (declarados en su propio `ports.ts` e inyectados en la raíz de composición), **nunca de sus adaptadores** (`repo.ts`, `schema.ts`, `routes.ts`). Hoy esto se incumple en `apps/api/src/features/attachments/routes.ts:21` y `apps/api/src/features/cases/routes.ts:78` (ver §3.6).
+4. Una feature puede depender de **puertos** de otra (declarados en su propio `ports.ts` e inyectados en la raíz de composición), **nunca de sus adaptadores** (`repo.ts`, `schema.ts`, `routes.ts`) — con dos excepciones acotadas: el `repo.ts` de una feature puede importar el `schema.ts` de otra para joins y lecturas de solo lectura (ADR 24; ejemplo real: `apps/api/src/features/cases/import.repo.ts` lee `clinics`/`doctors`/`products`); y `errors.ts` puede reexportar una clase de error de dominio de otra feature, nunca un adaptador (ADR 26; ejemplo real: `apps/api/src/features/attachments/errors.ts` reexporta `CaseNotFoundError` de `../cases/errors.ts`). Esto ya no se incumple en `attachments/routes.ts` ni en `cases/routes.ts`: ambas se migraron en el PR A (ver §3.6).
 5. Las rutas de la web (`apps/web/src/routes`) son adaptadores de UI: componen features y componentes, no contienen lógica de negocio.
 
 ## 3. Capas y patrones por aplicación
@@ -62,7 +62,8 @@ apps/api/src/features/<f>/
   errors.ts    errores de dominio (CaseInputError, CaseStateError, CaseNotFoundError)
   repo.ts      adaptador driven: Drizzle. `createXRepo(db) satisfies XRepository`
   routes.ts    adaptador driving: Hono (validate, roles, códigos HTTP, traducción de errores)
-  schema.ts    tablas Drizzle (detalle de persistencia; solo lo importa repo.ts)
+  schema.ts    tablas Drizzle (detalle de persistencia; la importa repo.ts, y ports.ts solo para tipos)
+  fakes.ts     implementaciones en memoria de los puertos, usadas por *.test.ts
   *.test.ts    servicio con fakes en memoria (rápido) + rutas contra Postgres real (integración)
 ```
 
@@ -97,6 +98,8 @@ export interface Clock {
 }
 ```
 
+`ports.ts` no declara sus tipos de fila a mano: los deriva con `import type` de `./schema.ts` (`typeof tabla.$inferSelect` + relaciones necesarias, p. ej. `CaseDetail`/`CaseEventRow` en `features/cases/ports.ts` o `AttachmentRecord` en `features/attachments/ports.ts`), **nunca de `repo.ts`** (ADR 25). Es el único import que `ports.ts` hace de `schema.ts`: sigue sin importar Hono, Drizzle en ejecución (`drizzle-orm`) ni el propio `repo.ts`.
+
 **Caso de uso** (`service.ts`) — factoría, sin clases ni decoradores; recibe el `RequestContext` como parámetro (nunca `c.var`):
 
 ```ts
@@ -128,7 +131,7 @@ export function createCasesService(deps: {
 export type CasesService = ReturnType<typeof createCasesService>
 ```
 
-**Adaptador de persistencia** (`repo.ts`) — repositorio Drizzle, con la misma factoría para `db` y para `tx`, lo que sustituye al par `createCaseTx` / `createCase` de hoy (`features/cases/repo.ts:133,150`):
+**Adaptador de persistencia** (`repo.ts`) — repositorio Drizzle, con la misma factoría para `db` y para `tx`, lo que sustituyó al par `createCaseTx` / `createCase` de antes (hoy `createCasesRepo`/`drizzleUnitOfWork` en `features/cases/repo.ts:198,281`):
 
 ```ts
 export const createCasesRepo = (db: Db | Tx): CasesRepository => ({
@@ -164,10 +167,17 @@ export const casesRoutes = (service: CasesService) =>
     })
 ```
 
-**Raíz de composición** (`app.ts:24`, hoy ya existe y solo cambia de contenido): construye adaptadores, arma servicios y monta rutas. `main.ts:9-14` es lo único que toca el mundo real (config, pool, disco).
+**Raíz de composición** (`app.ts:43`, hoy ya existe y solo cambia de contenido): construye adaptadores, arma servicios y monta rutas. `main.ts:9-14` es lo único que toca el mundo real (config, pool, disco).
 
 ```ts
-export type AppDeps = { auth: Auth; db: Db; webOrigin: string; storage: Storage; clock?: Clock }
+export type AppDeps = {
+  auth: Auth
+  db: Db
+  webOrigin: string
+  storage: Storage
+  clock?: Clock
+  ids?: IdGenerator
+}
 
 const clock = deps.clock ?? systemClock
 const attachmentsRepo = createAttachmentsRepo(db)
@@ -197,7 +207,7 @@ it('oculta el total a un técnico', async () => {
 })
 ```
 
-Se conservan tal cual: **cadena de middlewares** (`sessionMiddleware` → `requireAuth`/`requireRole`, `bodyLimit` antes de parsear, `validate()` con schemas de shared), **forma única de error** (`{ message, issues? }` en `app.ts:71`), **enmascarado por rol** (que pasa a ser responsabilidad del servicio), **event log** (`case_events` escritos en la misma transacción que la mutación), **persistencia** (Postgres 17 + Drizzle relations v2, migraciones versionadas, secuencia anual con `FOR UPDATE`, borrado lógico en catálogos) y **Better Auth** como adaptador de identidad con su superficie admin bloqueada (`app.ts:46`).
+Se conservan tal cual: **cadena de middlewares** (`sessionMiddleware` → `requireAuth`/`requireRole`, `bodyLimit` antes de parsear, `validate()` con schemas de shared), **forma única de error** (`{ message, issues? }` en `app.ts:113`), **enmascarado por rol** (que pasa a ser responsabilidad del servicio), **event log** (`case_events` escritos en la misma transacción que la mutación), **persistencia** (Postgres 17 + Drizzle relations v2, migraciones versionadas, secuencia anual con `FOR UPDATE`, borrado lógico en catálogos) y **Better Auth** como adaptador de identidad con su superficie admin bloqueada (`app.ts:88`).
 
 ### 3.3 `apps/web` — hexagonal-lite
 
@@ -221,31 +231,31 @@ Se conservan tal cual: **cadena de middlewares** (`sessionMiddleware` → `requi
 
 ### 3.5 Cómo se hace cumplir
 
-No basta con la revisión: la frontera se verifica en `pnpm lint`. Reglas propuestas para `eslint.config.js` (implementación en el issue de adopción; `eslint-plugin-import-x` se valida antes con context7 según la regla 2 de `CLAUDE.md`):
+No basta con la revisión: la frontera se verifica en `pnpm lint`. Reglas propuestas para `eslint.config.js` (implementación real en el **PR B**, issue de adopción; `eslint-plugin-import-x` se valida antes con context7 según la regla 2 de `CLAUDE.md`). Dos ajustes decididos desde que se escribió esta lista, sin reescribirla todavía: la frontera entre features se verificará con `@typescript-eslint/no-restricted-imports` por patrones (mismo mecanismo que las importaciones prohibidas dentro de una feature), **sin sumar `eslint-plugin-import-x`**; y `apps/api/src/features/users/routes.ts` y `apps/api/src/features/products/routes.ts` quedan excluidos de estas reglas por override explícito hasta que se migren (§3.6).
 
-- `apps/api/src/features/*/{service,ports}.ts` → `@typescript-eslint/no-restricted-imports` con patrones prohibidos: `hono`, `hono/*`, `drizzle-orm`, `drizzle-orm/*`, `**/db/**`, `./repo.ts`, `./schema.ts`, `../*/repo.ts`, `../*/schema.ts`, `better-auth*`, `sharp`, `node:fs*`.
-- Entre features (`import-x/no-restricted-paths`): zona `from: apps/api/src/features/*` → `target: apps/api/src/features/*/{repo,schema,routes,import}.ts` con `except` de la propia carpeta; la única vía entre features es `ports.ts` + inyección.
-- `apps/api/src/features/*/routes.ts` → prohibido `drizzle-orm` y `**/db/schema/**` (evita reincidir en `users/routes.ts:47` y `cases/routes.ts:78`).
+- `apps/api/src/features/*/{service,ports}.ts` → `@typescript-eslint/no-restricted-imports` con patrones prohibidos: `hono`, `hono/*`, `drizzle-orm`, `drizzle-orm/*`, `**/db/**`, `./repo.ts`, `./schema.ts`, `../*/repo.ts`, `../*/schema.ts`, `better-auth*`, `sharp`, `node:fs*`. Excepción: `ports.ts` puede importar tipos (`import type`) de su propio `schema.ts` (ADR 25).
+- Entre features (`import-x/no-restricted-paths`): zona `from: apps/api/src/features/*` → `target: apps/api/src/features/*/{repo,schema,routes,import}.ts` con `except` de la propia carpeta; la única vía entre features es `ports.ts` + inyección. Excepción: el `repo.ts` de una feature puede importar el `schema.ts` de otra para joins y lecturas de solo lectura (ADR 24; ejemplo: `import.repo.ts` de `cases`).
+- `apps/api/src/features/*/routes.ts` → prohibido `drizzle-orm` y `**/db/schema/**`; ya se cumple en `cases/routes.ts` y `attachments/routes.ts` (migradas en el PR A). Override hasta que se migren: `users/routes.ts` (Drizzle directo, `routes.ts:47,65,99,120`) y `products/routes.ts` (reglas de negocio en la ruta, `routes.ts:40-47`).
 - `apps/web`: `no-restricted-globals` para `fetch` fuera de `**/api.ts`; `no-restricted-imports` de `hono/client` fuera de `src/lib/api.ts`; `@dentalware/api/*` solo con `allowTypeImports: true`; `better-auth/*` solo en `src/features/auth/**`.
 - `apps/web/src/routes/**` → prohibido importar `@/features/*/repo*` o cualquier módulo que no sea de `features/` o `components/`.
 - Checklist de revisión (también en `docs/conventions.md` §9): ¿el servicio importa solo puertos y `shared`? ¿el repo cumple el puerto con `satisfies`? ¿la ruta solo valida, autoriza y traduce? ¿hay un test del servicio con fakes? ¿alguna dependencia oculta (`new Date()`, `randomUUID()`, `process.env`) quedó dentro de la lógica en vez de ser puerto?
 
 ### 3.6 Estado actual vs objetivo y plan de migración incremental
 
-Lo que **ya está bien** y no se toca: raíz de composición explícita (`app.ts:24`, `main.ts:9-14`), `Storage` como puerto con `LocalStorage` (`lib/storage.ts:6`), sustitución real de dependencias en tests (`test/setup.ts:20-28`), contratos y reglas puras en `shared`, `validate()`/`onError` como frontera única, y la web sin `fetch` fuera de `api.ts`.
+Lo que **ya está bien** y no se toca: raíz de composición explícita (`app.ts:43`, `main.ts:9-14`), `Storage` como puerto con `LocalStorage` (`lib/storage.ts:6`), sustitución real de dependencias en tests (`test/setup.ts:20-28`), contratos y reglas puras en `shared`, `validate()`/`onError` como frontera única, y la web sin `fetch` fuera de `api.ts`.
 
-| Feature | Acoplamiento hoy (archivo:línea) | Qué le falta | Cuándo |
+| Feature | Estado | Qué quedó (PR A) / qué falta | Cuándo |
 |---|---|---|---|
-| `cases` | sin `service.ts`; la ruta consulta adjuntos con `db.query` (`routes.ts:78`); readiness orquestada en la ruta (`routes.ts:44-59`); `stripPrices` en el repo (`repo.ts:309`) y `maskPriceEvents` en la ruta (`routes.ts:35`); reloj oculto (`routes.ts:28`); par `createCaseTx`/`createCase` (`repo.ts:133,150`) | `ports.ts` (`CasesRepository`, `AttachmentsQuery`, `UnitOfWork`, `Clock`), `service.ts` con enmascarado y readiness, `errors.ts`, repo como `satisfies`, tests de servicio con fakes | **Iteración 3 — Trabajos II** (se toca entera: estados, fases, asignación) |
-| `cases/import` | caso de uso (`importCases`, `import.ts:96`) y adaptador HTTP (`importRoutes`, `import.ts:344`) en el mismo archivo; lee `schema.ts` de clinics/doctors/products (`import.ts:17-19`); `new Date()` dentro de la ruta (`import.ts:388`) | separar en `import.service.ts` + `import.routes.ts`; puertos `ClinicsQuery`/`DoctorsQuery`/`ProductsQuery`; `Clock` inyectado | Iteración 3, con `cases` |
-| `attachments` | importa el repo de otra feature (`routes.ts:21`: `addEvent`, `getCase` de `../cases/repo.ts`); orquestación completa dentro del handler (`routes.ts:47-142`); `randomUUID()` y rutas de disco en la ruta (`routes.ts:86,106,114`) | `ports.ts` (`AttachmentsRepository`, `Storage`, `ImageProcessor`, `IdGenerator`, `CasesQuery`, `CaseEventLog`), `service.ts` con el flujo validar → normalizar → guardar → registrar evento | Iteración 3, con `cases` (comparten puertos) |
+| `cases` | **migrada** (PR A) | `ports.ts` (`CasesRepository`, `AttachmentsQuery`, `UnitOfWork`, `Clock`), `service.ts` con enmascarado (`stripPrices`/`maskPriceEvents`) y readiness, `errors.ts` (`CaseInputError`, `CaseStateError`, `CaseNotFoundError`), `repo.ts` (`createCasesRepo(db \| tx) satisfies CasesRepository`, `drizzleUnitOfWork`), `fakes.ts`, 12 tests de servicio con fakes (`service.test.ts`) | hecho |
+| `cases/import` | **migrada** (PR A) | `import.ports.ts` (`ImportCatalog`), `import.service.ts`, `import.repo.ts` (lee `schema.ts` de `clinics`/`doctors`/`products` por la excepción de joins, ADR 24), `import.routes.ts` separado de `cases/routes.ts`, 4 tests de servicio con fakes (`import.service.test.ts`) | hecho |
+| `attachments` | **migrada** (PR A) | `ports.ts` (`AttachmentsRepository`, `ImageProcessor`, `CasesQuery`, `CaseEventLog`), `service.ts`, `errors.ts`, `repo.ts` (`createAttachmentsRepo` cumple su propio puerto y `AttachmentsQuery` de `cases`, sin importar el repo de `cases`), `fakes.ts`, 13 tests de servicio con fakes (`service.test.ts`). Ruling de la migración: `POST /api/adjuntos/trabajo/:caseId` sin archivo y con trabajo inexistente ahora responde **422** (antes 404) porque la ruta valida el archivo antes de que el servicio compruebe el trabajo; con archivo adjunto sigue siendo 404 | hecho |
 | `users` | sin `repo.ts`: Drizzle directo en la ruta (`routes.ts:47,65,99,120`); Better Auth acoplado al handler | `repo.ts` + `ports.ts` (`UsersRepository`, `AccountProvider`) y `service.ts` con las reglas propias (nadie se bloquea ni se degrada a sí mismo, borrado lógico) | boy-scout: al primer cambio funcional; a más tardar Iteración 5 |
 | `products` | reglas de negocio en la ruta (`routes.ts:40-47`: `assertCategory`, `assertCodeFree`) | `service.ts` ligero al añadir listas de precios por clínica | Iteración 5 — Cuentas y cobro |
 | `clinics`, `doctors`, `stages`, `lab-settings` | CRUD limpio, sin reglas | nada: se acogen a la excepción de §3.4; solo declarar el puerto cuando otra feature los consuma | — |
-| `auth/session` | correcto como adaptador driving | exponer `ctxFrom(c) → RequestContext` para que los servicios no vean Hono | Iteración 3 |
+| `auth/session` | **migrada** (PR A) | `ctxFrom(c): RequestContext` en `features/auth/session.ts`, usado por `cases/routes.ts` y `attachments/routes.ts` en vez de construir el contexto a mano en cada ruta | hecho |
 | `deliveries` (It. 4), `payments`/`accounts` (It. 5), `notifications` (It. 6: puerto `Mailer`, adaptador Resend, ADR 22) | no existen | nacen ya con `ports.ts` + `service.ts` + tests con fakes (obligatorio) | al construirlas |
-| `apps/web` | `authClient` usado fuera de su feature (`routes/_app.tsx:8`, `components/app-shell.tsx`) | `useSession()` en `features/auth/`; el resto ya cumple | Iteración 3 |
-| tooling | `eslint.config.js` (38 líneas) sin reglas de frontera | reglas de §3.5 | tarea propia dentro del issue de adopción |
+| `apps/web` | `authClient` usado fuera de su feature (`routes/_app.tsx:8`, `components/app-shell.tsx`) | `useSession()` en `features/auth/`; el resto ya cumple | Iteración 3, **PR B** |
+| tooling | `eslint.config.js` sin reglas de frontera | reglas de §3.5 (`@typescript-eslint/no-restricted-imports` por patrones, sin `eslint-plugin-import-x`) | **PR B**, issue de adopción |
 
 Criterio de aceptación de cada migración: la feature migrada compila, sus tests de integración existentes siguen pasando **sin cambios de comportamiento**, y se añade al menos un test de servicio con fakes que antes era imposible de escribir sin BD.
 
@@ -294,6 +304,9 @@ Unit en `shared` (reglas puras) → **unit de servicios con fakes en memoria** (
 | 21 | **Fronteras verificadas por ESLint** (`no-restricted-imports` + `no-restricted-paths`), no solo por revisión | con un desarrollador, la regla que no falla en `pnpm lint` se erosiona | pendiente (issue de adopción) |
 | 22 | **Alertas por correo con Resend en el MVP; WhatsApp post-MVP.** La feature `notifications` (It. 6) declara un puerto `Mailer { send(msg) }` con adaptador Resend en `lib/mail/` y fake en tests; la tabla `notifications` guarda `canal` (`email` hoy, `whatsapp` después) | Nelson ya dispone de Resend; Meta exige cuenta verificada y plantillas aprobadas con tiempos ajenos al proyecto; el puerto deja el canal sustituible sin tocar los casos de uso (decidido el 2026-09-07) | vigente |
 | 23 | **Producción por persona y sistema de puntos fuera del MVP** | no los usa recepción ni el mensajero a diario; `case_events` ya registra actor y fecha de cada cambio de fase, así que se pueden derivar después sin cambiar el modelo; acorta el MVP en una iteración (decidido el 2026-09-07) | vigente |
+| 24 | **Joins entre features permitidos en el `repo.ts`**: el `repo.ts` de una feature puede importar el `schema.ts` de otra para joins y lecturas de solo lectura (nunca su `repo.ts` ni su `routes.ts`); ejemplo real: `apps/api/src/features/cases/import.repo.ts` lee `clinics`/`doctors`/`products` para el `ImportCatalog` | evita un puerto artificial solo para un `select` de solo lectura entre tablas ya relacionadas por FK; el límite se mantiene: nunca escritura cruzada ni lógica de negocio dentro del join, y el `service.ts` sigue sin ver `schema.ts` (decidido el 2026-09-11, PR A) | vigente |
+| 25 | **Tipos de fila derivados del `schema.ts` en `ports.ts`**: `ports.ts` deriva sus tipos de fila (`CaseDetail`, `CaseEventRow`, `AttachmentRecord`…) con `import type` de `./schema.ts` (`typeof tabla.$inferSelect` + relaciones), nunca de `repo.ts` | evita duplicar a mano la forma de la fila y mantiene `ports.ts` sin depender de la implementación del repo; el import es solo de tipos (`verbatimModuleSyntax`), no arrastra runtime de Drizzle a la capa de aplicación (decidido el 2026-09-11, PR A) | vigente |
+| 26 | **Errores de dominio reexportados entre features**: `errors.ts` puede reexportar una clase de error de dominio de otra feature (nunca un adaptador); ejemplo real: `apps/api/src/features/attachments/errors.ts` reexporta `CaseNotFoundError` de `../cases/errors.ts` porque la ruta de adjuntos también traduce a HTTP el caso de trabajo inexistente | un error de dominio es parte del contrato del caso de uso, no un adaptador; reexportarlo evita duplicar la clase o inventar un puerto solo para comparar con `instanceof` (decidido el 2026-09-11, PR A) | vigente |
 
 ## 9. Cómo evolucionar sin romper la arquitectura
 

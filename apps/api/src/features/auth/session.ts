@@ -1,6 +1,8 @@
+import type { Context } from 'hono'
 import type { UserRole } from '@dentalware/shared'
 import { createMiddleware } from 'hono/factory'
 import { HTTPException } from 'hono/http-exception'
+import type { RequestContext } from '../../lib/request-context.ts'
 import type { Auth, SessionUser } from '../../auth.ts'
 
 export type AppEnv = {
@@ -33,3 +35,10 @@ export const requireRole = (...roles: UserRole[]) =>
     }
     await next()
   })
+
+/** Traduce la sesión de Hono al contexto que reciben los servicios (ADR 20). */
+export function ctxFrom(c: Context<AppEnv>): RequestContext {
+  const user = c.var.user
+  if (!user) throw new HTTPException(403, { message: 'Sin permiso' })
+  return { userId: user.id, role: user.role as UserRole }
+}
