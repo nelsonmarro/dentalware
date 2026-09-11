@@ -95,6 +95,10 @@ export function createImportService(deps: {
       const { rows, commit } = opts
       const totalRows = rows.length
       const errors: ImportError[] = []
+      // Un solo valor de reloj para todo el archivo: si la importación cruza la medianoche,
+      // todos los trabajos del mismo archivo comparten `receivedAt` (y con él, el año del
+      // código de trabajo que deriva `repo.ts` de esa fecha).
+      const today = deps.clock.today()
 
       // Primera pasada: valida el formato de cada fila de forma independiente. Una fila
       // con un error de formato (p. ej. fecha_deseada inválida) no se descarta: se
@@ -298,7 +302,7 @@ export function createImportService(deps: {
               clinicId: clinic.value.id,
               doctorId: doctor.value.id,
               patientRef: first.paciente,
-              receivedAt: deps.clock.today(),
+              receivedAt: today,
               dueDate: first.fecha_deseada,
               boxNumber: first.caja,
               shade: first.color,

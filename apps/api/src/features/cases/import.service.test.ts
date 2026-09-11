@@ -129,4 +129,32 @@ describe('createImportService', () => {
     expect(report.created).toEqual([])
     expect(rows.size).toBe(0)
   })
+
+  it('todos los trabajos del mismo archivo comparten receivedAt aunque el reloj cambie entre grupos', async () => {
+    const { repo, rows } = fakeCasesRepo()
+    const dates = ['2026-09-09', '2026-09-10']
+    let call = 0
+    const changingClock = {
+      today: () => dates[Math.min(call++, dates.length - 1)]!,
+      now: () => new Date(`${dates[0]}T12:00:00Z`),
+    }
+    const service = createImportService({
+      catalog: fakeCatalog(),
+      uow: fakeUow(repo),
+      clock: changingClock,
+    })
+    const report = await service.run(
+      {
+        rows: [
+          ['Clínica Sonrisa', 'Dr. Pérez', 'Paciente Uno', 'ZR', '11', '1', '', '', '', ''],
+          ['Clínica Sonrisa', 'Dr. Pérez', 'Paciente Dos', 'ZR', '12', '1', '', '', '', ''],
+        ],
+        commit: true,
+      },
+      ctx,
+    )
+    expect(report.created).toHaveLength(2)
+    const receivedDates = new Set([...rows.values()].map((r) => r.receivedAt))
+    expect(receivedDates).toEqual(new Set(['2026-09-09']))
+  })
 })

@@ -9,7 +9,7 @@ import { attachments } from './schema.ts'
  * `AttachmentsQuery` de `cases` (`hasDocument`), que se inyecta en la raíz de composición
  * sin que ninguna de las dos features importe el adaptador de la otra.
  */
-export function createAttachmentsRepo(db: Db): AttachmentsRepository & AttachmentsQuery {
+export function createAttachmentsRepo(db: Db) {
   const byId = (id: string) =>
     db.query.attachments.findFirst({
       where: { id },

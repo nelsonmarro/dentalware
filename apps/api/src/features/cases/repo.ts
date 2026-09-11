@@ -19,8 +19,6 @@ import { CaseInputError, CaseStateError } from './errors.ts'
 import type { CasesRepository, NewCaseEvent, UnitOfWork } from './ports.ts'
 import { caseEvents, caseItems, cases, caseSequences } from './schema.ts'
 
-export { CaseInputError, CaseStateError } from './errors.ts'
-
 async function nextCaseCode(db: Db | Tx, year: number): Promise<string> {
   const [row] = await db
     .insert(caseSequences)
@@ -195,7 +193,7 @@ async function listCasesWith(db: Db | Tx, q: CaseListQuery, today: string) {
  * se le pase. `create` y `update` no abren transacción propia (ADR 19): el llamador que
  * necesite atomicidad lo hace a través de `drizzleUnitOfWork(db).run(...)`.
  */
-export function createCasesRepo(db: Db | Tx): CasesRepository {
+export function createCasesRepo(db: Db | Tx) {
   return {
     async create(input, actorId) {
       const year = Number(input.receivedAt.slice(0, 4))
