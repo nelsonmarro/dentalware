@@ -1,12 +1,12 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { authClient } from '@/features/auth/auth-client'
+import { getSession } from '@/features/auth/session'
 import { LoginForm } from '@/features/auth/login-form'
 
 export const Route = createFileRoute('/login')({
   beforeLoad: async () => {
-    const { data } = await authClient.getSession()
-    if (data) throw redirect({ to: '/' })
+    const user = await getSession()
+    if (user) throw redirect({ to: '/' })
   },
   component: LoginPage,
 })
