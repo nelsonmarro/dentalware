@@ -6,7 +6,7 @@ test.describe('Configuración', () => {
     await loginAsAdmin(page)
   })
 
-  test('crea una clínica y la ve en la lista', async ({ page }) => {
+  test('crea una clínica y la ve en la lista', { tag: '@esencial' }, async ({ page }) => {
     const name = `Clínica E2E ${Date.now()}`
     await page.goto('/configuracion/clinicas')
     await page.getByRole('button', { name: 'Nueva clínica' }).first().click()
@@ -17,7 +17,7 @@ test.describe('Configuración', () => {
     await expect(page.getByRole('link', { name })).toBeVisible()
   })
 
-  test('crea un producto y rechaza el código duplicado', async ({ page }) => {
+  test('crea un producto y rechaza el código duplicado', { tag: '@clave' }, async ({ page }) => {
     const code = `E2E${Date.now().toString().slice(-5)}`
     await page.goto('/configuracion/productos')
     await page.getByRole('button', { name: 'Nuevo producto' }).first().click()
@@ -34,31 +34,33 @@ test.describe('Configuración', () => {
     await expect(page.getByText('Ya existe un producto con ese código')).toBeVisible()
   })
 
-  test('la tabla de productos no exige scroll horizontal a 1280 px y el CTA de cabecera sigue la pestaña activa', async ({
-    page,
-  }, testInfo) => {
-    test.skip(
-      testInfo.project.name !== 'escritorio',
-      'Solo aplica al ancho de escritorio (1280 px)',
-    )
+  test(
+    'la tabla de productos no exige scroll horizontal a 1280 px y el CTA de cabecera sigue la pestaña activa',
+    { tag: '@clave' },
+    async ({ page }, testInfo) => {
+      test.skip(
+        testInfo.project.name !== 'escritorio',
+        'Solo aplica al ancho de escritorio (1280 px)',
+      )
 
-    await page.goto('/configuracion/productos')
+      await page.goto('/configuracion/productos')
 
-    // UX1-03: sin scroll horizontal interno a 1280 px, con "Estado" visible.
-    const tabla = page.locator('[data-slot="table-container"]')
-    expect(await tabla.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
-    await expect(page.getByRole('columnheader', { name: 'Estado' })).toBeInViewport()
+      // UX1-03: sin scroll horizontal interno a 1280 px, con "Estado" visible.
+      const tabla = page.locator('[data-slot="table-container"]')
+      expect(await tabla.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+      await expect(page.getByRole('columnheader', { name: 'Estado' })).toBeInViewport()
 
-    // UX1-10: el CTA de cabecera cambia según la pestaña activa, sin duplicarse.
-    await expect(page.getByRole('button', { name: 'Nuevo producto' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Nueva categoría' })).toHaveCount(0)
+      // UX1-10: el CTA de cabecera cambia según la pestaña activa, sin duplicarse.
+      await expect(page.getByRole('button', { name: 'Nuevo producto' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Nueva categoría' })).toHaveCount(0)
 
-    await page.getByRole('tab', { name: 'Categorías' }).click()
-    await expect(page.getByRole('button', { name: 'Nueva categoría' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Nuevo producto' })).toHaveCount(0)
-  })
+      await page.getByRole('tab', { name: 'Categorías' }).click()
+      await expect(page.getByRole('button', { name: 'Nueva categoría' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Nuevo producto' })).toHaveCount(0)
+    },
+  )
 
-  test('un técnico no ve Configuración', async ({ page, browser }) => {
+  test('un técnico no ve Configuración', { tag: '@esencial' }, async ({ page, browser }) => {
     const email = `tecnico-e2e-${Date.now()}@t.local`
     const password = 'Tecnico1234'
     const created = await page.request.post('/api/users', {
