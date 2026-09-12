@@ -11,7 +11,8 @@
     "icons": "node scripts/gen-icons.mjs",
     "test": "vitest run",
     "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui"
+    "e2e:ui": "playwright test --ui",
+    "e2e:pr": "playwright test --project=escritorio --project=android --grep \"@esencial|@clave\""
   },
   "dependencies": {
     "@dentalware/shared": "workspace:*",
