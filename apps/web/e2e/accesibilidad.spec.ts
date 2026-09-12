@@ -45,13 +45,13 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await loginAsAdmin(page)
   })
 
-  test('trabajos: lista, filtros y pestañas', async ({ page }) => {
+  test('trabajos: lista, filtros y pestañas', { tag: '@extendida' }, async ({ page }) => {
     await page.goto('/trabajos')
     await expect(page.getByRole('heading', { name: 'Trabajos' })).toBeVisible()
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
 
-  test('nuevo trabajo: selects y diálogo de piezas', async ({ page }) => {
+  test('nuevo trabajo: selects y diálogo de piezas', { tag: '@extendida' }, async ({ page }) => {
     const { clinic, doctor } = await createClinicWithDoctor(page)
     const product = await createProduct(page)
 
@@ -74,7 +74,7 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await expectTouchTargets(dialog, TOUCH_CONTROLS)
   })
 
-  test('ficha de un trabajo: pestañas', async ({ page }) => {
+  test('ficha de un trabajo: pestañas', { tag: '@extendida' }, async ({ page }) => {
     const { clinic, doctor } = await createClinicWithDoctor(page)
     const product = await createProduct(page)
     const created = await createCase(page, {
@@ -87,44 +87,58 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
 
-  test('importar: enlace de plantilla y controles del diálogo', async ({ page }) => {
-    await page.goto('/trabajos')
-    await page.getByRole('button', { name: 'Importar' }).click()
-    const dialog = page.getByRole('dialog')
-    await expect(dialog).toBeVisible()
-    await expectTouchTargets(dialog, TOUCH_CONTROLS)
-  })
+  test(
+    'importar: enlace de plantilla y controles del diálogo',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      await page.goto('/trabajos')
+      await page.getByRole('button', { name: 'Importar' }).click()
+      const dialog = page.getByRole('dialog')
+      await expect(dialog).toBeVisible()
+      await expectTouchTargets(dialog, TOUCH_CONTROLS)
+    },
+  )
 
-  test('configuración → usuarios: acciones de fila', async ({ page }) => {
+  test('configuración → usuarios: acciones de fila', { tag: '@extendida' }, async ({ page }) => {
     await page.goto('/configuracion/usuarios')
     await expect(page.getByRole('heading', { name: 'Usuarios' })).toBeVisible()
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
 
-  test('configuración → clínicas: acciones de fila y switches', async ({ page }) => {
-    await createClinicWithDoctor(page)
-    await page.goto('/configuracion/clinicas')
-    await expect(page.getByRole('heading', { name: 'Clínicas' })).toBeVisible()
-    await expectTouchTargets(page, TOUCH_CONTROLS)
-    await expectTouchTargets(page, TOUCH_SWITCHES, { minHeight: 24 })
-  })
+  test(
+    'configuración → clínicas: acciones de fila y switches',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      await createClinicWithDoctor(page)
+      await page.goto('/configuracion/clinicas')
+      await expect(page.getByRole('heading', { name: 'Clínicas' })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+      await expectTouchTargets(page, TOUCH_SWITCHES, { minHeight: 24 })
+    },
+  )
 
-  test('configuración → fases: acciones de fila y switches', async ({ page }) => {
-    await page.goto('/configuracion/fases')
-    await expect(page.getByRole('heading', { name: 'Fases de producción' })).toBeVisible()
-    await expectTouchTargets(page, TOUCH_CONTROLS)
-    await expectTouchTargets(page, TOUCH_SWITCHES, { minHeight: 24 })
-  })
+  test(
+    'configuración → fases: acciones de fila y switches',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      await page.goto('/configuracion/fases')
+      await expect(page.getByRole('heading', { name: 'Fases de producción' })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+      await expectTouchTargets(page, TOUCH_SWITCHES, { minHeight: 24 })
+    },
+  )
 
-  test('configuración → clínica → precios especiales: buscador y precio por fila', async ({
-    page,
-  }) => {
-    const { clinic } = await createClinicWithDoctor(page)
-    await createProduct(page)
+  test(
+    'configuración → clínica → precios especiales: buscador y precio por fila',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic } = await createClinicWithDoctor(page)
+      await createProduct(page)
 
-    await page.goto(`/configuracion/clinicas/${clinic.id}`)
-    await page.getByRole('tab', { name: 'Precios especiales' }).click()
-    await expect(page.getByLabel('Buscar producto')).toBeVisible()
-    await expectTouchTargets(page, TOUCH_CONTROLS)
-  })
+      await page.goto(`/configuracion/clinicas/${clinic.id}`)
+      await page.getByRole('tab', { name: 'Precios especiales' }).click()
+      await expect(page.getByLabel('Buscar producto')).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+    },
+  )
 })

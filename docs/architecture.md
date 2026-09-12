@@ -284,7 +284,7 @@ Configuración: `lab_settings`, `users` (+ tablas de Better Auth), `clinics`, `d
 ## 6. Despliegue y operación
 
 - `infra/docker-compose.yml`: `caddy` (TLS automático, sirve `apps/web/dist`, proxy `/api`), `api` (Node 24 alpine, migra al arrancar), `postgres` (volumen), volumen `uploads`. Desarrollo: `docker-compose.dev.yml` con Postgres en 5433 y BD `dentalware_test` para pruebas.
-- CI (GitHub Actions): job `quality` (build, lint, format, typecheck, unit) y job `e2e` (Playwright con Postgres efímero `dentalware_test`, tres proyectos). Deploy manual por SSH (`git pull && docker compose up -d --build`).
+- CI (GitHub Actions, `.github/workflows/ci.yml`): jobs `quality` (build, lint, format, typecheck, unit completo) y `e2e` (Playwright con Postgres efímero `dentalware_test`) **en paralelo**, con los navegadores de Playwright cacheados por versión. En un **PR** el job `e2e` corre solo `@esencial` + `@clave` en `escritorio` y `android` (Chromium); en el **push a `main`** corre todo, con `@extendida` e `iphone` (WebKit). Los niveles y su criterio están en `docs/conventions.md` §7 (#61). Deploy manual por SSH (`git pull && docker compose up -d --build`).
 
 ## 7. Pruebas (pirámide)
 

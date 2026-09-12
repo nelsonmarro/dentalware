@@ -5,6 +5,14 @@ on:
     branches: [main]
   pull_request:
 
+# Niveles de pruebas (docs/conventions.md §7): el PR corre los unit completos y los E2E
+# `@esencial` + `@clave` en escritorio y android (solo Chromium); el push a main corre
+# todo, incluido `@extendida` e iphone (WebKit). Los dos jobs corren en paralelo.
+env:
+  HUSKY: 0
+  PW_BROWSERS: ${{ github.event_name == 'pull_request' && 'chromium' || 'chromium webkit' }}
+  PW_ARGS: ${{ github.event_name == 'pull_request' && '--project=escritorio --project=android --grep "@esencial|@clave"' || '' }}
+
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -20,8 +28,6 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U dentalware -d dentalware_test"
           --health-interval 5s --health-timeout 3s --health-retries 10
-    env:
-      HUSKY: 0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,7 +44,6 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: quality
     services:
       postgres:
         image: postgres:17-alpine
@@ -51,7 +56,6 @@ jobs:
           --health-cmd "pg_isready -U dentalware -d dentalware_test"
           --health-interval 5s --health-timeout 3s --health-retries 10
     env:
-      HUSKY: 0
       CI: true
     steps:
       - uses: actions/checkout@v4
@@ -60,11 +64,20 @@ jobs:
           node-version-file: .nvmrc
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      # Navegadores cacheados por versión de Playwright (fijada en el catalog de
+      # pnpm-workspace.yaml); las dependencias del sistema se instalan siempre (apt, rápido).
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PW_BROWSERS }}-${{ hashFiles('pnpm-workspace.yaml') }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @dentalware/web exec playwright install ${{ env.PW_BROWSERS }}
+      - run: pnpm --filter @dentalware/web exec playwright install-deps ${{ env.PW_BROWSERS }}
       # apps/api/.env.test ya está commiteado (BD dentalware_test); playwright.config.ts
       # fija NODE_ENV=test para el webServer de la API, así que `loadConfig` lo carga solo
-      - run: pnpm --filter @dentalware/web exec playwright install --with-deps chromium webkit
       - run: pnpm --filter @dentalware/shared build # la API importa @dentalware/shared desde dist/ al arrancar
-      - run: pnpm --filter @dentalware/web exec playwright test # los 3 proyectos; WebKit (iphone) solo corre fiable en Ubuntu/CI
+      - run: pnpm --filter @dentalware/web exec playwright test ${{ env.PW_ARGS }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

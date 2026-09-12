@@ -5,6 +5,7 @@ import { drizzleAdapter } from '@better-auth/drizzle-adapter/relations-v2' // Dr
 import type { Config } from './config.ts'
 import type { Db } from './db/index.ts'
 import * as schema from './db/schema/index.ts'
+import { insecureTestPasswordHasher } from './lib/password.ts'
 
 export function createAuth(db: Db, config: Config) {
   return betterAuth({
@@ -14,7 +15,13 @@ export function createAuth(db: Db, config: Config) {
     secret: config.BETTER_AUTH_SECRET,
     trustedOrigins: [config.WEB_ORIGIN],
     database: drizzleAdapter(db, { provider: 'pg', usePlural: true, schema }),
-    emailAndPassword: { enabled: true, minPasswordLength: 8 },
+    emailAndPassword: {
+      enabled: true,
+      minPasswordLength: 8,
+      // scrypt (por defecto) cuesta ~600 ms por hash; en la suite de API cada test crea y
+      // autentica usuarios, así que solo en test se usa un hash barato (ver lib/password.ts).
+      ...(config.NODE_ENV === 'test' ? { password: insecureTestPasswordHasher } : {}),
+    },
     user: {
       additionalFields: {
         role: {
