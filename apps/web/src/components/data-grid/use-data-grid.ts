@@ -1,4 +1,10 @@
-import { metaHelper, tableFeatures, useTable, type RowData } from '@tanstack/react-table'
+import {
+  columnVisibilityFeature,
+  metaHelper,
+  tableFeatures,
+  useTable,
+  type RowData,
+} from '@tanstack/react-table'
 import { useMemo } from 'react'
 import type {
   GridColumnMeta,
@@ -38,6 +44,10 @@ export function useDataGrid<T extends RowData>(opts: UseDataGridOptions<T>): Gri
     () =>
       tableFeatures({
         columnMeta: metaHelper<GridColumnMeta>(),
+        // Feature de core (sin row model propio): mantiene `row.getVisibleCells()` atado a la
+        // misma fuente de visibilidad/orden que `table.getHeaderGroups()` usa para la cabecera
+        // (ver `parts/table.tsx`), aunque ninguna feature registrada la use todavía.
+        columnVisibilityFeature,
         ...Object.assign({}, ...list.map((f) => f.tanstack)),
       }) as unknown as GridFeatures,
     [list],

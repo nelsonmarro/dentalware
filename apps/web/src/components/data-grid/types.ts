@@ -6,6 +6,7 @@ import {
   columnPinningFeature,
   columnResizingFeature,
   columnSizingFeature,
+  columnVisibilityFeature,
   globalFilteringFeature,
   metaHelper,
   rowAggregationFeature,
@@ -62,6 +63,7 @@ export type GridColumnMeta = {
 export const gridFeaturesForTyping = () =>
   tableFeatures({
     columnMeta: metaHelper<GridColumnMeta>(),
+    columnVisibilityFeature,
     columnFilteringFeature,
     globalFilteringFeature,
     columnFacetingFeature,

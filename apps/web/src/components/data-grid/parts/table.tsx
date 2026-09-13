@@ -6,6 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 import { useGrid } from '../context'
 import { HeaderCell } from './header-cell'
 import { pinningStyles } from './pinning-styles'
@@ -37,7 +38,7 @@ export function GridTable() {
                           ? 'descending'
                           : undefined
                     }
-                    className={`${meta?.cellClassName ?? ''} ${meta?.align === 'right' ? 'text-right' : ''}`}
+                    className={cn(meta?.cellClassName, meta?.align === 'right' && 'text-right')}
                     style={{
                       ...pinningStyles(header.column, hasPinning),
                       ...(hasResizing ? { width: header.getSize() } : {}),
@@ -56,12 +57,12 @@ export function GridTable() {
               key={row.id}
               data-grouped={grid.has('grouping') && row.getIsGrouped() ? '' : undefined}
             >
-              {row.getAllCells().map((cell) => {
+              {row.getVisibleCells().map((cell) => {
                 const meta = cell.column.columnDef.meta
                 return (
                   <TableCell
                     key={cell.id}
-                    className={`${meta?.cellClassName ?? ''} ${meta?.align === 'right' ? 'text-right' : ''}`}
+                    className={cn(meta?.cellClassName, meta?.align === 'right' && 'text-right')}
                     style={{
                       ...pinningStyles(cell.column, hasPinning),
                       ...meta?.cellStyle?.(row.original),
