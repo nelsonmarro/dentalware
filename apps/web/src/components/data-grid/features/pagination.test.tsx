@@ -50,6 +50,7 @@ describe('feature pagination', () => {
     await user.click(screen.getByRole('button', { name: 'Siguiente' }))
     expect(screen.getByText('Página 2 de 3')).toBeInTheDocument()
     expect(screen.getByText('Fila 3')).toBeInTheDocument()
+    expect(screen.getByText('Mostrando 4 a 6 de 7')).toBeInTheDocument()
   })
 
   it('en servidor no corta las filas y calcula las páginas con rowCount', async () => {

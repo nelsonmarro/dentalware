@@ -5,7 +5,7 @@ export function GridPagination() {
   const grid = useGrid<never>()
   if (!grid.has('pagination')) return null
   const { table } = grid
-  const { pageIndex, pageSize } = table.store.get().pagination
+  const { pageIndex, pageSize } = table.state.pagination
   const pageCount = Math.max(table.getPageCount(), 1)
   const total =
     grid.mode === 'server'
