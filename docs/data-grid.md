@@ -1,6 +1,8 @@
 # DataGrid — guía de uso
 
-Componente transversal en `apps/web/src/components/data-grid/` que reemplazó a `data-table.tsx`.
+Componente transversal en `apps/web/src/components/data-grid/` que sustituirá a `data-table.tsx`
+(aún en uso por `cases-table.tsx`, `products-table.tsx`, `clinic-prices-table.tsx` y
+`case-items-editor.tsx` hasta que se migren en la Tarea 19).
 Construido sobre `@tanstack/react-table` 9.2.4 (`tableFeatures()` + `useTable`). Complementa
 `docs/architecture.md` §3.3 (web hexagonal-lite) y es la implementación de la spec de diseño
 `docs/superpowers/specs/2026-09-12-data-grid-design.md` — este documento describe **lo que existe
@@ -98,7 +100,10 @@ return (
 `useDataGrid({ key, columns, data, features, mode?, rowCount?, getRowId })`:
 
 - **`key`**: identificador estable de la tabla; nombra la persistencia futura en `localStorage`
-  (`datagrid:<key>`, aún sin uso porque ninguna feature actual persiste estado).
+  (`datagrid:<key>`, aún sin uso porque ninguna feature actual persiste estado). El helper ya
+  existe en `storage.ts` (`readStored`/`writeStored`, `localStorage` envuelto en try/catch con
+  valor por defecto y una versión por clave) para que `resizing`/`pinning` lo usen sin escribirlo
+  de nuevo cuando lleguen en un PR posterior.
 - **`features`**: la lista de módulos activos, en el orden en que se registran (mismo orden en que
   aparecen sus controles en la toolbar y sus slots de cabecera). Decláralo como constante de
   módulo o memorizado con `useMemo`/`useCallback` en el componente si depende de props — la lista
@@ -138,11 +143,15 @@ Cada feature es una factoría que devuelve un `GridFeature`; se importan desde
 - **`sorting({ multi?: boolean })`**: orden por columna, cliente o servidor. Aporta un botón por
   cabecera (`slots.headerCell`) con `aria-label="Ordenar por <columna>"` y `aria-sort` en el
   `<th>` (`ascending`/`descending`/ausente). `multi` (por defecto `false`) habilita ordenar por
-  varias columnas con Shift+clic (`enableMultiSort`).
+  varias columnas con Shift+clic (`enableMultiSort`). También aporta un `slots.toolbar` con dos
+  `<select>` nativos de 44 px, «Ordenar por» y «Dirección» (spec §4: el orden debe poder
+  accionarse desde la toolbar en `< lg`, donde la cabecera con el botón de orden no existe). El
+  control está siempre en el DOM — se oculta en escritorio solo con la clase `lg:hidden`, no
+  condicionado por `useMediaQuery` — para que sea accionable con teclado y sencillo de probar.
 - **`pagination({ pageSize?: number })`**: paginación cliente o servidor; tamaño de página por
   defecto 25 (`DEFAULT_PAGE_SIZE`). Su UI vive en `DataGrid.Pagination`, no en la toolbar: botones
   «Anterior»/«Siguiente» de 44 px, «Página N de M» y un conteo `aria-live="polite"` («Mostrando X
-  a Y de Z») oculto visualmente para lectores de pantalla.
+  a Y de Z») visualmente oculto (`sr-only`) pero expuesto a lectores de pantalla.
 - **`filtering({ search?: { id, label, placeholder? }, columns?: boolean })`**: buscador global y
   filtros por columna.
   - `search` añade un `<Input type="search">` con `<Label>` visible (id, label y placeholder
@@ -202,7 +211,13 @@ llega en un PR posterior — hoy `mode: 'server'` no tiene todavía ninguna tabl
 - Ninguna feature de `features/` importa otra, y el núcleo (`use-data-grid.ts`, `data-grid.tsx`,
   `parts/*`) no importa nada de `features/`: solo conoce el contrato `GridFeature` y pregunta
   `grid.has(id)` antes de usar algo de una feature concreta. Esto se verifica con tests que montan
-  el grid con la feature y sin ella (ver «Cómo añadir una feature»).
+  el grid con la feature y sin ella (ver «Cómo añadir una feature») **y con `pnpm lint`**:
+  `eslint.config.js` tiene un bloque para el núcleo (`use-data-grid.ts`, `data-grid.tsx`,
+  `context.ts`, `define-columns.ts`, `types.ts`, `parts/**`, con `index.ts` excluido a propósito
+  porque re-exporta las factorías) que prohíbe importar `features/*`, otro para `features/*.{ts,tsx}`
+  que prohíbe importar el núcleo o un módulo hermano (sus propios sub-archivos, como
+  `filtering-column-filter.tsx`, sí se pueden importar), y uno general para todo `data-grid/**` que
+  prohíbe `@/features/*`, `@/routes/*` y `@/lib/api` (docs/architecture.md §3.5).
 - `GridFeatures` (`types.ts`) es el conjunto **completo** de features de TanStack que el tipado
   conoce; en runtime `useDataGrid` solo registra las que trae la lista `features` de esa tabla. Es
   lo que permite tipar `defineColumns`/`useDataGrid` una sola vez sin acoplar cada tabla a la unión
