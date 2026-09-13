@@ -26,10 +26,27 @@ describe('DoctorsTable', () => {
     expect(screen.queryByText('Dra. Ruiz')).not.toBeInTheDocument()
   })
 
-  it('en móvil muestra tarjetas con nombre, contacto y acciones de 44 px', async () => {
+  it('en móvil muestra tarjetas con nombre, contacto combinado y acciones de 44 px', async () => {
     setMatchMedia(false)
-    renderWithRouter(<DoctorsTable doctors={DOCTORS} onEdit={vi.fn()} onToggle={vi.fn()} />)
+    const { container } = renderWithRouter(
+      <DoctorsTable doctors={DOCTORS} onEdit={vi.fn()} onToggle={vi.fn()} />,
+    )
     expect(await screen.findByRole('list')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Editar Dra. Ruiz' })).toBeInTheDocument()
+    // Contacto de Dr. Gómez (el único con teléfono y correo): subtítulos unidos con " · ",
+    // separador incluido en un `<span aria-hidden>` entre los dos, por eso se lee el `<p>`
+    // completo (`textContent`) en vez de `getByText` con la cadena exacta.
+    // Dra. Ruiz no tiene teléfono ni correo, así que su tarjeta no aporta ningún `<p>` de
+    // subtítulo (`cards.tsx` filtra las celdas vacías): el único `<p>` es el de Dr. Gómez.
+    const subtitle = container.querySelectorAll('li p')[0]
+    expect(subtitle?.textContent).toBe('0991234567 · g@x.com')
+    // 44 px: `size="icon"` (Button) y el `Switch` por defecto miden 44 px (docs/conventions.md §5).
+    expect(screen.getByRole('button', { name: 'Editar Dr. Gómez' })).toHaveAttribute(
+      'data-size',
+      'icon',
+    )
+    expect(screen.getByRole('switch', { name: 'Dr. Gómez activo' })).toHaveAttribute(
+      'data-size',
+      'default',
+    )
   })
 })
