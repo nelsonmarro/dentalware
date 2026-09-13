@@ -16,9 +16,9 @@ import {
   type Column,
   type ColumnDef,
   type Header,
+  type ReactTable,
   type Row,
   type RowData,
-  type Table,
   type TableOptions,
 } from '@tanstack/react-table'
 
@@ -76,7 +76,10 @@ export const gridFeaturesForTyping = () =>
   })
 export type GridFeatures = ReturnType<typeof gridFeaturesForTyping>
 
-export type GridTable<T extends RowData> = Table<GridFeatures, T>
+// `ReactTable` (no `Table` de table-core): la instancia que devuelve `useTable()` añade
+// `FlexRender`, `state` y `Subscribe` sobre el tipo base; sin esto las partes no tipan
+// `table.FlexRender` ni `table.state`.
+export type GridTable<T extends RowData> = ReactTable<GridFeatures, T>
 export type GridColumn<T extends RowData> = Column<GridFeatures, T, unknown>
 export type GridHeader<T extends RowData> = Header<GridFeatures, T, unknown>
 export type GridRow<T extends RowData> = Row<GridFeatures, T>
