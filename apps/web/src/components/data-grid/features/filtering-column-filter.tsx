@@ -16,6 +16,7 @@ export function ColumnFilter({ column }: { column: GridColumn<never> }) {
 
   if (kind === 'select') {
     const options = Array.from(column.getFacetedUniqueValues().keys())
+      .filter((k) => k !== null && k !== undefined && k !== '')
       .map(String)
       .sort((a, b) => a.localeCompare(b))
     return (

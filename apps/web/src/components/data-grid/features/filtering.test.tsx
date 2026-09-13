@@ -8,7 +8,7 @@ import { defineColumns } from '../define-columns'
 import { useDataGrid } from '../use-data-grid'
 import { filtering } from './filtering'
 
-type Row = { id: string; name: string; category: string; days: number }
+type Row = { id: string; name: string; category: string | null; days: number }
 const columns = defineColumns<Row>((col) => [
   col.accessor('name', { header: 'Nombre', meta: { filter: 'text' } }),
   col.accessor('category', { header: 'Categoría', meta: { filter: 'select' } }),
@@ -17,6 +17,7 @@ const columns = defineColumns<Row>((col) => [
 const rows: Row[] = [
   { id: '1', name: 'Prótesis híbrida', category: 'Removible', days: 12 },
   { id: '2', name: 'Zirconio', category: 'Fija', days: 5 },
+  { id: '3', name: 'Guarda oclusal', category: null, days: 8 },
 ]
 const withSearch = [filtering({ search: { id: 'buscar', label: 'Buscar producto' } })]
 const withColumns = [filtering({ columns: true })]
@@ -62,6 +63,18 @@ describe('feature filtering', () => {
     await user.type(screen.getByLabelText('Días mínimo'), '10')
     expect(screen.queryByText('Zirconio')).not.toBeInTheDocument()
     expect(screen.getByText('Prótesis híbrida')).toBeInTheDocument()
+  })
+
+  it('el filtro select descarta valores facetados vacíos y no oculta filas sin categoría', async () => {
+    setMatchMedia(true)
+    renderWithRouter(<Grid features={withColumns} />)
+    await screen.findByLabelText('Filtrar Categoría')
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Todas',
+      'Fija',
+      'Removible',
+    ])
+    expect(screen.getByText('Guarda oclusal')).toBeInTheDocument()
   })
 
   it('sin la feature no hay buscador ni filtros', async () => {

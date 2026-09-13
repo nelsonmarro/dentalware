@@ -15,8 +15,11 @@ import type { GridFeature } from '../types'
 import { ColumnFilter } from './filtering-column-filter'
 
 /** Filtro de texto insensible a acentos y mayúsculas (celda y valor buscado normalizados). */
-const sinAcentos = (row: { getValue: (id: string) => unknown }, columnId: string, value: unknown) =>
-  normalize(row.getValue(columnId)).includes(normalize(value))
+const accentInsensitive = (
+  row: { getValue: (id: string) => unknown },
+  columnId: string,
+  value: unknown,
+) => normalize(row.getValue(columnId)).includes(normalize(value))
 
 /**
  * Filtro único registrado para todas las columnas (`defaultColumn.filterFn`): rango numérico
@@ -38,7 +41,7 @@ const gridFilter = (
     { columnDef: { meta?: { filter?: string } } } | undefined
   const kind = column?.columnDef.meta?.filter
   if (kind === 'select') return normalize(row.getValue(columnId)) === normalize(value)
-  return sinAcentos(row, columnId, value)
+  return accentInsensitive(row, columnId, value)
 }
 
 type SearchOpts = { id: string; label: string; placeholder?: string }
@@ -75,7 +78,7 @@ function Toolbar({ search, columns }: { search?: SearchOpts; columns: boolean })
 /**
  * Búsqueda global (con etiqueta visible, UX1-09) y/o filtros por columna según `meta.filter`.
  * Un único `gridFilter` cubre texto sin acentos, igualdad normalizada (`select`) y rango
- * numérico `[min, max]` (`range`); `globalFilterFn` reutiliza la variante de texto (`sinAcentos`).
+ * numérico `[min, max]` (`range`); `globalFilterFn` reutiliza la variante de texto (`accentInsensitive`).
  */
 export function filtering(opts: { search?: SearchOpts; columns?: boolean } = {}): GridFeature {
   const columns = opts.columns ?? false
@@ -92,7 +95,7 @@ export function filtering(opts: { search?: SearchOpts; columns?: boolean } = {})
       filterFns: { gridFilter },
     },
     options: () => ({
-      globalFilterFn: sinAcentos,
+      globalFilterFn: accentInsensitive,
       // Se pasa la función directa (no el string 'gridFilter'): el tipo `GridFeatures` que
       // tipa `options()` es fijo (`types.ts:gridFeaturesForTyping`) y no conoce los `filterFns`
       // que cada feature registra en runtime, así que el nombre no es un `FilterFnOption` válido
