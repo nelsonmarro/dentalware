@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import { useGrid, useRootProps } from '../context'
+import { columnLabel } from '../lib/column-label'
 import type { GridRow } from '../types'
 
 /** Tarjetas móviles: `renderCard` si existe; si no, se generan desde `meta.mobile`. */
@@ -49,12 +50,7 @@ function AutoCard({ row }: { row: GridRow<never> }) {
       )}
       {byRole('detail').map((c) => (
         <p key={c.id} className="text-sm">
-          <span className="text-muted-foreground">
-            {typeof c.column.columnDef.header === 'string'
-              ? c.column.columnDef.header
-              : c.column.id}
-            :{' '}
-          </span>
+          <span className="text-muted-foreground">{columnLabel(c.column)}: </span>
           {render(c)}
         </p>
       ))}

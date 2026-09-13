@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import { useGrid } from '../context'
 import { columnLabel } from '../lib/column-label'
 import type { GridHeader } from '../types'
@@ -12,7 +13,7 @@ export function HeaderCell({ header }: { header: GridHeader<never> }) {
     f.slots?.headerCell ? [{ id: f.id, Slot: f.slots.headerCell }] : [],
   )
   return (
-    <div className={`flex items-center gap-1 ${meta?.align === 'right' ? 'justify-end' : ''}`}>
+    <div className={cn('flex items-center gap-1', meta?.align === 'right' && 'justify-end')}>
       {header.isPlaceholder ? null : <grid.table.FlexRender header={header} />}
       {slots.map(({ id, Slot }) => (
         <Slot key={id} header={header} />
