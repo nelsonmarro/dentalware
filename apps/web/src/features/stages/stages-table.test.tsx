@@ -22,4 +22,22 @@ describe('StagesTable', () => {
     expect(screen.getByRole('button', { name: 'Subir Recepción' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Bajar Modelo' })).toBeDisabled()
   })
+
+  it('numera la fase solo en la tarjeta móvil; en escritorio la columna muestra el nombre solo', async () => {
+    setMatchMedia(true)
+    const desktop = renderWithRouter(
+      <StagesTable stages={STAGES} onEdit={vi.fn()} onToggle={vi.fn()} onMove={vi.fn()} />,
+    )
+    await screen.findByRole('table')
+    expect(screen.getByText('Recepción')).toBeInTheDocument()
+    expect(screen.queryByText('1. Recepción')).not.toBeInTheDocument()
+    desktop.unmount()
+
+    setMatchMedia(false)
+    renderWithRouter(
+      <StagesTable stages={STAGES} onEdit={vi.fn()} onToggle={vi.fn()} onMove={vi.fn()} />,
+    )
+    expect(await screen.findByText('1. Recepción')).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: '#' })).not.toBeInTheDocument()
+  })
 })
