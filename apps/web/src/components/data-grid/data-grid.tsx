@@ -43,9 +43,11 @@ function Content() {
   const props = useRootProps()
   const isDesktop = useMediaQuery(DESKTOP_QUERY)
   if (grid.table.getRowModel().rows.length === 0) {
+    const query = grid.has('filtering') ? String(grid.table.state.globalFilter ?? '') : ''
+    const trimmed = query.trim()
     const message =
-      typeof props.emptyMessage === 'function' ? props.emptyMessage('') : props.emptyMessage
-    return <GridEmpty message={message} action={props.emptyAction} />
+      typeof props.emptyMessage === 'function' ? props.emptyMessage(trimmed) : props.emptyMessage
+    return <GridEmpty message={message} action={trimmed ? undefined : props.emptyAction} />
   }
   return isDesktop ? <GridTable /> : <GridCards />
 }
