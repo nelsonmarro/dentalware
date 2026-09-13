@@ -1,5 +1,6 @@
 export { DataGrid } from './data-grid'
 export { defineColumns } from './define-columns'
 export { useDataGrid } from './use-data-grid'
+export { pagination } from './features/pagination'
 export { sorting } from './features/sorting'
 export type { GridColumnMeta, GridColumns, GridFeature, GridInstance, GridMode } from './types'
