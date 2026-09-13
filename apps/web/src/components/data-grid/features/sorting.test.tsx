@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { setMatchMedia } from '@/test/match-media'
@@ -10,7 +10,7 @@ import { sorting } from './sorting'
 
 type Row = { id: string; name: string; days: number }
 const columns = defineColumns<Row>((col) => [
-  col.accessor('name', { header: 'Nombre' }),
+  col.accessor('name', { header: 'Nombre', meta: { mobile: 'title' } }),
   col.accessor('days', { header: 'Días' }),
 ])
 const rows: Row[] = [
@@ -23,6 +23,7 @@ function Grid({ features }: { features: typeof FEATURES | [] }) {
   const grid = useDataGrid({ key: 'test', columns, data: rows, features, getRowId: (r) => r.id })
   return (
     <DataGrid.Root grid={grid} emptyMessage="Vacío">
+      <DataGrid.Toolbar />
       <DataGrid.Content />
     </DataGrid.Root>
   )
@@ -58,5 +59,27 @@ describe('feature sorting', () => {
     renderWithRouter(<Grid features={[]} />)
     await screen.findByRole('table')
     expect(screen.queryByRole('button', { name: /Ordenar por/ })).not.toBeInTheDocument()
+  })
+
+  it('en móvil ordena las tarjetas desde los selectores «Ordenar por» y «Dirección» de la toolbar', async () => {
+    setMatchMedia(false)
+    const user = userEvent.setup()
+    renderWithRouter(<Grid features={FEATURES} />)
+    await screen.findByRole('list')
+    const cards = () => screen.getAllByRole('listitem')
+    expect(within(cards()[0]!).getByText('Zirconio')).toBeInTheDocument()
+    expect(within(cards()[1]!).getByText('Acrílico')).toBeInTheDocument()
+    await user.selectOptions(await screen.findByLabelText('Ordenar por'), 'name')
+    await user.selectOptions(screen.getByLabelText('Dirección'), 'asc')
+    expect(within(cards()[0]!).getByText('Acrílico')).toBeInTheDocument()
+    expect(within(cards()[1]!).getByText('Zirconio')).toBeInTheDocument()
+  })
+
+  it('el selector de orden móvil está en el DOM en escritorio, oculto solo por CSS (`lg:hidden`)', async () => {
+    setMatchMedia(true)
+    renderWithRouter(<Grid features={FEATURES} />)
+    const select = await screen.findByLabelText('Ordenar por')
+    const wrapper = select.closest('div')?.parentElement
+    expect(wrapper).toHaveClass('lg:hidden')
   })
 })
