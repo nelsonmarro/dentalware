@@ -10,7 +10,7 @@ export function GridCards() {
     <ul className="flex flex-col gap-3">
       {rows.map((row) => (
         <li key={row.id} className="rounded-xl border border-border bg-card p-4">
-          {renderCard ? renderCard(row.original as never) : <AutoCard row={row} />}
+          {renderCard ? renderCard(row.original) : <AutoCard row={row} />}
         </li>
       ))}
     </ul>

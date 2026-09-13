@@ -21,10 +21,23 @@ const rows: Row[] = [
   { id: '2', name: 'Clínica Dos', city: 'Ambato', active: false },
 ]
 
-function Grid({ data, action }: { data: Row[]; action?: React.ReactNode }) {
+function Grid({
+  data,
+  action,
+  renderCard,
+}: {
+  data: Row[]
+  action?: React.ReactNode
+  renderCard?: (row: Row) => React.ReactNode
+}) {
   const grid = useDataGrid({ key: 'test', columns, data, getRowId: (r) => r.id })
   return (
-    <DataGrid.Root grid={grid} emptyMessage="No hay clínicas" emptyAction={action}>
+    <DataGrid.Root
+      grid={grid}
+      emptyMessage="No hay clínicas"
+      emptyAction={action}
+      renderCard={renderCard}
+    >
       <DataGrid.Toolbar />
       <DataGrid.Content />
       <DataGrid.Pagination />
@@ -59,6 +72,20 @@ describe('DataGrid', () => {
     expect(await screen.findByText('No hay clínicas')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Nueva clínica' })).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('en móvil usa renderCard con la fila tipada, sin tarjeta automática', async () => {
+    setMatchMedia(false)
+    renderWithRouter(
+      <Grid
+        data={rows}
+        renderCard={(row) => <span data-testid="card">{row.name.toUpperCase()}</span>}
+      />,
+    )
+    expect(await screen.findByText('CLÍNICA UNO')).toBeInTheDocument()
+    expect(screen.getByText('CLÍNICA DOS')).toBeInTheDocument()
+    expect(screen.getAllByTestId('card')).toHaveLength(2)
+    expect(screen.queryByText('Quito')).not.toBeInTheDocument()
   })
 
   it('sin features no hay barra, ni botones de orden, ni paginación', async () => {
