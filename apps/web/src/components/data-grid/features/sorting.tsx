@@ -1,15 +1,14 @@
 import { createSortedRowModel, rowSortingFeature, sortFns } from '@tanstack/react-table'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { columnLabel } from '../lib/column-label'
 import type { GridFeature, GridHeader } from '../types'
 
 function SortButton({ header }: { header: GridHeader<never> }) {
   const column = header.column
   if (!column.getCanSort()) return null
   const sorted = column.getIsSorted()
-  const label =
-    column.columnDef.meta?.label ??
-    (typeof column.columnDef.header === 'string' ? column.columnDef.header : column.id)
+  const label = columnLabel(column)
   const Icon = sorted === 'asc' ? ArrowUp : sorted === 'desc' ? ArrowDown : ArrowUpDown
   return (
     <Button

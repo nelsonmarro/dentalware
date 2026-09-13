@@ -1,4 +1,5 @@
 import { useGrid } from '../context'
+import { columnLabel } from '../lib/column-label'
 import type { GridHeader } from '../types'
 import { ColumnMenu } from './column-menu'
 
@@ -6,11 +7,7 @@ import { ColumnMenu } from './column-menu'
 export function HeaderCell({ header }: { header: GridHeader<never> }) {
   const grid = useGrid<never>()
   const meta = header.column.columnDef.meta
-  const label =
-    meta?.label ??
-    (typeof header.column.columnDef.header === 'string'
-      ? header.column.columnDef.header
-      : header.column.id)
+  const label = columnLabel(header.column)
   const slots = grid.features.flatMap((f) =>
     f.slots?.headerCell ? [{ id: f.id, Slot: f.slots.headerCell }] : [],
   )
