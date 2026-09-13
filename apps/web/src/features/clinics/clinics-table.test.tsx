@@ -8,16 +8,16 @@ import { ClinicsTable } from './clinics-table'
 
 const CLINICS: Clinic[] = [
   {
-    id: 'c1',
-    name: 'Clínica Uno',
+    id: 'c2',
+    name: 'Zirconio Dental',
     city: 'Quito',
     whatsapp: null,
     paymentTermsDays: 30,
     active: true,
   },
   {
-    id: 'c2',
-    name: 'Zirconio Dental',
+    id: 'c1',
+    name: 'Clínica Uno',
     city: 'Quito',
     whatsapp: null,
     paymentTermsDays: 30,

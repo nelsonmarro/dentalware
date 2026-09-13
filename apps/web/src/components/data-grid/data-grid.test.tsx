@@ -96,4 +96,41 @@ describe('DataGrid', () => {
     expect(screen.queryByRole('navigation', { name: 'Paginación' })).not.toBeInTheDocument()
     expect(screen.queryByRole('search')).not.toBeInTheDocument()
   })
+
+  it('en móvil une varias columnas subtitle con " · " y omite las de valor vacío', async () => {
+    setMatchMedia(false)
+    type ContactRow = { id: string; name: string; city: string | null; phone: string }
+    const contactColumns = defineColumns<ContactRow>((col) => [
+      col.accessor('name', { header: 'Nombre', meta: { mobile: 'title' } }),
+      col.accessor('city', {
+        header: 'Ciudad',
+        cell: (c) => c.getValue() ?? '—',
+        meta: { mobile: 'subtitle' },
+      }),
+      col.accessor('phone', { header: 'Teléfono', meta: { mobile: 'subtitle' } }),
+    ])
+    const contactRows: ContactRow[] = [
+      { id: '1', name: 'Clínica Uno', city: 'Quito', phone: '+593991234567' },
+      { id: '2', name: 'Clínica Dos', city: null, phone: '+593991234567' },
+    ]
+    function ContactGrid({ data }: { data: ContactRow[] }) {
+      const grid = useDataGrid({
+        key: 'test-contact',
+        columns: contactColumns,
+        data,
+        getRowId: (r) => r.id,
+      })
+      return (
+        <DataGrid.Root grid={grid} emptyMessage="No hay filas">
+          <DataGrid.Content />
+        </DataGrid.Root>
+      )
+    }
+    const { container } = renderWithRouter(<ContactGrid data={contactRows} />)
+    await screen.findByText('Clínica Uno')
+    const subtitles = container.querySelectorAll('li p')
+    expect(subtitles).toHaveLength(2)
+    expect(subtitles[0]?.textContent).toBe('Quito · +593991234567')
+    expect(subtitles[1]?.textContent).toBe('+593991234567')
+  })
 })
