@@ -117,6 +117,26 @@ describe('useDataGrid', () => {
     expect(formatAggregate('count', 3.9)).toBe('3')
   })
 
+  it('transformData de una feature se aplica a los datos', () => {
+    const { result } = renderHook(() =>
+      useDataGrid({
+        key: 'test',
+        columns,
+        data,
+        getRowId: (r) => r.id,
+        features: [
+          {
+            id: 'advancedFilter',
+            tanstack: {},
+            transformData: (rows) =>
+              (rows as typeof data).filter((r) => r.name === 'Ana') as never[],
+          },
+        ],
+      }),
+    )
+    expect(result.current.table.getRowModel().rows.map((r) => r.id)).toEqual(['1'])
+  })
+
   it('el initialState que devuelve options() se fusiona con el de otras features', () => {
     localStorage.setItem('datagrid:test-fusion:sizing:v1', '{"name":300}')
     const { result } = renderHook(() =>

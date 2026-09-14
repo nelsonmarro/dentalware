@@ -1,6 +1,7 @@
 export { DataGrid } from './data-grid'
 export { defineColumns } from './define-columns'
 export { useDataGrid } from './use-data-grid'
+export { advancedFilter } from './features/advanced-filter'
 export { filtering } from './features/filtering'
 export { grouping } from './features/grouping'
 export { pagination } from './features/pagination'

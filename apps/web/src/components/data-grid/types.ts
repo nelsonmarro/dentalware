@@ -115,6 +115,16 @@ export type GridFeature = {
   options?: (init: GridInit) => Partial<TableOptions<GridFeatures, never>>
   /** Estado inicial que siembra (se fusiona en `initialState`). */
   initialState?: Record<string, unknown>
+  /**
+   * Transforma las filas antes de construir la tabla (`useDataGrid` lo aplica con `useMemo`,
+   * encadenado entre features, antes de `useTable`). Recibe `init` por la misma razón que
+   * `options(init)`: una feature con estado fuera de React (por ejemplo el filtro avanzado,
+   * guardado por `key` en `features/advanced-filter-store.ts`) necesita `init.key` para leer su
+   * propia entrada y no chocar con otro grid en la misma página. `GridFeature` no es genérico
+   * sobre el tipo de fila (igual que `GridColumn<never>` en los slots): la feature castea dentro
+   * de su implementación, nunca aquí.
+   */
+  transformData?: (rows: never[], init: GridInit) => never[]
   slots?: GridSlots
 }
 
