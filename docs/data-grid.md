@@ -6,9 +6,9 @@ Componente transversal en `apps/web/src/components/data-grid/` que sustituirá a
 Construido sobre `@tanstack/react-table` 9.2.4 (`tableFeatures()` + `useTable`). Complementa
 `docs/architecture.md` §3.3 (web hexagonal-lite) y es la implementación de la spec de diseño
 `docs/superpowers/specs/2026-09-12-data-grid-design.md` — este documento describe **lo que existe
-hoy** (núcleo + `sorting`, `pagination`, `filtering`); el resto de features del diseño (filtro
-avanzado, agrupación, redimensionado, fijado de columnas, estado en URL) llegan en PRs
-posteriores y no están documentadas aquí porque todavía no existen en el código.
+hoy** (núcleo + `sorting`, `pagination`, `filtering`, `resizing`); el resto de features del diseño
+(filtro avanzado, agrupación, fijado de columnas, estado en URL) llegan en PRs posteriores y no
+están documentadas aquí porque todavía no existen en el código.
 
 ## Qué es y cuándo usarlo
 
@@ -59,8 +59,11 @@ un índice calculado). `GridColumnMeta` (`apps/web/src/components/data-grid/type
   'range'` (ver «Features disponibles»).
 - **`align`**: `'left' | 'right'`; alinea la celda y su cabecera a la derecha (columnas numéricas o
   de acciones).
-- **`width`**: ancho inicial en px. Hoy solo lo usará la feature de redimensionado (aún no
-  implementada); declararlo ya no tiene efecto visual salvo el que le des con `cellClassName`.
+- **`width`**: ancho inicial en px, traducido a `size` de columna en `useDataGrid` (no en
+  `defineColumns`). Sin la feature `resizing`, ese `size` no se refleja en ningún lado (la tabla
+  no aplica ancho por `<th>`/`<td>` salvo con `cellClassName`); con `resizing` es el ancho de
+  partida antes de que el usuario redimensione (y, si ya redimensionó, gana lo guardado en
+  `localStorage`).
 - **`cellClassName`**: clases Tailwind adicionales para la celda y la cabecera (por ejemplo un
   ancho fijo con `w-12`).
 - **`cellStyle`**: `(row: unknown) => CSSProperties | undefined`, estilo inline por fila —
@@ -99,11 +102,11 @@ return (
 
 `useDataGrid({ key, columns, data, features, mode?, rowCount?, getRowId })`:
 
-- **`key`**: identificador estable de la tabla; nombra la persistencia futura en `localStorage`
-  (`datagrid:<key>`, aún sin uso porque ninguna feature actual persiste estado). El helper ya
-  existe en `storage.ts` (`readStored`/`writeStored`, `localStorage` envuelto en try/catch con
-  valor por defecto y una versión por clave) para que `resizing`/`pinning` lo usen sin escribirlo
-  de nuevo cuando lleguen en un PR posterior.
+- **`key`**: identificador estable de la tabla; nombra la persistencia en `localStorage`
+  (`datagrid:<key>:<slice>`, por ejemplo `datagrid:productos:sizing`). El helper vive en
+  `storage.ts` (`readStored`/`writeStored`, `localStorage` envuelto en try/catch con valor por
+  defecto y una versión por clave, `:v1`); `resizing` ya lo usa para el ancho de columna y
+  `pinning` lo reutilizará sin escribirlo de nuevo cuando llegue en un PR posterior.
 - **`features`**: la lista de módulos activos, en el orden en que se registran (mismo orden en que
   aparecen sus controles en la toolbar y sus slots de cabecera). Decláralo como constante de
   módulo o memorizado con `useMemo`/`useCallback` en el componente si depende de props — la lista
@@ -163,10 +166,20 @@ Cada feature es una factoría que devuelve un `GridFeature`; se importan desde
     por defecto de cualquier columna sin `meta.filter` explícito sigue siendo ese mismo filtro de
     texto si el usuario le pasa un valor por otra vía.
 
+- **`resizing()`**: anchos de columna redimensionables, cliente o servidor. Aporta un asa por
+  cabecera (`slots.headerCell`, `role="separator"`, `aria-orientation="vertical"`,
+  `aria-label="Redimensionar <columna>"`) que se arrastra con el ratón o el dedo
+  (`columnResizeMode: 'onEnd'`: el ancho se confirma al soltar), se ajusta con el teclado (← → de
+  16 px, con foco en el asa) y se restablece con doble clic. El ancho de cada columna se guarda en
+  `localStorage` (`datagrid:<key>:sizing`) al terminar de redimensionar y se restaura al montar;
+  `meta.width` es el ancho de partida cuando no hay nada guardado. `defaultColumn.minSize` es 48 px
+  (el mismo mínimo que aplica el teclado) para no dejar una columna ilegible.
+
 Sin `pagination`, el grid muestra todas las filas sin paginar; sin `sorting`, las cabeceras no
 tienen botón de orden y las filas conservan el orden del array de `data` (útil para listas con
 orden manual, como fases); sin `filtering`, no hay ni buscador ni filtros de columna aunque las
-columnas tengan `meta.filter`.
+columnas tengan `meta.filter`; sin `resizing`, las columnas no se pueden redimensionar y `meta.width`
+no tiene efecto visual.
 
 ## Tarjetas móviles
 

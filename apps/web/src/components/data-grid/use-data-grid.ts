@@ -53,13 +53,30 @@ export function useDataGrid<T extends RowData>(opts: UseDataGridOptions<T>): Gri
     [list],
   )
 
-  const merged = list.reduce<Record<string, unknown>>(
-    (acc, f) => ({ ...acc, ...(f.options?.(init) ?? {}) }),
-    {},
+  // `meta.width` (declarado en las columnas) es el tamaño inicial que la feature `resizing`
+  // acaba usando como `column.getSize()`: se traduce aquí, no en `defineColumns`, porque es un
+  // detalle de cómo el grid interpreta el meta, no de cómo se define la columna.
+  const columns = useMemo(
+    () => opts.columns.map((c) => (c.meta?.width ? { ...c, size: c.meta.width } : c)),
+    [opts.columns],
   )
-  const initialState = list.reduce<Record<string, unknown>>(
-    (acc, f) => ({ ...acc, ...(f.initialState ?? {}) }),
-    {},
+
+  // Cada feature puede sembrar estado inicial de dos formas: el campo estático `initialState`
+  // (no depende de `init`) o devolviéndolo dentro de `options(init)` (depende de `key`/`mode`,
+  // como la persistencia de `resizing`). Ambas fuentes se fusionan en un único `initialState`;
+  // el resto de `options()` se fusiona aparte, para que ese `initialState` nunca lo pise.
+  const merged = list.reduce<{
+    options: Record<string, unknown>
+    initialState: Record<string, unknown>
+  }>(
+    (acc, f) => {
+      const { initialState: fromOptions, ...rest } = f.options?.(init) ?? {}
+      return {
+        options: { ...acc.options, ...rest },
+        initialState: { ...acc.initialState, ...(f.initialState ?? {}), ...(fromOptions ?? {}) },
+      }
+    },
+    { options: {}, initialState: {} },
   )
   const serverOptions =
     mode === 'server'
@@ -74,12 +91,12 @@ export function useDataGrid<T extends RowData>(opts: UseDataGridOptions<T>): Gri
   const table = useTable<GridFeatures, T>(
     {
       features,
-      columns: opts.columns,
+      columns,
       data: opts.data,
       getRowId: (row) => opts.getRowId(row),
-      initialState: initialState as never,
+      initialState: merged.initialState as never,
       ...serverOptions,
-      ...merged,
+      ...merged.options,
     },
     (state) => state,
   )
