@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { defineColumns } from './define-columns'
 import { filtering } from './features/filtering'
 import { resizing } from './features/resizing'
-import { useDataGrid } from './use-data-grid'
+import { formatAggregate, useDataGrid } from './use-data-grid'
 
 type Row = { id: string; name: string }
 const columns = defineColumns<Row>((col) => [col.accessor('name', { header: 'Nombre' })])
@@ -46,6 +46,43 @@ describe('useDataGrid', () => {
       useDataGrid({ key: 'test', columns: withWidth, data, getRowId: (r) => r.id }),
     )
     expect(result.current.table.getColumn('name')?.columnDef.size).toBe(200)
+  })
+
+  it('meta.aggregate se aplica como aggregationFn y aggregatedCell formateado; meta.groupable habilita enableGrouping', () => {
+    type RowWithPrice = Row & { price: number }
+    const withMeta = defineColumns<RowWithPrice>((col) => [
+      col.accessor('name', { header: 'Nombre', meta: { groupable: true } }),
+      col.accessor('price', { header: 'Precio', meta: { aggregate: 'sum' } }),
+    ])
+    const { result } = renderHook(() =>
+      useDataGrid({
+        key: 'test',
+        columns: withMeta,
+        data: [{ id: '1', name: 'Ana', price: 10 }],
+        getRowId: (r) => r.id,
+      }),
+    )
+    const name = result.current.table.getColumn('name')
+    const price = result.current.table.getColumn('price')
+    // Sin `meta.groupable` una columna sería agrupable por defecto (TanStack): se limita a las
+    // columnas marcadas explícitamente.
+    expect(name?.columnDef.enableGrouping).toBe(true)
+    expect(price?.columnDef.enableGrouping).toBe(false)
+    // Se registra la definición de `aggregationFn_sum` (no el string 'sum': ver el comentario en
+    // `use-data-grid.ts`), así que se comprueba comportamiento (`aggregate`), no identidad.
+    const aggregationFn = price?.columnDef.aggregationFn as
+      { aggregate: (ctx: { getValue: (row: unknown) => number }) => number } | undefined
+    expect(typeof aggregationFn?.aggregate).toBe('function')
+    const aggregatedCell = price?.columnDef.aggregatedCell as
+      ((ctx: { getValue: () => unknown }) => unknown) | undefined
+    expect(aggregatedCell).toBeTypeOf('function')
+    expect(aggregatedCell?.({ getValue: () => 12.345 })).toBe('12.35')
+  })
+
+  it('formatAggregate: `sum` con dos decimales, `count` como entero', () => {
+    expect(formatAggregate('sum', 75)).toBe('75.00')
+    expect(formatAggregate('sum', 12.345)).toBe('12.35')
+    expect(formatAggregate('count', 3.9)).toBe('3')
   })
 
   it('el initialState que devuelve options() se fusiona con el de otras features', () => {

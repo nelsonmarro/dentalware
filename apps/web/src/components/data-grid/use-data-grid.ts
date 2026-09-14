@@ -1,4 +1,6 @@
 import {
+  aggregationFn_count,
+  aggregationFn_sum,
   columnVisibilityFeature,
   metaHelper,
   tableFeatures,
@@ -15,6 +17,11 @@ import type {
   GridInstance,
   GridMode,
 } from './types'
+
+/** Formato de la celda agregada de una fila de grupo: `sum` con dos decimales, `count` entero. */
+export function formatAggregate(kind: NonNullable<GridColumnMeta['aggregate']>, value: unknown) {
+  return kind === 'count' ? String(Math.trunc(Number(value))) : Number(value).toFixed(2)
+}
 
 export type UseDataGridOptions<T extends RowData> = {
   /** Clave estable por tabla: nombra la persistencia local (`datagrid:<key>`). */
@@ -53,11 +60,35 @@ export function useDataGrid<T extends RowData>(opts: UseDataGridOptions<T>): Gri
     [list],
   )
 
-  // `meta.width` (declarado en las columnas) es el tamaño inicial que la feature `resizing`
-  // acaba usando como `column.getSize()`: se traduce aquí, no en `defineColumns`, porque es un
-  // detalle de cómo el grid interpreta el meta, no de cómo se define la columna.
+  // `meta.width`/`meta.aggregate`/`meta.groupable` (declarados en las columnas) son detalles de
+  // cómo el grid interpreta el meta, no de cómo se define la columna: se traducen aquí, no en
+  // `defineColumns`. `meta.width` es el tamaño inicial que `resizing` acaba usando como
+  // `column.getSize()`. `meta.aggregate` se traduce a `aggregationFn` (la feature `grouping` lo
+  // registra) y a un `aggregatedCell` que formatea el resultado (`sum` con dos decimales, `count`
+  // como entero). `enableGrouping` se fija explícitamente a `!!meta.groupable` en toda columna:
+  // sin esto, TanStack permite agrupar cualquier columna por defecto.
   const columns = useMemo(
-    () => opts.columns.map((c) => (c.meta?.width ? { ...c, size: c.meta.width } : c)),
+    () =>
+      opts.columns.map((c) => {
+        const meta = c.meta
+        const aggregate = meta?.aggregate
+        return {
+          ...c,
+          ...(meta?.width ? { size: meta.width } : {}),
+          enableGrouping: !!meta?.groupable,
+          // Se pasa la definición directa (no el string 'sum'/'count'): igual que
+          // `defaultColumn.filterFn` en `filtering.tsx`, `GridFeatures` es un tipo fijo que no
+          // conoce el registro `aggregationFns` que `grouping()` aporta en runtime, así que el
+          // nombre no es un `AggregationFnOption` válido a nivel de tipos aunque sí en ejecución.
+          ...(aggregate
+            ? {
+                aggregationFn: aggregate === 'sum' ? aggregationFn_sum : aggregationFn_count,
+                aggregatedCell: (ctx: { getValue: () => unknown }) =>
+                  formatAggregate(aggregate, ctx.getValue()),
+              }
+            : {}),
+        }
+      }),
     [opts.columns],
   )
 

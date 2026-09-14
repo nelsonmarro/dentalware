@@ -3,18 +3,37 @@ import { useGrid, useRootProps } from '../context'
 import { columnLabel } from '../lib/column-label'
 import type { GridRow } from '../types'
 
-/** Tarjetas móviles: `renderCard` si existe; si no, se generan desde `meta.mobile`. */
+/**
+ * Tarjetas móviles: `renderCard` si existe; si no, se generan desde `meta.mobile`. Con la
+ * feature `grouping` activa, cada fila de grupo aporta un encabezado (`<h3>` «<valor> (<n>)»)
+ * seguido de las tarjetas de sus `subRows`, en vez de aplanarse a una sola tarjeta.
+ */
 export function GridCards() {
   const grid = useGrid<never>()
   const { renderCard } = useRootProps()
   const rows = grid.table.getRowModel().rows
+  const hasGrouping = grid.has('grouping')
   return (
     <ul className="flex flex-col gap-3">
-      {rows.map((row) => (
-        <li key={row.id} className="rounded-xl border border-border bg-card p-4">
-          {renderCard ? renderCard(row.original) : <AutoCard row={row} />}
-        </li>
-      ))}
+      {rows.map((row) => {
+        const isGroup = hasGrouping && row.getIsGrouped()
+        return (
+          <Fragment key={row.id}>
+            {isGroup && (
+              <li>
+                <h3 className="px-1 text-sm font-medium text-muted-foreground">
+                  {String(row.groupingValue)} ({row.subRows.length})
+                </h3>
+              </li>
+            )}
+            {(isGroup ? row.subRows : [row]).map((r) => (
+              <li key={r.id} className="rounded-xl border border-border bg-card p-4">
+                {renderCard ? renderCard(r.original) : <AutoCard row={r} />}
+              </li>
+            ))}
+          </Fragment>
+        )
+      })}
     </ul>
   )
 }
