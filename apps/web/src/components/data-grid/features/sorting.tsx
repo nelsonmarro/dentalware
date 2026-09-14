@@ -37,11 +37,14 @@ const SELECT_CLASS =
  */
 function MobileSortControls() {
   const grid = useGrid<never>()
-  const { table } = grid
+  const { table, key } = grid
   const sortable = table.getAllLeafColumns().filter((c) => c.getCanSort())
   const current = table.state.sorting[0]
   const columnId = current?.id ?? ''
   const desc = current?.desc ?? false
+  // Ids con la `key` del grid: dos grids con `sorting` en la misma página no chocan de id.
+  const columnaId = `${key}-ordenar-por`
+  const direccionId = `${key}-direccion-orden`
 
   const apply = (nextColumnId: string, nextDesc: boolean) => {
     table.setSorting(nextColumnId ? [{ id: nextColumnId, desc: nextDesc }] : [])
@@ -50,9 +53,9 @@ function MobileSortControls() {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end lg:hidden">
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="ordenar-por">Ordenar por</Label>
+        <Label htmlFor={columnaId}>Ordenar por</Label>
         <select
-          id="ordenar-por"
+          id={columnaId}
           className={SELECT_CLASS}
           value={columnId}
           onChange={(e) => apply(e.target.value, desc)}
@@ -66,9 +69,9 @@ function MobileSortControls() {
         </select>
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="direccion-orden">Dirección</Label>
+        <Label htmlFor={direccionId}>Dirección</Label>
         <select
-          id="direccion-orden"
+          id={direccionId}
           className={SELECT_CLASS}
           value={desc ? 'desc' : 'asc'}
           disabled={!columnId}
