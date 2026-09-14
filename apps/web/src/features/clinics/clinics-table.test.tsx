@@ -8,16 +8,16 @@ import { ClinicsTable } from './clinics-table'
 
 const CLINICS: Clinic[] = [
   {
-    id: 'c1',
-    name: 'Clínica Uno',
+    id: 'c2',
+    name: 'Zirconio Dental',
     city: 'Quito',
     whatsapp: null,
     paymentTermsDays: 30,
     active: true,
   },
   {
-    id: 'c2',
-    name: 'Zirconio Dental',
+    id: 'c1',
+    name: 'Clínica Uno',
     city: 'Quito',
     whatsapp: null,
     paymentTermsDays: 30,
@@ -52,5 +52,27 @@ describe('ClinicsTable', () => {
     await user.type(await screen.findByLabelText('Buscar clínica'), 'no existe')
 
     expect(await screen.findByText(/Ninguna clínica coincide con "no existe"/)).toBeInTheDocument()
+  })
+
+  it('ordena por nombre al pulsar la cabecera', async () => {
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    renderWithRouter(<ClinicsTable clinics={CLINICS} onEdit={vi.fn()} onToggle={vi.fn()} />)
+    await user.click(await screen.findByRole('button', { name: 'Ordenar por Clínica' }))
+    const names = screen.getAllByRole('link').map((l) => l.textContent)
+    expect(names).toEqual(['Clínica Uno', 'Zirconio Dental'])
+  })
+
+  it('pagina de 25 en 25', async () => {
+    setMatchMedia(true)
+    const many = Array.from({ length: 26 }, (_, i) => ({
+      ...CLINICS[0]!,
+      id: `c${i}`,
+      name: `Clínica ${String(i).padStart(2, '0')}`,
+    }))
+    renderWithRouter(<ClinicsTable clinics={many} onEdit={vi.fn()} onToggle={vi.fn()} />)
+    await screen.findByRole('navigation', { name: 'Paginación' })
+    expect(screen.getAllByRole('link')).toHaveLength(25)
+    expect(screen.getByText('Página 1 de 2')).toBeInTheDocument()
   })
 })

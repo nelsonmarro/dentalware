@@ -10,9 +10,14 @@ test.describe('Configuración', () => {
     const name = `Clínica E2E ${Date.now()}`
     await page.goto('/configuracion/clinicas')
     await page.getByRole('button', { name: 'Nueva clínica' }).first().click()
-    await page.getByLabel('Nombre').fill(name)
-    await page.getByLabel('WhatsApp').fill('+593991234567')
-    await page.getByRole('button', { name: 'Guardar' }).click()
+    // Se acota al diálogo: la cabecera de la tabla de clínicas ya trae un botón "Ordenar por
+    // WhatsApp" (feature `sorting` del DataGrid) y `getByLabel` no descarta el fondo por
+    // `aria-hidden` (a diferencia de `getByRole`), así que `page.getByLabel('WhatsApp')` sin
+    // acotar resuelve ambos y falla en modo estricto.
+    const dialog = page.getByRole('dialog', { name: 'Nueva clínica' })
+    await dialog.getByLabel('Nombre').fill(name)
+    await dialog.getByLabel('WhatsApp').fill('+593991234567')
+    await dialog.getByRole('button', { name: 'Guardar' }).click()
     await expect(page.getByText('Clínica creada')).toBeVisible()
     await expect(page.getByRole('link', { name })).toBeVisible()
   })

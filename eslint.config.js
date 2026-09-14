@@ -95,6 +95,20 @@ const webAdapterPatterns = [
   },
 ]
 
+// Fronteras del DataGrid (docs/architecture.md §3.5, spec 2026-09-12 §2.1): es transversal
+// (components/), así que no depende de una feature de la app, de una ruta ni del cliente HTTP;
+// su núcleo (use-data-grid.ts, data-grid.tsx, context.ts, define-columns.ts, types.ts, parts/*)
+// no conoce ninguna `features/*` propia del DataGrid, y cada módulo de `features/*` no importa
+// el núcleo ni a otro módulo hermano: solo el contrato de types.ts, el contexto y sus propios
+// sub-archivos (p. ej. filtering-column-filter.tsx). El único puente es index.ts, el barrel que
+// re-exporta las factorías de features a propósito: queda fuera de la restricción del núcleo.
+const DATA_GRID = 'apps/web/src/components/data-grid'
+const dataGridAppBoundary = {
+  group: ['@/features/*', '@/features/**', '@/routes/*', '@/routes/**', '@/lib/api'],
+  message:
+    'DataGrid es transversal (components/): no depende de una feature de la app, de una ruta ni de @/lib/api.',
+}
+
 export default defineConfig([
   globalIgnores([
     '**/dist/**',
@@ -258,6 +272,95 @@ export default defineConfig([
               allowTypeImports: true,
               message:
                 'Las rutas solo importan de features/ (hooks y componentes) y components/; de api.ts solo tipos.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // --- components/data-grid: aislamiento núcleo/features (docs/architecture.md §3.5) ---
+  // Bloque general primero (menos específico): cualquier archivo de data-grid, index.ts y los
+  // tests incluidos, no depende de una feature de la app, de una ruta ni de @/lib/api. Los dos
+  // bloques siguientes son más específicos y repiten esta restricción junto a la propia (el
+  // último `no-restricted-imports` que matchea un archivo reemplaza, no fusiona, al anterior).
+  {
+    files: [`${DATA_GRID}/**`],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [dataGridAppBoundary] }],
+    },
+  },
+  {
+    // Núcleo: no importa ninguna feature propia del DataGrid. index.ts queda fuera a propósito
+    // (re-exporta las factorías, ver el comentario de `dataGridAppBoundary`); los tests de
+    // parts/* (si los hay) también, porque montan features reales para probar comportamiento.
+    files: [
+      `${DATA_GRID}/use-data-grid.ts`,
+      `${DATA_GRID}/data-grid.tsx`,
+      `${DATA_GRID}/context.ts`,
+      `${DATA_GRID}/define-columns.ts`,
+      `${DATA_GRID}/types.ts`,
+      `${DATA_GRID}/parts/**`,
+    ],
+    ignores: [`${DATA_GRID}/parts/**/*.test.{ts,tsx}`],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            dataGridAppBoundary,
+            {
+              group: ['./features/*', '../features/*', '**/data-grid/features/*'],
+              message:
+                'El núcleo del DataGrid no importa features: solo conoce el contrato GridFeature y el contexto (docs/architecture.md §3.5).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // Una feature no importa el núcleo ni a otra feature hermana: cada módulo trae completas
+    // las features de TanStack que necesita (spec §3). Sus propios sub-archivos (p. ej.
+    // filtering-column-filter.tsx) sí se pueden importar; sus tests quedan fuera porque montan
+    // el núcleo real (DataGrid.Root, useDataGrid) para probar comportamiento.
+    files: [`${DATA_GRID}/features/*.{ts,tsx}`],
+    ignores: [`${DATA_GRID}/features/*.test.{ts,tsx}`],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            dataGridAppBoundary,
+            {
+              group: [
+                '../use-data-grid',
+                '../use-data-grid.ts',
+                '../data-grid',
+                '../data-grid.tsx',
+                './sorting',
+                './sorting.tsx',
+                './pagination',
+                './pagination.tsx',
+                './filtering',
+                './filtering.tsx',
+                './resizing',
+                './resizing.ts',
+                './resizing.tsx',
+                './grouping',
+                './grouping.ts',
+                './grouping.tsx',
+                './advanced-filter',
+                './advanced-filter.ts',
+                './advanced-filter.tsx',
+                './pinning',
+                './pinning.ts',
+                './pinning.tsx',
+                './url-state',
+                './url-state.ts',
+              ],
+              message:
+                'Una feature del DataGrid no importa el núcleo ni otra feature (spec §3): solo sus propios sub-archivos, types.ts y context.ts.',
             },
           ],
         },
