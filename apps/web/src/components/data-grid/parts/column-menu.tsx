@@ -8,12 +8,18 @@ import {
 import { useGrid } from '../context'
 import type { GridColumn } from '../types'
 
-/** Menú de columna: solo aparece si alguna feature registró items (`slots.columnMenu`). */
+/**
+ * Menú de columna: solo aparece si alguna feature registró un item (`slots.columnMenu`) que
+ * `canApply` acepta para esta columna (sin `canApply`, aplica a todas). Evita el botón con un
+ * menú vacío en una columna donde ningún item aplica (por ejemplo, una sin `meta.groupable`).
+ */
 export function ColumnMenu({ column, label }: { column: GridColumn<never>; label: string }) {
   const grid = useGrid<never>()
-  const items = grid.features.flatMap((f) =>
-    f.slots?.columnMenu ? [{ id: f.id, Item: f.slots.columnMenu }] : [],
-  )
+  const items = grid.features.flatMap((f) => {
+    const slot = f.slots?.columnMenu
+    if (!slot || !(slot.canApply?.(column) ?? true)) return []
+    return [{ id: f.id, Item: slot.item }]
+  })
   if (items.length === 0) return null
   return (
     <DropdownMenu>

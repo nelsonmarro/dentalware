@@ -1,7 +1,7 @@
 import {
   aggregationFn_count,
-  aggregationFn_sum,
   columnVisibilityFeature,
+  constructAggregationFn,
   metaHelper,
   tableFeatures,
   useTable,
@@ -22,6 +22,20 @@ import type {
 export function formatAggregate(kind: NonNullable<GridColumnMeta['aggregate']>, value: unknown) {
   return kind === 'count' ? String(Math.trunc(Number(value))) : Number(value).toFixed(2)
 }
+
+// `aggregationFn_sum` de TanStack solo suma valores con `typeof value === 'number'`
+// (rowAggregationFeature): el dinero de este proyecto viaja como cadena decimal ("45.00",
+// conventions §4), así que agrupar una columna de precio con el `sum` de TanStack sumaría 0 en
+// cada fila y daría "0.00". Esta variante convierte cada valor con `Number()` e ignora los que
+// resulten `NaN` (celdas vacías o no numéricas), sin dejar de sumar números ya nativos.
+const moneySum = constructAggregationFn({
+  aggregate: ({ rows, getValue }) =>
+    rows.reduce((total, row) => {
+      const n = Number(getValue(row))
+      return total + (Number.isNaN(n) ? 0 : n)
+    }, 0),
+  merge: ({ subRowResults }) => subRowResults.reduce((total, value) => total + value, 0),
+})
 
 export type UseDataGridOptions<T extends RowData> = {
   /** Clave estable por tabla: nombra la persistencia local (`datagrid:<key>`). */
@@ -82,7 +96,7 @@ export function useDataGrid<T extends RowData>(opts: UseDataGridOptions<T>): Gri
           // nombre no es un `AggregationFnOption` válido a nivel de tipos aunque sí en ejecución.
           ...(aggregate
             ? {
-                aggregationFn: aggregate === 'sum' ? aggregationFn_sum : aggregationFn_count,
+                aggregationFn: aggregate === 'sum' ? moneySum : aggregationFn_count,
                 aggregatedCell: (ctx: { getValue: () => unknown }) =>
                   formatAggregate(aggregate, ctx.getValue()),
               }

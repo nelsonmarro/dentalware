@@ -2,6 +2,7 @@ import { renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { defineColumns } from './define-columns'
 import { filtering } from './features/filtering'
+import { grouping } from './features/grouping'
 import { resizing } from './features/resizing'
 import { formatAggregate, useDataGrid } from './use-data-grid'
 
@@ -68,8 +69,9 @@ describe('useDataGrid', () => {
     // columnas marcadas explícitamente.
     expect(name?.columnDef.enableGrouping).toBe(true)
     expect(price?.columnDef.enableGrouping).toBe(false)
-    // Se registra la definición de `aggregationFn_sum` (no el string 'sum': ver el comentario en
-    // `use-data-grid.ts`), así que se comprueba comportamiento (`aggregate`), no identidad.
+    // Se registra una definición propia (`moneySum`, no el string 'sum' ni el `aggregationFn_sum`
+    // nativo de TanStack: ver los comentarios en `use-data-grid.ts`), así que se comprueba
+    // comportamiento (`aggregate`), no identidad.
     const aggregationFn = price?.columnDef.aggregationFn as
       { aggregate: (ctx: { getValue: (row: unknown) => number }) => number } | undefined
     expect(typeof aggregationFn?.aggregate).toBe('function')
@@ -77,6 +79,36 @@ describe('useDataGrid', () => {
       ((ctx: { getValue: () => unknown }) => unknown) | undefined
     expect(aggregatedCell).toBeTypeOf('function')
     expect(aggregatedCell?.({ getValue: () => 12.345 })).toBe('12.35')
+  })
+
+  it('meta.aggregate `sum` suma cadenas decimales de dinero, no solo números', () => {
+    // El dinero viaja como cadena decimal ("45.00", conventions §4): `aggregationFn_sum` de
+    // TanStack ignora todo lo que no sea `typeof value === 'number'`, así que sumar precios
+    // agrupados daría "0.00" si no se convierte cada valor con `Number()` antes de sumar.
+    type RowMoney = { id: string; category: string; price: string }
+    const withMoney = defineColumns<RowMoney>((col) => [
+      col.accessor('category', { header: 'Categoría', meta: { groupable: true } }),
+      col.accessor('price', { header: 'Precio', meta: { aggregate: 'sum' } }),
+    ])
+    const { result } = renderHook(() =>
+      useDataGrid({
+        key: 'test',
+        columns: withMoney,
+        data: [
+          { id: '1', category: 'Fija', price: '45.00' },
+          { id: '2', category: 'Fija', price: '30.00' },
+        ],
+        features: [grouping({ initial: 'category' })],
+        getRowId: (r) => r.id,
+      }),
+    )
+    const groupRow = result.current.table.getRowModel().rows.find((r) => r.getIsGrouped())
+    if (!groupRow) throw new Error('no se encontró la fila de grupo')
+    const priceCell = groupRow.getAllCells().find((c) => c.column.id === 'price')
+    if (!priceCell) throw new Error('no se encontró la celda de precio')
+    const aggregatedCell = priceCell.column.columnDef.aggregatedCell as
+      ((ctx: { getValue: () => unknown }) => unknown) | undefined
+    expect(aggregatedCell?.({ getValue: () => priceCell.getValue() })).toBe('75.00')
   })
 
   it('formatAggregate: `sum` con dos decimales, `count` como entero', () => {

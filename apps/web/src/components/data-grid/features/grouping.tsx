@@ -40,10 +40,13 @@ function GroupBySelect() {
 }
 
 function GroupMenuItem({ column }: { column: GridColumn<never> }) {
-  if (!column.columnDef.meta?.groupable) return null
   const grouped = column.getIsGrouped()
+  // No `column.toggleGrouping()`: acumula en el array de `grouping` (pensado para agrupación
+  // multi-columna), pero el resto de la feature asume una sola columna (`grouping[0]` en
+  // `GroupBySelect`, `row.groupingValue` en `parts/table.tsx`/`parts/cards.tsx`). Se reemplaza
+  // el array entero: agrupar por otra columna sustituye la anterior en vez de anidarla.
   return (
-    <DropdownMenuItem onSelect={() => column.toggleGrouping()}>
+    <DropdownMenuItem onSelect={() => column.table.setGrouping(grouped ? [] : [column.id])}>
       {grouped ? 'Quitar agrupación' : `Agrupar por ${columnLabel(column)}`}
     </DropdownMenuItem>
   )
@@ -62,6 +65,9 @@ export function grouping(opts: { initial?: string } = {}): GridFeature {
       aggregationFns,
     },
     initialState: { grouping: opts.initial ? [opts.initial] : [], expanded: true },
-    slots: { toolbar: GroupBySelect, columnMenu: GroupMenuItem },
+    slots: {
+      toolbar: GroupBySelect,
+      columnMenu: { item: GroupMenuItem, canApply: (c) => !!c.columnDef.meta?.groupable },
+    },
   }
 }

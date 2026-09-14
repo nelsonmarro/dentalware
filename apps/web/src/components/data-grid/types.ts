@@ -94,8 +94,16 @@ export type GridSlots = {
   toolbar?: ComponentType
   /** Se pinta dentro de cada `th` después de la etiqueta (botón de orden, asa de redimensionado). */
   headerCell?: ComponentType<{ header: GridHeader<never> }>
-  /** Items del menú de columna (fijar, agrupar). */
-  columnMenu?: ComponentType<{ column: GridColumn<never> }>
+  /**
+   * Item del menú de columna (fijar, agrupar) y, opcionalmente, en qué columnas aplica
+   * (`canApply`, por defecto todas). `parts/column-menu.tsx` no renderiza el botón del menú en
+   * una columna donde ningún item aplica — evita un menú vacío en, por ejemplo, una columna sin
+   * `meta.groupable`.
+   */
+  columnMenu?: {
+    item: ComponentType<{ column: GridColumn<never> }>
+    canApply?: (column: GridColumn<never>) => boolean
+  }
   footer?: ComponentType
 }
 

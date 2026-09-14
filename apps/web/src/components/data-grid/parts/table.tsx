@@ -19,7 +19,7 @@ function GroupRow({ row }: { row: GridRow<never> }) {
   const value = String(row.groupingValue)
   return (
     <TableRow className="bg-muted/40 font-medium" aria-label={`${value} (${row.subRows.length})`}>
-      {row.getAllCells().map((cell) => (
+      {row.getVisibleCells().map((cell) => (
         <TableCell
           key={cell.id}
           className={cell.column.columnDef.meta?.align === 'right' ? 'text-right' : ''}

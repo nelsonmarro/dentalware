@@ -10,6 +10,15 @@ hoy** (núcleo + `sorting`, `pagination`, `filtering`, `resizing`); el resto de 
 (filtro avanzado, agrupación, fijado de columnas, estado en URL) llegan en PRs posteriores y no
 están documentadas aquí porque todavía no existen en el código.
 
+**Nota de implementación (agrupación, `meta.aggregate: 'sum'`)**: la feature `grouping` (aún sin
+documentar en «Features disponibles»: llega con su tabla real, Tarea 13) no usa el `sum` nativo de
+TanStack (`aggregationFn_sum`) porque ese solo suma valores con `typeof value === 'number'`. El
+dinero de este proyecto viaja como cadena decimal (`"45.00"`, `docs/conventions.md` §4), así que
+sumar una columna de precio con el `sum` de TanStack daría `0.00`. `useDataGrid` registra en su
+lugar una agregación propia (`constructAggregationFn`, `use-data-grid.ts`) que convierte cada valor
+con `Number()` antes de sumar e ignora los que resulten `NaN`: acepta números y cadenas decimales
+por igual.
+
 ## Qué es y cuándo usarlo
 
 Un grid modular y "plug and play": cada capacidad (orden, paginación, filtros…) vive en su propio
@@ -259,6 +268,12 @@ export type GridFeature = {
   slots?: GridSlots                              // toolbar, headerCell, columnMenu, footer
 }
 ```
+
+`slots.columnMenu` no es un simple `ComponentType`: es `{ item: ComponentType<{ column }>,
+canApply?: (column) => boolean }`. `parts/column-menu.tsx` filtra los items de todas las features
+con `canApply?.(column) ?? true` (sin `canApply`, el item aplica a cualquier columna) y no
+renderiza el botón «Opciones de la columna…» si ninguno aplica — así una columna sin, por ejemplo,
+`meta.groupable` no muestra un menú vacío con el item de `grouping` dentro.
 
 Un archivo por feature en `features/`, con su factoría con opciones tipadas (por ejemplo
 `sorting({ multi })`, `filtering({ search, columns })`). Regla de aislamiento: una feature puede
