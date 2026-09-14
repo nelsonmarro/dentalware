@@ -90,6 +90,19 @@ export type GridColumns<T extends RowData> = ColumnDef<GridFeatures, T, unknown>
 /** Lo que una feature recibe para calcular sus opciones. */
 export type GridInit = { key: string; mode: GridMode; rowCount?: number }
 
+/**
+ * Fuente de estado externo a React que una feature declara para que `useDataGrid` sepa cuándo
+ * debe recalcular `transformData` (ver `GridFeature.dataSignal`). Es el contrato mínimo de
+ * `useSyncExternalStore`: `subscribe` registra un callback y devuelve cómo darse de baja;
+ * `getSnapshot` devuelve el valor actual y debe ser una referencia **estable** mientras no cambie
+ * (si no, React entra en un bucle de recálculo). `useDataGrid` no interpreta el valor devuelto
+ * (`unknown`): solo compara si cambió de una lectura a otra.
+ */
+export type GridDataSignal = {
+  subscribe: (callback: () => void) => () => void
+  getSnapshot: () => unknown
+}
+
 export type GridSlots = {
   toolbar?: ComponentType
   /** Se pinta dentro de cada `th` después de la etiqueta (botón de orden, asa de redimensionado). */
@@ -125,6 +138,15 @@ export type GridFeature = {
    * de su implementación, nunca aquí.
    */
   transformData?: (rows: never[], init: GridInit) => never[]
+  /**
+   * Declara la fuente reactiva que hace que `transformData` se recalcule cuando cambia un estado
+   * fuera de React (por ejemplo el filtro avanzado). `useDataGrid` combina la `dataSignal` de
+   * todas las features registradas en una sola suscripción de `useSyncExternalStore`
+   * (`combineDataSignals`) y usa su snapshot como dependencia del `useMemo` de `transformData`:
+   * una feature sin estado externo (o cuyo `transformData` es puro sobre `rows`) no necesita
+   * declararla.
+   */
+  dataSignal?: (init: GridInit) => GridDataSignal
   slots?: GridSlots
 }
 

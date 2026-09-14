@@ -265,6 +265,8 @@ export type GridFeature = {
   tanstack: Record<string, unknown>              // features/row models/fns de TanStack a fusionar
   options?: (init: GridInit) => Partial<TableOptions<GridFeatures, never>>
   initialState?: Record<string, unknown>
+  transformData?: (rows: never[], init: GridInit) => never[]  // ver «Transformar filas» abajo
+  dataSignal?: (init: GridInit) => GridDataSignal              // ver «Transformar filas» abajo
   slots?: GridSlots                              // toolbar, headerCell, columnMenu, footer
 }
 ```
@@ -274,6 +276,36 @@ canApply?: (column) => boolean }`. `parts/column-menu.tsx` filtra los items de t
 con `canApply?.(column) ?? true` (sin `canApply`, el item aplica a cualquier columna) y no
 renderiza el botón «Opciones de la columna…» si ninguno aplica — así una columna sin, por ejemplo,
 `meta.groupable` no muestra un menú vacío con el item de `grouping` dentro.
+
+### Transformar filas: `transformData` y `dataSignal`
+
+Una feature que necesita filtrar o transformar filas **antes** de que TanStack construya la tabla
+(no vía `columnFilteringFeature`/`globalFilteringFeature`, por ejemplo porque combina varias
+columnas con una lógica propia) declara `transformData`: `useDataGrid` lo aplica con `useMemo`,
+encadenando el resultado de cada feature registrada en orden, antes de pasar `data` a `useTable`.
+Recibe `(rows, init)` — igual que `options(init)` — porque una feature con estado fuera de React
+necesita `init.key` para leer su propia entrada sin chocar con otro grid de la misma página, e
+`init.mode` para no hacer nada en modo servidor si su lógica es solo de cliente. `GridFeature` no
+es genérico sobre el tipo de fila (igual que `GridColumn<never>` en los slots): la implementación
+castea `rows` dentro de la feature, nunca en el núcleo.
+
+Si ese estado externo puede cambiar sin pasar por el estado de React (un filtro guardado en un
+store propio, no en `table.state`), la feature también declara `dataSignal(init): GridDataSignal`
+— el contrato mínimo de `useSyncExternalStore` (`subscribe(callback): unsubscribe` y
+`getSnapshot(): unknown`, con `getSnapshot` estable mientras el valor no cambie). `useDataGrid`
+combina la `dataSignal` de todas las features registradas en una sola suscripción
+(`combineDataSignals`, en `use-data-grid.ts`) y usa su snapshot como dependencia del `useMemo` de
+`transformData`: es lo único que fuerza recalcular cuando ese estado externo cambia, sin que el
+núcleo conozca qué feature lo declaró ni qué guarda. Una feature cuyo `transformData` es puro
+sobre `rows` (no lee nada fuera de React) no necesita `dataSignal`.
+
+Ejemplo real: `features/advanced-filter.tsx` guarda su `AdvancedFilter` en
+`features/advanced-filter-store.ts` (un `Map` por `key` de grid, ajeno al estado de la tabla) y
+declara `dataSignal: (init) => advancedFilterSignal(init.key)` — memoizado por `key` para que
+`subscribe`/`getSnapshot` sean la misma función entre renders. El slot `toolbar` (botón + chips)
+limpia su entrada del store al desmontarse (`useEffect` con cleanup que llama
+`clearAdvancedFilter(key)`), para que remontar un grid con la misma `key` no arrastre el filtro de
+la vez anterior.
 
 Un archivo por feature en `features/`, con su factoría con opciones tipadas (por ejemplo
 `sorting({ multi })`, `filtering({ search, columns })`). Regla de aislamiento: una feature puede

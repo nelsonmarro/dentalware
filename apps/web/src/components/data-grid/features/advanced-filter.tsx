@@ -1,12 +1,18 @@
 import { X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useGrid } from '../context'
 import { columnLabel } from '../lib/column-label'
 import type { GridFeature } from '../types'
 import { AdvancedFilterDialog } from './advanced-filter-dialog'
 import { matches, OPERATOR_LABEL } from './advanced-filter-logic'
-import { getAdvancedFilter, setAdvancedFilter, useAdvancedFilter } from './advanced-filter-store'
+import {
+  advancedFilterSignal,
+  clearAdvancedFilter,
+  getAdvancedFilter,
+  setAdvancedFilter,
+  useAdvancedFilter,
+} from './advanced-filter-store'
 
 /**
  * Botón «Filtro avanzado» + chips de las condiciones activas. Los hooks se llaman siempre (Rules
@@ -18,6 +24,14 @@ function Toolbar() {
   const { table, key, mode } = grid
   const filter = useAdvancedFilter(key)
   const [open, setOpen] = useState(false)
+
+  // Limpia la entrada del store al desmontar: sin esto, volver a montar un grid con la misma
+  // `key` (una tabla que se recrea, dos pruebas que reusan la key) arrastraría el filtro de la
+  // vez anterior. La limpieza notifica a quien siga suscrito (ruling I-1 de la revisión).
+  useEffect(() => {
+    return () => clearAdvancedFilter(key)
+  }, [key])
+
   if (mode !== 'client') return null
 
   const removeAt = (index: number) => {
@@ -71,6 +85,7 @@ export function advancedFilter(): GridFeature {
   return {
     id: 'advancedFilter',
     tanstack: {},
+    dataSignal: (init) => advancedFilterSignal(init.key),
     transformData: (rows, init) => {
       if (init.mode !== 'client') return rows
       const filter = getAdvancedFilter(init.key)

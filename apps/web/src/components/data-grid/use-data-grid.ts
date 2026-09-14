@@ -7,11 +7,11 @@ import {
   useTable,
   type RowData,
 } from '@tanstack/react-table'
-import { useMemo } from 'react'
-import { useTransformDataVersion } from './transform-data-version'
+import { useMemo, useSyncExternalStore } from 'react'
 import type {
   GridColumnMeta,
   GridColumns,
+  GridDataSignal,
   GridFeature,
   GridFeatureId,
   GridFeatures,
@@ -22,6 +22,28 @@ import type {
 /** Formato de la celda agregada de una fila de grupo: `sum` con dos decimales, `count` entero. */
 export function formatAggregate(kind: NonNullable<GridColumnMeta['aggregate']>, value: unknown) {
   return kind === 'count' ? String(Math.trunc(Number(value))) : Number(value).toFixed(2)
+}
+
+/**
+ * Combina la `dataSignal` de todas las features registradas en una sola suscripción de
+ * `useSyncExternalStore`: `subscribe` se suma a cada una y `getSnapshot` compara por posición con
+ * `Object.is`, devolviendo la MISMA referencia anterior si nada cambió (React exige que
+ * `getSnapshot` sea estable mientras no haya novedad, o entra en un bucle de recálculo).
+ */
+function combineDataSignals(signals: GridDataSignal[]): GridDataSignal {
+  let cached: unknown[] = signals.map((s) => s.getSnapshot())
+  return {
+    subscribe: (callback) => {
+      const unsubscribes = signals.map((s) => s.subscribe(callback))
+      return () => unsubscribes.forEach((unsubscribe) => unsubscribe())
+    },
+    getSnapshot: () => {
+      const next = signals.map((s) => s.getSnapshot())
+      const changed = next.some((value, i) => !Object.is(value, cached[i]))
+      if (changed) cached = next
+      return cached
+    },
+  }
 }
 
 // `aggregationFn_sum` de TanStack solo suma valores con `typeof value === 'number'`
@@ -134,24 +156,35 @@ export function useDataGrid<T extends RowData>(opts: UseDataGridOptions<T>): Gri
         }
       : {}
 
-  // `transformData` (por ejemplo, el filtro avanzado) vive fuera del estado de React: se suscribe
-  // aquí a una señal genérica por `key` (`transform-data-version.ts`, sin conocer qué feature la
-  // dispara) para que un cambio externo recalcule las filas antes de `useTable`, encadenando cada
-  // feature registrada en orden.
-  const transformVersion = useTransformDataVersion(opts.key)
-  const data = useMemo(
+  // `transformData` (por ejemplo, el filtro avanzado) puede depender de estado fuera de React: la
+  // `dataSignal` que declare cada feature (ver `types.ts`) se combina en una sola suscripción de
+  // `useSyncExternalStore`, cuyo snapshot fuerza recalcular `data` cuando cambia, sin que el
+  // núcleo conozca qué feature ni qué guarda esa señal.
+  const signals = useMemo(
     () =>
-      list.reduce<T[]>((rows, f) => {
-        if (!f.transformData) return rows
-        const featureInit = { key: opts.key, mode, rowCount: opts.rowCount }
-        return f.transformData(rows as unknown as never[], featureInit) as unknown as T[]
-      }, opts.data),
-    // `transformVersion` no se lee dentro del cálculo (por diseño: `transformData` relee el
-    // estado externo con su propio getter, ver `advanced-filter-store.ts`), pero debe forzar el
-    // recálculo cuando cambia; sin la excepción, el linter lo marca como dependencia "innecesaria".
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [list, opts.data, opts.key, mode, opts.rowCount, transformVersion],
+      list.flatMap((f) =>
+        f.dataSignal ? [f.dataSignal({ key: opts.key, mode, rowCount: opts.rowCount })] : [],
+      ),
+    [list, opts.key, mode, opts.rowCount],
   )
+  const combinedSignal = useMemo(() => combineDataSignals(signals), [signals])
+  const dataSignalSnapshot = useSyncExternalStore(
+    combinedSignal.subscribe,
+    combinedSignal.getSnapshot,
+  )
+
+  const data = useMemo(() => {
+    // `dataSignalSnapshot` no se lee dentro del cálculo (cada feature relee su propio estado
+    // externo con su getter, p. ej. `getAdvancedFilter`): se referencia aquí solo para que
+    // `react-hooks/exhaustive-deps` la reconozca como dependencia real y fuerce el recálculo
+    // cuando una `dataSignal` cambia.
+    void dataSignalSnapshot
+    return list.reduce<T[]>((rows, f) => {
+      if (!f.transformData) return rows
+      const featureInit = { key: opts.key, mode, rowCount: opts.rowCount }
+      return f.transformData(rows as unknown as never[], featureInit) as unknown as T[]
+    }, opts.data)
+  }, [list, opts.data, opts.key, mode, opts.rowCount, dataSignalSnapshot])
 
   const table = useTable<GridFeatures, T>(
     {
