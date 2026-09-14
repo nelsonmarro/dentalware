@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { setMatchMedia } from '@/test/match-media'
 import { renderWithRouter } from '@/test/router'
@@ -48,6 +48,20 @@ describe('feature resizing', () => {
     renderWithRouter(<Grid features={[resizing()]} />)
     expect(await screen.findByRole('columnheader', { name: /Nombre/ })).toHaveStyle({
       width: '300px',
+    })
+  })
+
+  it('persiste el ancho tras un arrastre real (mousemove/mouseup en document, no en el asa)', async () => {
+    setMatchMedia(true)
+    renderWithRouter(<Grid features={[resizing()]} />)
+    const handle = await screen.findByRole('separator', { name: 'Redimensionar Nombre' })
+    // TanStack añade sus listeners de mousemove/mouseup en `document`, no en el asa: un arrastre
+    // real casi siempre suelta el botón lejos del `<div>` de 4 px.
+    fireEvent.mouseDown(handle, { clientX: 0 })
+    fireEvent.mouseMove(document, { clientX: 40 })
+    fireEvent.mouseUp(document, { clientX: 40 })
+    await waitFor(() => {
+      expect(localStorage.getItem('datagrid:resize-test:sizing:v1')).toContain('"name":240')
     })
   })
 

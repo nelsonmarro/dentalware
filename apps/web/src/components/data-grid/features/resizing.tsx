@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { columnResizingFeature, columnSizingFeature } from '@tanstack/react-table'
 import { useGrid } from '../context'
 import { columnLabel } from '../lib/column-label'
@@ -11,7 +12,19 @@ function ResizeHandle({ header }: { header: GridHeader<never> }) {
   const grid = useGrid<never>()
   const column = header.column
   const label = columnLabel(column)
+  const isResizing = column.getIsResizing()
   const persist = () => writeStored(`datagrid:${grid.key}:sizing`, grid.table.state.columnSizing)
+
+  // TanStack confirma el arrastre (ratón o dedo) con listeners de `mousemove`/`mouseup`/
+  // `touchend` en `document` (`columnResizingFeature`), no en el asa de 4 px: un `onMouseUp`/
+  // `onTouchEnd` en el propio `<div>` casi nunca corre porque el puntero suelta lejos de ahí. El
+  // único punto seguro para persistir un arrastre es cuando `isResizing` pasa de `true` a
+  // `false`, que es justo cuando TanStack ya escribió el ancho final en `columnSizing`.
+  const wasResizing = useRef(isResizing)
+  useEffect(() => {
+    if (wasResizing.current && !isResizing) persist()
+    wasResizing.current = isResizing
+  })
 
   return (
     <div
@@ -21,8 +34,6 @@ function ResizeHandle({ header }: { header: GridHeader<never> }) {
       tabIndex={0}
       onMouseDown={header.getResizeHandler()}
       onTouchStart={header.getResizeHandler()}
-      onMouseUp={persist}
-      onTouchEnd={persist}
       onDoubleClick={() => {
         column.resetSize()
         persist()
@@ -38,7 +49,7 @@ function ResizeHandle({ header }: { header: GridHeader<never> }) {
         writeStored(`datagrid:${grid.key}:sizing`, sizing)
       }}
       className={`ml-auto h-6 w-1 cursor-col-resize touch-none rounded bg-border hover:bg-primary focus-visible:outline-2 ${
-        column.getIsResizing() ? 'bg-primary' : ''
+        isResizing ? 'bg-primary' : ''
       }`}
     />
   )
