@@ -45,7 +45,11 @@ export function ProductsTable({
       defineColumns<Product>((col) => [
         col.accessor('code', {
           header: 'Código',
-          cell: (c) => <span className="font-mono text-sm">{c.getValue()}</span>,
+          cell: (c) => (
+            <span className="block truncate font-mono text-sm" title={c.row.original.code}>
+              {c.getValue()}
+            </span>
+          ),
           meta: { mobile: 'subtitle', width: 104 },
         }),
         col.accessor('name', {
