@@ -42,7 +42,7 @@ function AutoCard({ row }: { row: GridRow<never> }) {
   // toda fila que no sea el propio encabezado de grupo: su valor ya se muestra ahí arriba, así
   // que aquí se omite (si no, una tarjeta bajo «Prótesis removible (3)» mostraría un «· » colgando
   // sin nada antes, con el valor real pero renderizado vacío por el `cell` de la columna).
-  // `getIsPlaceholder` solo existe quando `columnGroupingFeature` está registrado (`grouping()`
+  // `getIsPlaceholder` solo existe cuando `columnGroupingFeature` está registrado (`grouping()`
   // en la lista de `features`): se guarda con `hasGrouping` para no reventar en tablas sin
   // agrupación, donde el método ni siquiera existe en runtime.
   const byRole = (role: string) =>

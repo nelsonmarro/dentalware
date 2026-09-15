@@ -15,6 +15,7 @@ import type {
   GridFeature,
   GridFeatureId,
   GridFeatures,
+  GridInit,
   GridInstance,
   GridMode,
 } from './types'
@@ -60,6 +61,34 @@ const moneySum = constructAggregationFn({
   merge: ({ subRowResults }) => subRowResults.reduce((total, value) => total + value, 0),
 })
 
+/**
+ * Arma `init.getRowValue`: replica cómo `defineColumns`/`createColumnHelper` deriva el accessor
+ * de cada columna (`col.accessor(fn, { id })` → `c.accessorFn`; `col.accessor(key, {})` →
+ * `c.accessorKey`, id implícito = `key`; `col.display(...)` → ninguno de los dos, sin resolver).
+ * Se construye desde las definiciones CRUDAS (`opts.columns`), no desde `table.getColumn()`:
+ * `transformData` (que es quien más lo necesita, ver `features/advanced-filter.tsx`) corre en un
+ * `useMemo` propio antes de `useTable()`, así que el `table` real todavía no existe en ese punto.
+ */
+function buildRowValueResolver<T extends RowData>(
+  columns: GridColumns<T>,
+): (row: unknown, columnId: string) => unknown {
+  const resolvers = new Map<string, (row: unknown) => unknown>()
+  for (const c of columns) {
+    const accessorKey =
+      'accessorKey' in c && typeof c.accessorKey === 'string' ? c.accessorKey : undefined
+    const accessorFn =
+      'accessorFn' in c && typeof c.accessorFn === 'function' ? c.accessorFn : undefined
+    const id = c.id ?? accessorKey
+    if (!id) continue
+    if (accessorFn) {
+      resolvers.set(id, (row) => accessorFn(row as T, 0))
+    } else if (accessorKey) {
+      resolvers.set(id, (row) => (row as Record<string, unknown>)[accessorKey])
+    }
+  }
+  return (row, columnId) => resolvers.get(columnId)?.(row)
+}
+
 export type UseDataGridOptions<T extends RowData> = {
   /** Clave estable por tabla: nombra la persistencia local (`datagrid:<key>`). */
   key: string
@@ -82,7 +111,8 @@ export function useDataGrid<T extends RowData>(opts: UseDataGridOptions<T>): Gri
   // llamador): memorizarla aquí evita recomputar `tableFeatures()` cuando solo cambia `data`.
   const list = useMemo(() => opts.features ?? [], [opts.features])
   const mode = opts.mode ?? 'client'
-  const init = { key: opts.key, mode, rowCount: opts.rowCount }
+  const getRowValue = useMemo(() => buildRowValueResolver<T>(opts.columns), [opts.columns])
+  const init: GridInit = { key: opts.key, mode, rowCount: opts.rowCount, getRowValue }
 
   const features = useMemo(
     () =>
@@ -185,9 +215,11 @@ export function useDataGrid<T extends RowData>(opts: UseDataGridOptions<T>): Gri
   const signals = useMemo(
     () =>
       list.flatMap((f) =>
-        f.dataSignal ? [f.dataSignal({ key: opts.key, mode, rowCount: opts.rowCount })] : [],
+        f.dataSignal
+          ? [f.dataSignal({ key: opts.key, mode, rowCount: opts.rowCount, getRowValue })]
+          : [],
       ),
-    [list, opts.key, mode, opts.rowCount],
+    [list, opts.key, mode, opts.rowCount, getRowValue],
   )
   const combinedSignal = useMemo(() => combineDataSignals(signals), [signals])
   const dataSignalSnapshot = useSyncExternalStore(
@@ -203,10 +235,10 @@ export function useDataGrid<T extends RowData>(opts: UseDataGridOptions<T>): Gri
     void dataSignalSnapshot
     return list.reduce<T[]>((rows, f) => {
       if (!f.transformData) return rows
-      const featureInit = { key: opts.key, mode, rowCount: opts.rowCount }
+      const featureInit = { key: opts.key, mode, rowCount: opts.rowCount, getRowValue }
       return f.transformData(rows as unknown as never[], featureInit) as unknown as T[]
     }, opts.data)
-  }, [list, opts.data, opts.key, mode, opts.rowCount, dataSignalSnapshot])
+  }, [list, opts.data, opts.key, mode, opts.rowCount, getRowValue, dataSignalSnapshot])
 
   const table = useTable<GridFeatures, T>(
     {

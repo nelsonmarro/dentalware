@@ -40,9 +40,20 @@ function matchesOne(cell: unknown, c: Condition): boolean {
   }
 }
 
-/** Evalúa todas las condiciones con AND u OR; sin condiciones, la fila pasa. */
-export function matches(row: Record<string, unknown>, filter: AdvancedFilter): boolean {
+/**
+ * Evalúa todas las condiciones con AND u OR; sin condiciones, la fila pasa. `getValue` resuelve el
+ * valor de la fila para el id de columna de cada condición: `matches` no indexa la fila cruda
+ * directamente (`row[c.column]`) porque el id de una columna no siempre coincide con el nombre del
+ * campo crudo (accessor derivado, p. ej. `category` → `row.category.name`, o un `id` explícito
+ * distinto del campo, p. ej. `days` → `row.turnaroundDays`) — ver `use-data-grid.ts:buildRowValueResolver`,
+ * que arma este resolver desde las definiciones de columna.
+ */
+export function matches(
+  row: unknown,
+  filter: AdvancedFilter,
+  getValue: (row: unknown, columnId: string) => unknown,
+): boolean {
   if (filter.conditions.length === 0) return true
-  const results = filter.conditions.map((c) => matchesOne(row[c.column], c))
+  const results = filter.conditions.map((c) => matchesOne(getValue(row, c.column), c))
   return filter.logic === 'and' ? results.every(Boolean) : results.some(Boolean)
 }

@@ -1,9 +1,13 @@
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { setMatchMedia } from '@/test/match-media'
 import { renderWithRouter } from '@/test/router'
 import { DataGrid } from './data-grid'
 import { defineColumns } from './define-columns'
+import { filtering } from './features/filtering'
+import { sorting } from './features/sorting'
+import type { GridFeature } from './types'
 import { useDataGrid } from './use-data-grid'
 
 type Row = { id: string; name: string; city: string; active: boolean }
@@ -25,12 +29,14 @@ function Grid({
   data,
   action,
   renderCard,
+  features,
 }: {
   data: Row[]
   action?: React.ReactNode
   renderCard?: (row: Row) => React.ReactNode
+  features?: GridFeature[]
 }) {
-  const grid = useDataGrid({ key: 'test', columns, data, getRowId: (r) => r.id })
+  const grid = useDataGrid({ key: 'test', columns, data, features, getRowId: (r) => r.id })
   return (
     <DataGrid.Root
       grid={grid}
@@ -132,5 +138,35 @@ describe('DataGrid', () => {
     expect(subtitles).toHaveLength(2)
     expect(subtitles[0]?.textContent).toBe('Quito · +593991234567')
     expect(subtitles[1]?.textContent).toBe('+593991234567')
+  })
+
+  it('en móvil pliega la barra bajo «Filtros y orden»; abrirla y buscar sube el contador', async () => {
+    setMatchMedia(false)
+    const user = userEvent.setup()
+    renderWithRouter(
+      <Grid
+        data={rows}
+        features={[filtering({ search: { id: 'buscar', label: 'Buscar' } }), sorting()]}
+      />,
+    )
+    const summary = await screen.findByText('Filtros y orden')
+    const details = summary.closest('details')
+    expect(details).not.toHaveAttribute('open')
+    await user.click(summary)
+    await user.type(screen.getByLabelText('Buscar'), 'clínica uno')
+    expect(await screen.findByText('Filtros y orden (1)')).toBeInTheDocument()
+  })
+
+  it('en escritorio no hay <details>: los controles de la barra se ven directos', async () => {
+    setMatchMedia(true)
+    renderWithRouter(
+      <Grid
+        data={rows}
+        features={[filtering({ search: { id: 'buscar', label: 'Buscar' } }), sorting()]}
+      />,
+    )
+    await screen.findByRole('table')
+    expect(screen.queryByText('Filtros y orden')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Buscar')).toBeInTheDocument()
   })
 })

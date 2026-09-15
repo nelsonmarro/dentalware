@@ -184,7 +184,14 @@ export function AdvancedFilterDialog({
 }) {
   const grid = useGrid<never>()
   const { table, key } = grid
-  const filterable = table.getAllLeafColumns().filter((c) => c.columnDef.meta?.filter)
+  // `c.accessorFn` lo resuelve TanStack (core, `coreColumnsFeature`) desde el `accessorKey`/
+  // `accessorFn` de la definición — es `undefined` solo en una columna `display` (sin accessor),
+  // exactamente el mismo criterio que `init.getRowValue` (`use-data-grid.ts`) usa para devolver
+  // `undefined`. Sin este filtro, una columna sin valor resoluble (p. ej. acciones) aparecería en
+  // el selector y `matches()` siempre compararía contra `undefined`.
+  const filterable = table
+    .getAllLeafColumns()
+    .filter((c) => c.columnDef.meta?.filter && c.accessorFn !== undefined)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

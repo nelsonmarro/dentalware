@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { setMatchMedia } from '@/test/match-media'
@@ -13,11 +13,46 @@ type Row = { id: string; name: string; days: number }
 const columns = defineColumns<Row>((col) => [
   col.accessor('name', { header: 'Producto', meta: { filter: 'text' } }),
   col.accessor('days', { header: 'Días', meta: { filter: 'range' } }),
+  // Columna de acciones sin accessor pero con `meta.filter` a propósito (caso patológico): prueba
+  // que el selector la excluye por no tener un valor resoluble, no solo por `meta.filter` ausente.
+  col.display({ id: 'acciones', header: 'Acciones', meta: { filter: 'text' } }),
 ])
 const rows: Row[] = [
   { id: '1', name: 'Zirconio', days: 5 },
   { id: '2', name: 'Acrílico', days: 12 },
 ]
+
+// Fila con categoría anidada (accessor derivado, id de columna distinto del campo crudo): el caso
+// real de productos que `matches()` no resolvía antes de recibir `getRowValue`.
+type CategoryRow = { id: string; name: string; category: { id: string; name: string } }
+const categoryColumns = defineColumns<CategoryRow>((col) => [
+  col.accessor('name', { header: 'Producto', meta: { filter: 'text' } }),
+  col.accessor((r) => r.category.name, {
+    id: 'categoria',
+    header: 'Categoría',
+    meta: { filter: 'text' },
+  }),
+])
+const categoryRows: CategoryRow[] = [
+  { id: '1', name: 'Zirconio', category: { id: 'c1', name: 'Fija' } },
+  { id: '2', name: 'Acrílico', category: { id: 'c2', name: 'Removible' } },
+]
+
+function CategoryGrid({ features }: { features: ReturnType<typeof advancedFilter>[] }) {
+  const grid = useDataGrid({
+    key: 'test-categoria',
+    columns: categoryColumns,
+    data: categoryRows,
+    features,
+    getRowId: (r) => r.id,
+  })
+  return (
+    <DataGrid.Root grid={grid} emptyMessage="Vacío">
+      <DataGrid.Toolbar />
+      <DataGrid.Content />
+    </DataGrid.Root>
+  )
+}
 
 function Grid({
   features,
@@ -103,5 +138,30 @@ describe('feature advancedFilter', () => {
     expect(await screen.findByText('Zirconio')).toBeInTheDocument()
     expect(screen.getByText('Acrílico')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Filtro avanzado' })).not.toBeInTheDocument()
+  })
+
+  it('el selector de columna omite una sin valor resoluble aunque tenga meta.filter', async () => {
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    renderWithRouter(<Grid features={[advancedFilter()]} />)
+    await user.click(await screen.findByRole('button', { name: 'Filtro avanzado' }))
+    await user.click(screen.getByRole('button', { name: 'Añadir condición' }))
+    const options = within(screen.getByLabelText('Columna 1')).getAllByRole('option')
+    expect(options.map((o) => o.textContent)).toEqual(['Producto', 'Días'])
+  })
+
+  it('filtra por una columna de accessor derivado (id de columna distinto del campo crudo)', async () => {
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    renderWithRouter(<CategoryGrid features={[advancedFilter()]} />)
+    await user.click(await screen.findByRole('button', { name: 'Filtro avanzado' }))
+    await user.click(screen.getByRole('button', { name: 'Añadir condición' }))
+    await user.selectOptions(screen.getByLabelText('Columna 1'), 'categoria')
+    await user.selectOptions(screen.getByLabelText('Operador 1'), 'es')
+    await user.type(screen.getByLabelText('Valor 1'), 'Fija')
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }))
+    expect(screen.getByText('Zirconio')).toBeInTheDocument()
+    expect(screen.queryByText('Acrílico')).not.toBeInTheDocument()
+    clearAdvancedFilter('test-categoria')
   })
 })

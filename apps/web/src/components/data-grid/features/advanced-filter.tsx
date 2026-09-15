@@ -90,7 +90,7 @@ export function advancedFilter(): GridFeature {
       if (init.mode !== 'client') return rows
       const filter = getAdvancedFilter(init.key)
       if (filter.conditions.length === 0) return rows
-      return rows.filter((row) => matches(row as unknown as Record<string, unknown>, filter))
+      return rows.filter((row) => matches(row, filter, init.getRowValue))
     },
     slots: { toolbar: Toolbar },
   }

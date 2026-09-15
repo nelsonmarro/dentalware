@@ -88,7 +88,20 @@ export type GridRow<T extends RowData> = Row<GridFeatures, T>
 export type GridColumns<T extends RowData> = ColumnDef<GridFeatures, T, unknown>[]
 
 /** Lo que una feature recibe para calcular sus opciones. */
-export type GridInit = { key: string; mode: GridMode; rowCount?: number }
+export type GridInit = {
+  key: string
+  mode: GridMode
+  rowCount?: number
+  /**
+   * Resuelve el valor "crudo" de una fila para un id de columna, replicando cómo TanStack deriva
+   * el accessor en `defineColumns` (`col.accessor(fn, { id })` → `accessorFn`; `col.accessor(key,
+   * {})` → `accessorKey`, id implícito = `key`; `col.display(...)` → sin accessor, `undefined`
+   * siempre). Lo construye `useDataGrid` desde las definiciones de columna (no desde `table`,
+   * porque `transformData` corre antes de `useTable()`) — ninguna feature necesita reimplementar
+   * esta resolución para leer un valor por id de columna (ver `features/advanced-filter.tsx`).
+   */
+  getRowValue: (row: unknown, columnId: string) => unknown
+}
 
 /**
  * Fuente de estado externo a React que una feature declara para que `useDataGrid` sepa cuándo

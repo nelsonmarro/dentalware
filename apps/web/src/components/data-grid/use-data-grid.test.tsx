@@ -66,6 +66,42 @@ describe('useDataGrid', () => {
     expect(defaultColumn?.minSize).toBe(48)
   })
 
+  it('init.getRowValue resuelve accessorFn, accessorKey e id explícito, y undefined en columnas display', () => {
+    // Ronda de fixes de la Tarea 13: `advancedFilter` leía `row[columnId]` directo y fallaba en
+    // cualquier columna cuyo id no coincidiera con el campo crudo (accessor derivado o `id`
+    // explícito). El resolver se prueba aquí en aislado, capturándolo desde `options(init)` de una
+    // feature ad-hoc — `getRowValue` no se expone en `GridInstance`, solo viaja en `init`.
+    type RowX = { id: string; name: string; category: { name: string } }
+    const cols = defineColumns<RowX>((col) => [
+      col.accessor('name', { header: 'Nombre' }), // accessorKey 'name', id implícito 'name'
+      col.accessor((r) => r.category.name, { id: 'categoria', header: 'Categoría' }), // accessorFn
+      col.display({ id: 'acciones', header: '' }), // sin accessor
+    ])
+    const row: RowX = { id: '1', name: 'Zirconio', category: { name: 'Prótesis fija' } }
+    let captured: { getRowValue: (row: unknown, columnId: string) => unknown } | undefined
+    renderHook(() =>
+      useDataGrid({
+        key: 'test',
+        columns: cols,
+        data: [row],
+        getRowId: (r) => r.id,
+        features: [
+          {
+            id: 'sorting',
+            tanstack: {},
+            options: (init) => {
+              captured = init
+              return {}
+            },
+          },
+        ],
+      }),
+    )
+    expect(captured?.getRowValue(row, 'name')).toBe('Zirconio')
+    expect(captured?.getRowValue(row, 'categoria')).toBe('Prótesis fija')
+    expect(captured?.getRowValue(row, 'acciones')).toBeUndefined()
+  })
+
   it('meta.width se aplica como size', () => {
     const withWidth = defineColumns<Row>((col) => [
       col.accessor('name', { header: 'Nombre', meta: { width: 200 } }),
