@@ -101,9 +101,12 @@ export function useDataGrid<T extends RowData>(opts: UseDataGridOptions<T>): Gri
   // cómo el grid interpreta el meta, no de cómo se define la columna: se traducen aquí, no en
   // `defineColumns`. `meta.width` es el tamaño inicial que `resizing` acaba usando como
   // `column.getSize()`. `meta.aggregate` se traduce a `aggregationFn` (la feature `grouping` lo
-  // registra) y a un `aggregatedCell` que formatea el resultado (`sum` con dos decimales, `count`
-  // como entero). `enableGrouping` se fija explícitamente a `!!meta.groupable` en toda columna:
-  // sin esto, TanStack permite agrupar cualquier columna por defecto.
+  // registra) y, por defecto, a un `aggregatedCell` que formatea el resultado (`sum` con dos
+  // decimales, `count` como entero) — una columna puede pasar su propio `aggregatedCell` (campo
+  // de TanStack, no de `meta`) para sobrescribir ese formato (por ejemplo mostrar `$ 75.00` en vez
+  // de `75.00`); se respeta en vez de pisarlo. `enableGrouping` se fija explícitamente a
+  // `!!meta.groupable` en toda columna: sin esto, TanStack permite agrupar cualquier columna por
+  // defecto.
   const columns = useMemo(
     () =>
       opts.columns.map((c) => {
@@ -120,8 +123,10 @@ export function useDataGrid<T extends RowData>(opts: UseDataGridOptions<T>): Gri
           ...(aggregate
             ? {
                 aggregationFn: aggregate === 'sum' ? moneySum : aggregationFn_count,
-                aggregatedCell: (ctx: { getValue: () => unknown }) =>
-                  formatAggregate(aggregate, ctx.getValue()),
+                aggregatedCell:
+                  c.aggregatedCell ??
+                  ((ctx: { getValue: () => unknown }) =>
+                    formatAggregate(aggregate, ctx.getValue())),
               }
             : {}),
         }
@@ -138,9 +143,26 @@ export function useDataGrid<T extends RowData>(opts: UseDataGridOptions<T>): Gri
     initialState: Record<string, unknown>
   }>(
     (acc, f) => {
-      const { initialState: fromOptions, ...rest } = f.options?.(init) ?? {}
+      const { initialState: fromOptions, defaultColumn, ...rest } = f.options?.(init) ?? {}
       return {
-        options: { ...acc.options, ...rest },
+        // `defaultColumn` es el único campo que más de una feature escribe a la vez (`filtering`:
+        // `filterFn`, `resizing`: `minSize`, la combinación real de productos, Tarea 13): una
+        // fusión superficial del resto de `options()` haría que la feature registrada después
+        // pisara por completo el `defaultColumn` de la anterior en vez de sumar sus campos, y
+        // `filtering` perdería su `filterFn` sin ningún error visible. Se fusiona aparte, campo a
+        // campo, igual que `initialState`.
+        options: {
+          ...acc.options,
+          ...rest,
+          ...(acc.options.defaultColumn || defaultColumn
+            ? {
+                defaultColumn: {
+                  ...(acc.options.defaultColumn as Record<string, unknown> | undefined),
+                  ...defaultColumn,
+                },
+              }
+            : {}),
+        },
         initialState: { ...acc.initialState, ...(f.initialState ?? {}), ...(fromOptions ?? {}) },
       }
     },

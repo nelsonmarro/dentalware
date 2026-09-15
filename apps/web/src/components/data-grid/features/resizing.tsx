@@ -48,7 +48,14 @@ function ResizeHandle({ header }: { header: GridHeader<never> }) {
         grid.table.setColumnSizing(sizing)
         writeStored(`datagrid:${grid.key}:sizing`, sizing)
       }}
-      className={`ml-auto h-6 w-1 cursor-col-resize touch-none rounded bg-border hover:bg-primary focus-visible:outline-2 ${
+      // Posicionada de forma absoluta (no `ml-auto` dentro del flex de la cabecera): un asa de 4
+      // px casi no pesa visualmente, pero sí sumaba su ancho + el `gap-1` del contenedor al
+      // contenido mínimo de CADA columna (`th` sin `table-layout: fixed`, así que ese mínimo
+      // empuja el ancho real de la tabla). Sacarla del flujo deja el ancho de columna gobernado
+      // solo por la etiqueta y el botón de orden/menú, sin cambiar su posición visual (ya vivía
+      // pegada al borde derecho de la cabecera). Necesita `position: relative` en el `<th>`
+      // (`parts/table.tsx`, condicionado a `hasResizing`).
+      className={`absolute top-1/2 right-0 h-6 w-1 -translate-y-1/2 cursor-col-resize touch-none rounded bg-border hover:bg-primary focus-visible:outline-2 ${
         isResizing ? 'bg-primary' : ''
       }`}
     />

@@ -39,6 +39,33 @@ describe('useDataGrid', () => {
     expect(result.current.table.options.enableSorting).toBe(false)
   })
 
+  it('fusiona `defaultColumn` de varias features en vez de que la última pise a las demás', () => {
+    // `filtering` escribe `defaultColumn.filterFn` y `resizing` escribe `defaultColumn.minSize`
+    // (productos usa ambas a la vez): una fusión superficial de `options()` entre features haría
+    // que la registrada después pisara el `defaultColumn` completo de la anterior, perdiendo su
+    // `filterFn` sin ningún error visible.
+    const { result } = renderHook(() =>
+      useDataGrid({
+        key: 'test',
+        columns,
+        data,
+        getRowId: (r) => r.id,
+        features: [
+          {
+            id: 'filtering',
+            tanstack: {},
+            options: () => ({ defaultColumn: { filterFn: () => true } }),
+          },
+          { id: 'resizing', tanstack: {}, options: () => ({ defaultColumn: { minSize: 48 } }) },
+        ],
+      }),
+    )
+    const defaultColumn = result.current.table.options.defaultColumn as
+      Record<string, unknown> | undefined
+    expect(typeof defaultColumn?.filterFn).toBe('function')
+    expect(defaultColumn?.minSize).toBe(48)
+  })
+
   it('meta.width se aplica como size', () => {
     const withWidth = defineColumns<Row>((col) => [
       col.accessor('name', { header: 'Nombre', meta: { width: 200 } }),
@@ -79,6 +106,33 @@ describe('useDataGrid', () => {
       ((ctx: { getValue: () => unknown }) => unknown) | undefined
     expect(aggregatedCell).toBeTypeOf('function')
     expect(aggregatedCell?.({ getValue: () => 12.345 })).toBe('12.35')
+  })
+
+  it('un `aggregatedCell` propio de la columna gana sobre el que formatea `meta.aggregate`', () => {
+    // Productos necesita mostrar "$ 75.00" (con signo) en la fila de grupo, no "75.00": la
+    // columna pasa su propio `aggregatedCell` (campo de TanStack, no de `meta`) y debe respetarse
+    // en vez de que `useDataGrid` lo sobrescriba con el formato genérico de `formatAggregate`.
+    type RowWithPrice = Row & { price: number }
+    const withCustomCell = defineColumns<RowWithPrice>((col) => [
+      col.accessor('name', { header: 'Nombre', meta: { groupable: true } }),
+      col.accessor('price', {
+        header: 'Precio',
+        meta: { aggregate: 'sum' },
+        aggregatedCell: (ctx) => `$ ${(ctx.getValue() as number).toFixed(2)}`,
+      }),
+    ])
+    const { result } = renderHook(() =>
+      useDataGrid({
+        key: 'test',
+        columns: withCustomCell,
+        data: [{ id: '1', name: 'Ana', price: 10 }],
+        getRowId: (r) => r.id,
+      }),
+    )
+    const price = result.current.table.getColumn('price')
+    const aggregatedCell = price?.columnDef.aggregatedCell as
+      ((ctx: { getValue: () => unknown }) => unknown) | undefined
+    expect(aggregatedCell?.({ getValue: () => 12.345 })).toBe('$ 12.35')
   })
 
   it('meta.aggregate `sum` suma cadenas decimales de dinero, no solo números', () => {

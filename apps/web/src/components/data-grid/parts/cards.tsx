@@ -36,9 +36,21 @@ export function GridCards() {
 
 function AutoCard({ row }: { row: GridRow<never> }) {
   const grid = useGrid<never>()
+  const hasGrouping = grid.has('grouping')
   const cells = row.getAllCells()
+  // Con `grouping` activo, la columna agrupada es "placeholder" (`cell.getIsPlaceholder()`) en
+  // toda fila que no sea el propio encabezado de grupo: su valor ya se muestra ahí arriba, así
+  // que aquí se omite (si no, una tarjeta bajo «Prótesis removible (3)» mostraría un «· » colgando
+  // sin nada antes, con el valor real pero renderizado vacío por el `cell` de la columna).
+  // `getIsPlaceholder` solo existe quando `columnGroupingFeature` está registrado (`grouping()`
+  // en la lista de `features`): se guarda con `hasGrouping` para no reventar en tablas sin
+  // agrupación, donde el método ni siquiera existe en runtime.
   const byRole = (role: string) =>
-    cells.filter((c) => (c.column.columnDef.meta?.mobile ?? 'detail') === role)
+    cells.filter(
+      (c) =>
+        (c.column.columnDef.meta?.mobile ?? 'detail') === role &&
+        !(hasGrouping && c.getIsPlaceholder()),
+    )
   const render = (c: (typeof cells)[number]) => <grid.table.FlexRender key={c.id} cell={c} />
   // Se filtra por el valor crudo (`getValue()`), no por el render: una celda que en escritorio
   // pinta "—" para un valor nulo (`cell: (c) => c.getValue() ?? '—'`) no debe aportar ese "—" a

@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { setMatchMedia } from '@/test/match-media'
 import { renderWithRouter } from '@/test/router'
@@ -57,5 +58,21 @@ describe('ProductsTable', () => {
 
     await screen.findByText('Zirconio')
     expect(screen.queryByRole('img', { name: 'Requiere prueba' })).not.toBeInTheDocument()
+  })
+
+  it('agrupa por categoría con conteo por grupo', async () => {
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    renderWithRouter(<ProductsTable products={PRODUCTS} onEdit={vi.fn()} onToggle={vi.fn()} />)
+    await user.selectOptions(await screen.findByLabelText('Agrupar por'), 'category')
+    expect(screen.getByRole('row', { name: /Prótesis fija \(1\)/ })).toBeInTheDocument()
+  })
+
+  it('filtra por categoría y por búsqueda sin acentos', async () => {
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    renderWithRouter(<ProductsTable products={PRODUCTS} onEdit={vi.fn()} onToggle={vi.fn()} />)
+    await user.selectOptions(await screen.findByLabelText('Filtrar Categoría'), 'Prótesis fija')
+    expect(screen.queryByText('Prótesis híbrida')).not.toBeInTheDocument()
   })
 })
