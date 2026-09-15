@@ -5,6 +5,7 @@ import { setMatchMedia } from '@/test/match-media'
 import { renderWithRouter } from '@/test/router'
 import { DataGrid } from './data-grid'
 import { defineColumns } from './define-columns'
+import { advancedFilter } from './features/advanced-filter'
 import { filtering } from './features/filtering'
 import { sorting } from './features/sorting'
 import type { GridFeature } from './types'
@@ -140,13 +141,17 @@ describe('DataGrid', () => {
     expect(subtitles[1]?.textContent).toBe('+593991234567')
   })
 
-  it('en móvil pliega la barra bajo «Filtros y orden»; abrirla y buscar sube el contador', async () => {
+  it('en móvil, con 3 o más features con slot de toolbar, pliega la barra bajo «Filtros y orden»; abrirla y buscar sube el contador', async () => {
     setMatchMedia(false)
     const user = userEvent.setup()
     renderWithRouter(
       <Grid
         data={rows}
-        features={[filtering({ search: { id: 'buscar', label: 'Buscar' } }), sorting()]}
+        features={[
+          filtering({ search: { id: 'buscar', label: 'Buscar' } }),
+          sorting(),
+          advancedFilter(),
+        ]}
       />,
     )
     const summary = await screen.findByText('Filtros y orden')
@@ -157,12 +162,28 @@ describe('DataGrid', () => {
     expect(await screen.findByText('Filtros y orden (1)')).toBeInTheDocument()
   })
 
+  it('en móvil, con solo 2 features con slot de toolbar, no pliega: los controles se ven directos', async () => {
+    setMatchMedia(false)
+    renderWithRouter(
+      <Grid
+        data={rows}
+        features={[filtering({ search: { id: 'buscar', label: 'Buscar' } }), sorting()]}
+      />,
+    )
+    expect(await screen.findByLabelText('Buscar')).toBeInTheDocument()
+    expect(screen.queryByText('Filtros y orden')).not.toBeInTheDocument()
+  })
+
   it('en escritorio no hay <details>: los controles de la barra se ven directos', async () => {
     setMatchMedia(true)
     renderWithRouter(
       <Grid
         data={rows}
-        features={[filtering({ search: { id: 'buscar', label: 'Buscar' } }), sorting()]}
+        features={[
+          filtering({ search: { id: 'buscar', label: 'Buscar' } }),
+          sorting(),
+          advancedFilter(),
+        ]}
       />,
     )
     await screen.findByRole('table')

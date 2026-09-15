@@ -33,15 +33,20 @@ function countActiveControls(state: GridTable<never>['state']): number {
  * cuya toolbar es un formulario de búsqueda; el resto (orden en móvil, agrupar, columnas…) no lo es.
  *
  * Bajo `lg` (`< 1024px`), los slots se pliegan dentro de un `<details>` con `<summary>` «Filtros y
- * orden» (+ contador de controles activos, ver `countActiveControls`): con `sorting` + `filtering`
- * + `grouping` + `resizing` registrados a la vez (caso real de productos, Tarea 13), la barra móvil
- * apilaba nueve controles antes de la primera tarjeta. `<details>` es una revelación nativa: el
+ * orden» (+ contador de controles activos, ver `countActiveControls`) **solo cuando 3 o más
+ * features registradas aportan un slot `toolbar`** (Tarea 14, ruling del controlador): con
+ * `sorting` + `filtering` + `grouping` + `advancedFilter` a la vez (caso real de productos, Tarea
+ * 13) la barra móvil apilaba nueve controles antes de la primera tarjeta, pero con 1 o 2 (clínicas,
+ * doctores, usuarios, precios especiales: `filtering` + `sorting`) plegar solo escondía el
+ * buscador que recepción usa a diario sin ahorrar espacio real. El umbral se cuenta desde
+ * `grid.features` (genérico, sin conocer ninguna feature en concreto) y no de la lista de
+ * `controls` ya montados, que es la misma cantidad. `<details>` es una revelación nativa: el
  * estado abierto/cerrado y su semántica de accesibilidad (equivalente a `aria-expanded` en el
  * `<summary>`) los da el navegador, sin JS propio. El buscador global de `filtering` NO queda fuera
  * del plegado: su slot es un único componente que pinta el buscador y los filtros de columna
  * juntos (`features/filtering.tsx:Toolbar`), así que separarlo exigiría tocar esa feature — fuera
- * del alcance de este fix (núcleo, un solo archivo). En `lg` y superior, la barra se ve exactamente
- * igual que antes de este cambio (sin `<details>`).
+ * del alcance de este fix (núcleo, un solo archivo). En `lg` y superior, o con menos de 3 slots, la
+ * barra se ve siempre plana (sin `<details>`).
  */
 export function GridToolbar() {
   const grid = useGrid<never>()
@@ -52,8 +57,9 @@ export function GridToolbar() {
   if (slots.length === 0) return null
   const controls = slots.map(({ id, Slot }) => <Slot key={id} />)
   const searchRole = grid.has('filtering') ? 'search' : undefined
+  const foldsOnMobile = slots.length >= 3
 
-  if (isDesktop) {
+  if (isDesktop || !foldsOnMobile) {
     return (
       <div role={searchRole} className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         {controls}
