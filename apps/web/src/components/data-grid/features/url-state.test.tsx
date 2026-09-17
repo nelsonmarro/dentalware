@@ -50,4 +50,36 @@ describe('urlState: enlaza el estado del grid con la URL', () => {
     result.current.table.setGlobalFilter('beto')
     expect(navigate).toHaveBeenLastCalledWith({ q: 'beto', pagina: undefined })
   })
+
+  // Tarea 18 (trabajos): `urlState` sola (sin `filtering()`) registra `globalFilteringFeature`
+  // para que `state.globalFilter` exista, pero NO registra `filteredRowModel` — esa fábrica
+  // solo la aporta `filtering()`. Sin ella no hay row model que filtre por `globalFilter`, así
+  // que pasarle un `q` a `urlState` en una tabla sin `filtering()` deja el valor en el estado sin
+  // ocultar ninguna fila. Prueba de regresión para la decisión de `cases-table.tsx` de NO
+  // reenviar `search.q` (el buscador de trabajos vive en `CasesFilters`, fuera del grid): si esto
+  // dejara de cumplirse, una página del servidor perdería filas que sí existen.
+  it('sin filtering(), un q en la URL no oculta filas (modo servidor)', () => {
+    const navigate = vi.fn()
+    const rows: Row[] = [
+      { id: '1', codigo: 'AA-00001' },
+      { id: '2', codigo: 'BB-00002' },
+    ]
+    const features = [
+      pagination({ pageSize: 25 }),
+      urlState({ search: { q: 'zzz-no-existe' }, navigate, pageSize: 25 }),
+    ]
+    const { result } = renderHook(() =>
+      useDataGrid({
+        key: 't2',
+        columns,
+        data: rows,
+        features,
+        mode: 'server',
+        rowCount: rows.length,
+        getRowId: (r) => r.id,
+      }),
+    )
+    expect(result.current.table.state.globalFilter).toBe('zzz-no-existe')
+    expect(result.current.table.getRowModel().rows).toHaveLength(2)
+  })
 })

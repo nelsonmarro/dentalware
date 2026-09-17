@@ -43,10 +43,11 @@ function TrabajosPage() {
   const query: CaseListQueryInput = { ...search, vista, pagina }
   const cases = useCases(query)
   const data = cases.data
-  const hasMore = data !== undefined && pagina * data.pageSize < data.total
 
+  // El patch manda: sin `pagina` propia (cambiar un filtro u ordenar) vuelve a la página 1;
+  // con `pagina` (paginar desde `DataGrid.Pagination`) la fija a la que trae el patch.
   function updateSearch(patch: Partial<CaseListQueryInput>) {
-    void navigate({ search: (prev) => ({ ...prev, ...patch, pagina: undefined }) })
+    void navigate({ search: (prev) => ({ ...prev, pagina: undefined, ...patch }) })
   }
 
   return (
@@ -91,27 +92,14 @@ function TrabajosPage() {
       {cases.isPending ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
       ) : (
-        <CasesTable rows={data?.cases ?? []} hidePrices={hidePrices} />
+        <CasesTable
+          rows={data?.cases ?? []}
+          total={data?.total ?? 0}
+          hidePrices={hidePrices}
+          search={search}
+          onSearchChange={updateSearch}
+        />
       )}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          className="h-11"
-          disabled={pagina <= 1}
-          onClick={() => void navigate({ search: (prev) => ({ ...prev, pagina: pagina - 1 }) })}
-        >
-          Anterior
-        </Button>
-        <span className="text-sm text-muted-foreground">Página {pagina}</span>
-        <Button
-          variant="outline"
-          className="h-11"
-          disabled={!hasMore}
-          onClick={() => void navigate({ search: (prev) => ({ ...prev, pagina: pagina + 1 }) })}
-        >
-          Siguiente
-        </Button>
-      </div>
       {canWrite && <ImportDialog open={importOpen} onOpenChange={setImportOpen} />}
     </div>
   )
