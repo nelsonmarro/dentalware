@@ -254,6 +254,21 @@ llega en un PR posterior — hoy `mode: 'server'` no tiene todavía ninguna tabl
   cell: (c) => <Badge variant="outline">{ROLE_LABEL[c.row.original.role]}</Badge>,
   ```
 
+- **Limitación conocida**: TanStack renderiza `columnDef.cell` con `flexRender`, que trata
+  cualquier `cell` de tipo función como un **componente** (`React.createElement(cell, context)`),
+  no como una llamada de una sola vez. Si `cell` es un `(c) => <Input value={draftDeAlgunEstado} />`
+  definido **dentro** del cuerpo de la tabla (o en un array de columnas sin memoizar), es una
+  función NUEVA en cada render — React la trata como un componente distinto y desmonta/vuelve a
+  montar esa celda, perdiendo el foco a mitad de tecleo en un input controlado (hallazgo real de la
+  Tarea 14, `clinic-prices-table.tsx`: escribir un precio perdía todos los caracteres salvo el
+  primero). La columna con ese `cell` necesita identidad **estable** entre renders (constante de
+  módulo, como el resto de `defineColumns(...)` en «Ejemplo completo», o memoizada sin depender del
+  estado que cambia con cada tecla); si esa celda necesita datos que sí cambian con cada tecla
+  (borradores por fila, por ejemplo), pásalos por un `React.Context` propio de la feature en vez de
+  por closure — el componente de celda lee `useContext` en cada invocación y el `Provider` puede
+  recibir un valor nuevo en cada render sin que eso desmonte nada (ejemplo real:
+  `apps/web/src/features/products/clinic-prices-table.tsx`, `DraftsContext` + `SpecialCell`).
+
 ## Cómo añadir una feature
 
 Cada módulo de `features/` exporta una factoría que construye un `GridFeature`
