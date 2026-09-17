@@ -82,4 +82,13 @@ describe('feature sorting', () => {
     const wrapper = select.closest('div')?.parentElement
     expect(wrapper).toHaveClass('lg:hidden')
   })
+
+  it('los ids de los selectores incluyen la key del grid (dos grids en la misma página no chocan)', async () => {
+    setMatchMedia(true)
+    renderWithRouter(<Grid features={FEATURES} />)
+    const columnaSelect = await screen.findByLabelText('Ordenar por')
+    const direccionSelect = screen.getByLabelText('Dirección')
+    expect(columnaSelect).toHaveAttribute('id', 'test-ordenar-por')
+    expect(direccionSelect).toHaveAttribute('id', 'test-direccion-orden')
+  })
 })

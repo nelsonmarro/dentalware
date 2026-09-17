@@ -358,6 +358,7 @@ export default defineConfig([
                 './pinning.tsx',
                 './url-state',
                 './url-state.ts',
+                '**/data-grid/features/*',
               ],
               message:
                 'Una feature del DataGrid no importa el núcleo ni otra feature (spec §3): solo sus propios sub-archivos, types.ts y context.ts.',

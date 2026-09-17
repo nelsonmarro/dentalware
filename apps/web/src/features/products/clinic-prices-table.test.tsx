@@ -7,19 +7,9 @@ import { renderWithProviders } from '@/test/render'
 import { ClinicPricesTable } from './clinic-prices-table'
 
 const { PRODUCTS, PRICES } = vi.hoisted(() => ({
+  // Desordenado a propósito («ZR» antes que «PH») para que «ordena por producto» pueda fallar
+  // de verdad: si el fixture ya llegara ordenado, el test pasaría aunque el orden no funcionara.
   PRODUCTS: [
-    {
-      id: 'p1',
-      code: 'PH',
-      name: 'Prótesis híbrida',
-      categoryId: 'c1',
-      category: { id: 'c1', name: 'Prótesis removible' },
-      pricingUnit: 'por_arcada',
-      basePrice: '0.00',
-      turnaroundDays: 12,
-      requiresTryIn: true,
-      active: true,
-    },
     {
       id: 'p2',
       code: 'ZR',
@@ -30,6 +20,18 @@ const { PRODUCTS, PRICES } = vi.hoisted(() => ({
       basePrice: '45.00',
       turnaroundDays: 5,
       requiresTryIn: false,
+      active: true,
+    },
+    {
+      id: 'p1',
+      code: 'PH',
+      name: 'Prótesis híbrida',
+      categoryId: 'c1',
+      category: { id: 'c1', name: 'Prótesis removible' },
+      pricingUnit: 'por_arcada',
+      basePrice: '0.00',
+      turnaroundDays: 12,
+      requiresTryIn: true,
       active: true,
     },
   ],
@@ -91,6 +93,16 @@ describe('ClinicPricesTable', () => {
     await user.clear(search)
 
     expect(await screen.findByLabelText('Precio especial de Zirconio')).toHaveValue('50.00')
+  })
+
+  it('ordena por producto', async () => {
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    renderWithProviders(<ClinicPricesTable clinicId="clinic-1" />)
+    await screen.findByText(/Zirconio/)
+    await user.click(screen.getByRole('button', { name: 'Ordenar por Producto' }))
+    const first = screen.getAllByRole('row')[1]
+    expect(first).toHaveTextContent('Prótesis híbrida')
   })
 
   it('un borrador sin guardar no cruza a otra clínica cuando `clinicId` cambia', async () => {

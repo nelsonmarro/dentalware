@@ -6,9 +6,9 @@ Componente transversal en `apps/web/src/components/data-grid/` que sustituirá a
 Construido sobre `@tanstack/react-table` 9.2.4 (`tableFeatures()` + `useTable`). Complementa
 `docs/architecture.md` §3.3 (web hexagonal-lite) y es la implementación de la spec de diseño
 `docs/superpowers/specs/2026-09-12-data-grid-design.md` — este documento describe **lo que existe
-hoy** (núcleo + `sorting`, `pagination`, `filtering`); el resto de features del diseño (filtro
-avanzado, agrupación, redimensionado, fijado de columnas, estado en URL) llegan en PRs
-posteriores y no están documentadas aquí porque todavía no existen en el código.
+hoy** (núcleo + `sorting`, `pagination`, `filtering`, `resizing`, `grouping`, `advancedFilter`);
+solo `pinning` (fijado de columnas) y `urlState` (estado en URL) llegan en PRs posteriores y no
+están documentadas aquí porque todavía no existen en el código.
 
 ## Qué es y cuándo usarlo
 
@@ -56,11 +56,19 @@ un índice calculado). `GridColumnMeta` (`apps/web/src/components/data-grid/type
 - **`mobile`**: papel de la columna en la tarjeta móvil automática — `'title' | 'subtitle' |
   'badge' | 'detail' | 'actions' | 'hidden'`. Sin valor, la columna se trata como `'detail'`.
 - **`filter`**: activa un control en la toolbar de la feature `filtering` — `'text' | 'select' |
-  'range'` (ver «Features disponibles»).
+  'range'` (ver «Features disponibles»); también decide los operadores que ofrece `advancedFilter`
+  sobre esa columna.
+- **`groupable`**: `true` para que la columna aparezca en el «Agrupar por» de la feature `grouping`
+  y en el item de menú «Agrupar por <columna>» (ver «Features disponibles»).
+- **`aggregate`**: `'sum' | 'count'`, agregación que muestra `grouping` para esa columna en la fila
+  de grupo (ver «Features disponibles»).
 - **`align`**: `'left' | 'right'`; alinea la celda y su cabecera a la derecha (columnas numéricas o
   de acciones).
-- **`width`**: ancho inicial en px. Hoy solo lo usará la feature de redimensionado (aún no
-  implementada); declararlo ya no tiene efecto visual salvo el que le des con `cellClassName`.
+- **`width`**: ancho inicial en px, traducido a `size` de columna en `useDataGrid` (no en
+  `defineColumns`). Sin la feature `resizing`, ese `size` no se refleja en ningún lado (la tabla
+  no aplica ancho por `<th>`/`<td>` salvo con `cellClassName`); con `resizing` es el ancho de
+  partida antes de que el usuario redimensione (y, si ya redimensionó, gana lo guardado en
+  `localStorage`).
 - **`cellClassName`**: clases Tailwind adicionales para la celda y la cabecera (por ejemplo un
   ancho fijo con `w-12`).
 - **`cellStyle`**: `(row: unknown) => CSSProperties | undefined`, estilo inline por fila —
@@ -99,11 +107,11 @@ return (
 
 `useDataGrid({ key, columns, data, features, mode?, rowCount?, getRowId })`:
 
-- **`key`**: identificador estable de la tabla; nombra la persistencia futura en `localStorage`
-  (`datagrid:<key>`, aún sin uso porque ninguna feature actual persiste estado). El helper ya
-  existe en `storage.ts` (`readStored`/`writeStored`, `localStorage` envuelto en try/catch con
-  valor por defecto y una versión por clave) para que `resizing`/`pinning` lo usen sin escribirlo
-  de nuevo cuando lleguen en un PR posterior.
+- **`key`**: identificador estable de la tabla; nombra la persistencia en `localStorage`
+  (`datagrid:<key>:<slice>`, por ejemplo `datagrid:productos:sizing`). El helper vive en
+  `storage.ts` (`readStored`/`writeStored`, `localStorage` envuelto en try/catch con valor por
+  defecto y una versión por clave, `:v1`); `resizing` ya lo usa para el ancho de columna y
+  `pinning` lo reutilizará sin escribirlo de nuevo cuando llegue en un PR posterior.
 - **`features`**: la lista de módulos activos, en el orden en que se registran (mismo orden en que
   aparecen sus controles en la toolbar y sus slots de cabecera). Decláralo como constante de
   módulo o memorizado con `useMemo`/`useCallback` en el componente si depende de props — la lista
@@ -163,10 +171,51 @@ Cada feature es una factoría que devuelve un `GridFeature`; se importan desde
     por defecto de cualquier columna sin `meta.filter` explícito sigue siendo ese mismo filtro de
     texto si el usuario le pasa un valor por otra vía.
 
+- **`resizing()`**: anchos de columna redimensionables, cliente o servidor. Aporta un asa por
+  cabecera (`slots.headerCell`, `role="separator"`, `aria-orientation="vertical"`,
+  `aria-label="Redimensionar <columna>"`) que se arrastra con el ratón o el dedo
+  (`columnResizeMode: 'onEnd'`: el ancho se confirma al soltar), se ajusta con el teclado (← → de
+  16 px, con foco en el asa) y se restablece con doble clic. El ancho de cada columna se guarda en
+  `localStorage` (`datagrid:<key>:sizing`) al terminar de redimensionar y se restaura al montar;
+  `meta.width` es el ancho de partida cuando no hay nada guardado. `defaultColumn.minSize` es 48 px
+  (el mismo mínimo que aplica el teclado) para no dejar una columna ilegible.
+- **`grouping({ initial?: string })`**: agrupa filas por una columna con `meta.groupable`, con
+  filas de grupo expandibles (`initialState: { expanded: true }`) y agregados. Aporta un
+  `slots.toolbar` con un `<select>` nativo «Agrupar por» (las columnas con `meta.groupable`, 44 px)
+  y un `slots.columnMenu` con el item «Agrupar por <columna>»/«Quitar agrupación» (solo aplica a
+  columnas `meta.groupable`, vía `canApply`). `opts.initial` fija la columna agrupada (por id) al
+  montar; sin ella arranca sin agrupar — solo se agrupa por una columna a la vez (agrupar por otra
+  sustituye la anterior, no la anida). La fila de grupo muestra el valor agrupado, el conteo de
+  filas y las celdas agregadas de las columnas con `meta.aggregate`; en móvil, `parts/cards.tsx` la
+  pinta como un encabezado (`<h3>`) en vez de una tarjeta, y sus filas hijas siguen siendo tarjetas
+  normales bajo ese encabezado. **`meta.aggregate: 'sum'`** no usa el `sum` nativo de TanStack
+  (`aggregationFn_sum`, que solo suma valores con `typeof value === 'number'`): el dinero de este
+  proyecto viaja como cadena decimal (`"45.00"`, `docs/conventions.md` §4), así que ese `sum` daría
+  `0.00`. `useDataGrid` registra en su lugar una agregación propia (`constructAggregationFn`,
+  `use-data-grid.ts`) que convierte cada valor con `Number()` antes de sumar e ignora los que
+  resulten `NaN`: acepta números y cadenas decimales por igual. `meta.aggregate: 'count'` usa el
+  `count` nativo de TanStack.
+- **`advancedFilter()`**: constructor de condiciones columna · operador · valor combinadas con Y/O,
+  sobre las columnas con `meta.filter` (excluye las que no tienen un valor resoluble, como una
+  columna `display` de acciones). Aporta un `slots.toolbar` con el botón «Filtro avanzado» (abre el
+  diálogo, `advanced-filter-dialog.tsx`) y un chip por condición activa con su botón de quitar. Los
+  operadores dependen de `meta.filter`: `'text'` ofrece contiene/es/no es/empieza con; `'range'`
+  ofrece es/no es/mayor que/menor que/entre; `'select'` ofrece solo **es/no es** (un conjunto
+  cerrado de valores no admite «contiene» ni «empieza con»). Filtra las filas con `transformData`
+  (no con `columnFilteringFeature`) antes de que TanStack construya la tabla, así que **solo
+  funciona en `mode: 'client'`**: en `mode: 'server'` no filtra nada y su toolbar no se renderiza.
+  El estado vive fuera de React (`advanced-filter-store.ts`, un `Map` por `key` de grid) y se
+  sincroniza con `dataSignal` (ver «Transformar filas» más abajo); se limpia al desmontar para que
+  remontar un grid con la misma `key` no arrastre condiciones de la vez anterior.
+
 Sin `pagination`, el grid muestra todas las filas sin paginar; sin `sorting`, las cabeceras no
 tienen botón de orden y las filas conservan el orden del array de `data` (útil para listas con
 orden manual, como fases); sin `filtering`, no hay ni buscador ni filtros de columna aunque las
-columnas tengan `meta.filter`.
+columnas tengan `meta.filter`; sin `resizing`, las columnas no se pueden redimensionar y `meta.width`
+no tiene efecto visual; sin `grouping`, no hay «Agrupar por» ni filas de grupo aunque las columnas
+tengan `meta.groupable`/`meta.aggregate`; sin `advancedFilter`, no hay botón «Filtro avanzado» ni
+chips aunque las columnas tengan `meta.filter` (el filtro por columna de `filtering` sigue
+funcionando igual).
 
 ## Tarjetas móviles
 
@@ -176,7 +225,13 @@ de cada columna:
 - `title` y `badge` van en la primera fila, título a la izquierda y badge a la derecha.
 - Las columnas `subtitle` se concatenan en una sola línea separadas por " · ", omitiendo las que
   tengan valor `null`/`undefined`/`''` (y su separador) — así una columna opcional vacía no deja un
-  " · " colgando.
+  " · " colgando. El separador lleva `whitespace-nowrap` (sus dos espacios internos no son punto de
+  quiebre de línea) y el contenedor de la línea neutraliza cualquier descendiente `display: block`
+  con `[&_.block]:inline`: una celda que usa `block truncate` para elipsar en la columna angosta de
+  la tabla de escritorio (p. ej. `products-table.tsx`, columna «Código») se reutiliza tal cual en
+  la tarjeta, y sin esta neutralización ese `block` fuerza su propia línea sin importar el
+  `white-space` del separador que lo sigue — juntos evitan que el separador quede huérfano al
+  inicio de la línea siguiente.
 - Cada columna `detail` se pinta en su propia línea como `<header>: <valor>` (usa el `header` de
   texto de la columna, o su `id` si el header no es texto).
 - `actions` se pinta tal cual (normalmente los mismos botones/switches que la columna de acciones
@@ -232,6 +287,21 @@ llega en un PR posterior — hoy `mode: 'server'` no tiene todavía ninguna tabl
   cell: (c) => <Badge variant="outline">{ROLE_LABEL[c.row.original.role]}</Badge>,
   ```
 
+- **Limitación conocida**: TanStack renderiza `columnDef.cell` con `flexRender`, que trata
+  cualquier `cell` de tipo función como un **componente** (`React.createElement(cell, context)`),
+  no como una llamada de una sola vez. Si `cell` es un `(c) => <Input value={draftDeAlgunEstado} />`
+  definido **dentro** del cuerpo de la tabla (o en un array de columnas sin memoizar), es una
+  función NUEVA en cada render — React la trata como un componente distinto y desmonta/vuelve a
+  montar esa celda, perdiendo el foco a mitad de tecleo en un input controlado (hallazgo real de la
+  Tarea 14, `clinic-prices-table.tsx`: escribir un precio perdía todos los caracteres salvo el
+  primero). La columna con ese `cell` necesita identidad **estable** entre renders (constante de
+  módulo, como el resto de `defineColumns(...)` en «Ejemplo completo», o memoizada sin depender del
+  estado que cambia con cada tecla); si esa celda necesita datos que sí cambian con cada tecla
+  (borradores por fila, por ejemplo), pásalos por un `React.Context` propio de la feature en vez de
+  por closure — el componente de celda lee `useContext` en cada invocación y el `Provider` puede
+  recibir un valor nuevo en cada render sin que eso desmonte nada (ejemplo real:
+  `apps/web/src/features/products/clinic-prices-table.tsx`, `DraftsContext` + `SpecialCell`).
+
 ## Cómo añadir una feature
 
 Cada módulo de `features/` exporta una factoría que construye un `GridFeature`
@@ -243,9 +313,47 @@ export type GridFeature = {
   tanstack: Record<string, unknown>              // features/row models/fns de TanStack a fusionar
   options?: (init: GridInit) => Partial<TableOptions<GridFeatures, never>>
   initialState?: Record<string, unknown>
+  transformData?: (rows: never[], init: GridInit) => never[]  // ver «Transformar filas» abajo
+  dataSignal?: (init: GridInit) => GridDataSignal              // ver «Transformar filas» abajo
   slots?: GridSlots                              // toolbar, headerCell, columnMenu, footer
 }
 ```
+
+`slots.columnMenu` no es un simple `ComponentType`: es `{ item: ComponentType<{ column }>,
+canApply?: (column) => boolean }`. `parts/column-menu.tsx` filtra los items de todas las features
+con `canApply?.(column) ?? true` (sin `canApply`, el item aplica a cualquier columna) y no
+renderiza el botón «Opciones de la columna…» si ninguno aplica — así una columna sin, por ejemplo,
+`meta.groupable` no muestra un menú vacío con el item de `grouping` dentro.
+
+### Transformar filas: `transformData` y `dataSignal`
+
+Una feature que necesita filtrar o transformar filas **antes** de que TanStack construya la tabla
+(no vía `columnFilteringFeature`/`globalFilteringFeature`, por ejemplo porque combina varias
+columnas con una lógica propia) declara `transformData`: `useDataGrid` lo aplica con `useMemo`,
+encadenando el resultado de cada feature registrada en orden, antes de pasar `data` a `useTable`.
+Recibe `(rows, init)` — igual que `options(init)` — porque una feature con estado fuera de React
+necesita `init.key` para leer su propia entrada sin chocar con otro grid de la misma página, e
+`init.mode` para no hacer nada en modo servidor si su lógica es solo de cliente. `GridFeature` no
+es genérico sobre el tipo de fila (igual que `GridColumn<never>` en los slots): la implementación
+castea `rows` dentro de la feature, nunca en el núcleo.
+
+Si ese estado externo puede cambiar sin pasar por el estado de React (un filtro guardado en un
+store propio, no en `table.state`), la feature también declara `dataSignal(init): GridDataSignal`
+— el contrato mínimo de `useSyncExternalStore` (`subscribe(callback): unsubscribe` y
+`getSnapshot(): unknown`, con `getSnapshot` estable mientras el valor no cambie). `useDataGrid`
+combina la `dataSignal` de todas las features registradas en una sola suscripción
+(`combineDataSignals`, en `use-data-grid.ts`) y usa su snapshot como dependencia del `useMemo` de
+`transformData`: es lo único que fuerza recalcular cuando ese estado externo cambia, sin que el
+núcleo conozca qué feature lo declaró ni qué guarda. Una feature cuyo `transformData` es puro
+sobre `rows` (no lee nada fuera de React) no necesita `dataSignal`.
+
+Ejemplo real: `features/advanced-filter.tsx` guarda su `AdvancedFilter` en
+`features/advanced-filter-store.ts` (un `Map` por `key` de grid, ajeno al estado de la tabla) y
+declara `dataSignal: (init) => advancedFilterSignal(init.key)` — memoizado por `key` para que
+`subscribe`/`getSnapshot` sean la misma función entre renders. El slot `toolbar` (botón + chips)
+limpia su entrada del store al desmontarse (`useEffect` con cleanup que llama
+`clearAdvancedFilter(key)`), para que remontar un grid con la misma `key` no arrastre el filtro de
+la vez anterior.
 
 Un archivo por feature en `features/`, con su factoría con opciones tipadas (por ejemplo
 `sorting({ multi })`, `filtering({ search, columns })`). Regla de aislamiento: una feature puede

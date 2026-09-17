@@ -3,27 +3,54 @@ import { useGrid, useRootProps } from '../context'
 import { columnLabel } from '../lib/column-label'
 import type { GridRow } from '../types'
 
-/** Tarjetas móviles: `renderCard` si existe; si no, se generan desde `meta.mobile`. */
+/**
+ * Tarjetas móviles: `renderCard` si existe; si no, se generan desde `meta.mobile`. Con la
+ * feature `grouping` activa, `table.getRowModel().rows` ya llega aplanado (fila de grupo e
+ * hijas intercaladas, `paginateExpandedRows` por defecto): una fila de grupo solo aporta su
+ * encabezado (`<h3>` «<valor> (<n>)»); sus hijas siguen como filas propias en el mismo `rows.map`
+ * y no deben volver a pintarse a partir de `row.subRows` (las duplicaría).
+ */
 export function GridCards() {
   const grid = useGrid<never>()
   const { renderCard } = useRootProps()
   const rows = grid.table.getRowModel().rows
+  const hasGrouping = grid.has('grouping')
   return (
     <ul className="flex flex-col gap-3">
-      {rows.map((row) => (
-        <li key={row.id} className="rounded-xl border border-border bg-card p-4">
-          {renderCard ? renderCard(row.original) : <AutoCard row={row} />}
-        </li>
-      ))}
+      {rows.map((row) =>
+        hasGrouping && row.getIsGrouped() ? (
+          <li key={row.id}>
+            <h3 className="px-1 text-sm font-medium text-muted-foreground">
+              {String(row.groupingValue)} ({row.subRows.length})
+            </h3>
+          </li>
+        ) : (
+          <li key={row.id} className="rounded-xl border border-border bg-card p-4">
+            {renderCard ? renderCard(row.original) : <AutoCard row={row} />}
+          </li>
+        ),
+      )}
     </ul>
   )
 }
 
 function AutoCard({ row }: { row: GridRow<never> }) {
   const grid = useGrid<never>()
+  const hasGrouping = grid.has('grouping')
   const cells = row.getAllCells()
+  // Con `grouping` activo, la columna agrupada es "placeholder" (`cell.getIsPlaceholder()`) en
+  // toda fila que no sea el propio encabezado de grupo: su valor ya se muestra ahí arriba, así
+  // que aquí se omite (si no, una tarjeta bajo «Prótesis removible (3)» mostraría un «· » colgando
+  // sin nada antes, con el valor real pero renderizado vacío por el `cell` de la columna).
+  // `getIsPlaceholder` solo existe cuando `columnGroupingFeature` está registrado (`grouping()`
+  // en la lista de `features`): se guarda con `hasGrouping` para no reventar en tablas sin
+  // agrupación, donde el método ni siquiera existe en runtime.
   const byRole = (role: string) =>
-    cells.filter((c) => (c.column.columnDef.meta?.mobile ?? 'detail') === role)
+    cells.filter(
+      (c) =>
+        (c.column.columnDef.meta?.mobile ?? 'detail') === role &&
+        !(hasGrouping && c.getIsPlaceholder()),
+    )
   const render = (c: (typeof cells)[number]) => <grid.table.FlexRender key={c.id} cell={c} />
   // Se filtra por el valor crudo (`getValue()`), no por el render: una celda que en escritorio
   // pinta "—" para un valor nulo (`cell: (c) => c.getValue() ?? '—'`) no debe aportar ese "—" a
@@ -39,10 +66,24 @@ function AutoCard({ row }: { row: GridRow<never> }) {
         <span>{byRole('badge').map(render)}</span>
       </div>
       {subtitleCells.length > 0 && (
-        <p className="text-sm text-muted-foreground">
+        // `[&_.block]:inline` neutraliza el `display: block` que algunas celdas usan para truncar
+        // con elipsis en la columna angosta de la tabla de escritorio (p. ej. `products-table.tsx`,
+        // columna «Código»: `cell: (c) => <span className="block truncate ...">`). Ese mismo `cell`
+        // se reutiliza tal cual en la tarjeta; un descendiente `block` fuerza su propia línea sin
+        // importar el `white-space` del separador que lo sigue, dejando «AC» en una línea y «·
+        // Prótesis removible» huérfano en la siguiente (M-4 de la revisión final del PR 2).
+        <p className="text-sm text-muted-foreground [&_.block]:inline">
           {subtitleCells.map((c, i) => (
             <Fragment key={c.id}>
-              {i > 0 && <span aria-hidden> · </span>}
+              {/* `whitespace-nowrap` en el propio separador: sus dos espacios internos dejan de
+                  ser puntos de quiebre de línea, así que el navegador no puede partir la línea
+                  justo antes del separador (huérfano al inicio de la siguiente, M-4 de la
+                  revisión final del PR 2) ni entre el separador y el valor que lo sigue. */}
+              {i > 0 && (
+                <span aria-hidden className="whitespace-nowrap">
+                  {' · '}
+                </span>
+              )}
               {render(c)}
             </Fragment>
           ))}

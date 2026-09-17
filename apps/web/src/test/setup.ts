@@ -19,3 +19,8 @@ Element.prototype.hasPointerCapture ??= () => false
 Element.prototype.setPointerCapture ??= () => {}
 Element.prototype.releasePointerCapture ??= () => {}
 Element.prototype.scrollIntoView ??= () => {}
+// react-remove-scroll (usado por Dialog/Select de Radix) llama `window.scrollTo` al bloquear y
+// restaurar el scroll del body; jsdom SÍ define `scrollTo` (a diferencia de `ResizeObserver` o
+// `hasPointerCapture` arriba), pero como un stub que solo registra "not implemented" en cada
+// llamada — por eso aquí hace falta una asignación directa, `??=` no lo reemplazaría.
+window.scrollTo = () => {}

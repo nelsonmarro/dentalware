@@ -1,9 +1,14 @@
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { setMatchMedia } from '@/test/match-media'
 import { renderWithRouter } from '@/test/router'
 import { DataGrid } from './data-grid'
 import { defineColumns } from './define-columns'
+import { advancedFilter } from './features/advanced-filter'
+import { filtering } from './features/filtering'
+import { sorting } from './features/sorting'
+import type { GridFeature } from './types'
 import { useDataGrid } from './use-data-grid'
 
 type Row = { id: string; name: string; city: string; active: boolean }
@@ -25,12 +30,14 @@ function Grid({
   data,
   action,
   renderCard,
+  features,
 }: {
   data: Row[]
   action?: React.ReactNode
   renderCard?: (row: Row) => React.ReactNode
+  features?: GridFeature[]
 }) {
-  const grid = useDataGrid({ key: 'test', columns, data, getRowId: (r) => r.id })
+  const grid = useDataGrid({ key: 'test', columns, data, features, getRowId: (r) => r.id })
   return (
     <DataGrid.Root
       grid={grid}
@@ -132,5 +139,134 @@ describe('DataGrid', () => {
     expect(subtitles).toHaveLength(2)
     expect(subtitles[0]?.textContent).toBe('Quito · +593991234567')
     expect(subtitles[1]?.textContent).toBe('+593991234567')
+  })
+
+  it('en móvil el separador " · " del subtítulo no queda suelto entre celdas (no inicia línea solo)', async () => {
+    setMatchMedia(false)
+    type ContactRow = { id: string; name: string; city: string | null; phone: string }
+    const contactColumns = defineColumns<ContactRow>((col) => [
+      col.accessor('name', { header: 'Nombre', meta: { mobile: 'title' } }),
+      col.accessor('city', {
+        header: 'Ciudad',
+        cell: (c) => c.getValue() ?? '—',
+        meta: { mobile: 'subtitle' },
+      }),
+      col.accessor('phone', { header: 'Teléfono', meta: { mobile: 'subtitle' } }),
+    ])
+    const contactRows: ContactRow[] = [
+      { id: '1', name: 'Clínica Uno', city: 'Quito', phone: '+593991234567' },
+    ]
+    function ContactGrid({ data }: { data: ContactRow[] }) {
+      const grid = useDataGrid({
+        key: 'test-contact-separador',
+        columns: contactColumns,
+        data,
+        getRowId: (r) => r.id,
+      })
+      return (
+        <DataGrid.Root grid={grid} emptyMessage="No hay filas">
+          <DataGrid.Content />
+        </DataGrid.Root>
+      )
+    }
+    const { container } = renderWithRouter(<ContactGrid data={contactRows} />)
+    await screen.findByText('Clínica Uno')
+    // El separador va con `white-space: nowrap` (Tailwind `whitespace-nowrap`): así el navegador
+    // no puede partir la línea justo antes ni después del separador, y no queda huérfano al
+    // inicio de la línea siguiente (hallazgo M-4 de la revisión final del PR 2).
+    const separator = container.querySelector('li p span[aria-hidden]')
+    expect(separator).not.toBeNull()
+    expect(separator).toHaveClass('whitespace-nowrap')
+  })
+
+  it('en móvil el separador no se ve empujado a línea propia por una celda subtitle con `display: block` (caso real: código de producto truncado)', async () => {
+    // Reproduce el caso real de `products-table.tsx` (columna `code`, `cell: (c) => <span
+    // className="block truncate ...">`): ese `block` es necesario para truncar con elipsis en la
+    // columna angosta de la tabla de escritorio, pero reutilizado tal cual en la tarjeta fuerza su
+    // propia línea (`display: block` siempre rompe antes y después, sin importar el `white-space`
+    // del separador que lo sigue) — confirmado con capturas de Chrome a 390 px («AC» en una línea,
+    // «· Prótesis removible» en la siguiente, hallazgo M-4). `css: false` en `vitest.config.ts`
+    // (apps/web) no aplica hojas de estilo en jsdom, así que no se puede leer el `display`
+    // calculado aquí: se comprueba en su lugar que el contenedor del subtítulo neutraliza
+    // cualquier descendiente `block` (aserción estructural, justificada con captura en el reporte).
+    setMatchMedia(false)
+    type CodeRow = { id: string; code: string; category: string }
+    const codeColumns = defineColumns<CodeRow>((col) => [
+      col.accessor('code', {
+        header: 'Código',
+        cell: (c) => <span className="block truncate font-mono text-sm">{c.getValue()}</span>,
+        meta: { mobile: 'subtitle' },
+      }),
+      col.accessor('category', { header: 'Categoría', meta: { mobile: 'subtitle' } }),
+    ])
+    const codeRows: CodeRow[] = [{ id: '1', code: 'AC', category: 'Prótesis removible' }]
+    function CodeGrid({ data }: { data: CodeRow[] }) {
+      const grid = useDataGrid({
+        key: 'test-code-block',
+        columns: codeColumns,
+        data,
+        getRowId: (r) => r.id,
+      })
+      return (
+        <DataGrid.Root grid={grid} emptyMessage="No hay filas">
+          <DataGrid.Content />
+        </DataGrid.Root>
+      )
+    }
+    const { container } = renderWithRouter(<CodeGrid data={codeRows} />)
+    await screen.findByText('AC')
+    const subtitleP = container.querySelector('li p')
+    expect(subtitleP).not.toBeNull()
+    expect(subtitleP).toHaveClass('[&_.block]:inline')
+  })
+
+  it('en móvil, con 3 o más features con slot de toolbar, pliega la barra bajo «Filtros y orden»; abrirla y buscar sube el contador', async () => {
+    setMatchMedia(false)
+    const user = userEvent.setup()
+    renderWithRouter(
+      <Grid
+        data={rows}
+        features={[
+          filtering({ search: { id: 'buscar', label: 'Buscar' } }),
+          sorting(),
+          advancedFilter(),
+        ]}
+      />,
+    )
+    const summary = await screen.findByText('Filtros y orden')
+    const details = summary.closest('details')
+    expect(details).not.toHaveAttribute('open')
+    await user.click(summary)
+    await user.type(screen.getByLabelText('Buscar'), 'clínica uno')
+    expect(await screen.findByText('Filtros y orden (1)')).toBeInTheDocument()
+  })
+
+  it('en móvil, con solo 2 features con slot de toolbar, no pliega: los controles se ven directos', async () => {
+    setMatchMedia(false)
+    renderWithRouter(
+      <Grid
+        data={rows}
+        features={[filtering({ search: { id: 'buscar', label: 'Buscar' } }), sorting()]}
+      />,
+    )
+    expect(await screen.findByLabelText('Buscar')).toBeInTheDocument()
+    expect(screen.queryByText('Filtros y orden')).not.toBeInTheDocument()
+  })
+
+  it('en escritorio no hay <details>: los controles de la barra se ven directos', async () => {
+    setMatchMedia(true)
+    renderWithRouter(
+      <Grid
+        data={rows}
+        features={[
+          filtering({ search: { id: 'buscar', label: 'Buscar' } }),
+          sorting(),
+          advancedFilter(),
+        ]}
+      />,
+    )
+    await screen.findByRole('table')
+    expect(screen.queryByText('Filtros y orden')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Buscar')).toBeInTheDocument()
   })
 })
