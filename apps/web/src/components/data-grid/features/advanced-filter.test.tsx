@@ -38,6 +38,35 @@ const categoryRows: CategoryRow[] = [
   { id: '2', name: 'Acrílico', category: { id: 'c2', name: 'Removible' } },
 ]
 
+// Una columna por tipo de `meta.filter`, para probar qué operadores ofrece el diálogo en cada caso
+// (I-2 de la revisión final del PR 2: `select` solo debía ofrecer «es»/«no es», no los de texto).
+type OperatorsRow = { id: string; name: string; category: string; days: number }
+const operatorsColumns = defineColumns<OperatorsRow>((col) => [
+  col.accessor('name', { header: 'Nombre', meta: { filter: 'text' } }),
+  col.accessor('category', { header: 'Categoría', meta: { filter: 'select' } }),
+  col.accessor('days', { header: 'Días', meta: { filter: 'range' } }),
+])
+const operatorsRows: OperatorsRow[] = [
+  { id: '1', name: 'Zirconio', category: 'Fija', days: 5 },
+  { id: '2', name: 'Acrílico', category: 'Removible', days: 12 },
+]
+
+function OperatorsGrid({ features }: { features: ReturnType<typeof advancedFilter>[] }) {
+  const grid = useDataGrid({
+    key: 'test-operadores',
+    columns: operatorsColumns,
+    data: operatorsRows,
+    features,
+    getRowId: (r) => r.id,
+  })
+  return (
+    <DataGrid.Root grid={grid} emptyMessage="Vacío">
+      <DataGrid.Toolbar />
+      <DataGrid.Content />
+    </DataGrid.Root>
+  )
+}
+
 function CategoryGrid({ features }: { features: ReturnType<typeof advancedFilter>[] }) {
   const grid = useDataGrid({
     key: 'test-categoria',
@@ -163,5 +192,31 @@ describe('feature advancedFilter', () => {
     expect(screen.getByText('Zirconio')).toBeInTheDocument()
     expect(screen.queryByText('Acrílico')).not.toBeInTheDocument()
     clearAdvancedFilter('test-categoria')
+  })
+
+  it('ofrece los operadores según meta.filter: select solo es/no es, text los cuatro, range los numéricos', async () => {
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    renderWithRouter(<OperatorsGrid features={[advancedFilter()]} />)
+    await user.click(await screen.findByRole('button', { name: 'Filtro avanzado' }))
+    await user.click(screen.getByRole('button', { name: 'Añadir condición' }))
+    // La fila de condición usa `key={condition.column}-${i}` (`advanced-filter-dialog.tsx`): al
+    // cambiar de columna, React remonta la fila y con ella el <select> de operador — hay que
+    // volver a consultarlo en cada paso, nunca reusar la referencia capturada antes del cambio.
+    const operatorLabels = () =>
+      within(screen.getByLabelText('Operador 1'))
+        .getAllByRole('option')
+        .map((o) => o.textContent)
+
+    await user.selectOptions(screen.getByLabelText('Columna 1'), 'category')
+    expect(operatorLabels()).toEqual(['es', 'no es'])
+
+    await user.selectOptions(screen.getByLabelText('Columna 1'), 'name')
+    expect(operatorLabels()).toEqual(['contiene', 'es', 'no es', 'empieza con'])
+
+    await user.selectOptions(screen.getByLabelText('Columna 1'), 'days')
+    expect(operatorLabels()).toEqual(['es', 'no es', 'mayor que', 'menor que', 'entre'])
+
+    clearAdvancedFilter('test-operadores')
   })
 })

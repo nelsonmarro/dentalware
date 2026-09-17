@@ -17,6 +17,7 @@ import type { GridColumn } from '../types'
 import {
   NUMBER_OPERATORS,
   OPERATOR_LABEL,
+  SELECT_OPERATORS,
   TEXT_OPERATORS,
   type AdvancedFilter,
   type Condition,
@@ -27,8 +28,12 @@ import { getAdvancedFilter, setAdvancedFilter } from './advanced-filter-store'
 const SELECT_CLASS =
   'h-11 rounded-lg border border-input bg-transparent px-3 text-base focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none md:text-sm dark:bg-input/30'
 
+// `meta.filter` decide el conjunto de operadores (spec §3): 'range' → numéricos, 'select' → solo
+// igualdad/desigualdad (conjunto cerrado de valores), cualquier otro (incluido 'text') → texto.
 function operatorsFor(kind: string | undefined): Operator[] {
-  return kind === 'range' ? NUMBER_OPERATORS : TEXT_OPERATORS
+  if (kind === 'range') return NUMBER_OPERATORS
+  if (kind === 'select') return SELECT_OPERATORS
+  return TEXT_OPERATORS
 }
 
 /**

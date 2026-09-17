@@ -15,6 +15,9 @@ export const OPERATOR_LABEL: Record<Operator, string> = {
 }
 export const TEXT_OPERATORS: Operator[] = ['contiene', 'es', 'no_es', 'empieza']
 export const NUMBER_OPERATORS: Operator[] = ['es', 'no_es', 'mayor', 'menor', 'entre']
+// Un valor `select` viene de un conjunto cerrado de opciones: «contiene»/«empieza con» no aportan
+// nada sobre una categoría completa, así que solo se ofrece igualdad/desigualdad (spec §3).
+export const SELECT_OPERATORS: Operator[] = ['es', 'no_es']
 
 function matchesOne(cell: unknown, c: Condition): boolean {
   const text = normalize(cell)
