@@ -6,9 +6,9 @@ Componente transversal en `apps/web/src/components/data-grid/` que sustituirá a
 Construido sobre `@tanstack/react-table` 9.2.4 (`tableFeatures()` + `useTable`). Complementa
 `docs/architecture.md` §3.3 (web hexagonal-lite) y es la implementación de la spec de diseño
 `docs/superpowers/specs/2026-09-12-data-grid-design.md` — este documento describe **lo que existe
-hoy** (núcleo + `sorting`, `pagination`, `filtering`, `resizing`, `grouping`, `advancedFilter`);
-solo `pinning` (fijado de columnas) y `urlState` (estado en URL) llegan en PRs posteriores y no
-están documentadas aquí porque todavía no existen en el código.
+hoy** (núcleo + `sorting`, `pagination`, `filtering`, `resizing`, `grouping`, `advancedFilter`,
+`pinning`); solo `urlState` (estado en URL) llega en un PR posterior y no está documentada aquí
+porque todavía no existe en el código.
 
 ## Qué es y cuándo usarlo
 
@@ -110,8 +110,8 @@ return (
 - **`key`**: identificador estable de la tabla; nombra la persistencia en `localStorage`
   (`datagrid:<key>:<slice>`, por ejemplo `datagrid:productos:sizing`). El helper vive en
   `storage.ts` (`readStored`/`writeStored`, `localStorage` envuelto en try/catch con valor por
-  defecto y una versión por clave, `:v1`); `resizing` ya lo usa para el ancho de columna y
-  `pinning` lo reutilizará sin escribirlo de nuevo cuando llegue en un PR posterior.
+  defecto y una versión por clave, `:v1`); `resizing` lo usa para el ancho de columna y `pinning`
+  para las columnas fijadas (`datagrid:<key>:pinning`), sin escribirlo de nuevo.
 - **`features`**: la lista de módulos activos, en el orden en que se registran (mismo orden en que
   aparecen sus controles en la toolbar y sus slots de cabecera). Decláralo como constante de
   módulo o memorizado con `useMemo`/`useCallback` en el componente si depende de props — la lista
@@ -207,6 +207,25 @@ Cada feature es una factoría que devuelve un `GridFeature`; se importan desde
   El estado vive fuera de React (`advanced-filter-store.ts`, un `Map` por `key` de grid) y se
   sincroniza con `dataSignal` (ver «Transformar filas» más abajo); se limpia al desmontar para que
   remontar un grid con la misma `key` no arrastre condiciones de la vez anterior.
+- **`pinning({ left?: string[]; right?: string[] })`**: fija columnas a la izquierda (`left`, región
+  lógica `start`) o a la derecha (`right`, región `end`) con `position: sticky`; `left`/`right` fijan
+  las columnas iniciales al montar (por id) cuando no hay nada guardado. Aporta un `slots.columnMenu`
+  con «Fijar a la izquierda»/«Fijar a la derecha» (solo el lado en el que la columna no está ya
+  fijada) y «Soltar» (solo si está fijada), y guarda el resultado en `localStorage`
+  (`datagrid:<key>:pinning`, restaurado al montar). Registra `columnPinningFeature` **y**
+  `columnSizingFeature` de TanStack: `column.getStart()`/`column.getAfter()` (el desplazamiento
+  sticky que usa `parts/pinning-styles.ts`) viven en la feature de tamaño, no en la de fijado —
+  confirmado contra los tipos de `@tanstack/table-core` 9.2.4, ver el reporte de la Tarea 16. Sin la
+  feature `resizing`, esos desplazamientos se calculan con el tamaño por defecto de columna (150 px)
+  en vez del real (`meta.width` sigue sin efecto visual sin `resizing`, igual que sin `pinning`). La
+  sombra del borde de la última columna fijada a la izquierda / primera fijada a la derecha se
+  calcula con `table.getStartVisibleLeafColumns()`/`getEndVisibleLeafColumns()` (no
+  `column.getIsLastColumn()`/`getIsFirstColumn()`, que viven en `columnOrderingFeature` — una
+  feature que `pinning` no registra porque no la necesita para nada más). **`grouping` + `pinning`
+  combinadas no se han probado**: ninguna tabla del proyecto usa ambas a la vez (productos agrupa y
+  no fija; trabajos, que fijará, no agrupa). `parts/table.tsx` sí aplica `pinningStyles` a las
+  celdas de la fila de grupo (mismo helper que las filas normales), pero esa combinación no tiene
+  test ni verificación visual — confírmalo antes de usarlas juntas en una tabla nueva.
 
 Sin `pagination`, el grid muestra todas las filas sin paginar; sin `sorting`, las cabeceras no
 tienen botón de orden y las filas conservan el orden del array de `data` (útil para listas con
@@ -215,7 +234,8 @@ columnas tengan `meta.filter`; sin `resizing`, las columnas no se pueden redimen
 no tiene efecto visual; sin `grouping`, no hay «Agrupar por» ni filas de grupo aunque las columnas
 tengan `meta.groupable`/`meta.aggregate`; sin `advancedFilter`, no hay botón «Filtro avanzado» ni
 chips aunque las columnas tengan `meta.filter` (el filtro por columna de `filtering` sigue
-funcionando igual).
+funcionando igual); sin `pinning`, no hay «Fijar a la izquierda/derecha» en el menú de columna ni
+`position: sticky` en ninguna celda.
 
 ## Tarjetas móviles
 
