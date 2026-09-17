@@ -119,6 +119,18 @@ export const caseInputSchema = z.object({
 })
 export type CaseInput = z.infer<typeof caseInputSchema>
 
+export const CASE_ORDERS = [
+  'codigo',
+  'codigo-desc',
+  'entrega',
+  'entrega-desc',
+  'clinica',
+  'clinica-desc',
+  'estado',
+  'estado-desc',
+] as const
+export type CaseOrder = (typeof CASE_ORDERS)[number]
+
 export const caseListQuerySchema = z.object({
   vista: z.enum(CASE_VIEWS).default('todos'),
   estado: z.enum(CASE_STATUSES).optional(),
@@ -128,6 +140,7 @@ export const caseListQuerySchema = z.object({
   q: z.string().trim().max(60).optional(),
   desde: isoDate.optional(),
   hasta: isoDate.optional(),
+  orden: z.enum(CASE_ORDERS, { error: 'Orden inválido' }).optional(),
   pagina: z.coerce.number().int().min(1).default(1),
 })
 export type CaseListQuery = z.infer<typeof caseListQuerySchema>

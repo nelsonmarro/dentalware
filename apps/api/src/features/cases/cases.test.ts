@@ -253,6 +253,24 @@ describe('/api/trabajos', () => {
     expect(comoMensajeroBody.cases.every((c) => c.total === null)).toBe(true)
   })
 
+  it('ordena por entrega, código, clínica y estado en ambas direcciones; sin orden, urgentes primero', async () => {
+    const tarde = await createOne(recepcion, { patientRef: 'Tarde', dueDate: '2030-01-10' })
+    const pronto = await createOne(recepcion, { patientRef: 'Pronto', dueDate: '2030-01-01' })
+    const ids = async (qs: string) =>
+      (
+        (await (await app.request(`/api/trabajos${qs}`, req(recepcion, 'GET'))).json()) as {
+          cases: { id: string }[]
+        }
+      ).cases.map((c) => c.id)
+    expect(await ids('?orden=entrega')).toEqual([pronto, tarde])
+    expect(await ids('?orden=entrega-desc')).toEqual([tarde, pronto])
+    expect(await ids('?orden=codigo')).toEqual([tarde, pronto]) // el primero creado tiene el código menor
+    expect(await ids('?orden=codigo-desc')).toEqual([pronto, tarde])
+    expect((await app.request('/api/trabajos?orden=precio', req(recepcion, 'GET'))).status).toBe(
+      422,
+    )
+  })
+
   it('comentario: técnico comenta (201) y aparece en eventos con su nombre; texto vacío 422', async () => {
     const id = await createOne(recepcion)
     const r = await app.request(

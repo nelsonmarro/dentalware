@@ -136,6 +136,7 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
   const rows = new Map(seed.map((r) => [r.id, r]))
   const events: CaseEventRow[] = []
   let seq = seed.length
+  let lastListQuery: Parameters<CasesRepository['list']>[0] | undefined
   const repo: CasesRepository = {
     async create(input, actorId) {
       if (input.items.some((i) => i.productId === 'inexistente'))
@@ -159,28 +160,31 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
       return true
     },
     byId: async (id) => rows.get(id),
-    list: async (q) => ({
-      cases: [...rows.values()].map((r) => ({
-        id: r.id,
-        code: r.code,
-        boxNumber: r.boxNumber,
-        patientRef: r.patientRef,
-        status: r.status,
-        priority: r.priority,
-        receivedAt: r.receivedAt,
-        dueDate: r.dueDate,
-        promisedDate: r.promisedDate,
-        total: r.total,
-        clinic: r.clinic,
-        doctor: r.doctor,
-        stage: null,
-        technician: null,
-        itemsSummary: 'Zirconio ×2',
-      })),
-      total: rows.size,
-      page: q.pagina,
-      pageSize: 20,
-    }),
+    list: async (q) => {
+      lastListQuery = q
+      return {
+        cases: [...rows.values()].map((r) => ({
+          id: r.id,
+          code: r.code,
+          boxNumber: r.boxNumber,
+          patientRef: r.patientRef,
+          status: r.status,
+          priority: r.priority,
+          receivedAt: r.receivedAt,
+          dueDate: r.dueDate,
+          promisedDate: r.promisedDate,
+          total: r.total,
+          clinic: r.clinic,
+          doctor: r.doctor,
+          stage: null,
+          technician: null,
+          itemsSummary: 'Zirconio ×2',
+        })),
+        total: rows.size,
+        page: q.pagina,
+        pageSize: 20,
+      }
+    },
     events: async (caseId) => events.filter((e) => e.caseId === caseId),
     async addEvent(e: NewCaseEvent) {
       events.push({
@@ -196,7 +200,7 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
       })
     },
   }
-  return { repo, rows, events }
+  return { repo, rows, events, lastListQuery: () => lastListQuery }
 }
 
 export const fakeUow = (cases: CasesRepository): UnitOfWork => ({ run: (fn) => fn({ cases }) })

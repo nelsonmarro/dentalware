@@ -7,14 +7,14 @@ const admin = { userId: 'u1', role: 'admin' } as const
 const tecnico = { userId: 'u2', role: 'tecnico' } as const
 
 function build(seed = [caseDetailFixture()], hasDocument = false) {
-  const { repo, events } = fakeCasesRepo(seed)
+  const { repo, events, lastListQuery } = fakeCasesRepo(seed)
   const service = createCasesService({
     cases: repo,
     attachments: { hasDocument: async () => hasDocument },
     uow: fakeUow(repo),
     clock: fixedClock(),
   })
-  return { service, repo, events }
+  return { service, repo, events, lastListQuery }
 }
 
 describe('createCasesService', () => {
@@ -22,6 +22,12 @@ describe('createCasesService', () => {
     const { service } = build()
     expect((await service.list({ pagina: 1 } as never, tecnico)).cases[0]!.total).toBeNull()
     expect((await service.list({ pagina: 1 } as never, admin)).cases[0]!.total).toBe('90.00')
+  })
+
+  it('la lista pasa `orden` al repositorio', async () => {
+    const { service, lastListQuery } = build()
+    await service.list({ pagina: 1, orden: 'entrega-desc' } as never, admin)
+    expect(lastListQuery()?.orden).toBe('entrega-desc')
   })
 
   it('el detalle oculta precios y notas internas al técnico', async () => {

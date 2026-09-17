@@ -113,6 +113,26 @@ async function addEventWith(db: Db | Tx, e: NewCaseEvent): Promise<void> {
 const ACTIVE_FOR_DATES = ['nuevo', 'en_proceso', 'en_espera', 'en_prueba'] as const
 const effectiveDate = sql<string | null>`coalesce(${cases.promisedDate}, ${cases.dueDate})`
 
+const ORDER_COLUMNS = {
+  codigo: () => cases.code,
+  entrega: () => effectiveDate,
+  clinica: () => clinics.name,
+  estado: () => cases.status,
+} as const
+
+/** Traduce `orden` a columnas SQL; urgentes primero y código desc como desempate siempre. */
+function orderFor(orden: CaseListQuery['orden']) {
+  const urgentFirst = desc(sql`${cases.priority} = 'urgente'`)
+  if (!orden) return [urgentFirst, sql`${effectiveDate} asc nulls last`, desc(cases.code)]
+  const [field, dir] = orden.split('-') as [keyof typeof ORDER_COLUMNS, 'desc' | undefined]
+  const col = ORDER_COLUMNS[field]()
+  return [
+    urgentFirst,
+    dir === 'desc' ? sql`${col} desc nulls last` : sql`${col} asc nulls last`,
+    desc(cases.code),
+  ]
+}
+
 async function listCasesWith(db: Db | Tx, q: CaseListQuery, today: string) {
   const conds = []
   if (q.vista === 'nuevos') conds.push(eq(cases.status, 'nuevo'))
@@ -169,11 +189,7 @@ async function listCasesWith(db: Db | Tx, q: CaseListQuery, today: string) {
     .leftJoin(stages, eq(stages.id, cases.currentStageId))
     .leftJoin(users, eq(users.id, cases.assignedTechnicianId))
     .where(where)
-    .orderBy(
-      desc(sql`${cases.priority} = 'urgente'`),
-      sql`${effectiveDate} asc nulls last`,
-      desc(cases.code),
-    )
+    .orderBy(...orderFor(q.orden))
     .limit(CASE_PAGE_SIZE)
     .offset((q.pagina - 1) * CASE_PAGE_SIZE)
   return {
