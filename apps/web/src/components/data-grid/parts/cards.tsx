@@ -66,7 +66,13 @@ function AutoCard({ row }: { row: GridRow<never> }) {
         <span>{byRole('badge').map(render)}</span>
       </div>
       {subtitleCells.length > 0 && (
-        <p className="text-sm text-muted-foreground">
+        // `[&_.block]:inline` neutraliza el `display: block` que algunas celdas usan para truncar
+        // con elipsis en la columna angosta de la tabla de escritorio (p. ej. `products-table.tsx`,
+        // columna «Código»: `cell: (c) => <span className="block truncate ...">`). Ese mismo `cell`
+        // se reutiliza tal cual en la tarjeta; un descendiente `block` fuerza su propia línea sin
+        // importar el `white-space` del separador que lo sigue, dejando «AC» en una línea y «·
+        // Prótesis removible» huérfano en la siguiente (M-4 de la revisión final del PR 2).
+        <p className="text-sm text-muted-foreground [&_.block]:inline">
           {subtitleCells.map((c, i) => (
             <Fragment key={c.id}>
               {/* `whitespace-nowrap` en el propio separador: sus dos espacios internos dejan de

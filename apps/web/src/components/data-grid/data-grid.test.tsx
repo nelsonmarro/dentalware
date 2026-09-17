@@ -179,6 +179,47 @@ describe('DataGrid', () => {
     expect(separator).toHaveClass('whitespace-nowrap')
   })
 
+  it('en móvil el separador no se ve empujado a línea propia por una celda subtitle con `display: block` (caso real: código de producto truncado)', async () => {
+    // Reproduce el caso real de `products-table.tsx` (columna `code`, `cell: (c) => <span
+    // className="block truncate ...">`): ese `block` es necesario para truncar con elipsis en la
+    // columna angosta de la tabla de escritorio, pero reutilizado tal cual en la tarjeta fuerza su
+    // propia línea (`display: block` siempre rompe antes y después, sin importar el `white-space`
+    // del separador que lo sigue) — confirmado con capturas de Chrome a 390 px («AC» en una línea,
+    // «· Prótesis removible» en la siguiente, hallazgo M-4). `css: false` en `vitest.config.ts`
+    // (apps/web) no aplica hojas de estilo en jsdom, así que no se puede leer el `display`
+    // calculado aquí: se comprueba en su lugar que el contenedor del subtítulo neutraliza
+    // cualquier descendiente `block` (aserción estructural, justificada con captura en el reporte).
+    setMatchMedia(false)
+    type CodeRow = { id: string; code: string; category: string }
+    const codeColumns = defineColumns<CodeRow>((col) => [
+      col.accessor('code', {
+        header: 'Código',
+        cell: (c) => <span className="block truncate font-mono text-sm">{c.getValue()}</span>,
+        meta: { mobile: 'subtitle' },
+      }),
+      col.accessor('category', { header: 'Categoría', meta: { mobile: 'subtitle' } }),
+    ])
+    const codeRows: CodeRow[] = [{ id: '1', code: 'AC', category: 'Prótesis removible' }]
+    function CodeGrid({ data }: { data: CodeRow[] }) {
+      const grid = useDataGrid({
+        key: 'test-code-block',
+        columns: codeColumns,
+        data,
+        getRowId: (r) => r.id,
+      })
+      return (
+        <DataGrid.Root grid={grid} emptyMessage="No hay filas">
+          <DataGrid.Content />
+        </DataGrid.Root>
+      )
+    }
+    const { container } = renderWithRouter(<CodeGrid data={codeRows} />)
+    await screen.findByText('AC')
+    const subtitleP = container.querySelector('li p')
+    expect(subtitleP).not.toBeNull()
+    expect(subtitleP).toHaveClass('[&_.block]:inline')
+  })
+
   it('en móvil, con 3 o más features con slot de toolbar, pliega la barra bajo «Filtros y orden»; abrirla y buscar sube el contador', async () => {
     setMatchMedia(false)
     const user = userEvent.setup()
