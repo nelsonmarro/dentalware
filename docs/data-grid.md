@@ -225,9 +225,13 @@ de cada columna:
 - `title` y `badge` van en la primera fila, título a la izquierda y badge a la derecha.
 - Las columnas `subtitle` se concatenan en una sola línea separadas por " · ", omitiendo las que
   tengan valor `null`/`undefined`/`''` (y su separador) — así una columna opcional vacía no deja un
-  " · " colgando. El separador lleva `whitespace-nowrap`: sus dos espacios internos no son punto de
-  quiebre de línea, así que no queda huérfano al inicio de la línea siguiente cuando el texto es
-  largo.
+  " · " colgando. El separador lleva `whitespace-nowrap` (sus dos espacios internos no son punto de
+  quiebre de línea) y el contenedor de la línea neutraliza cualquier descendiente `display: block`
+  con `[&_.block]:inline`: una celda que usa `block truncate` para elipsar en la columna angosta de
+  la tabla de escritorio (p. ej. `products-table.tsx`, columna «Código») se reutiliza tal cual en
+  la tarjeta, y sin esta neutralización ese `block` fuerza su propia línea sin importar el
+  `white-space` del separador que lo sigue — juntos evitan que el separador quede huérfano al
+  inicio de la línea siguiente.
 - Cada columna `detail` se pinta en su propia línea como `<header>: <valor>` (usa el `header` de
   texto de la columna, o su `id` si el header no es texto).
 - `actions` se pinta tal cual (normalmente los mismos botones/switches que la columna de acciones
