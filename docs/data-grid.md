@@ -6,18 +6,9 @@ Componente transversal en `apps/web/src/components/data-grid/` que sustituirá a
 Construido sobre `@tanstack/react-table` 9.2.4 (`tableFeatures()` + `useTable`). Complementa
 `docs/architecture.md` §3.3 (web hexagonal-lite) y es la implementación de la spec de diseño
 `docs/superpowers/specs/2026-09-12-data-grid-design.md` — este documento describe **lo que existe
-hoy** (núcleo + `sorting`, `pagination`, `filtering`, `resizing`); el resto de features del diseño
-(filtro avanzado, agrupación, fijado de columnas, estado en URL) llegan en PRs posteriores y no
+hoy** (núcleo + `sorting`, `pagination`, `filtering`, `resizing`, `grouping`, `advancedFilter`);
+solo `pinning` (fijado de columnas) y `urlState` (estado en URL) llegan en PRs posteriores y no
 están documentadas aquí porque todavía no existen en el código.
-
-**Nota de implementación (agrupación, `meta.aggregate: 'sum'`)**: la feature `grouping` (aún sin
-documentar en «Features disponibles»: llega con su tabla real, Tarea 13) no usa el `sum` nativo de
-TanStack (`aggregationFn_sum`) porque ese solo suma valores con `typeof value === 'number'`. El
-dinero de este proyecto viaja como cadena decimal (`"45.00"`, `docs/conventions.md` §4), así que
-sumar una columna de precio con el `sum` de TanStack daría `0.00`. `useDataGrid` registra en su
-lugar una agregación propia (`constructAggregationFn`, `use-data-grid.ts`) que convierte cada valor
-con `Number()` antes de sumar e ignora los que resulten `NaN`: acepta números y cadenas decimales
-por igual.
 
 ## Qué es y cuándo usarlo
 
@@ -65,7 +56,12 @@ un índice calculado). `GridColumnMeta` (`apps/web/src/components/data-grid/type
 - **`mobile`**: papel de la columna en la tarjeta móvil automática — `'title' | 'subtitle' |
   'badge' | 'detail' | 'actions' | 'hidden'`. Sin valor, la columna se trata como `'detail'`.
 - **`filter`**: activa un control en la toolbar de la feature `filtering` — `'text' | 'select' |
-  'range'` (ver «Features disponibles»).
+  'range'` (ver «Features disponibles»); también decide los operadores que ofrece `advancedFilter`
+  sobre esa columna.
+- **`groupable`**: `true` para que la columna aparezca en el «Agrupar por» de la feature `grouping`
+  y en el item de menú «Agrupar por <columna>» (ver «Features disponibles»).
+- **`aggregate`**: `'sum' | 'count'`, agregación que muestra `grouping` para esa columna en la fila
+  de grupo (ver «Features disponibles»).
 - **`align`**: `'left' | 'right'`; alinea la celda y su cabecera a la derecha (columnas numéricas o
   de acciones).
 - **`width`**: ancho inicial en px, traducido a `size` de columna en `useDataGrid` (no en
@@ -183,12 +179,43 @@ Cada feature es una factoría que devuelve un `GridFeature`; se importan desde
   `localStorage` (`datagrid:<key>:sizing`) al terminar de redimensionar y se restaura al montar;
   `meta.width` es el ancho de partida cuando no hay nada guardado. `defaultColumn.minSize` es 48 px
   (el mismo mínimo que aplica el teclado) para no dejar una columna ilegible.
+- **`grouping({ initial?: string })`**: agrupa filas por una columna con `meta.groupable`, con
+  filas de grupo expandibles (`initialState: { expanded: true }`) y agregados. Aporta un
+  `slots.toolbar` con un `<select>` nativo «Agrupar por» (las columnas con `meta.groupable`, 44 px)
+  y un `slots.columnMenu` con el item «Agrupar por <columna>»/«Quitar agrupación» (solo aplica a
+  columnas `meta.groupable`, vía `canApply`). `opts.initial` fija la columna agrupada (por id) al
+  montar; sin ella arranca sin agrupar — solo se agrupa por una columna a la vez (agrupar por otra
+  sustituye la anterior, no la anida). La fila de grupo muestra el valor agrupado, el conteo de
+  filas y las celdas agregadas de las columnas con `meta.aggregate`; en móvil, `parts/cards.tsx` la
+  pinta como un encabezado (`<h3>`) en vez de una tarjeta, y sus filas hijas siguen siendo tarjetas
+  normales bajo ese encabezado. **`meta.aggregate: 'sum'`** no usa el `sum` nativo de TanStack
+  (`aggregationFn_sum`, que solo suma valores con `typeof value === 'number'`): el dinero de este
+  proyecto viaja como cadena decimal (`"45.00"`, `docs/conventions.md` §4), así que ese `sum` daría
+  `0.00`. `useDataGrid` registra en su lugar una agregación propia (`constructAggregationFn`,
+  `use-data-grid.ts`) que convierte cada valor con `Number()` antes de sumar e ignora los que
+  resulten `NaN`: acepta números y cadenas decimales por igual. `meta.aggregate: 'count'` usa el
+  `count` nativo de TanStack.
+- **`advancedFilter()`**: constructor de condiciones columna · operador · valor combinadas con Y/O,
+  sobre las columnas con `meta.filter` (excluye las que no tienen un valor resoluble, como una
+  columna `display` de acciones). Aporta un `slots.toolbar` con el botón «Filtro avanzado» (abre el
+  diálogo, `advanced-filter-dialog.tsx`) y un chip por condición activa con su botón de quitar. Los
+  operadores dependen de `meta.filter`: `'text'` ofrece contiene/es/no es/empieza con; `'range'`
+  ofrece es/no es/mayor que/menor que/entre; `'select'` ofrece solo **es/no es** (un conjunto
+  cerrado de valores no admite «contiene» ni «empieza con»). Filtra las filas con `transformData`
+  (no con `columnFilteringFeature`) antes de que TanStack construya la tabla, así que **solo
+  funciona en `mode: 'client'`**: en `mode: 'server'` no filtra nada y su toolbar no se renderiza.
+  El estado vive fuera de React (`advanced-filter-store.ts`, un `Map` por `key` de grid) y se
+  sincroniza con `dataSignal` (ver «Transformar filas» más abajo); se limpia al desmontar para que
+  remontar un grid con la misma `key` no arrastre condiciones de la vez anterior.
 
 Sin `pagination`, el grid muestra todas las filas sin paginar; sin `sorting`, las cabeceras no
 tienen botón de orden y las filas conservan el orden del array de `data` (útil para listas con
 orden manual, como fases); sin `filtering`, no hay ni buscador ni filtros de columna aunque las
 columnas tengan `meta.filter`; sin `resizing`, las columnas no se pueden redimensionar y `meta.width`
-no tiene efecto visual.
+no tiene efecto visual; sin `grouping`, no hay «Agrupar por» ni filas de grupo aunque las columnas
+tengan `meta.groupable`/`meta.aggregate`; sin `advancedFilter`, no hay botón «Filtro avanzado» ni
+chips aunque las columnas tengan `meta.filter` (el filtro por columna de `filtering` sigue
+funcionando igual).
 
 ## Tarjetas móviles
 
@@ -198,7 +225,9 @@ de cada columna:
 - `title` y `badge` van en la primera fila, título a la izquierda y badge a la derecha.
 - Las columnas `subtitle` se concatenan en una sola línea separadas por " · ", omitiendo las que
   tengan valor `null`/`undefined`/`''` (y su separador) — así una columna opcional vacía no deja un
-  " · " colgando.
+  " · " colgando. El separador lleva `whitespace-nowrap`: sus dos espacios internos no son punto de
+  quiebre de línea, así que no queda huérfano al inicio de la línea siguiente cuando el texto es
+  largo.
 - Cada columna `detail` se pinta en su propia línea como `<header>: <valor>` (usa el `header` de
   texto de la columna, o su `id` si el header no es texto).
 - `actions` se pinta tal cual (normalmente los mismos botones/switches que la columna de acciones
