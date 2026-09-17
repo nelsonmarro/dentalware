@@ -51,4 +51,61 @@ describe('feature pinning', () => {
     await screen.findByRole('table')
     expect(screen.queryByRole('button', { name: /Opciones de la columna/ })).not.toBeInTheDocument()
   })
+
+  it('fija una columna sin fijar a la izquierda desde el menú', async () => {
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    renderWithRouter(<Grid features={[pinning()]} />)
+    const th = await screen.findByRole('columnheader', { name: /Código/ })
+    expect(th).not.toHaveStyle({ position: 'sticky' })
+
+    await user.click(screen.getByRole('button', { name: 'Opciones de la columna Código' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Fijar a la izquierda' }))
+
+    expect(th).toHaveStyle({ position: 'sticky', insetInlineStart: '0px' })
+    const stored = JSON.parse(localStorage.getItem('datagrid:pin-test:pinning:v1') ?? '{}') as {
+      start: string[]
+      end: string[]
+    }
+    expect(stored.start).toEqual(['code'])
+    expect(stored.end).toEqual([])
+  })
+
+  it('fija una columna sin fijar a la derecha desde el menú', async () => {
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    renderWithRouter(<Grid features={[pinning()]} />)
+    const th = await screen.findByRole('columnheader', { name: /Código/ })
+    expect(th).not.toHaveStyle({ position: 'sticky' })
+
+    await user.click(screen.getByRole('button', { name: 'Opciones de la columna Código' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Fijar a la derecha' }))
+
+    expect(th).toHaveStyle({ position: 'sticky', insetInlineEnd: '0px' })
+    const stored = JSON.parse(localStorage.getItem('datagrid:pin-test:pinning:v1') ?? '{}') as {
+      start: string[]
+      end: string[]
+    }
+    expect(stored.end).toEqual(['code'])
+    expect(stored.start).toEqual([])
+  })
+
+  it('mueve una columna ya fijada a la izquierda hacia la derecha sin duplicarla', async () => {
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    renderWithRouter(<Grid features={[pinning({ left: ['code'] })]} />)
+    const th = await screen.findByRole('columnheader', { name: /Código/ })
+    expect(th).toHaveStyle({ position: 'sticky', insetInlineStart: '0px' })
+
+    await user.click(screen.getByRole('button', { name: 'Opciones de la columna Código' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Fijar a la derecha' }))
+
+    expect(th).toHaveStyle({ position: 'sticky', insetInlineEnd: '0px' })
+    const stored = JSON.parse(localStorage.getItem('datagrid:pin-test:pinning:v1') ?? '{}') as {
+      start: string[]
+      end: string[]
+    }
+    expect(stored.start).toEqual([])
+    expect(stored.end).toEqual(['code'])
+  })
 })
