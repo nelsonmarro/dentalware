@@ -215,17 +215,25 @@ Cada feature es una factoría que devuelve un `GridFeature`; se importan desde
   (`datagrid:<key>:pinning`, restaurado al montar). Registra `columnPinningFeature` **y**
   `columnSizingFeature` de TanStack: `column.getStart()`/`column.getAfter()` (el desplazamiento
   sticky que usa `parts/pinning-styles.ts`) viven en la feature de tamaño, no en la de fijado —
-  confirmado contra los tipos de `@tanstack/table-core` 9.2.4, ver el reporte de la Tarea 16. Sin la
-  feature `resizing`, esos desplazamientos se calculan con el tamaño por defecto de columna (150 px)
-  en vez del real (`meta.width` sigue sin efecto visual sin `resizing`, igual que sin `pinning`). La
-  sombra del borde de la última columna fijada a la izquierda / primera fijada a la derecha se
-  calcula con `table.getStartVisibleLeafColumns()`/`getEndVisibleLeafColumns()` (no
+  confirmado contra los tipos de `@tanstack/table-core` 9.2.4, ver el reporte de la Tarea 16. El
+  offset se calcula con `columnDef.size`, que `use-data-grid.ts` rellena desde `meta.width` de
+  forma **incondicional** (no depende de que la feature `resizing` esté registrada): una columna
+  fijada con `meta.width` declarado usa ese ancho real para su desplazamiento sticky aunque la
+  tabla no tenga `resizing`; solo cae al tamaño por defecto de columna (150 px) cuando la columna
+  no declara `meta.width`. La sombra del borde de la última columna fijada a la izquierda / primera
+  fijada a la derecha se calcula con
+  `table.getStartVisibleLeafColumns()`/`getEndVisibleLeafColumns()` (no
   `column.getIsLastColumn()`/`getIsFirstColumn()`, que viven en `columnOrderingFeature` — una
-  feature que `pinning` no registra porque no la necesita para nada más). **`grouping` + `pinning`
-  combinadas no se han probado**: ninguna tabla del proyecto usa ambas a la vez (productos agrupa y
-  no fija; trabajos, que fijará, no agrupa). `parts/table.tsx` sí aplica `pinningStyles` a las
-  celdas de la fila de grupo (mismo helper que las filas normales), pero esa combinación no tiene
-  test ni verificación visual — confírmalo antes de usarlas juntas en una tabla nueva.
+  feature que `pinning` no registra porque no la necesita para nada más). El fondo sticky de la
+  celda fijada es opaco (`var(--card)`, con mayor especificidad que las clases de `TableRow`), así
+  que pisa `hover:bg-muted/50` y `data-[state=selected]:bg-muted`: en una tabla con hover o
+  selección de fila, la celda fijada no se resalta igual que el resto de la fila. Es el mismo
+  trade-off del patrón oficial de TanStack (que usa `background: 'Canvas'`), no un bug; el arreglo
+  real (tokens semitransparentes o capas) se decide si la revisión UI/UX lo pide. **`grouping` +
+  `pinning` combinadas no se han probado**: ninguna tabla del proyecto usa ambas a la vez (productos
+  agrupa y no fija; trabajos, que fijará, no agrupa). `parts/table.tsx` sí aplica `pinningStyles` a
+  las celdas de la fila de grupo (mismo helper que las filas normales), pero esa combinación no
+  tiene test ni verificación visual — confírmalo antes de usarlas juntas en una tabla nueva.
 
 Sin `pagination`, el grid muestra todas las filas sin paginar; sin `sorting`, las cabeceras no
 tienen botón de orden y las filas conservan el orden del array de `data` (útil para listas con

@@ -52,8 +52,11 @@ function PinMenuItems({ column }: { column: GridColumn<never> }) {
  * lado). Registra `columnSizingFeature` además de `columnPinningFeature`: `column.getStart()` y
  * `column.getAfter()` (que `parts/pinning-styles.ts` usa para el desplazamiento sticky) viven en
  * `columnSizingFeature`, no en la de fijado (ver el reporte de la Tarea 16 — confirmado contra
- * los tipos de `@tanstack/table-core` 9.2.4). Sin la feature `resizing`, esa dependencia calcula
- * los desplazamientos con el tamaño por defecto de columna (150 px) en vez del real.
+ * los tipos de `@tanstack/table-core` 9.2.4). El offset se calcula con `columnDef.size`, que
+ * `use-data-grid.ts` rellena desde `meta.width` de forma incondicional (no depende de que
+ * `resizing` esté registrada): una columna fijada con `meta.width` declarado usa ese ancho real
+ * para su desplazamiento sticky aunque la tabla no tenga `resizing`; solo cae al tamaño por
+ * defecto de columna (150 px) cuando la columna no declara `meta.width`.
  */
 export function pinning(opts: { left?: string[]; right?: string[] } = {}): GridFeature {
   return {
