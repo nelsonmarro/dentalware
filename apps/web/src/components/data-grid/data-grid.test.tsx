@@ -141,6 +141,44 @@ describe('DataGrid', () => {
     expect(subtitles[1]?.textContent).toBe('+593991234567')
   })
 
+  it('en móvil el separador " · " del subtítulo no queda suelto entre celdas (no inicia línea solo)', async () => {
+    setMatchMedia(false)
+    type ContactRow = { id: string; name: string; city: string | null; phone: string }
+    const contactColumns = defineColumns<ContactRow>((col) => [
+      col.accessor('name', { header: 'Nombre', meta: { mobile: 'title' } }),
+      col.accessor('city', {
+        header: 'Ciudad',
+        cell: (c) => c.getValue() ?? '—',
+        meta: { mobile: 'subtitle' },
+      }),
+      col.accessor('phone', { header: 'Teléfono', meta: { mobile: 'subtitle' } }),
+    ])
+    const contactRows: ContactRow[] = [
+      { id: '1', name: 'Clínica Uno', city: 'Quito', phone: '+593991234567' },
+    ]
+    function ContactGrid({ data }: { data: ContactRow[] }) {
+      const grid = useDataGrid({
+        key: 'test-contact-separador',
+        columns: contactColumns,
+        data,
+        getRowId: (r) => r.id,
+      })
+      return (
+        <DataGrid.Root grid={grid} emptyMessage="No hay filas">
+          <DataGrid.Content />
+        </DataGrid.Root>
+      )
+    }
+    const { container } = renderWithRouter(<ContactGrid data={contactRows} />)
+    await screen.findByText('Clínica Uno')
+    // El separador va con `white-space: nowrap` (Tailwind `whitespace-nowrap`): así el navegador
+    // no puede partir la línea justo antes ni después del separador, y no queda huérfano al
+    // inicio de la línea siguiente (hallazgo M-4 de la revisión final del PR 2).
+    const separator = container.querySelector('li p span[aria-hidden]')
+    expect(separator).not.toBeNull()
+    expect(separator).toHaveClass('whitespace-nowrap')
+  })
+
   it('en móvil, con 3 o más features con slot de toolbar, pliega la barra bajo «Filtros y orden»; abrirla y buscar sube el contador', async () => {
     setMatchMedia(false)
     const user = userEvent.setup()

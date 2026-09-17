@@ -69,7 +69,15 @@ function AutoCard({ row }: { row: GridRow<never> }) {
         <p className="text-sm text-muted-foreground">
           {subtitleCells.map((c, i) => (
             <Fragment key={c.id}>
-              {i > 0 && <span aria-hidden> · </span>}
+              {/* `whitespace-nowrap` en el propio separador: sus dos espacios internos dejan de
+                  ser puntos de quiebre de línea, así que el navegador no puede partir la línea
+                  justo antes del separador (huérfano al inicio de la siguiente, M-4 de la
+                  revisión final del PR 2) ni entre el separador y el valor que lo sigue. */}
+              {i > 0 && (
+                <span aria-hidden className="whitespace-nowrap">
+                  {' · '}
+                </span>
+              )}
               {render(c)}
             </Fragment>
           ))}
