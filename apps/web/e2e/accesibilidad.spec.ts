@@ -103,13 +103,15 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await page.goto('/configuracion/usuarios')
     await expect(page.getByRole('heading', { name: 'Usuarios' })).toBeVisible()
     await expectTouchTargets(page, TOUCH_CONTROLS)
-    // DataGrid (Tarea 19): buscador/filtros de la toolbar y paginación en móvil. El seed de
-    // usuarios no llega a 26 filas, así que el selector de paginación puede no encontrar nodos —
-    // `expectTouchTargets` tolera 0 coincidencias (`helpers.ts`, cuenta con `items.count()`).
-    await expectTouchTargets(
-      page,
-      'nav[aria-label="Paginación"] button, [role=search] input, [role=search] select',
-    )
+    // DataGrid (Tarea 19): buscador de la toolbar. `expectTouchTargets` pasa vacuamente con 0
+    // coincidencias (`helpers.ts`, cuenta con `items.count()`), y el buscador debe existir
+    // siempre en esta pantalla (a diferencia de la paginación, ver abajo): se afirma aparte para
+    // que su desaparición rompa el test en vez de pasar en silencio.
+    await expect(page.locator('[role=search] input')).toHaveCount(1)
+    await expectTouchTargets(page, '[role=search] input, [role=search] select')
+    // El seed de usuarios no llega a 26 filas, así que el selector de paginación puede no
+    // encontrar nodos: aquí sí es correcto que el barrido tolere 0 coincidencias.
+    await expectTouchTargets(page, 'nav[aria-label="Paginación"] button')
   })
 
   test(
@@ -121,13 +123,14 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       await expect(page.getByRole('heading', { name: 'Clínicas' })).toBeVisible()
       await expectTouchTargets(page, TOUCH_CONTROLS)
       await expectTouchTargets(page, TOUCH_SWITCHES, { minHeight: 24 })
-      // DataGrid (Tarea 19): buscador/filtros de la toolbar y paginación en móvil. El seed de
-      // clínicas no llega a 26 filas, así que el selector de paginación puede no encontrar
-      // nodos — `expectTouchTargets` tolera 0 coincidencias.
-      await expectTouchTargets(
-        page,
-        'nav[aria-label="Paginación"] button, [role=search] input, [role=search] select',
-      )
+      // DataGrid (Tarea 19): buscador de la toolbar. Debe existir siempre en esta pantalla, así
+      // que se afirma aparte de la paginación (ver más abajo) para que su desaparición rompa el
+      // test en vez de pasar vacuamente con 0 coincidencias.
+      await expect(page.locator('[role=search] input')).toHaveCount(1)
+      await expectTouchTargets(page, '[role=search] input, [role=search] select')
+      // El seed de clínicas no llega a 26 filas, así que el selector de paginación puede no
+      // encontrar nodos — aquí sí es correcto que el barrido tolere 0 coincidencias.
+      await expectTouchTargets(page, 'nav[aria-label="Paginación"] button')
     },
   )
 
