@@ -5,7 +5,7 @@ import type { GridTable } from '../types'
 
 // Tailwind `lg` empieza en 1024px; debe coincidir con las clases `lg:*` del resto de partes
 // (`data-grid.tsx`, `header-cell.tsx`…) — se repite aquí en vez de importarla porque no está
-// exportada (mismo patrón que ya usaba `components/data-table.tsx`).
+// exportada.
 const DESKTOP_QUERY = '(min-width: 1024px)'
 
 /**
