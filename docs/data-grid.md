@@ -71,10 +71,11 @@ un índice calculado). `GridColumnMeta` (`apps/web/src/components/data-grid/type
 - **`align`**: `'left' | 'right'`; alinea la celda y su cabecera a la derecha (columnas numéricas o
   de acciones).
 - **`width`**: ancho inicial en px, traducido a `size` de columna en `useDataGrid` (no en
-  `defineColumns`). Sin la feature `resizing`, ese `size` no se refleja en ningún lado (la tabla
-  no aplica ancho por `<th>`/`<td>` salvo con `cellClassName`); con `resizing` es el ancho de
-  partida antes de que el usuario redimensione (y, si ya redimensionó, gana lo guardado en
-  `localStorage`).
+  `defineColumns`). Sin la feature `resizing`, ese `size` no tiene efecto sobre el ancho de la
+  columna (la tabla no aplica ancho por `<th>`/`<td>` salvo con `cellClassName`); con `pinning` sí
+  se usa, aunque no haya `resizing`, para el desplazamiento sticky (ver la feature `pinning`). Con
+  `resizing` es el ancho de partida antes de que el usuario redimensione (y, si ya redimensionó,
+  gana lo guardado en `localStorage`).
 - **`cellClassName`**: clases Tailwind adicionales para la celda y la cabecera (por ejemplo un
   ancho fijo con `w-12`).
 - **`cellStyle`**: `(row: unknown) => CSSProperties | undefined`, estilo inline por fila —
@@ -283,7 +284,8 @@ Sin `pagination`, el grid muestra todas las filas sin paginar; sin `sorting`, la
 tienen botón de orden y las filas conservan el orden del array de `data` (útil para listas con
 orden manual, como fases); sin `filtering`, no hay ni buscador ni filtros de columna aunque las
 columnas tengan `meta.filter`; sin `resizing`, las columnas no se pueden redimensionar y `meta.width`
-no tiene efecto visual; sin `grouping`, no hay «Agrupar por» ni filas de grupo aunque las columnas
+no tiene efecto sobre el ancho de la columna (con `pinning` sí se usa para el desplazamiento
+sticky, ver la feature `pinning`); sin `grouping`, no hay «Agrupar por» ni filas de grupo aunque las columnas
 tengan `meta.groupable`/`meta.aggregate`; sin `advancedFilter`, no hay botón «Filtro avanzado» ni
 chips aunque las columnas tengan `meta.filter` (el filtro por columna de `filtering` sigue
 funcionando igual); sin `pinning`, no hay «Fijar a la izquierda/derecha» en el menú de columna ni
