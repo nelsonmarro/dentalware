@@ -247,8 +247,8 @@ export function useDataGrid<T extends RowData>(opts: UseDataGridOptions<T>): Gri
       data,
       getRowId: (row) => opts.getRowId(row),
       initialState: merged.initialState as never,
-      ...serverOptions,
       ...merged.options,
+      ...serverOptions,
     },
     (state) => state,
   )

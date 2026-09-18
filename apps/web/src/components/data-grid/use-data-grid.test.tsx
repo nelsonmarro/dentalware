@@ -66,6 +66,39 @@ describe('useDataGrid', () => {
     expect(defaultColumn?.minSize).toBe(48)
   })
 
+  it('en modo servidor, ninguna feature puede pisar manualSorting/manualPagination/manualFiltering/rowCount', () => {
+    // M-1 de la revisión final del PR 3: el spread anterior (`{ ...serverOptions, ...merged.options }`)
+    // dejaba que la última opción ganara, así que una feature que devolviera `manualSorting: false`
+    // (u otra opción del modo servidor) la habría desactivado sin ningún error visible. El modo
+    // servidor debe ganar por construcción, no por casualidad.
+    const { result } = renderHook(() =>
+      useDataGrid({
+        key: 'test',
+        columns,
+        data,
+        getRowId: (r) => r.id,
+        mode: 'server',
+        rowCount: 2,
+        features: [
+          {
+            id: 'sorting',
+            tanstack: {},
+            options: () => ({
+              manualSorting: false,
+              manualPagination: false,
+              manualFiltering: false,
+              rowCount: 999,
+            }),
+          },
+        ],
+      }),
+    )
+    expect(result.current.table.options.manualSorting).toBe(true)
+    expect(result.current.table.options.manualPagination).toBe(true)
+    expect(result.current.table.options.manualFiltering).toBe(true)
+    expect(result.current.table.options.rowCount).toBe(2)
+  })
+
   it('init.getRowValue resuelve accessorFn, accessorKey e id explícito, y undefined en columnas display', () => {
     // Ronda de fixes de la Tarea 13: `advancedFilter` leía `row[columnId]` directo y fallaba en
     // cualquier columna cuyo id no coincidiera con el campo crudo (accessor derivado o `id`
