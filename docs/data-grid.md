@@ -118,7 +118,9 @@ return (
   (`datagrid:<key>:<slice>`, por ejemplo `datagrid:productos:sizing`). El helper vive en
   `storage.ts` (`readStored`/`writeStored`, `localStorage` envuelto en try/catch con valor por
   defecto y una versión por clave, `:v1`); `resizing` lo usa para el ancho de columna y `pinning`
-  para las columnas fijadas (`datagrid:<key>:pinning`), sin escribirlo de nuevo.
+  para las columnas fijadas (`datagrid:<key>:pinning`, que sí persiste con `writeStored` en cada
+  fijado o soltado de columna), sin que cada feature tenga que reimplementar
+  `readStored`/`writeStored`.
 - **`features`**: la lista de módulos activos, en el orden en que se registran (mismo orden en que
   aparecen sus controles en la toolbar y sus slots de cabecera). Decláralo como constante de
   módulo o memorizado con `useMemo`/`useCallback` en el componente si depende de props — la lista
@@ -148,7 +150,11 @@ return (
     solo escondería el buscador que recepción usa a diario sin ahorrar espacio real; con 4 a la
     vez (`sorting` + `filtering` + `grouping` + `advancedFilter`, caso de productos) apilaba nueve
     controles antes de la primera tarjeta. El umbral se cuenta desde `grid.features`, sin conocer
-    ninguna feature en concreto.
+    ninguna feature en concreto: son **slots registrados** (`f.slots?.toolbar` definido), no
+    controles visibles. `advancedFilter` en `mode: 'server'` registra su slot igual que en
+    cliente, pero ese componente devuelve `null` sin pintar nada (solo funciona en modo cliente,
+    ver más abajo), así que una tabla servidor con 3 features registradas podría plegar con menos
+    de 3 controles realmente visibles. Hoy es inocuo porque ninguna tabla combina ambas cosas.
   - El único slot de `sorting` (`MobileSortControls`, dos `<select>` «Ordenar por»/«Dirección») se
     oculta a sí mismo con `lg:hidden` porque en escritorio el orden se acciona desde el botón de
     cada cabecera (`slots.headerCell`), no desde la toolbar. Si esa es la **única** feature con
@@ -371,7 +377,11 @@ objeto **entero**, un id renombrado sin avisar borraría también la vista, los 
 (`cases-table.test.tsx`, test «cada columna ordenable produce un `orden` válido en CASE_ORDERS»,
 guarda añadida en la Tarea 19). La API valida `orden` en `caseListQuerySchema` y ordena de verdad
 en `repo.ts` (`apps/api/src/features/cases/`) — este documento no repite esa parte, ver
-`docs/architecture.md` §3.2 y §4.
+`docs/architecture.md` §3.2 y §4. Un matiz que sí conviene conocer aquí porque recepción lo va a
+notar en la UI: `orderFor` antepone los trabajos urgentes **en todas las ramas de orden**
+(comentario en `CASE_ORDERS`, `packages/shared/src/schemas/cases.ts`), así que hacer clic en
+«Código» ascendente no deja la lista estrictamente ascendente si hay urgentes mezclados con
+normales — es la regla del plan, no un bug de esta tabla.
 
 `advancedFilter` filtra con `transformData` sobre `data` de cliente (ver «Transformar filas» más
 abajo), así que **no funciona en `mode: 'server'`**: su `toolbar` no se renderiza si `init.mode ===
