@@ -90,6 +90,25 @@ describe('feature pinning', () => {
     expect(stored.start).toEqual([])
   })
 
+  it('restaura el fijado guardado en localStorage al montar, aunque no coincida con `left`/`right`', async () => {
+    // M-9 de la revisión final del PR 3: los tests anteriores cubren fijar/mover/soltar y
+    // comprueban `localStorage` después de cada acción, pero ninguno monta el grid con la clave
+    // ya escrita para comprobar el viaje de vuelta — la rama `readStored` del `initialState`
+    // solo se ejercitaba con su valor por defecto. Se escribe la clave con `name` fijado a la
+    // derecha (justo lo contrario de `left: ['code']`) para que solo pase si `initialState` lee
+    // de verdad lo guardado en vez de caer al fallback de las opciones.
+    localStorage.setItem(
+      'datagrid:pin-test:pinning:v1',
+      JSON.stringify({ start: [], end: ['name'] }),
+    )
+    setMatchMedia(true)
+    renderWithRouter(<Grid features={[pinning({ left: ['code'] })]} />)
+    const codigo = await screen.findByRole('columnheader', { name: /Código/ })
+    const nombre = await screen.findByRole('columnheader', { name: /Nombre/ })
+    expect(codigo).not.toHaveStyle({ position: 'sticky' })
+    expect(nombre).toHaveStyle({ position: 'sticky', insetInlineEnd: '0px' })
+  })
+
   it('mueve una columna ya fijada a la izquierda hacia la derecha sin duplicarla', async () => {
     setMatchMedia(true)
     const user = userEvent.setup()
