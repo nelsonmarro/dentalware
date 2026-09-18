@@ -103,6 +103,13 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await page.goto('/configuracion/usuarios')
     await expect(page.getByRole('heading', { name: 'Usuarios' })).toBeVisible()
     await expectTouchTargets(page, TOUCH_CONTROLS)
+    // DataGrid (Tarea 19): buscador/filtros de la toolbar y paginación en móvil. El seed de
+    // usuarios no llega a 26 filas, así que el selector de paginación puede no encontrar nodos —
+    // `expectTouchTargets` tolera 0 coincidencias (`helpers.ts`, cuenta con `items.count()`).
+    await expectTouchTargets(
+      page,
+      'nav[aria-label="Paginación"] button, [role=search] input, [role=search] select',
+    )
   })
 
   test(
@@ -114,6 +121,13 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       await expect(page.getByRole('heading', { name: 'Clínicas' })).toBeVisible()
       await expectTouchTargets(page, TOUCH_CONTROLS)
       await expectTouchTargets(page, TOUCH_SWITCHES, { minHeight: 24 })
+      // DataGrid (Tarea 19): buscador/filtros de la toolbar y paginación en móvil. El seed de
+      // clínicas no llega a 26 filas, así que el selector de paginación puede no encontrar
+      // nodos — `expectTouchTargets` tolera 0 coincidencias.
+      await expectTouchTargets(
+        page,
+        'nav[aria-label="Paginación"] button, [role=search] input, [role=search] select',
+      )
     },
   )
 
