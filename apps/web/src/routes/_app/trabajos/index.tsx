@@ -1,7 +1,7 @@
 import type { CaseView } from '@dentalware/shared'
 import { CASE_VIEWS } from '@dentalware/shared'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -46,9 +46,15 @@ function TrabajosPage() {
 
   // El patch manda: sin `pagina` propia (cambiar un filtro u ordenar) vuelve a la página 1;
   // con `pagina` (paginar desde `DataGrid.Pagination`) la fija a la que trae el patch.
-  function updateSearch(patch: Partial<CaseListQueryInput>) {
-    void navigate({ search: (prev) => ({ ...prev, pagina: undefined, ...patch }) })
-  }
+  // `useCallback` (Tarea 18, minor M-8): sin memoizar, `updateSearch` cambia de identidad en
+  // cada render de `TrabajosPage` y eso recreaba el `useMemo` de `FEATURES` en `cases-table.tsx`
+  // (que la lleva como dependencia de `urlState`), forzando un render de más del grid.
+  const updateSearch = useCallback(
+    (patch: Partial<CaseListQueryInput>) => {
+      void navigate({ search: (prev) => ({ ...prev, pagina: undefined, ...patch }) })
+    },
+    [navigate],
+  )
 
   return (
     <div className="flex flex-col gap-6">
