@@ -119,6 +119,14 @@ export const caseInputSchema = z.object({
 })
 export type CaseInput = z.infer<typeof caseInputSchema>
 
+/**
+ * Bases de orden aceptadas por `GET /api/trabajos` (`orden`), cada una con su variante `-desc`.
+ * En **todas** las ramas, la API antepone los trabajos urgentes antes de aplicar esta base
+ * (`apps/api/src/features/cases/repo.ts:orderFor`): ordenar por «Código» ascendente no da una
+ * lista estrictamente ascendente si hay urgentes mezclados con normales, porque la prioridad
+ * manda primero. Es la regla del plan (recepción quiere ver los urgentes arriba siempre), no un
+ * bug — pero quien toque el orden debe saberlo antes de asumir un orden puramente por columna.
+ */
 export const CASE_ORDERS = [
   'codigo',
   'codigo-desc',
