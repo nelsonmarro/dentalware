@@ -149,6 +149,22 @@ describe('CasesTable', () => {
     })
   })
 
+  it('en una celda del cuerpo, pinningStyles y meta.cellStyle conviven (M-2 de la revisión final)', async () => {
+    // `parts/table.tsx` sobrescribe (`{ ...pinningStyles(...), ...meta?.cellStyle?.(row.original) }`)
+    // en vez de fusionar: hoy es inocuo porque las claves son disjuntas (position/insetInline*/
+    // zIndex/background/boxShadow del sticky vs borderLeftColor de la pestaña de color), pero solo
+    // el columnheader (sin cellStyle) estaba cubierto. Esta celda del cuerpo sí recibe ambas cosas
+    // a la vez: el trabajo 1 es urgente y en_proceso (STATUS_COLOR.en_proceso = #0F766E).
+    setMatchMedia(true)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
+    )
+    const link = await screen.findByRole('link', { name: /26-00123/ })
+    const cell = link.closest('td')
+    expect(cell).not.toBeNull()
+    expect(cell).toHaveStyle({ position: 'sticky', borderLeftColor: '#0F766E' })
+  })
+
   it('Siguiente navega a la página 2 cuando hay más filas en el servidor', async () => {
     setMatchMedia(true)
     const user = userEvent.setup()
