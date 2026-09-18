@@ -254,28 +254,24 @@ describe('CasesTable', () => {
     expect(screen.getByText('$ 147.00')).toBeInTheDocument()
   })
 
-  it('en escritorio la toolbar no deja un contenedor vacío fuera de `lg:hidden` (M-1)', async () => {
+  it('en escritorio la toolbar de orden queda envuelta en `lg:hidden` (M-1)', async () => {
     // Regresión estructural del arreglo M-1: el único slot de toolbar de esta tabla
     // (`sorting`'s "Ordenar por"/"Dirección") es solo-móvil, así que `<DataGrid.Toolbar />` se
     // envuelve en `lg:hidden` en `cases-table.tsx` (no en el núcleo, ver el comentario junto al
     // JSX) para que en escritorio no quede un `<div>` vacío consumiendo el `gap-3` del
     // `DataGrid.Root`. Verificado también visualmente en Chrome DevTools a 1280×800.
     setMatchMedia(true)
-    const { container } = renderWithRouter(
+    renderWithRouter(
       <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
     )
     await screen.findByRole('table')
     const sortLabel = screen.getByText('Ordenar por')
     // El contenedor `lg:hidden` debe ser un ancestro directo de la toolbar de orden, no una clase
-    // suelta en cualquier otro `div` de la tabla.
+    // suelta en cualquier otro `div` de la tabla. No se cuentan los `div.lg:hidden` del árbol
+    // (M-5 de la revisión final del PR 3): ese recuento es frágil ante cualquier `div` solo-móvil
+    // nuevo y no prueba lo que el título promete, que en jsdom no es observable (no hay layout
+    // real que confirme que el contenedor «no deja una banda vacía»).
     const lgHiddenAncestor = sortLabel.closest('.lg\\:hidden')
     expect(lgHiddenAncestor).toBeTruthy()
-    // Exactamente dos: el wrapper del fix (alrededor de `<DataGrid.Toolbar />`, en
-    // `cases-table.tsx`) y el propio contenedor de `MobileSortControls` (`sorting.tsx`), que ya
-    // se ocultaba a sí mismo antes de este fix. Ningún otro `div` de la tabla lleva `lg:hidden`.
-    const lgHiddenDivs = Array.from(container.querySelectorAll('div')).filter((div) =>
-      div.className.split(' ').includes('lg:hidden'),
-    )
-    expect(lgHiddenDivs).toHaveLength(2)
   })
 })
