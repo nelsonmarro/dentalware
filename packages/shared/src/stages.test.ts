@@ -39,4 +39,11 @@ describe('fases', () => {
   it('sin fases activas no hay primera fase', () => {
     expect(firstStage([{ id: 'x', sort: 1, active: false }])).toBeUndefined()
   })
+
+  it('una fase desactivada mientras el trabajo estaba en ella se trata como posición desconocida', () => {
+    // Si el laboratorio desactiva una fase con trabajos en curso, esos trabajos no avanzan solos
+    expect(nextStage(stages, 'x')).toBeUndefined()
+    expect(previousStage(stages, 'x')).toBeUndefined()
+    expect(isLastStage(stages, 'x')).toBe(false)
+  })
 })
