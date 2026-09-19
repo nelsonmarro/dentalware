@@ -122,7 +122,7 @@ export const caseTryins = pgTable('case_tryins', {
   id: uuid().defaultRandom().primaryKey(),
   caseId: uuid('case_id')
     .notNull()
-    .references(() => cases.id),
+    .references(() => cases.id, { onDelete: 'cascade' }),
   sentAt: date('sent_at').notNull(),
   returnedAt: date('returned_at'),
   note: text(),

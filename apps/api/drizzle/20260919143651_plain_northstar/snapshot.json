@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "6fb50579-5d3d-4a5c-abed-8e7c1b6be274",
+  "id": "25ff5a15-24f4-45c6-8ab0-88c9c902f556",
   "prevIds": [
     "995ec47b-71f6-4ef1-8fe0-a4f3e6672204"
   ],
@@ -2903,7 +2903,7 @@
         "id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "case_tryins_case_id_cases_id_fkey",
       "entityType": "fks",
       "schema": "public",

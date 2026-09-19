@@ -7,4 +7,4 @@ CREATE TABLE "case_tryins" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "case_tryins" ADD CONSTRAINT "case_tryins_case_id_cases_id_fkey" FOREIGN KEY ("case_id") REFERENCES "cases"("id");
+ALTER TABLE "case_tryins" ADD CONSTRAINT "case_tryins_case_id_cases_id_fkey" FOREIGN KEY ("case_id") REFERENCES "cases"("id") ON DELETE CASCADE;
