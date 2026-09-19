@@ -118,6 +118,17 @@ export const caseItems = pgTable(
   (t) => [index('case_items_case_idx').on(t.caseId)],
 )
 
+export const caseTryins = pgTable('case_tryins', {
+  id: uuid().defaultRandom().primaryKey(),
+  caseId: uuid('case_id')
+    .notNull()
+    .references(() => cases.id),
+  sentAt: date('sent_at').notNull(),
+  returnedAt: date('returned_at'),
+  note: text(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
 export const caseEvents = pgTable(
   'case_events',
   {
