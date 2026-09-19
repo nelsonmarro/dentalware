@@ -9,6 +9,9 @@ export type ReadinessInput = {
   prescription: string | null
   hasPrescriptionDocument: boolean
   requiresShade?: boolean
+  /** La lista de la orden en papel registra **lo recibido**, no obliga a tenerlo todo: un
+   * trabajo puede legítimamente no necesitar antagonista. Por eso `missingForAccept` la
+   * recibe (la ficha la muestra) pero no la exige. Decidido al planificar la Iteración 3. */
   checklist: { antagonista: boolean; mordida: boolean; color: boolean; fotos: boolean }
   items: { pricingUnit: PricingUnit; teeth: readonly number[] }[]
 }

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { CASE_STATUSES } from '../case-status.ts'
+import { ACTIONS_REQUIRING_REASON, CASE_ACTIONS, CASE_STATUSES } from '../case-status.ts'
 import { fdiTeethSchema } from '../fdi.ts'
 import { priceString, textoOpcional, uuid } from './config.ts'
 
@@ -161,3 +161,37 @@ export const commentSchema = z.object({
     .max(2000, { error: 'Máximo 2000 caracteres' }),
 })
 export type CommentInput = z.infer<typeof commentSchema>
+
+export const REMAKE_RESPONSIBILITIES = ['laboratorio', 'clinica', 'compartida'] as const
+export type RemakeResponsibility = (typeof REMAKE_RESPONSIBILITIES)[number]
+
+const motivoObligatorio = z.string().trim().min(1, { error: 'Escribe el motivo' }).max(500)
+
+export const caseActionSchema = z
+  .object({
+    accion: z.enum(CASE_ACTIONS, { error: 'Acción inválida' }),
+    motivo: textoOpcional(500),
+  })
+  .superRefine((v, ctx) => {
+    if (ACTIONS_REQUIRING_REASON.includes(v.accion) && !v.motivo)
+      ctx.addIssue({ code: 'custom', path: ['motivo'], message: 'Escribe el motivo' })
+  })
+export type CaseActionInput = z.infer<typeof caseActionSchema>
+
+export const stageChangeSchema = z
+  .object({ direccion: z.enum(['avanzar', 'retroceder']), motivo: textoOpcional(500) })
+  .superRefine((v, ctx) => {
+    if (v.direccion === 'retroceder' && !v.motivo)
+      ctx.addIssue({ code: 'custom', path: ['motivo'], message: 'Escribe el motivo' })
+  })
+export type StageChangeInput = z.infer<typeof stageChangeSchema>
+
+export const assignTechnicianSchema = z.object({ tecnicoId: z.string().min(1).nullable() })
+export type AssignTechnicianInput = z.infer<typeof assignTechnicianSchema>
+
+export const remakeSchema = z.object({
+  motivo: motivoObligatorio,
+  responsabilidad: z.enum(REMAKE_RESPONSIBILITIES, { error: 'Responsabilidad inválida' }),
+  cobroPct: z.coerce.number().int().min(0).max(100),
+})
+export type RemakeInput = z.infer<typeof remakeSchema>

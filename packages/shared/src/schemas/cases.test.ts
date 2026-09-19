@@ -1,11 +1,15 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { z } from 'zod'
 import {
+  assignTechnicianSchema,
+  caseActionSchema,
   caseInputSchema,
   caseItemSchema,
   caseListQuerySchema,
   commentSchema,
   isoDate,
+  remakeSchema,
+  stageChangeSchema,
 } from './cases.ts'
 
 const clinicId = '11111111-1111-4111-8111-111111111111'
@@ -126,5 +130,60 @@ describe('commentSchema', () => {
   it('exige texto', () => {
     expect(commentSchema.safeParse({ text: '   ' }).success).toBe(false)
     expect(commentSchema.parse({ text: ' hola ' })).toEqual({ text: 'hola' })
+  })
+})
+
+describe('caseActionSchema', () => {
+  it('exige motivo en las acciones que lo requieren', () => {
+    expect(caseActionSchema.safeParse({ accion: 'pausar' }).success).toBe(false)
+    expect(caseActionSchema.safeParse({ accion: 'cancelar', motivo: '  ' }).success).toBe(false)
+    expect(
+      caseActionSchema.safeParse({ accion: 'pausar', motivo: 'Falta antagonista' }).success,
+    ).toBe(true)
+  })
+
+  it('no exige motivo en las demás acciones y lo normaliza a null', () => {
+    const r = caseActionSchema.parse({ accion: 'aceptar' })
+    expect(r).toEqual({ accion: 'aceptar', motivo: null })
+  })
+
+  it('rechaza una acción que no existe', () => {
+    expect(caseActionSchema.safeParse({ accion: 'inventada' }).success).toBe(false)
+  })
+})
+
+describe('stageChangeSchema', () => {
+  it('retroceder exige motivo; avanzar no', () => {
+    expect(stageChangeSchema.safeParse({ direccion: 'retroceder' }).success).toBe(false)
+    expect(
+      stageChangeSchema.safeParse({ direccion: 'retroceder', motivo: 'Se rompió' }).success,
+    ).toBe(true)
+    expect(stageChangeSchema.safeParse({ direccion: 'avanzar' }).success).toBe(true)
+  })
+})
+
+describe('assignTechnicianSchema', () => {
+  it('acepta un id de técnico o null para desasignar, y rechaza cadena vacía', () => {
+    expect(assignTechnicianSchema.parse({ tecnicoId: 'tec-1' })).toEqual({ tecnicoId: 'tec-1' })
+    expect(assignTechnicianSchema.parse({ tecnicoId: null })).toEqual({ tecnicoId: null })
+    expect(assignTechnicianSchema.safeParse({ tecnicoId: '' }).success).toBe(false)
+  })
+})
+
+describe('remakeSchema', () => {
+  it('exige motivo y responsabilidad, y acota el porcentaje de cobro a 0–100', () => {
+    expect(
+      remakeSchema.safeParse({ motivo: 'Fractura', responsabilidad: 'laboratorio', cobroPct: 0 })
+        .success,
+    ).toBe(true)
+    expect(
+      remakeSchema.safeParse({ motivo: '', responsabilidad: 'laboratorio', cobroPct: 0 }).success,
+    ).toBe(false)
+    expect(
+      remakeSchema.safeParse({ motivo: 'x', responsabilidad: 'otra', cobroPct: 0 }).success,
+    ).toBe(false)
+    expect(
+      remakeSchema.safeParse({ motivo: 'x', responsabilidad: 'clinica', cobroPct: 101 }).success,
+    ).toBe(false)
   })
 })
