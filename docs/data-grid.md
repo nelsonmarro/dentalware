@@ -1,23 +1,29 @@
 # DataGrid — guía de uso
 
-Componente transversal en `apps/web/src/components/data-grid/` que sustituirá a `data-table.tsx`
-(aún en uso por `cases-table.tsx`, `products-table.tsx`, `clinic-prices-table.tsx` y
-`case-items-editor.tsx` hasta que se migren en la Tarea 19).
-Construido sobre `@tanstack/react-table` 9.2.4 (`tableFeatures()` + `useTable`). Complementa
-`docs/architecture.md` §3.3 (web hexagonal-lite) y es la implementación de la spec de diseño
-`docs/superpowers/specs/2026-09-12-data-grid-design.md` — este documento describe **lo que existe
-hoy** (núcleo + `sorting`, `pagination`, `filtering`, `resizing`, `grouping`, `advancedFilter`);
-solo `pinning` (fijado de columnas) y `urlState` (estado en URL) llegan en PRs posteriores y no
-están documentadas aquí porque todavía no existen en el código.
+Componente transversal en `apps/web/src/components/data-grid/` que **sustituyó por completo** a
+`data-table.tsx` (borrado en la Tarea 19, `apps/web/src/components/data-table.tsx` ya no existe en
+el repo). Construido sobre `@tanstack/react-table` 9.2.4 (`tableFeatures()` + `useTable`).
+Complementa `docs/architecture.md` §3.3 (web hexagonal-lite) y es la implementación de la spec de
+diseño `docs/superpowers/specs/2026-09-12-data-grid-design.md` — este documento describe **lo que
+existe hoy**: el núcleo y las ocho features `pagination`, `sorting`, `filtering`, `advancedFilter`,
+`grouping`, `resizing`, `pinning` y `urlState`. Las 7 tablas del MVP anteriores a `DataGrid`
+(`clinics-table.tsx`, `doctors-table.tsx`, `users-table.tsx`, `stages-table.tsx`,
+`products-table.tsx`, `clinic-prices-table.tsx`, `cases-table.tsx`) ya corren sobre él; ver «Qué
+tabla usa qué feature» más abajo. `apps/web/src/features/cases/case-items-editor.tsx` **no** es
+una migración pendiente: es el editor de líneas de un formulario (cantidad, piezas FDI, precio por
+línea dentro de `case-form.tsx`), no un listado con orden/filtro/paginación, y sigue con su propia
+maquetación en `grid` de CSS — fuera del alcance de `DataGrid`.
 
 ## Qué es y cuándo usarlo
 
 Un grid modular y "plug and play": cada capacidad (orden, paginación, filtros…) vive en su propio
 módulo de `features/` y se activa añadiéndolo a un array; sin esa entrada, la capacidad no existe
-en runtime. Úsalo para cualquier listado tabular nuevo o migrado (clínicas, doctores, usuarios,
-fases hoy; productos, cuentas y trabajos en los próximos PRs). No lo uses para listas simples que
-no necesitan orden, filtro ni paginación (una lista de tres elementos en un `<Select>`, por
-ejemplo) — ahí un `<ul>` o `<table>` a mano sigue siendo más simple.
+en runtime. Úsalo para cualquier listado tabular, nuevo o existente: clínicas, doctores, usuarios,
+fases, productos, precios especiales y trabajos ya corren sobre él (ver «Qué tabla usa qué
+feature» más abajo); cuentas y pagos (Iteración 5) y notificaciones (Iteración 6) nacerán ya sobre
+`DataGrid`. No lo uses para listas simples que no necesitan orden, filtro ni paginación (una lista
+de tres elementos en un `<Select>`, por ejemplo) — ahí un `<ul>` o `<table>` a mano sigue siendo más
+simple.
 
 Una sola definición de columnas sirve para la tabla de escritorio y para las tarjetas móviles:
 `DataGrid.Content` decide qué variante montar según el ancho de pantalla (`useMediaQuery`, punto
@@ -65,10 +71,11 @@ un índice calculado). `GridColumnMeta` (`apps/web/src/components/data-grid/type
 - **`align`**: `'left' | 'right'`; alinea la celda y su cabecera a la derecha (columnas numéricas o
   de acciones).
 - **`width`**: ancho inicial en px, traducido a `size` de columna en `useDataGrid` (no en
-  `defineColumns`). Sin la feature `resizing`, ese `size` no se refleja en ningún lado (la tabla
-  no aplica ancho por `<th>`/`<td>` salvo con `cellClassName`); con `resizing` es el ancho de
-  partida antes de que el usuario redimensione (y, si ya redimensionó, gana lo guardado en
-  `localStorage`).
+  `defineColumns`). Sin la feature `resizing`, ese `size` no tiene efecto sobre el ancho de la
+  columna (la tabla no aplica ancho por `<th>`/`<td>` salvo con `cellClassName`); con `pinning` sí
+  se usa, aunque no haya `resizing`, para el desplazamiento sticky (ver la feature `pinning`). Con
+  `resizing` es el ancho de partida antes de que el usuario redimensione (y, si ya redimensionó,
+  gana lo guardado en `localStorage`).
 - **`cellClassName`**: clases Tailwind adicionales para la celda y la cabecera (por ejemplo un
   ancho fijo con `w-12`).
 - **`cellStyle`**: `(row: unknown) => CSSProperties | undefined`, estilo inline por fila —
@@ -110,8 +117,10 @@ return (
 - **`key`**: identificador estable de la tabla; nombra la persistencia en `localStorage`
   (`datagrid:<key>:<slice>`, por ejemplo `datagrid:productos:sizing`). El helper vive en
   `storage.ts` (`readStored`/`writeStored`, `localStorage` envuelto en try/catch con valor por
-  defecto y una versión por clave, `:v1`); `resizing` ya lo usa para el ancho de columna y
-  `pinning` lo reutilizará sin escribirlo de nuevo cuando llegue en un PR posterior.
+  defecto y una versión por clave, `:v1`); `resizing` lo usa para el ancho de columna y `pinning`
+  para las columnas fijadas (`datagrid:<key>:pinning`, que sí persiste con `writeStored` en cada
+  fijado o soltado de columna), sin que cada feature tenga que reimplementar
+  `readStored`/`writeStored`.
 - **`features`**: la lista de módulos activos, en el orden en que se registran (mismo orden en que
   aparecen sus controles en la toolbar y sus slots de cabecera). Decláralo como constante de
   módulo o memorizado con `useMemo`/`useCallback` en el componente si depende de props — la lista
@@ -128,8 +137,31 @@ return (
 - **`DataGrid.Root`**: provee el contexto (`grid`) y las props compartidas (`emptyMessage`,
   `emptyAction`, `renderCard`) a sus hijos. Todo lo demás debe montarse dentro.
 - **`DataGrid.Toolbar`**: monta, en el orden de registro de las features, los componentes que cada
-  una aporta a `slots.toolbar` (hoy solo `filtering`). Si ninguna feature registrada tiene
-  `toolbar`, no renderiza nada.
+  una aporta a `slots.toolbar` — hoy `filtering` (buscador + filtros de columna), `sorting`
+  (orden en móvil, ver más abajo), `grouping` («Agrupar por») y `advancedFilter` (botón + chips);
+  `pagination`, `resizing`, `pinning` y `urlState` no tienen UI de toolbar. Si ninguna feature
+  registrada tiene `toolbar`, no renderiza nada (`parts/toolbar.tsx`).
+  - `role="search"` en el contenedor solo cuando `filtering` está registrada (es la única cuya
+    toolbar es un formulario de búsqueda).
+  - Bajo `lg` (`< 1024 px`), los controles se pliegan dentro de un `<details>`/`<summary>`
+    «Filtros y orden» (con un contador de controles activos) **solo cuando 3 o más features
+    registradas aportan un slot `toolbar`** — con 1 o 2 (el caso normal: `filtering` + `sorting`
+    en clínicas/doctores/usuarios/precios especiales) la barra se ve siempre plana, porque plegar
+    solo escondería el buscador que recepción usa a diario sin ahorrar espacio real; con 4 a la
+    vez (`sorting` + `filtering` + `grouping` + `advancedFilter`, caso de productos) apilaba nueve
+    controles antes de la primera tarjeta. El umbral se cuenta desde `grid.features`, sin conocer
+    ninguna feature en concreto: son **slots registrados** (`f.slots?.toolbar` definido), no
+    controles visibles. `advancedFilter` en `mode: 'server'` registra su slot igual que en
+    cliente, pero ese componente devuelve `null` sin pintar nada (solo funciona en modo cliente,
+    ver más abajo), así que una tabla servidor con 3 features registradas podría plegar con menos
+    de 3 controles realmente visibles. Hoy es inocuo porque ninguna tabla combina ambas cosas.
+  - El único slot de `sorting` (`MobileSortControls`, dos `<select>` «Ordenar por»/«Dirección») se
+    oculta a sí mismo con `lg:hidden` porque en escritorio el orden se acciona desde el botón de
+    cada cabecera (`slots.headerCell`), no desde la toolbar. Si esa es la **única** feature con
+    slot de una tabla (hoy solo `cases-table.tsx`), `GridToolbar` queda con un contenedor vacío en
+    escritorio; esa tabla envuelve `<DataGrid.Toolbar />` en un `<div className="lg:hidden">`
+    propio (comentario junto al JSX en `cases-table.tsx`) en vez de generalizar el núcleo para un
+    único caso — decisión de la Tarea 19 (minor M-1 de la revisión de la Tarea 18).
 - **`DataGrid.Content`**: la tabla (`≥ lg`) o las tarjetas (`< lg`); si no hay filas, un
   `EmptyState` con `emptyMessage` y, si no hay búsqueda activa, `emptyAction`.
 - **`DataGrid.Pagination`**: la barra Anterior/Siguiente. No renderiza nada si `pagination` no
@@ -207,15 +239,65 @@ Cada feature es una factoría que devuelve un `GridFeature`; se importan desde
   El estado vive fuera de React (`advanced-filter-store.ts`, un `Map` por `key` de grid) y se
   sincroniza con `dataSignal` (ver «Transformar filas» más abajo); se limpia al desmontar para que
   remontar un grid con la misma `key` no arrastre condiciones de la vez anterior.
+- **`pinning({ left?: string[]; right?: string[] })`**: fija columnas a la izquierda (`left`, región
+  lógica `start`) o a la derecha (`right`, región `end`) con `position: sticky`; `left`/`right` fijan
+  las columnas iniciales al montar (por id) cuando no hay nada guardado. Aporta un `slots.columnMenu`
+  con «Fijar a la izquierda»/«Fijar a la derecha» (solo el lado en el que la columna no está ya
+  fijada) y «Soltar» (solo si está fijada), y guarda el resultado en `localStorage`
+  (`datagrid:<key>:pinning`, restaurado al montar). Registra `columnPinningFeature` **y**
+  `columnSizingFeature` de TanStack: `column.getStart()`/`column.getAfter()` (el desplazamiento
+  sticky que usa `parts/pinning-styles.ts`) viven en la feature de tamaño, no en la de fijado —
+  confirmado contra los tipos de `@tanstack/table-core` 9.2.4, ver el reporte de la Tarea 16. El
+  offset se calcula con `columnDef.size`, que `use-data-grid.ts` rellena desde `meta.width` de
+  forma **incondicional** (no depende de que la feature `resizing` esté registrada): una columna
+  fijada con `meta.width` declarado usa ese ancho real para su desplazamiento sticky aunque la
+  tabla no tenga `resizing`; solo cae al tamaño por defecto de columna (150 px) cuando la columna
+  no declara `meta.width`. La sombra del borde de la última columna fijada a la izquierda / primera
+  fijada a la derecha se calcula con
+  `table.getStartVisibleLeafColumns()`/`getEndVisibleLeafColumns()` (no
+  `column.getIsLastColumn()`/`getIsFirstColumn()`, que viven en `columnOrderingFeature` — una
+  feature que `pinning` no registra porque no la necesita para nada más). El fondo sticky de la
+  celda fijada es opaco (`var(--card)`, con mayor especificidad que las clases de `TableRow`), así
+  que pisa `hover:bg-muted/50` y `data-[state=selected]:bg-muted`: en una tabla con hover o
+  selección de fila, la celda fijada no se resalta igual que el resto de la fila. Es el mismo
+  trade-off del patrón oficial de TanStack (que usa `background: 'Canvas'`), no un bug; el arreglo
+  real (tokens semitransparentes o capas) se decide si la revisión UI/UX lo pide. **`grouping` +
+  `pinning` combinadas no se han probado**: ninguna tabla del proyecto usa ambas a la vez (productos
+  agrupa y no fija; trabajos fija y no agrupa). `parts/table.tsx` sí aplica `pinningStyles` a
+  las celdas de la fila de grupo (mismo helper que las filas normales), pero esa combinación no
+  tiene test ni verificación visual — confírmalo antes de usarlas juntas en una tabla nueva.
+- **`urlState({ search: { pagina?, orden?, q? }, navigate, pageSize })`**: sincroniza paginación,
+  orden y búsqueda global con los parámetros de la URL de la ruta, para `mode: 'server'` (ver
+  «Modo servidor»). No aporta ningún slot (ni `toolbar` ni `headerCell`): no cuenta para el umbral
+  de plegado de la toolbar en móvil y no dibuja nada por sí misma — el control real (el buscador de
+  `filtering`, el botón de orden de `sorting`, los botones de `DataGrid.Pagination`) lo aporta la
+  feature correspondiente; `urlState` solo traduce sus cambios a la URL y siembra el estado inicial
+  de la tabla desde `search`. `opts.search` viene de la ruta ya validado con el schema de `shared`
+  (`caseListQuerySchema.partial()` en trabajos): el grid nunca valida ni conoce ese schema.
+  `opts.navigate(patch)` es responsabilidad de la ruta (normalmente `router.navigate({ search: prev
+  => ({ ...prev, ...patch }) })`); cambiar orden o búsqueda vuelve a la página 1 (`pagina:
+  undefined` en el patch — la ruta trata `pagina` ausente como 1, igual que el resto del listado).
+  Registra siempre `globalFilteringFeature` de TanStack (aunque `filtering` no esté en la lista de
+  features de esa tabla) para que `table.state.globalFilter`/`table.setGlobalFilter` existan sin
+  depender de que otra feature los registre primero — cada módulo es independiente (regla de
+  aislamiento, ver «Convenciones y límites conocidos»); registrarlo dos veces cuando `filtering`
+  también lo trae no es un conflicto porque ambos importan el mismo objeto de
+  `@tanstack/react-table`. Ejemplo real: `cases-table.tsx` le pasa solo `pagina`/`orden` (el
+  buscador `q` de trabajos vive en `CasesFilters`, fuera del grid, así que pasar `search.q` sería
+  inofensivo pero innecesario sin `filtering()` registrada).
 
 Sin `pagination`, el grid muestra todas las filas sin paginar; sin `sorting`, las cabeceras no
 tienen botón de orden y las filas conservan el orden del array de `data` (útil para listas con
 orden manual, como fases); sin `filtering`, no hay ni buscador ni filtros de columna aunque las
 columnas tengan `meta.filter`; sin `resizing`, las columnas no se pueden redimensionar y `meta.width`
-no tiene efecto visual; sin `grouping`, no hay «Agrupar por» ni filas de grupo aunque las columnas
+no tiene efecto sobre el ancho de la columna (con `pinning` sí se usa para el desplazamiento
+sticky, ver la feature `pinning`); sin `grouping`, no hay «Agrupar por» ni filas de grupo aunque las columnas
 tengan `meta.groupable`/`meta.aggregate`; sin `advancedFilter`, no hay botón «Filtro avanzado» ni
 chips aunque las columnas tengan `meta.filter` (el filtro por columna de `filtering` sigue
-funcionando igual).
+funcionando igual); sin `pinning`, no hay «Fijar a la izquierda/derecha» en el menú de columna ni
+`position: sticky` en ninguna celda; sin `urlState`, el orden/paginación/búsqueda del grid viven
+solo en `table.state` (se pierden al recargar la página o compartir la URL) y ninguna feature toca
+`navigate` de la ruta.
 
 ## Tarjetas móviles
 
@@ -252,8 +334,80 @@ la API: `useDataGrid` activa `manualPagination`, `manualSorting` y `manualFilter
 `rowCount` para calcular el número de páginas y el conteo de `DataGrid.Pagination`. El grid nunca
 llama a la API por sí mismo — sigue siendo responsabilidad de la ruta/hook armar la query con
 TanStack Query y pasar `data` + `rowCount` ya resueltos. Enlazar el estado de orden y paginación
-del grid con los parámetros de la URL (`orden`, `pagina`) es trabajo de la feature `urlState`, que
-llega en un PR posterior — hoy `mode: 'server'` no tiene todavía ninguna tabla real que lo use.
+del grid con los parámetros de la URL (`orden`, `pagina`) es trabajo de la feature `urlState` (ver
+más arriba).
+
+Ejemplo real (`apps/web/src/features/cases/cases-table.tsx` + `routes/_app/trabajos/index.tsx`,
+Tarea 18): la ruta valida `search` con `caseListQuerySchema.partial().catch({})`
+(`case-views.ts:parseCasesSearch`) y arma la query de `useCases` (TanStack Query) con ese `search`;
+`CasesTable` recibe `rows` + `total` ya resueltos, y `search`/`onSearchChange` para que `urlState`
+lea y escriba la URL:
+
+```tsx
+const grid = useDataGrid({
+  key: 'trabajos',
+  columns,
+  data: rows, // ya paginado/ordenado por la API
+  features: [
+    sorting(),
+    pagination({ pageSize: CASE_PAGE_SIZE }),
+    // `resizing`: sin ella, `sorting` + `pinning` añaden un botón de orden y un menú "⋮" a
+    // cada cabecera y, sin `table-layout: fixed`, el ancho crece para acomodarlos — la tabla
+    // deja de caber en el presupuesto de 960 px a 1280 px (ver el comentario en cases-table.tsx).
+    resizing(),
+    pinning({ left: ['codigo'] }),
+    urlState({
+      search: { pagina: search.pagina, orden: search.orden },
+      navigate: (patch) => onSearchChange(patch as Partial<CaseListQuery>),
+      pageSize: CASE_PAGE_SIZE,
+    }),
+  ],
+  mode: 'server',
+  rowCount: total,
+  getRowId: (r) => r.id,
+})
+```
+
+`orden` viaja como `'campo' | 'campo-desc'` (`ordenToSorting`/`sortingToOrden` en `url-state.ts`) y
+sus valores válidos son `CASE_ORDERS` (`packages/shared/src/schemas/cases.ts`): **el id de cada
+columna ordenable de la tabla debe ser una de las bases de `CASE_ORDERS`** (`codigo`, `entrega`,
+`clinica`, `estado`) o su sufijo `-desc`, porque `parseCasesSearch` valida el `orden` que llega por
+la URL y, si no es válido, no descarta solo el orden: como el `.catch({})` de esa ruta cubre el
+objeto **entero**, un id renombrado sin avisar borraría también la vista, los filtros y la página
+(`cases-table.test.tsx`, test «cada columna ordenable produce un `orden` válido en CASE_ORDERS»,
+guarda añadida en la Tarea 19). La API valida `orden` en `caseListQuerySchema` y ordena de verdad
+en `repo.ts` (`apps/api/src/features/cases/`) — este documento no repite esa parte, ver
+`docs/architecture.md` §3.2 y §4. Un matiz que sí conviene conocer aquí porque recepción lo va a
+notar en la UI: `orderFor` antepone los trabajos urgentes **en todas las ramas de orden**
+(comentario en `CASE_ORDERS`, `packages/shared/src/schemas/cases.ts`), así que hacer clic en
+«Código» ascendente no deja la lista estrictamente ascendente si hay urgentes mezclados con
+normales — es la regla del plan, no un bug de esta tabla.
+
+`advancedFilter` filtra con `transformData` sobre `data` de cliente (ver «Transformar filas» más
+abajo), así que **no funciona en `mode: 'server'`**: su `toolbar` no se renderiza si `init.mode ===
+'server'`.
+
+## Qué tabla usa qué feature
+
+Estado real del código (verificado contra `features` en cada `*-table.tsx`, Tarea 19):
+
+| Tabla | Modo | `pagination` | `sorting` | `filtering` | `advancedFilter` | `grouping` | `resizing` | `pinning` | `urlState` |
+|---|---|---|---|---|---|---|---|---|---|
+| `clinics-table.tsx` | cliente | ✓ | ✓ | ✓ (buscador) | — | — | — | — | — |
+| `doctors-table.tsx` | cliente | ✓ | ✓ | ✓ (buscador) | — | — | — | — | — |
+| `users-table.tsx` | cliente | ✓ | ✓ | ✓ (buscador) | — | — | — | — | — |
+| `stages-table.tsx` | cliente | — | — | — | — | — | — | — | — |
+| `clinic-prices-table.tsx` | cliente | ✓ | ✓ | ✓ (buscador) | — | — | — | — | — |
+| `products-table.tsx` | cliente | ✓ | ✓ | ✓ (buscador + columnas) | ✓ | ✓ (por categoría) | ✓ | — | — |
+| `cases-table.tsx` | **servidor** | ✓ | ✓ | — (`CasesFilters`, fuera del grid) | — | — | ✓ | ✓ (`codigo` izq.) | ✓ |
+
+`stages-table.tsx` no usa ninguna feature de orden/filtro/paginación a propósito: las fases tienen
+un orden manual propio (Subir/Bajar en la tabla, sin drag) que una lista reordenable no debe
+mezclar con orden por columna; su `FEATURES` es un array vacío (`GridFeature[] = []`) y usa
+`renderCard` propio (ver «Tarjetas móviles»). `cases-table.tsx` es la única en modo servidor y la
+única con `resizing`/`pinning`/`urlState`; `products-table.tsx` es la única con `advancedFilter`/
+`grouping`. Ninguna tabla combina `grouping` con `pinning` (ver la nota en la feature `pinning`
+más arriba) ni `advancedFilter` con `mode: 'server'` (no tendría efecto).
 
 ## Convenciones y límites conocidos
 
@@ -383,11 +537,18 @@ it('sin la feature no hay botones de orden', async () => {
 hay clínicas".
 
 Ver también `apps/web/src/features/stages/stages-table.tsx` (sin `sorting`/`pagination`/
-`filtering`, orden manual y `renderCard` propio) y `apps/web/src/features/users/users-table.tsx`
-(la limitación de `c.getValue()` con `Record`).
+`filtering`, orden manual y `renderCard` propio), `apps/web/src/features/users/users-table.tsx`
+(la limitación de `c.getValue()` con `Record`), `apps/web/src/features/products/products-table.tsx`
+(`grouping` + `advancedFilter` + `resizing`, la tabla con más features del proyecto) y
+`apps/web/src/features/cases/cases-table.tsx` (`mode: 'server'`, `pinning` + `resizing` +
+`urlState`, `renderCard` propio con la pestaña de color del ticket y columna `Total` enmascarada
+por rol — ver «Modo servidor» más arriba para el ejemplo completo de montaje).
 
 ## Referencia
 
-Spec de diseño completa (arquitectura, contrato de feature, features futuras — filtro avanzado,
-agrupación, redimensionado, fijado de columnas, `urlState`, plan de migración por tabla):
+Spec de diseño original (arquitectura, contrato de feature, plan de migración por tabla) — **este
+documento manda sobre la spec en cualquier punto donde difieran**: la spec describe el diseño tal
+como se planeó el 2026-09-12, y varias decisiones cambiaron en el camino (rulings del ledger
+`.superpowers/sdd/2026-09-13-data-grid/progress.md`, por ejemplo el umbral de plegado de la
+toolbar en móvil, el contrato `dataSignal` o `GridInit.getRowValue`):
 `docs/superpowers/specs/2026-09-12-data-grid-design.md`.

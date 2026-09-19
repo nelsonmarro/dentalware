@@ -1,7 +1,7 @@
 import type { CaseView } from '@dentalware/shared'
 import { CASE_VIEWS } from '@dentalware/shared'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -43,11 +43,18 @@ function TrabajosPage() {
   const query: CaseListQueryInput = { ...search, vista, pagina }
   const cases = useCases(query)
   const data = cases.data
-  const hasMore = data !== undefined && pagina * data.pageSize < data.total
 
-  function updateSearch(patch: Partial<CaseListQueryInput>) {
-    void navigate({ search: (prev) => ({ ...prev, ...patch, pagina: undefined }) })
-  }
+  // El patch manda: sin `pagina` propia (cambiar un filtro u ordenar) vuelve a la página 1;
+  // con `pagina` (paginar desde `DataGrid.Pagination`) la fija a la que trae el patch.
+  // `useCallback` (Tarea 18, minor M-8): sin memoizar, `updateSearch` cambia de identidad en
+  // cada render de `TrabajosPage` y eso recreaba el `useMemo` de `FEATURES` en `cases-table.tsx`
+  // (que la lleva como dependencia de `urlState`), forzando un render de más del grid.
+  const updateSearch = useCallback(
+    (patch: Partial<CaseListQueryInput>) => {
+      void navigate({ search: (prev) => ({ ...prev, pagina: undefined, ...patch }) })
+    },
+    [navigate],
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -91,27 +98,14 @@ function TrabajosPage() {
       {cases.isPending ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
       ) : (
-        <CasesTable rows={data?.cases ?? []} hidePrices={hidePrices} />
+        <CasesTable
+          rows={data?.cases ?? []}
+          total={data?.total ?? 0}
+          hidePrices={hidePrices}
+          search={search}
+          onSearchChange={updateSearch}
+        />
       )}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          className="h-11"
-          disabled={pagina <= 1}
-          onClick={() => void navigate({ search: (prev) => ({ ...prev, pagina: pagina - 1 }) })}
-        >
-          Anterior
-        </Button>
-        <span className="text-sm text-muted-foreground">Página {pagina}</span>
-        <Button
-          variant="outline"
-          className="h-11"
-          disabled={!hasMore}
-          onClick={() => void navigate({ search: (prev) => ({ ...prev, pagina: pagina + 1 }) })}
-        >
-          Siguiente
-        </Button>
-      </div>
       {canWrite && <ImportDialog open={importOpen} onOpenChange={setImportOpen} />}
     </div>
   )

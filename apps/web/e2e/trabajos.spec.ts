@@ -7,7 +7,13 @@ const FOTO_PATH = path.join(import.meta.dirname, 'fixtures', 'foto.png')
 /** Crea un trabajo mínimo por API (sesión admin ya iniciada en `page`). */
 async function createCase(
   page: Page,
-  opts: { clinicId: string; doctorId: string; productId: string; teeth?: number[] },
+  opts: {
+    clinicId: string
+    doctorId: string
+    productId: string
+    teeth?: number[]
+    dueDate?: string
+  },
 ) {
   const res = await page.request.post('/api/trabajos', {
     data: {
@@ -15,6 +21,7 @@ async function createCase(
       doctorId: opts.doctorId,
       patientRef: `Paciente E2E ${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       receivedAt: new Date().toISOString().slice(0, 10),
+      dueDate: opts.dueDate ?? null,
       items: [
         {
           productId: opts.productId,
@@ -124,6 +131,45 @@ test.describe('Trabajos', () => {
     await page.getByRole('tab', { name: /^Historial/ }).click()
     await expect(page.getByText('Adjunto agregado')).toBeVisible()
   })
+
+  test(
+    'ordena por entrega desde la cabecera y el orden queda en la URL',
+    { tag: '@clave' },
+    async ({ page }, testInfo) => {
+      test.skip(
+        testInfo.project.name !== 'escritorio',
+        'la cabecera de la tabla solo existe en escritorio',
+      )
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      // `dueDate` explícita: sin ella (como el resto de trabajos que crea este archivo, sin
+      // fecha de entrega) TanStack elige la primera dirección de orden muestreando las 10
+      // primeras filas sin ordenar (`column_getAutoSortDir`, `@tanstack/table-core`) — si
+      // ninguna trae un valor no nulo, cae a "desc" por defecto en vez de "asc". Con una fecha
+      // real en la fila que este test crea, el primer clic es determinísticamente ascendente.
+      const created = await createCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+        dueDate: '2030-01-15',
+      })
+      await page.goto('/trabajos?vista=nuevos')
+      const header = page.getByRole('columnheader', { name: /Entrega/ })
+      await page.getByRole('button', { name: 'Ordenar por Entrega' }).click()
+      await expect(page).toHaveURL(/orden=entrega(?!-desc)/)
+      await expect(header).toHaveAttribute('aria-sort', 'ascending')
+      await page.getByRole('button', { name: 'Ordenar por Entrega' }).click()
+      await expect(page).toHaveURL(/orden=entrega-desc/)
+      await expect(header).toHaveAttribute('aria-sort', 'descending')
+      // El aria-sort y la URL solo prueban la cabecera; con `nulls last` en ambas direcciones
+      // (`repo.ts:orderFor`) nuestro trabajo, el único con `dueDate` explícita entre los que
+      // crea este archivo, queda primero de la lista real tras el segundo clic — confirma que
+      // la web mandó `orden` a la API y que la tabla renderizó la fila que corresponde, no solo
+      // que la cabecera cambió de aspecto.
+      const primerCodigo = page.locator('tbody').getByRole('link').first()
+      await expect(primerCodigo).toHaveText(created.code)
+    },
+  )
 
   test('un técnico ve el trabajo sin precios', { tag: '@esencial' }, async ({ page, browser }) => {
     const { clinic, doctor } = await createClinicWithDoctor(page)

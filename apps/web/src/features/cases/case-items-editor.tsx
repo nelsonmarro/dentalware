@@ -21,7 +21,7 @@ import { computeTotals } from './case-totals'
 import { TeethDialog } from './teeth-dialog'
 
 // Tailwind `lg` empieza en 1024px; debe coincidir con el breakpoint de `CaseItemRow`
-// (mismo patrón que `DESKTOP_QUERY` en `components/data-table.tsx`).
+// (mismo patrón que `DESKTOP_QUERY` en `components/data-grid/parts/toolbar.tsx`).
 const DESKTOP_QUERY = '(min-width: 1024px)'
 
 type CaseFormValues = z.input<typeof caseInputSchema>

@@ -114,6 +114,12 @@ describe('caseListQuerySchema', () => {
     })
     expect(caseListQuerySchema.safeParse({ vista: 'x' }).success).toBe(false)
   })
+
+  it('acepta orden válido y rechaza otro', () => {
+    expect(caseListQuerySchema.parse({ orden: 'entrega-desc' }).orden).toBe('entrega-desc')
+    expect(caseListQuerySchema.safeParse({ orden: 'precio' }).success).toBe(false)
+    expect(caseListQuerySchema.parse({}).orden).toBeUndefined()
+  })
 })
 
 describe('commentSchema', () => {

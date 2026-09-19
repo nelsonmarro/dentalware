@@ -216,7 +216,7 @@ Se conservan tal cual: **cadena de middlewares** (`sessionMiddleware` → `requi
 - **Componentes y rutas = adaptadores de UI**: formularios (react-hook-form + zod de shared), tablas/tarjetas, `beforeLoad` como guardia de sesión y rol. Sin cálculos de negocio: los totales, estados y readiness vienen de `shared`.
 - **Puerto de identidad**: `authClient` (Better Auth) es un adaptador confinado en `features/auth/auth-client.ts`; el resto de la web lo consume por `getSession()`/`signIn()`/`signOut()` (`features/auth/session.ts`) o por el hook `useSession()` (`features/auth/use-session.ts`) — nunca lo importa directo (verificado por ESLint, §3.5). `routes/_app.tsx` y `routes/login.tsx` llaman `getSession()` en su `beforeLoad`; `components/app-shell.tsx` llama `signOut()`.
 - **Estado**: el servidor es la fuente de verdad; la URL guarda vista/filtros/página (`validateSearch`); el estado de UI vive en el componente. Sin store global.
-- **Componentes**: compound components y hooks headless para lo transversal (`FormDialog`, `ConfirmDialog`, `DataTable` → futuro `DataGrid` #53), variantes por `cva`, una sola UI responsive (tabla ↔ tarjetas por `useMediaQuery`).
+- **Componentes**: compound components y hooks headless para lo transversal (`FormDialog`, `ConfirmDialog`, `DataGrid` (`components/data-grid/`, TanStack Table v9, features plug and play, `docs/data-grid.md`)), variantes por `cva`, una sola UI responsive (tabla ↔ tarjetas por `useMediaQuery`).
 - **PWA**: shell y assets cacheados (Workbox, `autoUpdate`); sin escritura offline. Cámara vía `<input capture>`; compresión de imagen en el navegador.
 
 ### 3.4 Flexibilidad: qué es obligatorio y qué no
@@ -310,7 +310,7 @@ Unit en `shared` (reglas puras) → **unit de servicios con fakes en memoria** (
 | 12 | Columnas de iteraciones futuras creadas ya como `nullable` | no repetir migraciones sobre `cases` | vigente |
 | 13 | E2E contra `dentalware_test` con `.env.test` y reset antes del seed | los E2E no ensucian la BD de desarrollo | vigente |
 | 14 | Objetivos táctiles de 44 px por defecto; 36 px solo en tablas densas de escritorio | técnicos con guantes; regla de la dirección de diseño | vigente |
-| 15 | Tablas sobre un `DataGrid` modular con TanStack Table | homogeneizar 7 tablas y las que vienen (#53) | pendiente |
+| 15 | Tablas sobre un `DataGrid` modular con TanStack Table | v9 estable con `tableFeatures()`; UI propia sobre shadcn (sin AG Grid/MRT); `orden` en la API de trabajos (decidido el 2026-09-12) | vigente |
 | 16 | Estados `por_recoger`/`cobrado`, avisos a clínicas, `requires_shade` en productos | diferidos a iteraciones 3–6 | diferido |
 | 17 | **Arquitectura hexagonal pragmática**: `ports.ts` + `service.ts` por feature, adaptadores fuera; `service.ts` opcional en CRUD simple (§3.4); migración por boy-scout, empezando por `cases` en la Iteración 3 | aísla el dominio de Hono/Drizzle/Better Auth, permite probar casos de uso sin BD y cambiar infraestructura (S3, WhatsApp, SRI) sin tocar reglas; la excepción del CRUD evita ceremonia donde no aporta | vigente |
 | 18 | **DI explícita por factorías, sin contenedor ni decoradores** (`createCasesService({ repo, storage, clock })`), raíz de composición en `createApp`/`main.ts` | `erasableSyntaxOnly` prohíbe decoradores; un contenedor añadiría magia y arranque implícito a un sistema de un solo despliegue; las factorías dan el mismo desacoplamiento con tipos exactos | vigente |

@@ -5,7 +5,7 @@ import type { GridTable } from '../types'
 
 // Tailwind `lg` empieza en 1024px; debe coincidir con las clases `lg:*` del resto de partes
 // (`data-grid.tsx`, `header-cell.tsx`…) — se repite aquí en vez de importarla porque no está
-// exportada (mismo patrón que ya usaba `components/data-table.tsx`).
+// exportada.
 const DESKTOP_QUERY = '(min-width: 1024px)'
 
 /**
@@ -39,8 +39,13 @@ function countActiveControls(state: GridTable<never>['state']): number {
  * 13) la barra móvil apilaba nueve controles antes de la primera tarjeta, pero con 1 o 2 (clínicas,
  * doctores, usuarios, precios especiales: `filtering` + `sorting`) plegar solo escondía el
  * buscador que recepción usa a diario sin ahorrar espacio real. El umbral se cuenta desde
- * `grid.features` (genérico, sin conocer ninguna feature en concreto) y no de la lista de
- * `controls` ya montados, que es la misma cantidad. `<details>` es una revelación nativa: el
+ * `grid.features` (genérico, sin conocer ninguna feature en concreto): cuenta **slots
+ * registrados** (`f.slots?.toolbar` definido), no controles visibles — `advancedFilter` en
+ * `mode: 'server'` registra su slot `toolbar` igual que en modo cliente, pero ese componente
+ * devuelve `null` sin pintar nada (ver `features/advanced-filter.tsx`), así que una tabla en
+ * modo servidor con 3 features registradas puede plegar con menos de 3 controles realmente
+ * visibles. Hoy es inocuo: ninguna tabla combina `mode: 'server'` con `advancedFilter` (que solo
+ * funciona en cliente, ver `docs/data-grid.md`). `<details>` es una revelación nativa: el
  * estado abierto/cerrado y su semántica de accesibilidad (equivalente a `aria-expanded` en el
  * `<summary>`) los da el navegador, sin JS propio. El buscador global de `filtering` NO queda fuera
  * del plegado: su slot es un único componente que pinta el buscador y los filtros de columna

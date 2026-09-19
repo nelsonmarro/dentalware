@@ -13,8 +13,20 @@ import type { GridRow } from '../types'
 import { HeaderCell } from './header-cell'
 import { pinningStyles } from './pinning-styles'
 
-/** Fila de grupo (feature `grouping`): botón expandir/contraer y celdas agregadas. */
-function GroupRow({ row, hasResizing }: { row: GridRow<never>; hasResizing: boolean }) {
+/**
+ * Fila de grupo (feature `grouping`): botón expandir/contraer y celdas agregadas. Aplica
+ * `pinningStyles` a sus celdas igual que `GridTable` (mismo helper, mismas columnas) porque sale
+ * gratis, aunque ninguna tabla combina hoy `grouping` + `pinning` (ver `docs/data-grid.md`).
+ */
+function GroupRow({
+  row,
+  hasResizing,
+  hasPinning,
+}: {
+  row: GridRow<never>
+  hasResizing: boolean
+  hasPinning: boolean
+}) {
   const { table } = useGrid<never>()
   const value = String(row.groupingValue)
   return (
@@ -31,6 +43,7 @@ function GroupRow({ row, hasResizing }: { row: GridRow<never>; hasResizing: bool
             hasResizing && !cell.getIsGrouped() && 'overflow-hidden',
             cell.column.columnDef.meta?.align === 'right' && 'text-right',
           )}
+          style={pinningStyles(cell.column, hasPinning)}
         >
           {cell.getIsGrouped() ? (
             <button
@@ -116,7 +129,7 @@ export function GridTable() {
         <TableBody>
           {table.getRowModel().rows.map((row) =>
             grid.has('grouping') && row.getIsGrouped() ? (
-              <GroupRow key={row.id} row={row} hasResizing={hasResizing} />
+              <GroupRow key={row.id} row={row} hasResizing={hasResizing} hasPinning={hasPinning} />
             ) : (
               <TableRow key={row.id}>
                 {row.getVisibleCells().map((cell) => {

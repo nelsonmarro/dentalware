@@ -253,6 +253,74 @@ describe('/api/trabajos', () => {
     expect(comoMensajeroBody.cases.every((c) => c.total === null)).toBe(true)
   })
 
+  async function ids(qs: string) {
+    return (
+      (await (await app.request(`/api/trabajos${qs}`, req(recepcion, 'GET'))).json()) as {
+        cases: { id: string }[]
+      }
+    ).cases.map((c) => c.id)
+  }
+
+  it('ordena por fecha de entrega y por código en ambas direcciones; orden inválido 422', async () => {
+    const tarde = await createOne(recepcion, { patientRef: 'Tarde', dueDate: '2030-01-10' })
+    const pronto = await createOne(recepcion, { patientRef: 'Pronto', dueDate: '2030-01-01' })
+    expect(await ids('?orden=entrega')).toEqual([pronto, tarde])
+    expect(await ids('?orden=entrega-desc')).toEqual([tarde, pronto])
+    expect(await ids('?orden=codigo')).toEqual([tarde, pronto]) // el primero creado tiene el código menor
+    expect(await ids('?orden=codigo-desc')).toEqual([pronto, tarde])
+    expect((await app.request('/api/trabajos?orden=precio', req(recepcion, 'GET'))).status).toBe(
+      422,
+    )
+  })
+
+  it('ordena por clínica (nombre) en ambas direcciones, no por id ni por fecha de creación', async () => {
+    const [zafiro] = await ctx.db.insert(ctx.schema.clinics).values({ name: 'Zafiro' }).returning()
+    const [zafiroDoctor] = await ctx.db
+      .insert(ctx.schema.doctors)
+      .values({ clinicId: zafiro!.id, name: 'Dr. Zafiro' })
+      .returning()
+    const [aurora] = await ctx.db.insert(ctx.schema.clinics).values({ name: 'Aurora' }).returning()
+    const [auroraDoctor] = await ctx.db
+      .insert(ctx.schema.doctors)
+      .values({ clinicId: aurora!.id, name: 'Dr. Aurora' })
+      .returning()
+    // Zafiro se crea primero (id/creación anteriores) pero "Aurora" ordena antes por nombre.
+    const enZafiro = await createOne(recepcion, {
+      patientRef: 'En Zafiro',
+      clinicId: zafiro!.id,
+      doctorId: zafiroDoctor!.id,
+    })
+    const enAurora = await createOne(recepcion, {
+      patientRef: 'En Aurora',
+      clinicId: aurora!.id,
+      doctorId: auroraDoctor!.id,
+    })
+    expect(await ids('?orden=clinica')).toEqual([enAurora, enZafiro])
+    expect(await ids('?orden=clinica-desc')).toEqual([enZafiro, enAurora])
+  })
+
+  it('ordena por estado según el ciclo de vida (CASE_STATUSES), no alfabéticamente', async () => {
+    const nuevoId = await createOne(recepcion, { patientRef: 'Nuevo' })
+    const enProcesoId = await createOne(recepcion, { patientRef: 'En proceso' })
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'en_proceso' })
+      .where(eq(ctx.schema.cases.id, enProcesoId))
+    // Alfabéticamente "en_proceso" va antes que "nuevo"; en el ciclo de vida es al revés.
+    expect(await ids('?orden=estado')).toEqual([nuevoId, enProcesoId])
+    expect(await ids('?orden=estado-desc')).toEqual([enProcesoId, nuevoId])
+  })
+
+  it('sin orden, el urgente aparece primero aunque su fecha de entrega lo pondría después', async () => {
+    const normal = await createOne(recepcion, { patientRef: 'Normal', dueDate: '2030-01-01' })
+    const urgente = await createOne(recepcion, {
+      patientRef: 'Urgente',
+      dueDate: '2030-01-10',
+      priority: 'urgente',
+    })
+    expect(await ids('')).toEqual([urgente, normal])
+  })
+
   it('comentario: técnico comenta (201) y aparece en eventos con su nombre; texto vacío 422', async () => {
     const id = await createOne(recepcion)
     const r = await app.request(

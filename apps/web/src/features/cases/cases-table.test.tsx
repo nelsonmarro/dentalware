@@ -1,5 +1,7 @@
-import { screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { CASE_ORDERS } from '@dentalware/shared'
+import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 import { setMatchMedia } from '@/test/match-media'
 import { renderWithRouter } from '@/test/router'
 import type { CaseListRow } from './api'
@@ -45,7 +47,9 @@ const rows: CaseListRow[] = [
 describe('CasesTable', () => {
   it('en escritorio muestra el código como enlace, el chip, el atraso y el total', async () => {
     setMatchMedia(true)
-    renderWithRouter(<CasesTable rows={rows} hidePrices={false} />)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
+    )
 
     const link = await screen.findByRole('link', { name: /26-00123/ })
     expect(link).toHaveAttribute('href', '/trabajos/caso-1')
@@ -61,7 +65,9 @@ describe('CasesTable', () => {
     // `font-mono font-medium` sin `h-11`) y falla de forma determinista en cuanto la
     // lista de trabajos tiene al menos una fila.
     setMatchMedia(true)
-    renderWithRouter(<CasesTable rows={rows} hidePrices={false} />)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
+    )
 
     const link = await screen.findByRole('link', { name: /26-00123/ })
     expect(link).toHaveAttribute('data-target-size', 'inline')
@@ -69,7 +75,9 @@ describe('CasesTable', () => {
 
   it('el atraso y la urgencia se muestran como icono accesible, no como chip de texto', async () => {
     setMatchMedia(true)
-    renderWithRouter(<CasesTable rows={rows} hidePrices={false} />)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
+    )
 
     await screen.findByRole('link', { name: /26-00123/ })
     // UX2-05: liberar ancho a 1280 cambiando los chips "Urgente"/"Atrasado" por un
@@ -83,7 +91,9 @@ describe('CasesTable', () => {
 
   it('compacta clínica y doctor en una sola línea con el texto completo accesible', async () => {
     setMatchMedia(true)
-    renderWithRouter(<CasesTable rows={rows} hidePrices={false} />)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
+    )
 
     await screen.findByRole('link', { name: /26-00123/ })
     const cell = screen.getByText('Clínica Uno · Dr. Gómez')
@@ -92,7 +102,9 @@ describe('CasesTable', () => {
 
   it('oculta la columna Total cuando hidePrices es verdadero', async () => {
     setMatchMedia(true)
-    renderWithRouter(<CasesTable rows={rows} hidePrices />)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices search={{}} onSearchChange={vi.fn()} />,
+    )
 
     await screen.findByRole('link', { name: /26-00123/ })
     expect(screen.queryByText('Total')).not.toBeInTheDocument()
@@ -101,10 +113,165 @@ describe('CasesTable', () => {
 
   it('en móvil muestra tarjetas con el mismo código', async () => {
     setMatchMedia(false)
-    renderWithRouter(<CasesTable rows={rows} hidePrices={false} />)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
+    )
 
     const link = await screen.findByRole('link', { name: /26-00123/ })
     expect(link).toBeInTheDocument()
     expect(screen.getByText('$ 147.00')).toBeInTheDocument()
+  })
+
+  it('ordenar por Entrega navega con orden=entrega y sin pagina', async () => {
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    const onSearchChange = vi.fn()
+    renderWithRouter(
+      <CasesTable
+        rows={rows}
+        total={2}
+        hidePrices={false}
+        search={{ pagina: 2 }}
+        onSearchChange={onSearchChange}
+      />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Ordenar por Entrega' }))
+    expect(onSearchChange).toHaveBeenLastCalledWith({ orden: 'entrega', pagina: undefined })
+  })
+
+  it('la columna Código queda fija a la izquierda', async () => {
+    setMatchMedia(true)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
+    )
+    expect(await screen.findByRole('columnheader', { name: /Código/ })).toHaveStyle({
+      position: 'sticky',
+    })
+  })
+
+  it('en una celda del cuerpo, pinningStyles y meta.cellStyle conviven (M-2 de la revisión final)', async () => {
+    // `parts/table.tsx` sobrescribe (`{ ...pinningStyles(...), ...meta?.cellStyle?.(row.original) }`)
+    // en vez de fusionar: hoy es inocuo porque las claves son disjuntas (position/insetInline*/
+    // zIndex/background/boxShadow del sticky vs borderLeftColor de la pestaña de color), pero solo
+    // el columnheader (sin cellStyle) estaba cubierto. Esta celda del cuerpo sí recibe ambas cosas
+    // a la vez: el trabajo 1 es urgente y en_proceso (STATUS_COLOR.en_proceso = #0F766E).
+    setMatchMedia(true)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
+    )
+    const link = await screen.findByRole('link', { name: /26-00123/ })
+    const cell = link.closest('td')
+    expect(cell).not.toBeNull()
+    expect(cell).toHaveStyle({ position: 'sticky', borderLeftColor: '#0F766E' })
+  })
+
+  it('Siguiente navega a la página 2 cuando hay más filas en el servidor', async () => {
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    const onSearchChange = vi.fn()
+    renderWithRouter(
+      <CasesTable
+        rows={rows}
+        total={60}
+        hidePrices={false}
+        search={{}}
+        onSearchChange={onSearchChange}
+      />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Siguiente' }))
+    await waitFor(() => expect(onSearchChange).toHaveBeenLastCalledWith({ pagina: 2 }))
+  })
+
+  it('cada columna ordenable produce un `orden` válido en CASE_ORDERS (guarda M-4)', async () => {
+    // `parseCasesSearch` (case-views.ts) valida `search` con `.catch({})` sobre el objeto
+    // ENTERO: un id de columna que no sea una de las bases de CASE_ORDERS no solo rompería el
+    // orden, sino que la URL resultante ('?orden=<id-inválido>') haría que la ruta descarte
+    // vista, filtros y página también. Este test hace clic en cada botón "Ordenar por <columna>"
+    // de la cabecera y comprueba que el `orden` que produce sea siempre un miembro de
+    // CASE_ORDERS (packages/shared/src/schemas/cases.ts) — la única fuente de verdad de la API.
+    setMatchMedia(true)
+    const user = userEvent.setup()
+    const onSearchChange = vi.fn()
+    renderWithRouter(
+      <CasesTable
+        rows={rows}
+        total={2}
+        hidePrices={false}
+        search={{}}
+        onSearchChange={onSearchChange}
+      />,
+    )
+    const sortButtons = await screen.findAllByRole('button', { name: /^Ordenar por/ })
+    expect(sortButtons.length).toBeGreaterThan(0)
+    for (const button of sortButtons) {
+      onSearchChange.mockClear()
+      await user.click(button)
+      const patch = onSearchChange.mock.calls.at(-1)?.[0] as { orden?: string } | undefined
+      expect(patch?.orden).toBeDefined()
+      expect(CASE_ORDERS).toContain(patch?.orden)
+    }
+  })
+
+  it('la suma de anchos de columna no supera el presupuesto de la tabla a 1280 px (UX1-03)', async () => {
+    // Mismo presupuesto y mismo razonamiento que `products-table.test.tsx`: a 1280 px el
+    // contenedor real de la tabla mide 960 px (descuenta menú lateral y márgenes de página).
+    // `resizing` fija cada columna a `meta.width` con `table-layout: fixed` (`parts/table.tsx`):
+    // si la suma declarada supera el presupuesto, vuelve el scroll horizontal (UX1-03). Trabajos
+    // declara 920 px con precios visibles (Tarea 18); este test lo rompe en CI si crece.
+    setMatchMedia(true)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
+    )
+    const table = await screen.findByRole('table')
+    const total = Array.from(table.querySelectorAll('thead th')).reduce((sum, th) => {
+      const width = Number.parseFloat((th as HTMLElement).style.width)
+      return sum + (Number.isNaN(width) ? 0 : width)
+    }, 0)
+    expect(total).toBeLessThanOrEqual(960)
+  })
+
+  it('en móvil no muestra el total a un técnico/mensajero (hidePrices) — enmascarado en tarjetas (M-6)', async () => {
+    // El test de hidePrices existente ("oculta la columna Total…") solo corre en escritorio; la
+    // tarjeta móvil es justo la superficie que ve un técnico o un mensajero (docs/conventions.md
+    // §4: nunca reciben precios). Este test cubre la tarjeta.
+    setMatchMedia(false)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices search={{}} onSearchChange={vi.fn()} />,
+    )
+
+    await screen.findByRole('link', { name: /26-00123/ })
+    expect(screen.queryByText('$ 147.00')).not.toBeInTheDocument()
+    expect(screen.queryByText('$ 80.00')).not.toBeInTheDocument()
+  })
+
+  it('en móvil muestra el total cuando hidePrices es falso', async () => {
+    setMatchMedia(false)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
+    )
+
+    await screen.findByRole('link', { name: /26-00123/ })
+    expect(screen.getByText('$ 147.00')).toBeInTheDocument()
+  })
+
+  it('en escritorio la toolbar de orden queda envuelta en `lg:hidden` (M-1)', async () => {
+    // Regresión estructural del arreglo M-1: el único slot de toolbar de esta tabla
+    // (`sorting`'s "Ordenar por"/"Dirección") es solo-móvil, así que `<DataGrid.Toolbar />` se
+    // envuelve en `lg:hidden` en `cases-table.tsx` (no en el núcleo, ver el comentario junto al
+    // JSX) para que en escritorio no quede un `<div>` vacío consumiendo el `gap-3` del
+    // `DataGrid.Root`. Verificado también visualmente en Chrome DevTools a 1280×800.
+    setMatchMedia(true)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
+    )
+    await screen.findByRole('table')
+    const sortLabel = screen.getByText('Ordenar por')
+    // El contenedor `lg:hidden` debe ser un ancestro directo de la toolbar de orden, no una clase
+    // suelta en cualquier otro `div` de la tabla. No se cuentan los `div.lg:hidden` del árbol
+    // (M-5 de la revisión final del PR 3): ese recuento es frágil ante cualquier `div` solo-móvil
+    // nuevo y no prueba lo que el título promete, que en jsdom no es observable (no hay layout
+    // real que confirme que el contenedor «no deja una banda vacía»).
+    const lgHiddenAncestor = sortLabel.closest('.lg\\:hidden')
+    expect(lgHiddenAncestor).toBeTruthy()
   })
 })
