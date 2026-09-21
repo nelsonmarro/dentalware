@@ -1,4 +1,5 @@
 import {
+  caseActionSchema,
   caseInputSchema,
   caseListQuerySchema,
   commentSchema,
@@ -9,7 +10,7 @@ import { HTTPException } from 'hono/http-exception'
 import { validate } from '../../lib/validate.ts'
 import type { AppEnv } from '../auth/session.ts'
 import { ctxFrom, requireAuth, requireRole } from '../auth/session.ts'
-import { CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
+import { CaseForbiddenError, CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type { CasesService } from './service.ts'
 
 // canWrite ya cubre "sin sesión" y "rol incorrecto" con 403 (ver comentario en session.ts):
@@ -20,6 +21,7 @@ const canWrite = requireRole('admin', 'recepcion')
 function toHttp(e: unknown): never {
   if (e instanceof CaseStateError) throw new HTTPException(409, { message: e.message })
   if (e instanceof CaseNotFoundError) throw new HTTPException(404, { message: e.message })
+  if (e instanceof CaseForbiddenError) throw new HTTPException(403, { message: e.message })
   throw e
 }
 
@@ -92,6 +94,31 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
           )
           return c.json({ event }, 201)
         } catch (e) {
+          toHttp(e)
+        }
+      },
+    )
+    // Sin `requireAuth`/`requireRole` fijo: el rol permitido depende de la acción (la
+    // máquina de estados de shared lo decide por acción, no la ruta), así que el guardián
+    // es `ctxFrom` (403 sin sesión) + `CaseForbiddenError` del servicio (403 rol incorrecto).
+    .post(
+      '/:id/acciones',
+      validate('param', idParamSchema),
+      validate('json', caseActionSchema),
+      async (c) => {
+        try {
+          const updated = await service.action(
+            c.req.valid('param').id,
+            c.req.valid('json'),
+            ctxFrom(c),
+          )
+          return c.json({ case: updated }, 200)
+        } catch (e) {
+          if (e instanceof CaseInputError)
+            return c.json(
+              { message: 'Datos inválidos', issues: [{ path: e.path, message: e.message }] },
+              422,
+            )
           toHttp(e)
         }
       },

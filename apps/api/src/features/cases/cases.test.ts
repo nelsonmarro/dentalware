@@ -388,4 +388,102 @@ describe('/api/trabajos', () => {
     expect(put.status).toBe(404)
     expect(await put.json()).toMatchObject({ message: 'El trabajo no existe' })
   })
+
+  describe('POST /api/trabajos/:id/acciones', () => {
+    async function crearTrabajoCompleto(overrides: Record<string, unknown> = {}) {
+      await ctx.db.insert(ctx.schema.stages).values({ name: 'Diseño', sort: 0 })
+      const id = await createOne(recepcion, {
+        dueDate: '2026-12-01',
+        prescription: 'Corona completa disilicato',
+        ...overrides,
+      })
+      return { id }
+    }
+
+    async function crearTrabajoSinPrescripcion() {
+      const id = await createOne(recepcion, { dueDate: '2026-12-01' })
+      return { id }
+    }
+
+    async function crearTrabajoEnProceso() {
+      const { id } = await crearTrabajoCompleto()
+      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'aceptar' }))
+      return { id }
+    }
+
+    it('acepta un trabajo completo y fija fecha comprometida, fase y evento', async () => {
+      const { id } = await crearTrabajoCompleto()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'aceptar' }),
+      )
+      expect(res.status).toBe(200)
+      const ficha = (await (
+        await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))
+      ).json()) as {
+        case: { status: string; promisedDate: string | null; currentStageId: string | null }
+      }
+      expect(ficha.case.status).toBe('en_proceso')
+      expect(ficha.case.promisedDate).not.toBeNull()
+      expect(ficha.case.currentStageId).not.toBeNull()
+      const eventos = (await (
+        await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string }[] }
+      expect(eventos.events.some((e) => e.type === 'status_changed')).toBe(true)
+    })
+
+    it('responde 422 con el detalle cuando faltan datos obligatorios', async () => {
+      const { id } = await crearTrabajoSinPrescripcion()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'aceptar' }),
+      )
+      expect(res.status).toBe(422)
+      const body = (await res.json()) as { message: string; issues: unknown }
+      expect(body.message).toBe('Datos inválidos')
+      expect(JSON.stringify(body.issues)).toContain('Prescripción')
+    })
+
+    it('responde 409 ante una transición inválida', async () => {
+      const { id } = await crearTrabajoCompleto()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'finalizar' }),
+      )
+      expect(res.status).toBe(409)
+    })
+
+    it('responde 403 sin sesión y con rol técnico', async () => {
+      const { id } = await crearTrabajoCompleto()
+      expect(
+        (await app.request(`/api/trabajos/${id}/acciones`, req('', 'POST', { accion: 'aceptar' })))
+          .status,
+      ).toBe(403)
+      expect(
+        (
+          await app.request(
+            `/api/trabajos/${id}/acciones`,
+            req(tecnico, 'POST', { accion: 'aceptar' }),
+          )
+        ).status,
+      ).toBe(403)
+    })
+
+    it('responde 422 al pausar sin motivo', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'pausar' }),
+      )
+      expect(res.status).toBe(422)
+    })
+
+    it('responde 404 si el trabajo no existe', async () => {
+      const res = await app.request(
+        `/api/trabajos/${randomUUID()}/acciones`,
+        req(admin, 'POST', { accion: 'aceptar' }),
+      )
+      expect(res.status).toBe(404)
+    })
+  })
 })
