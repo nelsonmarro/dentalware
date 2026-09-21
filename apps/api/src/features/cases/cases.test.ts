@@ -390,8 +390,14 @@ describe('/api/trabajos', () => {
   })
 
   describe('POST /api/trabajos/:id/acciones', () => {
-    async function crearTrabajoCompleto(overrides: Record<string, unknown> = {}) {
+    // Una sola fase por test (no una por llamada a `crearTrabajoCompleto`): `stages` no
+    // tiene unicidad por `name`, así que dos filas "Diseño" con `sort: 0` en el mismo test
+    // dejarían a `firstStage` eligiendo entre ellas sin orden determinista.
+    beforeEach(async () => {
       await ctx.db.insert(ctx.schema.stages).values({ name: 'Diseño', sort: 0 })
+    })
+
+    async function crearTrabajoCompleto(overrides: Record<string, unknown> = {}) {
       const id = await createOne(recepcion, {
         dueDate: '2026-12-01',
         prescription: 'Corona completa disilicato',
@@ -484,6 +490,54 @@ describe('/api/trabajos', () => {
         req(admin, 'POST', { accion: 'aceptar' }),
       )
       expect(res.status).toBe(404)
+    })
+
+    // I-1: lo que hace especial a esta ruta (sin `canWrite` fijo) es justo que un técnico
+    // pueda finalizar y un mensajero pueda marcar entregas; sin estos tres, los 6 tests de
+    // arriba quedarían en verde aunque alguien rompiera ese comportamiento por HTTP.
+    it('técnico puede finalizar un trabajo en proceso (200)', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(tecnico, 'POST', { accion: 'finalizar' }),
+      )
+      expect(res.status).toBe(200)
+    })
+
+    it('mensajero puede marcar entregado un trabajo enviado (200)', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' }))
+      await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'marcar_enviado' }),
+      )
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(mensajero, 'POST', { accion: 'marcar_entregado' }),
+      )
+      expect(res.status).toBe(200)
+    })
+
+    it('mensajero no puede aceptar (403)', async () => {
+      const { id } = await crearTrabajoCompleto()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(mensajero, 'POST', { accion: 'aceptar' }),
+      )
+      expect(res.status).toBe(403)
+    })
+
+    // M-1: `canAct` corre antes del validador de `json`; sin sesión, un cuerpo inválido
+    // (falta el motivo obligatorio de "pausar") debe dar 403 uniforme y no 422, igual que
+    // en las demás rutas de escritura, en vez de confirmarle a un anónimo que la ruta
+    // existe con un mensaje de validación.
+    it('sin sesión con cuerpo inválido responde 403 y no 422', async () => {
+      const { id } = await crearTrabajoCompleto()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req('', 'POST', { accion: 'pausar' }),
+      )
+      expect(res.status).toBe(403)
     })
   })
 })

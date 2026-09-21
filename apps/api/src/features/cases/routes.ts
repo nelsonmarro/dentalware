@@ -17,6 +17,14 @@ import type { CasesService } from './service.ts'
 // no se combina con requireAuth para no dar 401 antes de llegar al chequeo de rol.
 const canWrite = requireRole('admin', 'recepcion')
 
+// Unión de los roles de `CASE_TRANSITIONS` (shared): el rol exacto permitido por acción
+// lo decide `CasesService.action` con `canPerform` (dentro de `uow.run`, ver ruling de la
+// Tarea 5 fix 1), pero un guardián por rol en la ruta dobla esa defensa (sobrevive a que
+// alguien mueva `canPerform` al refactorizar el servicio) y da 403 antes del validador de
+// `json`, igual que las demás rutas de escritura, en vez de dejar que un anónimo reciba
+// issues de validación como si la ruta le perteneciera.
+const canAct = requireRole('admin', 'recepcion', 'tecnico', 'mensajero')
+
 /** Traduce los errores de dominio del servicio a la respuesta HTTP que espera la web. */
 function toHttp(e: unknown): never {
   if (e instanceof CaseStateError) throw new HTTPException(409, { message: e.message })
@@ -98,11 +106,12 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
         }
       },
     )
-    // Sin `requireAuth`/`requireRole` fijo: el rol permitido depende de la acción (la
-    // máquina de estados de shared lo decide por acción, no la ruta), así que el guardián
-    // es `ctxFrom` (403 sin sesión) + `CaseForbiddenError` del servicio (403 rol incorrecto).
+    // `canAct` filtra por la unión de roles de `CASE_TRANSITIONS`; el rol exacto por
+    // acción (p. ej. solo mensajero para `marcar_entregado`) lo decide `CasesService.action`
+    // con `canPerform`, traducido a 403 por `CaseForbiddenError` más abajo.
     .post(
       '/:id/acciones',
+      canAct,
       validate('param', idParamSchema),
       validate('json', caseActionSchema),
       async (c) => {
