@@ -11,3 +11,8 @@ export class CaseNotFoundError extends Error {
     super('El trabajo no existe')
   }
 }
+export class CaseForbiddenError extends Error {
+  constructor(message = 'No tiene permiso para realizar esta acción') {
+    super(message)
+  }
+}

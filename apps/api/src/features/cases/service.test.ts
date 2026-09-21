@@ -1,20 +1,57 @@
 import { describe, expect, it } from 'vitest'
-import { CaseNotFoundError, CaseStateError } from './errors.ts'
-import { caseDetailFixture, caseInputFixture, fakeCasesRepo, fakeUow, fixedClock } from './fakes.ts'
+import { CaseForbiddenError, CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
+import {
+  caseDetailFixture,
+  caseInputFixture,
+  fakeCasesRepo,
+  fakeStagesQuery,
+  fakeTryins,
+  fakeUow,
+  fixedClock,
+} from './fakes.ts'
+import type { CaseDetail } from './ports.ts'
 import { createCasesService, stripPrices } from './service.ts'
 
 const admin = { userId: 'u1', role: 'admin' } as const
 const tecnico = { userId: 'u2', role: 'tecnico' } as const
 
+/** Alias descriptivo: una ficha completa (todos los campos que `aceptar` exige), lista para
+ * las pruebas de acciones de estado. */
+const completo = caseDetailFixture
+
 function build(seed = [caseDetailFixture()], hasDocument = false) {
   const { repo, events, lastListQuery } = fakeCasesRepo(seed)
+  const tryins = fakeTryins()
   const service = createCasesService({
     cases: repo,
     attachments: { hasDocument: async () => hasDocument },
-    uow: fakeUow(repo),
+    stages: fakeStagesQuery(),
+    tryins,
+    uow: fakeUow(repo, tryins),
     clock: fixedClock(),
   })
   return { service, repo, events, lastListQuery }
+}
+
+/** Servicio listo para probar `action(...)`: un trabajo `seed`, prueba en boca y fases
+ * inyectables, reloj fijo en el viernes 2026-09-18. */
+function servicioCon(
+  seed: CaseDetail,
+  overrides: {
+    tryins?: ReturnType<typeof fakeTryins>
+    hasDocument?: boolean
+  } = {},
+) {
+  const { repo } = fakeCasesRepo([seed])
+  const tryins = overrides.tryins ?? fakeTryins()
+  return createCasesService({
+    cases: repo,
+    attachments: { hasDocument: async () => overrides.hasDocument ?? true },
+    stages: fakeStagesQuery(),
+    tryins,
+    uow: fakeUow(repo, tryins),
+    clock: fixedClock('2026-09-18'),
+  })
 }
 
 describe('createCasesService', () => {
@@ -114,6 +151,84 @@ describe('createCasesService', () => {
       lineTotal: null,
       discountPct: null,
       quantity: 1,
+    })
+  })
+})
+
+describe('acciones de estado', () => {
+  it('aceptar fija la fecha comprometida en días hábiles y la fase inicial', async () => {
+    // viernes 2026-09-18 + 5 días hábiles = viernes 2026-09-25
+    const { repo } = fakeCasesRepo([completo({ id: '1', status: 'nuevo' })])
+    const tryins = fakeTryins()
+    const service = createCasesService({
+      cases: repo,
+      attachments: { hasDocument: async () => true },
+      stages: fakeStagesQuery([{ id: 'f1', sort: 1, active: true }]),
+      tryins,
+      uow: fakeUow(repo, tryins),
+      clock: fixedClock('2026-09-18'),
+    })
+    await service.action('1', { accion: 'aceptar', motivo: null }, admin)
+    const guardado = await service.detail('1', admin)
+    expect(guardado.case.status).toBe('en_proceso')
+    expect(guardado.case.promisedDate).toBe('2026-09-25')
+    expect(guardado.case.currentStageId).toBe('f1')
+  })
+
+  it('aceptar con datos incompletos lanza CaseInputError con el detalle de lo que falta', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'nuevo', patientRef: '' }))
+    await expect(service.action('1', { accion: 'aceptar', motivo: null }, admin)).rejects.toThrow(
+      CaseInputError,
+    )
+  })
+
+  it('un técnico no puede aceptar', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'nuevo' }))
+    await expect(service.action('1', { accion: 'aceptar', motivo: null }, tecnico)).rejects.toThrow(
+      CaseForbiddenError,
+    )
+  })
+
+  it('pausar guarda el motivo y reanudar lo limpia', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'en_proceso' }))
+    await service.action('1', { accion: 'pausar', motivo: 'Falta antagonista' }, admin)
+    expect((await service.detail('1', admin)).case.holdReason).toBe('Falta antagonista')
+    await service.action('1', { accion: 'reanudar', motivo: null }, admin)
+    expect((await service.detail('1', admin)).case.holdReason).toBeNull()
+  })
+
+  it('enviar a prueba abre una prueba y recibirla la cierra', async () => {
+    const tryins = fakeTryins()
+    const service = servicioCon(completo({ id: '1', status: 'en_proceso' }), { tryins })
+    await service.action('1', { accion: 'enviar_prueba', motivo: null }, admin)
+    expect(await tryins.open('1')).toMatchObject({ sentAt: '2026-09-18', returnedAt: null })
+    await service.action('1', { accion: 'recibir_prueba', motivo: null }, admin)
+    expect(await tryins.open('1')).toBeUndefined()
+  })
+
+  it('una transición inválida lanza CaseStateError', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'nuevo' }))
+    await expect(service.action('1', { accion: 'finalizar', motivo: null }, admin)).rejects.toThrow(
+      CaseStateError,
+    )
+  })
+
+  it('cancelar registra el motivo en el evento', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'en_proceso' }))
+    await service.action('1', { accion: 'cancelar', motivo: 'Paciente desistió' }, admin)
+    expect((await service.detail('1', admin)).case.status).toBe('cancelado')
+    const eventos = await service.events('1', admin)
+    expect(eventos.at(-1)).toMatchObject({ type: 'cancelled', reason: 'Paciente desistió' })
+  })
+
+  it('cada acción escribe su evento con el actor y el motivo', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'en_proceso' }))
+    await service.action('1', { accion: 'pausar', motivo: 'Falta antagonista' }, admin)
+    const eventos = await service.events('1', admin)
+    expect(eventos.at(-1)).toMatchObject({
+      type: 'hold',
+      actorId: admin.userId,
+      reason: 'Falta antagonista',
     })
   })
 })

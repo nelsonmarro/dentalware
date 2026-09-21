@@ -8,7 +8,7 @@ import {
   sumCents,
   toCents,
 } from '@dentalware/shared'
-import { and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { Db, Tx } from '../../db/index.ts'
 import { users } from '../../db/schema/auth.ts'
 import { clinics } from '../clinics/schema.ts'
@@ -16,8 +16,8 @@ import { doctors } from '../doctors/schema.ts'
 import { clinicProductPrices, products } from '../products/schema.ts'
 import { stages } from '../stages/schema.ts'
 import { CaseInputError, CaseStateError } from './errors.ts'
-import type { CasesRepository, NewCaseEvent, UnitOfWork } from './ports.ts'
-import { caseEvents, caseItems, cases, caseSequences } from './schema.ts'
+import type { CasesRepository, NewCaseEvent, TryinsRepository, UnitOfWork } from './ports.ts'
+import { caseEvents, caseItems, caseTryins, cases, caseSequences } from './schema.ts'
 
 async function nextCaseCode(db: Db | Tx, year: number): Promise<string> {
   const [row] = await db
@@ -289,9 +289,47 @@ export function createCasesRepo(db: Db | Tx) {
       }),
 
     addEvent: (e) => addEventWith(db, e),
+
+    async applyTransition(id, patch) {
+      await db
+        .update(cases)
+        .set({ ...patch, updatedAt: new Date() })
+        .where(eq(cases.id, id))
+    },
+
+    async turnaroundFor(caseId) {
+      const rows = await db
+        .select({ turnaroundDays: products.turnaroundDays })
+        .from(caseItems)
+        .innerJoin(products, eq(products.id, caseItems.productId))
+        .where(eq(caseItems.caseId, caseId))
+      return rows.reduce((max, r) => Math.max(max, r.turnaroundDays), 0)
+    },
   } satisfies CasesRepository
 }
 
+/** Pruebas en boca (`case_tryins`): mismo patrón `db | tx` que `createCasesRepo`, sobre la
+ * misma tabla que le pertenece a esta feature (no es una feature aparte). */
+export function createTryinsRepo(db: Db | Tx): TryinsRepository {
+  return {
+    async open(caseId) {
+      const [row] = await db
+        .select()
+        .from(caseTryins)
+        .where(and(eq(caseTryins.caseId, caseId), isNull(caseTryins.returnedAt)))
+        .limit(1)
+      return row
+    },
+    async create(caseId, sentAt, note) {
+      await db.insert(caseTryins).values({ caseId, sentAt, note })
+    },
+    async close(id, returnedAt) {
+      await db.update(caseTryins).set({ returnedAt }).where(eq(caseTryins.id, id))
+    },
+  }
+}
+
 export const drizzleUnitOfWork = (db: Db): UnitOfWork => ({
-  run: (fn) => db.transaction((tx) => fn({ cases: createCasesRepo(tx) })),
+  run: (fn) =>
+    db.transaction((tx) => fn({ cases: createCasesRepo(tx), tryins: createTryinsRepo(tx) })),
 })

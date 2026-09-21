@@ -1,17 +1,27 @@
 import {
+  addBusinessDays,
+  applyAction,
+  canPerform,
+  firstStage,
   missingForAccept,
+  toIsoDate,
+  type CaseActionInput,
+  type CaseEventType,
   type CaseInput,
   type CaseListQuery,
   type UserRole,
 } from '@dentalware/shared'
 import type { Clock } from '../../lib/clock.ts'
 import type { RequestContext } from '../../lib/request-context.ts'
-import { CaseNotFoundError } from './errors.ts'
+import { CaseForbiddenError, CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type {
   AttachmentsQuery,
   CaseDetail,
   CaseListRow,
   CasesRepository,
+  CaseTransitionPatch,
+  StagesQuery,
+  TryinsRepository,
   UnitOfWork,
 } from './ports.ts'
 
@@ -59,9 +69,27 @@ function readiness(
   })
 }
 
+/** Evento que registra cada acción de estado (CIC-1/CIC-3). `marcar_enviado`/`marcar_entregado`
+ * ya son transiciones válidas en `shared` pero su lógica (fechas de envío/entrega, quién las
+ * marca) es de la feature `deliveries` (Iteración 4): aquí solo cambian el estado y dejan su
+ * evento, sin tocar `shippedAt`/`deliveredAt`. */
+const EVENT_TYPE_FOR_ACTION: Record<CaseActionInput['accion'], CaseEventType> = {
+  aceptar: 'status_changed',
+  pausar: 'hold',
+  reanudar: 'resumed',
+  enviar_prueba: 'tryin_sent',
+  recibir_prueba: 'tryin_returned',
+  finalizar: 'status_changed',
+  marcar_enviado: 'shipped',
+  marcar_entregado: 'delivered',
+  cancelar: 'cancelled',
+}
+
 export function createCasesService(deps: {
   cases: CasesRepository
   attachments: AttachmentsQuery
+  stages: StagesQuery
+  tryins: TryinsRepository
   uow: UnitOfWork
   clock: Clock
 }) {
@@ -104,6 +132,68 @@ export function createCasesService(deps: {
       await deps.cases.addEvent({ caseId, type: 'comment', toValue: text, actorId: ctx.userId })
       const events = maskPriceEvents(await deps.cases.events(caseId), hidesPrices(ctx.role))
       return events[events.length - 1]!
+    },
+    /**
+     * Ejecuta una acción de estado: aceptar, pausar/reanudar, enviar/recibir prueba en boca,
+     * finalizar o cancelar (CIC-1/CIC-3). Todo corre dentro de `uow.run` (ADR 19): el permiso
+     * por rol, la transición, el `applyTransition` y su `case_event` son atómicos.
+     */
+    async action(id: string, input: CaseActionInput, ctx: RequestContext) {
+      await deps.uow.run(async ({ cases, tryins }) => {
+        if (!canPerform(ctx.role, input.accion)) throw new CaseForbiddenError()
+        const found = await cases.byId(id)
+        if (!found) throw new CaseNotFoundError()
+        const result = applyAction(found.status, input.accion)
+        if (!result.ok) throw new CaseStateError(result.reason)
+
+        const patch: CaseTransitionPatch = { status: result.status }
+        switch (input.accion) {
+          case 'aceptar': {
+            const hasDoc = await deps.attachments.hasDocument(id)
+            const missing = readiness(found, hasDoc)
+            if (missing.length) {
+              throw new CaseInputError(`Faltan datos para aceptar: ${missing.join(', ')}`)
+            }
+            const turnaround = await cases.turnaroundFor(id)
+            const start = new Date(`${deps.clock.today()}T00:00:00`)
+            // El sistema no registra feriados (`lab_settings` no los tiene y el MVP no lo pide):
+            // solo se saltan fines de semana.
+            patch.promisedDate = toIsoDate(addBusinessDays(start, turnaround, []))
+            patch.currentStageId = firstStage(await deps.stages.active())?.id ?? null
+            break
+          }
+          case 'pausar':
+            patch.holdReason = input.motivo
+            break
+          case 'reanudar':
+            patch.holdReason = null
+            break
+          case 'enviar_prueba':
+            await tryins.create(id, deps.clock.today(), input.motivo)
+            break
+          case 'recibir_prueba': {
+            const open = await tryins.open(id)
+            if (open) await tryins.close(open.id, deps.clock.today())
+            break
+          }
+          case 'finalizar':
+            patch.finishedAt = deps.clock.now()
+            break
+          default:
+            break
+        }
+
+        await cases.applyTransition(id, patch)
+        await cases.addEvent({
+          caseId: id,
+          type: EVENT_TYPE_FOR_ACTION[input.accion],
+          fromValue: found.status,
+          toValue: result.status,
+          reason: input.motivo,
+          actorId: ctx.userId,
+        })
+      })
+      return mustGet(id)
     },
   }
 }

@@ -1,0 +1,1 @@
+CREATE INDEX "case_tryins_case_idx" ON "case_tryins" ("case_id");

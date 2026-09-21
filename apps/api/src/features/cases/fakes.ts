@@ -1,13 +1,20 @@
 import { caseInputSchema, isEditableStatus } from '@dentalware/shared'
-import type { CaseInput } from '@dentalware/shared'
+import type { CaseInput, StageRef } from '@dentalware/shared'
 import { CaseInputError, CaseStateError } from './errors.ts'
 import type {
   CaseDetail,
   CaseEventRow,
   CasesRepository,
   NewCaseEvent,
+  StagesQuery,
+  TryinRow,
+  TryinsRepository,
   UnitOfWork,
 } from './ports.ts'
+
+/** Turnaround por defecto que usan las fixtures (mismo default que `products.turnaroundDays`
+ * en el schema): las pruebas de `action('aceptar')` no necesitan variarlo por caso. */
+const DEFAULT_TURNAROUND_DAYS = 5
 
 const CLINIC_ID = '11111111-1111-4111-8111-111111111111'
 const DOCTOR_ID = '22222222-2222-4222-8222-222222222222'
@@ -199,11 +206,51 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
         actor: e.actorId ? { id: e.actorId, name: 'Actor' } : null,
       })
     },
+    async applyTransition(id, patch) {
+      const cur = rows.get(id)
+      if (!cur) return
+      rows.set(id, { ...cur, ...patch })
+    },
+    // Mismo valor para todas las fixtures (ver DEFAULT_TURNAROUND_DAYS): a las pruebas de
+    // `action('aceptar')` les basta un turnaround fijo, no el de un producto real.
+    turnaroundFor: async () => DEFAULT_TURNAROUND_DAYS,
   }
   return { repo, rows, events, lastListQuery: () => lastListQuery }
 }
 
-export const fakeUow = (cases: CasesRepository): UnitOfWork => ({ run: (fn) => fn({ cases }) })
+/** Pruebas en boca en memoria: una prueba abierta por trabajo como mucho, ids autoincrementales. */
+export function fakeTryins(seed: TryinRow[] = []): TryinsRepository {
+  const rows = new Map(seed.map((r) => [r.id, r]))
+  let seq = seed.length
+  return {
+    async open(caseId) {
+      return [...rows.values()].find((r) => r.caseId === caseId && r.returnedAt === null)
+    },
+    async create(caseId, sentAt, note) {
+      seq += 1
+      const id = `t${seq}`
+      rows.set(id, { id, caseId, sentAt, returnedAt: null, note, createdAt: new Date() })
+    },
+    async close(id, returnedAt) {
+      const cur = rows.get(id)
+      if (cur) rows.set(id, { ...cur, returnedAt })
+    },
+  }
+}
+
+const DEFAULT_STAGES: StageRef[] = [{ id: 'f1', sort: 1, active: true }]
+export const fakeStagesQuery = (stages: StageRef[] = DEFAULT_STAGES): StagesQuery => ({
+  active: async () => stages,
+})
+
+// `tryins` por defecto para llamadores que no lo necesitan (p. ej. `import.service.test.ts`,
+// que solo usa `cases` dentro de `uow.run`): evita tocar sus fixtures al ampliar el puerto.
+export const fakeUow = (
+  cases: CasesRepository,
+  tryins: TryinsRepository = fakeTryins(),
+): UnitOfWork => ({
+  run: (fn) => fn({ cases, tryins }),
+})
 export const fixedClock = (today = '2026-09-09') => ({
   today: () => today,
   now: () => new Date(`${today}T12:00:00Z`),

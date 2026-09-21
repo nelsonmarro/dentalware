@@ -5,9 +5,10 @@ import type {
   CasePriority,
   CaseStatus,
   PricingUnit,
+  StageRef,
 } from '@dentalware/shared'
 // Solo tipos: las formas de fila se derivan del schema (ruling del plan; ESLint allowTypeImports).
-import type { caseEvents, caseItems, cases } from './schema.ts'
+import type { caseEvents, caseItems, caseTryins, cases } from './schema.ts'
 
 export type Named = { id: string; name: string }
 export type CaseDetail = typeof cases.$inferSelect & {
@@ -23,6 +24,7 @@ export type CaseDetail = typeof cases.$inferSelect & {
   })[]
 }
 export type CaseEventRow = typeof caseEvents.$inferSelect & { actor: Named | null }
+export type TryinRow = typeof caseTryins.$inferSelect
 export type CaseListRow = {
   id: string
   code: string
@@ -50,6 +52,18 @@ export type NewCaseEvent = {
   actorId: string | null
 }
 
+/**
+ * Campos que cambia una transición de estado (acción). Una propiedad ausente no se toca;
+ * `null` la limpia explícitamente (p. ej. `reanudar` limpia `holdReason` con `null`).
+ */
+export type CaseTransitionPatch = {
+  status: CaseStatus
+  currentStageId?: string | null
+  promisedDate?: string | null
+  holdReason?: string | null
+  finishedAt?: Date | null
+}
+
 export interface CasesRepository {
   /** Lanza CaseInputError si un producto no existe o está inactivo. */
   create(input: CaseInput, actorId: string): Promise<{ id: string; code: string }>
@@ -59,6 +73,10 @@ export interface CasesRepository {
   list(q: CaseListQuery, today: string): Promise<CaseListPage>
   events(caseId: string): Promise<CaseEventRow[]>
   addEvent(e: NewCaseEvent): Promise<void>
+  /** Aplica los campos que cambia una acción de estado (ver `CaseTransitionPatch`). */
+  applyTransition(id: string, patch: CaseTransitionPatch): Promise<void>
+  /** Días hábiles máximos de los productos del trabajo, para la fecha comprometida al aceptar. */
+  turnaroundFor(caseId: string): Promise<number>
 }
 
 /** Puerto de OTRA feature (adjuntos): se inyecta en la raíz de composición. */
@@ -66,7 +84,21 @@ export interface AttachmentsQuery {
   hasDocument(caseId: string): Promise<boolean>
 }
 
-/** Atomicidad sin conocer db.transaction (ADR 19). */
+/** Puerto de OTRA feature (fases): se inyecta en la raíz de composición. */
+export interface StagesQuery {
+  active(): Promise<StageRef[]>
+}
+
+/** Pruebas en boca (`case_tryins`): abiertas por trabajo, cerradas al recibirlas de vuelta. */
+export interface TryinsRepository {
+  open(caseId: string): Promise<TryinRow | undefined>
+  create(caseId: string, sentAt: string, note: string | null): Promise<void>
+  close(id: string, returnedAt: string): Promise<void>
+}
+
+/** Atomicidad sin conocer db.transaction (ADR 19): repos re-creados sobre la misma tx. */
 export interface UnitOfWork {
-  run<T>(fn: (repos: { cases: CasesRepository }) => Promise<T>): Promise<T>
+  run<T>(
+    fn: (repos: { cases: CasesRepository; tryins: TryinsRepository }) => Promise<T>,
+  ): Promise<T>
 }

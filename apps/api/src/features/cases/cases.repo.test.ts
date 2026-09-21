@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createUser, setupTestDb, truncateAll } from '../../test/setup.ts'
 import { CaseInputError, CaseStateError } from './errors.ts'
-import { createCasesRepo, drizzleUnitOfWork } from './repo.ts'
+import { createCasesRepo, createTryinsRepo, drizzleUnitOfWork } from './repo.ts'
 
 describe('features/cases/repo', () => {
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
@@ -220,5 +220,62 @@ describe('features/cases/repo', () => {
     expect(
       (await createCasesRepo(ctx.db).list(caseListQuerySchema.parse({}), '2026-09-09')).total,
     ).toBe(0)
+  })
+
+  it('applyTransition actualiza los campos del patch sin tocar los que no vienen', async () => {
+    const repo = createCasesRepo(ctx.db)
+    const id = (await repo.create(input(), actor)).id
+    await repo.applyTransition(id, {
+      status: 'en_proceso',
+      promisedDate: '2026-09-20',
+      currentStageId: null,
+    })
+    const c = (await repo.byId(id))!
+    expect(c.status).toBe('en_proceso')
+    expect(c.promisedDate).toBe('2026-09-20')
+    expect(c.holdReason).toBeNull() // no viene en el patch: sigue como estaba (null)
+  })
+
+  it('turnaroundFor devuelve el máximo de días hábiles de los productos del trabajo', async () => {
+    const repo = createCasesRepo(ctx.db)
+    await ctx.db
+      .update(ctx.schema.products)
+      .set({ turnaroundDays: 7 })
+      .where(eq(ctx.schema.products.id, ac))
+    const id = (
+      await repo.create(
+        input({
+          items: [
+            { productId: zr, quantity: 1 },
+            { productId: ac, quantity: 1 },
+          ],
+        }),
+        actor,
+      )
+    ).id
+    expect(await repo.turnaroundFor(id)).toBe(7)
+  })
+
+  it('createTryinsRepo abre, encuentra y cierra una prueba en boca', async () => {
+    const repo = createCasesRepo(ctx.db)
+    const id = (await repo.create(input(), actor)).id
+    const tryins = createTryinsRepo(ctx.db)
+    expect(await tryins.open(id)).toBeUndefined()
+    await tryins.create(id, '2026-09-10', 'Ajuste de oclusión')
+    const open = await tryins.open(id)
+    expect(open).toMatchObject({
+      caseId: id,
+      sentAt: '2026-09-10',
+      returnedAt: null,
+      note: 'Ajuste de oclusión',
+    })
+    await tryins.close(open!.id, '2026-09-12')
+    expect(await tryins.open(id)).toBeUndefined()
+  })
+
+  it('drizzleUnitOfWork.run entrega también el repositorio de pruebas en boca', async () => {
+    const id = (await createCasesRepo(ctx.db).create(input(), actor)).id
+    await drizzleUnitOfWork(ctx.db).run(({ tryins }) => tryins.create(id, '2026-09-10', null))
+    expect(await createTryinsRepo(ctx.db).open(id)).toMatchObject({ caseId: id })
   })
 })
