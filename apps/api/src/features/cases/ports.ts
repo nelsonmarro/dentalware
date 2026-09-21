@@ -62,6 +62,8 @@ export type CaseTransitionPatch = {
   promisedDate?: string | null
   holdReason?: string | null
   finishedAt?: Date | null
+  shippedAt?: Date | null
+  deliveredAt?: Date | null
 }
 
 export interface CasesRepository {

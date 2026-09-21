@@ -21,13 +21,13 @@ const completo = caseDetailFixture
 
 function build(seed = [caseDetailFixture()], hasDocument = false) {
   const { repo, events, lastListQuery } = fakeCasesRepo(seed)
-  const tryins = fakeTryins()
+  // `tryins` no es dependencia del servicio (ver M-1): solo lo necesita `uow.run` para
+  // recrear los repos de la transacción, igual que hace `drizzleUnitOfWork` con `tx`.
   const service = createCasesService({
     cases: repo,
     attachments: { hasDocument: async () => hasDocument },
     stages: fakeStagesQuery(),
-    tryins,
-    uow: fakeUow(repo, tryins),
+    uow: fakeUow(repo, fakeTryins()),
     clock: fixedClock(),
   })
   return { service, repo, events, lastListQuery }
@@ -48,7 +48,6 @@ function servicioCon(
     cases: repo,
     attachments: { hasDocument: async () => overrides.hasDocument ?? true },
     stages: fakeStagesQuery(),
-    tryins,
     uow: fakeUow(repo, tryins),
     clock: fixedClock('2026-09-18'),
   })
@@ -159,13 +158,11 @@ describe('acciones de estado', () => {
   it('aceptar fija la fecha comprometida en días hábiles y la fase inicial', async () => {
     // viernes 2026-09-18 + 5 días hábiles = viernes 2026-09-25
     const { repo } = fakeCasesRepo([completo({ id: '1', status: 'nuevo' })])
-    const tryins = fakeTryins()
     const service = createCasesService({
       cases: repo,
       attachments: { hasDocument: async () => true },
       stages: fakeStagesQuery([{ id: 'f1', sort: 1, active: true }]),
-      tryins,
-      uow: fakeUow(repo, tryins),
+      uow: fakeUow(repo, fakeTryins()),
       clock: fixedClock('2026-09-18'),
     })
     await service.action('1', { accion: 'aceptar', motivo: null }, admin)
@@ -224,11 +221,67 @@ describe('acciones de estado', () => {
   it('cada acción escribe su evento con el actor y el motivo', async () => {
     const service = servicioCon(completo({ id: '1', status: 'en_proceso' }))
     await service.action('1', { accion: 'pausar', motivo: 'Falta antagonista' }, admin)
-    const eventos = await service.events('1', admin)
+    let eventos = await service.events('1', admin)
     expect(eventos.at(-1)).toMatchObject({
       type: 'hold',
       actorId: admin.userId,
       reason: 'Falta antagonista',
     })
+    await service.action('1', { accion: 'reanudar', motivo: null }, admin)
+    eventos = await service.events('1', admin)
+    expect(eventos.at(-1)).toMatchObject({ type: 'resumed', actorId: admin.userId })
+  })
+
+  it('al finalizar, el técnico tiene permiso pero no recibe el total ni las notas internas', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'en_proceso', total: '90.00' }))
+    const c = await service.action('1', { accion: 'finalizar', motivo: null }, tecnico)
+    expect(c.status).toBe('terminado')
+    expect(c.total).toBeNull()
+    expect(c.internalNotes).toBeNull()
+  })
+
+  it('finalizar fija finishedAt', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'en_proceso' }))
+    await service.action('1', { accion: 'finalizar', motivo: null }, admin)
+    expect((await service.detail('1', admin)).case.finishedAt).not.toBeNull()
+  })
+
+  it('marcar_enviado fija shippedAt y marcar_entregado fija deliveredAt', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado' }))
+    await service.action('1', { accion: 'marcar_enviado', motivo: null }, admin)
+    const enviado = (await service.detail('1', admin)).case
+    expect(enviado.status).toBe('enviado')
+    expect(enviado.shippedAt).not.toBeNull()
+
+    await service.action('1', { accion: 'marcar_entregado', motivo: null }, admin)
+    const entregado = (await service.detail('1', admin)).case
+    expect(entregado.status).toBe('entregado')
+    expect(entregado.deliveredAt).not.toBeNull()
+  })
+
+  it('cada acción escribe el tipo de evento y el estado antes/después que le corresponden', async () => {
+    const tryins = fakeTryins()
+    const service = servicioCon(completo({ id: '1', status: 'nuevo' }), { tryins })
+
+    await service.action('1', { accion: 'aceptar', motivo: null }, admin)
+    await service.action('1', { accion: 'enviar_prueba', motivo: null }, admin)
+    await service.action('1', { accion: 'recibir_prueba', motivo: null }, admin)
+    await service.action('1', { accion: 'finalizar', motivo: null }, admin)
+    await service.action('1', { accion: 'marcar_enviado', motivo: null }, admin)
+    await service.action('1', { accion: 'marcar_entregado', motivo: null }, admin)
+
+    const eventos = await service.events('1', admin)
+    expect(eventos.map((e) => e.type)).toEqual([
+      'status_changed', // aceptar
+      'tryin_sent',
+      'tryin_returned',
+      'status_changed', // finalizar
+      'shipped',
+      'delivered',
+    ])
+    expect(eventos[0]).toMatchObject({ fromValue: 'nuevo', toValue: 'en_proceso' })
+    expect(eventos[3]).toMatchObject({ fromValue: 'en_proceso', toValue: 'terminado' })
+    expect(eventos[4]).toMatchObject({ fromValue: 'terminado', toValue: 'enviado' })
+    expect(eventos[5]).toMatchObject({ fromValue: 'enviado', toValue: 'entregado' })
   })
 })

@@ -21,7 +21,6 @@ import type {
   CasesRepository,
   CaseTransitionPatch,
   StagesQuery,
-  TryinsRepository,
   UnitOfWork,
 } from './ports.ts'
 
@@ -69,10 +68,7 @@ function readiness(
   })
 }
 
-/** Evento que registra cada acción de estado (CIC-1/CIC-3). `marcar_enviado`/`marcar_entregado`
- * ya son transiciones válidas en `shared` pero su lógica (fechas de envío/entrega, quién las
- * marca) es de la feature `deliveries` (Iteración 4): aquí solo cambian el estado y dejan su
- * evento, sin tocar `shippedAt`/`deliveredAt`. */
+/** Evento que registra cada acción de estado (CIC-1/CIC-3). */
 const EVENT_TYPE_FOR_ACTION: Record<CaseActionInput['accion'], CaseEventType> = {
   aceptar: 'status_changed',
   pausar: 'hold',
@@ -89,7 +85,6 @@ export function createCasesService(deps: {
   cases: CasesRepository
   attachments: AttachmentsQuery
   stages: StagesQuery
-  tryins: TryinsRepository
   uow: UnitOfWork
   clock: Clock
 }) {
@@ -135,8 +130,10 @@ export function createCasesService(deps: {
     },
     /**
      * Ejecuta una acción de estado: aceptar, pausar/reanudar, enviar/recibir prueba en boca,
-     * finalizar o cancelar (CIC-1/CIC-3). Todo corre dentro de `uow.run` (ADR 19): el permiso
-     * por rol, la transición, el `applyTransition` y su `case_event` son atómicos.
+     * finalizar, marcar enviado/entregado o cancelar (CIC-1/CIC-3). Todo corre dentro de
+     * `uow.run` (ADR 19): el permiso por rol, la transición, el `applyTransition` y su
+     * `case_event` son atómicos. Devuelve el detalle enmascarado por rol (técnico y mensajero
+     * pueden ejecutar acciones sin ver precios: `finalizar`, `marcar_enviado`/`marcar_entregado`).
      */
     async action(id: string, input: CaseActionInput, ctx: RequestContext) {
       await deps.uow.run(async ({ cases, tryins }) => {
@@ -173,13 +170,20 @@ export function createCasesService(deps: {
             break
           case 'recibir_prueba': {
             const open = await tryins.open(id)
+            // Sin prueba abierta no hay nada que cerrar: tolerancia deliberada, no un error.
             if (open) await tryins.close(open.id, deps.clock.today())
             break
           }
           case 'finalizar':
             patch.finishedAt = deps.clock.now()
             break
-          default:
+          case 'marcar_enviado':
+            patch.shippedAt = deps.clock.now()
+            break
+          case 'marcar_entregado':
+            patch.deliveredAt = deps.clock.now()
+            break
+          case 'cancelar':
             break
         }
 
@@ -193,7 +197,8 @@ export function createCasesService(deps: {
           actorId: ctx.userId,
         })
       })
-      return mustGet(id)
+      const updated = await mustGet(id)
+      return hidesPrices(ctx.role) ? stripPrices(updated) : updated
     },
   }
 }
