@@ -3,6 +3,7 @@ import {
   applyAction,
   canPerform,
   firstStage,
+  isLastStage,
   missingForAccept,
   nextStage,
   previousStage,
@@ -12,7 +13,9 @@ import {
   type CaseEventType,
   type CaseInput,
   type CaseListQuery,
+  type CaseStatus,
   type StageChangeInput,
+  type StageRef,
   type UserRole,
 } from '@dentalware/shared'
 import type { Clock } from '../../lib/clock.ts'
@@ -86,10 +89,38 @@ const EVENT_TYPE_FOR_ACTION: Record<CaseActionInput['accion'], CaseEventType> = 
   cancelar: 'cancelled',
 }
 
-/** Estados en los que un trabajo tiene su fase en pausa: en espera de algo externo (`en_espera`)
- * o fuera del taller en una prueba en boca (`en_prueba`). CIC-5: no se avanza ni se retrocede
- * de fase mientras el trabajo está en uno de estos dos. */
-const STAGE_LOCKED_STATUSES = ['en_espera', 'en_prueba'] as const
+/**
+ * Único estado en el que un trabajo tiene una fase de producción en curso: `aceptar` deja la
+ * fase inicial y desde `en_proceso` se finaliza (CIC-5). Lista blanca, no negra (ronda de
+ * fixes 1, I-1): antes de este fix la lista negra (`en_espera`/`en_prueba`) dejaba pasar
+ * `terminado`/`enviado`/`entregado`/`cancelado`, y como `finalizar` no limpia `currentStageId`,
+ * un trabajo ya cerrado seguía cambiando de fase (evento `stage_changed` espurio en su
+ * historial). Cada estado bloqueado tiene su propio motivo en español.
+ */
+const STAGE_CHANGE_BLOCKED_REASON: Record<Exclude<CaseStatus, 'en_proceso'>, string> = {
+  nuevo: 'El trabajo todavía no tiene fase: acéptalo primero',
+  en_espera: 'El trabajo está en espera: reanúdalo para poder cambiar de fase',
+  en_prueba: 'El trabajo está en una prueba en boca: recíbela para poder cambiar de fase',
+  terminado: 'El trabajo ya está terminado',
+  enviado: 'El trabajo ya fue enviado',
+  entregado: 'El trabajo ya fue entregado',
+  cancelado: 'El trabajo está cancelado',
+}
+
+/** Estados terminales en los que ya no tiene sentido reasignar el técnico responsable
+ * (ronda de fixes 1, I-1). A diferencia de `changeStage`, el resto de estados sí lo permite:
+ * corregir quién es responsable de un trabajo que todavía se mueve por el laboratorio es
+ * legítimo (recepción lo va a necesitar); hacerlo sobre uno ya cerrado no. */
+const ASSIGN_TECHNICIAN_BLOCKED_STATUSES: readonly CaseStatus[] = ['entregado', 'cancelado']
+
+/** Distingue "la fase actual es la última/primera de las activas" de "no se sabe cuál es la
+ * fase actual" (currentStageId nulo, o una fase que se desactivó con el trabajo todavía en
+ * ella) — ronda de fixes 1, M-1: antes de este fix ambos casos daban el mismo mensaje
+ * ("usa finalizar"), que induce a un técnico a cerrar un trabajo que en realidad sigue a
+ * mitad de una fase desactivada. */
+function stagePositionKnown(activeStages: readonly StageRef[], currentStageId: string | null) {
+  return currentStageId !== null && activeStages.some((s) => s.id === currentStageId)
+}
 
 export function createCasesService(deps: {
   cases: CasesRepository
@@ -213,20 +244,24 @@ export function createCasesService(deps: {
     },
     /**
      * Cambia la fase de producción del trabajo (CIC-2/CIC-5), sin tocar su estado: avanza o
-     * retrocede una posición entre las fases activas (`shared/stages.ts`). Un trabajo en espera
-     * o en prueba en boca no cambia de fase, y avanzar desde la última fase activa no hace
-     * nada: el cliente debe usar la acción "finalizar". Retroceder exige motivo (el schema ya
-     * lo garantiza) y queda en el evento `stage_changed`. Todo corre dentro de `uow.run`
-     * (ADR 19): el trabajo, la fase y su evento son atómicos.
+     * retrocede una posición entre las fases activas (`shared/stages.ts`). Solo un trabajo
+     * `en_proceso` cambia de fase (lista blanca, ver `STAGE_CHANGE_BLOCKED_REASON`); avanzar
+     * desde la última fase activa no hace nada: el cliente debe usar la acción "finalizar".
+     * Retroceder exige motivo (el schema ya lo garantiza) y queda en el evento `stage_changed`.
+     * Solo admin, recepción y técnico pueden cambiar de fase (defensa en profundidad: la ruta
+     * ya filtra por rol con `canChangeStage` en `routes.ts`, pero un test de servicio con
+     * fakes no pasa por la ruta — mismo patrón que `assignTechnician`). Todo corre dentro de
+     * `uow.run` (ADR 19): el permiso, el trabajo, la fase y su evento son atómicos.
      */
     async changeStage(id: string, input: StageChangeInput, ctx: RequestContext) {
       await deps.uow.run(async ({ cases }) => {
+        if (ctx.role !== 'admin' && ctx.role !== 'recepcion' && ctx.role !== 'tecnico') {
+          throw new CaseForbiddenError()
+        }
         const found = await cases.byId(id)
         if (!found) throw new CaseNotFoundError()
-        if ((STAGE_LOCKED_STATUSES as readonly string[]).includes(found.status)) {
-          throw new CaseStateError(
-            `No se puede cambiar de fase un trabajo en estado "${found.status}"`,
-          )
+        if (found.status !== 'en_proceso') {
+          throw new CaseStateError(STAGE_CHANGE_BLOCKED_REASON[found.status])
         }
         const activeStages = await deps.stages.active()
         const target =
@@ -234,11 +269,17 @@ export function createCasesService(deps: {
             ? nextStage(activeStages, found.currentStageId)
             : previousStage(activeStages, found.currentStageId)
         if (!target) {
-          throw new CaseStateError(
-            input.direccion === 'avanzar'
-              ? 'El trabajo ya está en la última fase: usa "finalizar" para terminarlo'
-              : 'El trabajo ya está en la primera fase',
-          )
+          if (!stagePositionKnown(activeStages, found.currentStageId)) {
+            throw new CaseStateError(
+              'No se pudo determinar la fase actual del trabajo: puede que esté desactivada',
+            )
+          }
+          if (input.direccion === 'avanzar' && isLastStage(activeStages, found.currentStageId)) {
+            throw new CaseStateError(
+              'El trabajo ya está en la última fase: usa "finalizar" para terminarlo',
+            )
+          }
+          throw new CaseStateError('El trabajo ya está en la primera fase')
         }
         await cases.applyTransition(id, { status: found.status, currentStageId: target.id })
         await cases.addEvent({
@@ -256,15 +297,22 @@ export function createCasesService(deps: {
     /**
      * Asigna o quita (con `tecnicoId: null`) el técnico responsable del trabajo (CIC-2). Solo
      * admin y recepción pueden asignar (defensa en profundidad: la ruta ya filtra por rol, ver
-     * `canWrite` en `routes.ts`, pero un test de servicio con fakes no pasa por la ruta). El
-     * técnico debe estar activo (`UsersQuery.activeTechnicians`, puerto de la feature `users`);
-     * si no, `CaseInputError`. Deja el evento `assigned` con el técnico anterior y el nuevo.
+     * `canWrite` en `routes.ts`, pero un test de servicio con fakes no pasa por la ruta). No se
+     * puede reasignar un trabajo ya cerrado (`ASSIGN_TECHNICIAN_BLOCKED_STATUSES`); el resto de
+     * estados sí lo permite. El técnico debe estar activo (`UsersQuery.activeTechnicians`,
+     * puerto de la feature `users`); si no, `CaseInputError`. Deja el evento `assigned` con el
+     * técnico anterior y el nuevo.
      */
     async assignTechnician(id: string, input: AssignTechnicianInput, ctx: RequestContext) {
       await deps.uow.run(async ({ cases }) => {
         if (ctx.role !== 'admin' && ctx.role !== 'recepcion') throw new CaseForbiddenError()
         const found = await cases.byId(id)
         if (!found) throw new CaseNotFoundError()
+        if (ASSIGN_TECHNICIAN_BLOCKED_STATUSES.includes(found.status)) {
+          throw new CaseStateError(
+            `No se puede reasignar el técnico de un trabajo en estado "${found.status}"`,
+          )
+        }
         if (input.tecnicoId) {
           const technicians = await deps.users.activeTechnicians()
           if (!technicians.some((t) => t.id === input.tecnicoId)) {

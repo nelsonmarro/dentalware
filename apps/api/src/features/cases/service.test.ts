@@ -1,3 +1,4 @@
+import type { CaseStatus } from '@dentalware/shared'
 import { describe, expect, it } from 'vitest'
 import { CaseForbiddenError, CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import {
@@ -15,6 +16,7 @@ import { createCasesService, stripPrices } from './service.ts'
 
 const admin = { userId: 'u1', role: 'admin' } as const
 const tecnico = { userId: 'u2', role: 'tecnico' } as const
+const mensajero = { userId: 'u3', role: 'mensajero' } as const
 
 /** Alias descriptivo: una ficha completa (todos los campos que `aceptar` exige), lista para
  * las pruebas de acciones de estado. */
@@ -349,6 +351,67 @@ describe('cambio de fase', () => {
     }
   })
 
+  // I-1 (ronda de fixes 1): `en_proceso` es lista blanca, no lista negra. Antes de este fix,
+  // un trabajo `entregado`/`cancelado` seguía cambiando de fase (bug real, reproducido con
+  // fakes): un técnico que abre por error la ficha de un trabajo ya entregado y retrocede la
+  // fase obtenía 200, un `stage_changed` espurio en el historial y una fase de producción en
+  // curso en un trabajo cerrado.
+  it('un trabajo entregado no cambia de fase (repro del bug: retroceder, rol técnico)', async () => {
+    const service = servicioConFases(['f1', 'f2'], { status: 'entregado', currentStageId: 'f2' })
+    await expect(
+      service.changeStage('1', { direccion: 'retroceder', motivo: 'Corrección' }, tecnico),
+    ).rejects.toThrow(CaseStateError)
+  })
+
+  it('un trabajo cancelado no cambia de fase (repro del bug: avanzar)', async () => {
+    const service = servicioConFases(['f1', 'f2'], { status: 'cancelado', currentStageId: 'f1' })
+    await expect(
+      service.changeStage('1', { direccion: 'avanzar', motivo: null }, admin),
+    ).rejects.toThrow(CaseStateError)
+  })
+
+  it('solo en_proceso cambia de fase; cada otro estado da un motivo distinto en español', async () => {
+    const motivoPorEstado: [CaseStatus, RegExp][] = [
+      ['nuevo', /todavía no tiene fase/i],
+      ['en_espera', /en espera/i],
+      ['en_prueba', /prueba en boca/i],
+      ['terminado', /ya está terminado/i],
+      ['enviado', /ya fue enviado/i],
+      ['entregado', /ya fue entregado/i],
+      ['cancelado', /está cancelado/i],
+    ]
+    for (const [status, motivo] of motivoPorEstado) {
+      const service = servicioConFases(['f1', 'f2'], { status, currentStageId: 'f1' })
+      await expect(
+        service.changeStage('1', { direccion: 'avanzar', motivo: null }, admin),
+      ).rejects.toThrow(motivo)
+    }
+  })
+
+  // M-1 (ronda de fixes 1): `nextStage`/`previousStage` devuelven `undefined` tanto si la
+  // fase actual es la última/primera como si su posición es desconocida (currentStageId nulo
+  // o una fase que se desactivó mientras el trabajo la tenía). `isLastStage` distingue ambos
+  // casos: si se confunden, el mensaje le dice a un técnico que "finalice" un trabajo que en
+  // realidad está a mitad de una fase desactivada.
+  it('si la fase actual no está entre las activas, el mensaje no dice "última fase"', async () => {
+    // f3 no aparece en la lista de fases activas: simula una fase desactivada con el trabajo
+    // todavía en ella.
+    const service = servicioConFases(['f1', 'f2'], { status: 'en_proceso', currentStageId: 'f3' })
+    await expect(
+      service.changeStage('1', { direccion: 'avanzar', motivo: null }, admin),
+    ).rejects.toThrow(/no se pudo determinar/i)
+  })
+
+  // M-2 (ronda de fixes 1): mismo patrón que `assignTechnician` (y que `action`/`canPerform`):
+  // el guardián de la ruta es una capa, la comprobación del servicio es la que sobrevive a que
+  // alguien toque la ruta.
+  it('un mensajero no puede cambiar de fase', async () => {
+    const service = servicioConFases(['f1', 'f2'], { status: 'en_proceso', currentStageId: 'f1' })
+    await expect(
+      service.changeStage('1', { direccion: 'avanzar', motivo: null }, mensajero),
+    ).rejects.toThrow(CaseForbiddenError)
+  })
+
   it('el técnico asignado puede avanzar la fase', async () => {
     const service = servicioConFases(['f1', 'f2'], { status: 'en_proceso', currentStageId: 'f1' })
     await expect(
@@ -418,5 +481,31 @@ describe('técnico responsable', () => {
     await expect(
       service.assignTechnician('nope', { tecnicoId: 't1' }, admin),
     ).rejects.toBeInstanceOf(CaseNotFoundError)
+  })
+
+  // I-1 (ronda de fixes 1): a diferencia de `changeStage`, aquí solo se bloquean los estados
+  // terminales. Corregir quién es el responsable de un trabajo que todavía se mueve por el
+  // laboratorio es legítimo (recepción lo va a necesitar); hacerlo sobre uno ya cerrado no.
+  it('no se puede reasignar el técnico de un trabajo entregado o cancelado', async () => {
+    for (const status of ['entregado', 'cancelado'] as const) {
+      const service = servicioConTecnicos([{ id: 't1' }], { status })
+      await expect(service.assignTechnician('1', { tecnicoId: 't1' }, admin)).rejects.toThrow(
+        CaseStateError,
+      )
+    }
+  })
+
+  it('sí se puede reasignar el técnico mientras el trabajo se sigue moviendo por el laboratorio', async () => {
+    for (const status of [
+      'nuevo',
+      'en_proceso',
+      'en_espera',
+      'en_prueba',
+      'terminado',
+      'enviado',
+    ] as const) {
+      const service = servicioConTecnicos([{ id: 't1' }], { status })
+      await expect(service.assignTechnician('1', { tecnicoId: 't1' }, admin)).resolves.toBeDefined()
+    }
   })
 })

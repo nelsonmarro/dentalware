@@ -12,6 +12,7 @@ describe('/api/trabajos', () => {
   let tecnico: string
   let tecnicoId: string
   let mensajero: string
+  let mensajeroId: string
   let clinicId: string
   let doctorId: string
   let zr: string
@@ -49,7 +50,7 @@ describe('/api/trabajos', () => {
       name: 'Ana Técnico',
       role: 'tecnico',
     })
-    await createUser(ctx.auth, ctx.db, {
+    mensajeroId = await createUser(ctx.auth, ctx.db, {
       email: 'mens@t.local',
       password: 'Mensajero1!',
       name: 'Mensajero',
@@ -606,6 +607,32 @@ describe('/api/trabajos', () => {
       expect(res.status).toBe(409)
     })
 
+    // M-4 (ronda de fixes 1): faltaba el 409 gemelo con `en_prueba` (solo estaba `en_espera`).
+    it('responde 409 en un trabajo en prueba en boca', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'enviar_prueba' }),
+      )
+      const res = await app.request(
+        `/api/trabajos/${id}/fase`,
+        req(admin, 'PUT', { direccion: 'avanzar' }),
+      )
+      expect(res.status).toBe(409)
+    })
+
+    // M-4 (ronda de fixes 1): faltaba el 422 de `stageChangeSchema` (motivo obligatorio al
+    // retroceder) ejercitado por HTTP, no solo a nivel de schema (`cases.test.ts` en `shared`).
+    it('responde 422 al retroceder sin motivo', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      await app.request(`/api/trabajos/${id}/fase`, req(admin, 'PUT', { direccion: 'avanzar' }))
+      const res = await app.request(
+        `/api/trabajos/${id}/fase`,
+        req(admin, 'PUT', { direccion: 'retroceder' }),
+      )
+      expect(res.status).toBe(422)
+    })
+
     it('el técnico puede cambiar de fase (200)', async () => {
       const { id } = await crearTrabajoEnProceso()
       const res = await app.request(
@@ -654,6 +681,31 @@ describe('/api/trabajos', () => {
         `/api/trabajos/${id}/tecnico`,
         req(admin, 'PUT', { tecnicoId: randomUUID() }),
       )
+      expect(res.status).toBe(422)
+    })
+
+    // I-2 (ronda de fixes 1): `fakeUsersQuery` en los tests de servicio es un array literal,
+    // así que no ejercita el `where` real de `createUsersQuery`; el único 422 de integración
+    // mandaba un `randomUUID()` que tampoco existe en `users`. Estos dos casos sí pasan por
+    // Postgres con un usuario que existe de verdad: si el `where` filtrara mal (por rol y no
+    // por `banned`, por `banned` y no por rol, o por la columna equivocada), alguno de los dos
+    // dejaría pasar el 200. Verificado por mutación (ver Reporte de fixes).
+    it('responde 422 al asignar el id de un usuario que no es técnico', async () => {
+      const id = await createOne(recepcion)
+      const res = await app.request(
+        `/api/trabajos/${id}/tecnico`,
+        req(admin, 'PUT', { tecnicoId: mensajeroId }),
+      )
+      expect(res.status).toBe(422)
+    })
+
+    it('responde 422 al asignar un técnico baneado', async () => {
+      await ctx.db
+        .update(ctx.schema.users)
+        .set({ banned: true })
+        .where(eq(ctx.schema.users.id, tecnicoId))
+      const id = await createOne(recepcion)
+      const res = await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId }))
       expect(res.status).toBe(422)
     })
 
