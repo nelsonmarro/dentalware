@@ -14,6 +14,7 @@ import {
   type CaseInput,
   type CaseListQuery,
   type CaseStatus,
+  type RemakeInput,
   type StageChangeInput,
   type StageRef,
   type UserRole,
@@ -333,6 +334,26 @@ export function createCasesService(deps: {
       })
       const updated = await mustGet(id)
       return hidesPrices(ctx.role) ? stripPrices(updated) : updated
+    },
+    /**
+     * Repite un trabajo (CIC-4): crea un hijo con las líneas y el odontograma del original,
+     * listo para empezar de cero. Solo desde `terminado`, `enviado` o `entregado`
+     * (`repo.createRemake`, con `FOR UPDATE` sobre el padre dentro de `uow.run`). Encadenable:
+     * repetir una repetición fija `parentCaseId` al padre inmediato, no al ancestro original; se
+     * puede repetir el mismo trabajo más de una vez, cada hijo es independiente. El hijo nace en
+     * `nuevo`, sin fase ni técnico asignado (la responsabilidad de la repetición puede no ser la
+     * misma persona) y sin fotos ni documentos adjuntos (pertenecen a la ficha original, no a la
+     * producción nueva). Solo admin y recepción (defensa en profundidad: la ruta ya filtra por
+     * rol con `canWrite`, pero un test de servicio con fakes no pasa por la ruta). Solo admin y
+     * recepción ven el resultado sin enmascarar (mismo criterio que `create`/`update`: la ruta
+     * ya les impide llegar aquí a técnico o mensajero).
+     */
+    async createRemake(parentId: string, input: RemakeInput, ctx: RequestContext) {
+      if (ctx.role !== 'admin' && ctx.role !== 'recepcion') throw new CaseForbiddenError()
+      const { id } = await deps.uow.run(({ cases }) =>
+        cases.createRemake(parentId, { ...input, receivedAt: deps.clock.today() }, ctx.userId),
+      )
+      return mustGet(id)
     },
   }
 }

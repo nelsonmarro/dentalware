@@ -1,4 +1,4 @@
-import type { CaseInput, CaseListQuery } from '@dentalware/shared'
+import type { CaseInput, CaseListQuery, CaseStatus } from '@dentalware/shared'
 import {
   CASE_PAGE_SIZE,
   formatCaseCode,
@@ -15,7 +15,7 @@ import { clinics } from '../clinics/schema.ts'
 import { doctors } from '../doctors/schema.ts'
 import { clinicProductPrices, products } from '../products/schema.ts'
 import { stages } from '../stages/schema.ts'
-import { CaseInputError, CaseStateError } from './errors.ts'
+import { CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type {
   CasesRepository,
   NewCaseEvent,
@@ -115,6 +115,10 @@ async function addEventWith(db: Db | Tx, e: NewCaseEvent): Promise<void> {
     actorId: e.actorId,
   })
 }
+
+/** Estados desde los que se puede repetir un trabajo (CIC-4): cualquier punto en el que ya se
+ * vio o se entregó el resultado y se decidió que no sirve. */
+const REMAKEABLE_STATUSES: readonly CaseStatus[] = ['terminado', 'enviado', 'entregado']
 
 const ACTIVE_FOR_DATES = ['nuevo', 'en_proceso', 'en_espera', 'en_prueba'] as const
 const effectiveDate = sql<string | null>`coalesce(${cases.promisedDate}, ${cases.dueDate})`
@@ -310,6 +314,95 @@ export function createCasesRepo(db: Db | Tx) {
         .innerJoin(products, eq(products.id, caseItems.productId))
         .where(eq(caseItems.caseId, caseId))
       return rows.reduce((max, r) => Math.max(max, r.turnaroundDays), 0)
+    },
+
+    async createRemake(parentId, input, actorId) {
+      // `FOR UPDATE` sobre el padre: mismo patrón que `update` para que dos repeticiones
+      // concurrentes del mismo trabajo no lean el mismo estado a la vez (aquí no importa,
+      // se puede repetir más de una vez, pero si el trabajo se cancela mientras tanto sí).
+      const [parent] = await db.select().from(cases).where(eq(cases.id, parentId)).for('update')
+      if (!parent) throw new CaseNotFoundError()
+      if (!REMAKEABLE_STATUSES.includes(parent.status)) {
+        throw new CaseStateError(`No se puede repetir un trabajo en estado "${parent.status}"`)
+      }
+      const parentItems = await db
+        .select()
+        .from(caseItems)
+        .where(eq(caseItems.caseId, parentId))
+        .orderBy(caseItems.sort)
+
+      const year = Number(input.receivedAt.slice(0, 4))
+      const code = await nextCaseCode(db, year)
+      const [row] = await db
+        .insert(cases)
+        .values({
+          // Copiado del padre: mismo paciente/clínica/doctor, mismos datos clínicos de
+          // referencia (color, prescripción, notas). El hijo parte de ahí para no reescribir
+          // a mano lo que ya se sabía del trabajo original.
+          clinicId: parent.clinicId,
+          doctorId: parent.doctorId,
+          patientRef: parent.patientRef,
+          patientAge: parent.patientAge,
+          patientSex: parent.patientSex,
+          boxNumber: parent.boxNumber,
+          priority: parent.priority,
+          dueDate: parent.dueDate,
+          shade: parent.shade,
+          shadeSystem: parent.shadeSystem,
+          reference: parent.reference,
+          observations: parent.observations,
+          prescription: parent.prescription,
+          internalNotes: parent.internalNotes,
+          // Reiniciado a propósito: es una producción nueva. `checklist` se omite (usa el
+          // default de la tabla, todo sin verificar): no se puede asumir que "antagonista"
+          // o "fotos" del trabajo original todavía apliquen. Sin fase ni técnico: quien
+          // repite decide después quién la hace, no se asume el mismo técnico responsable
+          // del original (la responsabilidad de la repetición puede ser justo suya).
+          code,
+          receivedAt: input.receivedAt,
+          // `checklist` se omite: usa el default de la tabla (todo sin verificar, ver el
+          // comentario de arriba).
+          parentCaseId: parentId,
+          remakeReason: input.motivo,
+          remakeResponsibility: input.responsabilidad,
+          remakeChargePct: input.cobroPct.toFixed(2),
+          total: totalOf(parentItems),
+          createdBy: actorId,
+        })
+        .returning({ id: cases.id })
+      const childId = row!.id
+      await db.insert(caseItems).values(
+        parentItems.map((i, sort) => ({
+          caseId: childId,
+          productId: i.productId,
+          description: i.description,
+          quantity: i.quantity,
+          teeth: i.teeth,
+          unitPrice: i.unitPrice,
+          discountPct: i.discountPct,
+          lineTotal: i.lineTotal,
+          material: i.material,
+          notes: i.notes,
+          sort,
+        })),
+      )
+      await addEventWith(db, {
+        caseId: parentId,
+        type: 'remake_created',
+        fromValue: parent.code,
+        toValue: code,
+        reason: input.motivo,
+        actorId,
+      })
+      await addEventWith(db, {
+        caseId: childId,
+        type: 'remake_created',
+        fromValue: parent.code,
+        toValue: code,
+        reason: input.motivo,
+        actorId,
+      })
+      return { id: childId, code }
     },
   } satisfies CasesRepository
 }

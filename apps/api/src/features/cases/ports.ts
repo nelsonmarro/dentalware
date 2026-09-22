@@ -5,6 +5,7 @@ import type {
   CasePriority,
   CaseStatus,
   PricingUnit,
+  RemakeInput,
   StageRef,
 } from '@dentalware/shared'
 // Solo tipos: las formas de fila se derivan del schema (ruling del plan; ESLint allowTypeImports).
@@ -43,6 +44,14 @@ export type CaseListRow = {
   itemsSummary: string
 }
 export type CaseListPage = { cases: CaseListRow[]; total: number; page: number; pageSize: number }
+/**
+ * `RemakeInput` (shared) más `receivedAt`: el repo necesita la fecha de recepción del hijo
+ * ("hoy") para elegir el año de su código, pero esa fecha la decide el reloj y el reloj es
+ * del servicio (nunca `new Date()` en el repo para un dato de negocio, ADR 20) — así que el
+ * servicio la resuelve con `Clock.today()` y la añade aquí antes de llamar al repo.
+ */
+export type RemakeCreateInput = RemakeInput & { receivedAt: string }
+
 export type NewCaseEvent = {
   caseId: string
   type: CaseEventType
@@ -80,6 +89,22 @@ export interface CasesRepository {
   applyTransition(id: string, patch: CaseTransitionPatch): Promise<void>
   /** Días hábiles máximos de los productos del trabajo, para la fecha comprometida al aceptar. */
   turnaroundFor(caseId: string): Promise<number>
+  /**
+   * Crea el trabajo hijo de una repetición (CIC-4): copia clínica, doctor, paciente, prioridad,
+   * fecha deseada, color, referencia, observaciones, prescripción y notas internas del padre;
+   * copia sus líneas y el odontograma (`case_items`, con las piezas FDI que ya llevan); fija
+   * `parentCaseId` al padre (encadenable: repetir una repetición apunta al padre inmediato, no
+   * al ancestro original), el motivo, la responsabilidad y el porcentaje de cobro del `input`.
+   * El hijo nace en `nuevo`, sin fase ni técnico asignado (la responsabilidad de la repetición
+   * puede no ser la misma persona) y con el checklist sin verificar (es una producción nueva).
+   * Dos eventos `remake_created`, uno en cada ficha. Lanza `CaseNotFoundError` si el padre no
+   * existe; `CaseStateError` si su estado no es `terminado`, `enviado` ni `entregado`.
+   */
+  createRemake(
+    parentId: string,
+    input: RemakeCreateInput,
+    actorId: string,
+  ): Promise<{ id: string; code: string }>
 }
 
 /** Puerto de OTRA feature (adjuntos): se inyecta en la raíz de composición. */

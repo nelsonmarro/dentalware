@@ -5,6 +5,7 @@ import {
   caseListQuerySchema,
   commentSchema,
   idParamSchema,
+  remakeSchema,
   stageChangeSchema,
 } from '@dentalware/shared'
 import { Hono } from 'hono'
@@ -151,6 +152,24 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
             ctxFrom(c),
           )
           return c.json({ case: { id: updated.id, currentStageId: updated.currentStageId } }, 200)
+        } catch (e) {
+          toHttp(e)
+        }
+      },
+    )
+    .post(
+      '/:id/repetir',
+      canWrite,
+      validate('param', idParamSchema),
+      validate('json', remakeSchema),
+      async (c) => {
+        try {
+          const created = await service.createRemake(
+            c.req.valid('param').id,
+            c.req.valid('json'),
+            ctxFrom(c),
+          )
+          return c.json({ case: created }, 201)
         } catch (e) {
           toHttp(e)
         }

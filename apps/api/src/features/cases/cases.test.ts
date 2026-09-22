@@ -732,4 +732,165 @@ describe('/api/trabajos', () => {
       ).toBe(403)
     })
   })
+
+  describe('POST /api/trabajos/:id/repetir', () => {
+    async function avanzarAEntregado(id: string) {
+      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'aceptar' }))
+      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' }))
+      await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'marcar_enviado' }),
+      )
+      await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'marcar_entregado' }),
+      )
+    }
+
+    async function crearTrabajoEntregado() {
+      const id = await createOne(recepcion, {
+        dueDate: '2026-12-01',
+        prescription: 'Corona completa disilicato',
+        items: [{ productId: zr, quantity: 1, teeth: [11, 12] }],
+      })
+      await avanzarAEntregado(id)
+      return { id }
+    }
+
+    function remakeBody(overrides: Record<string, unknown> = {}) {
+      return {
+        motivo: 'Fractura en cerámica al probar',
+        responsabilidad: 'laboratorio',
+        cobroPct: 0,
+        ...overrides,
+      }
+    }
+
+    it('repite un trabajo entregado (201): código nuevo, hijo enlazado al padre y líneas copiadas', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      expect(res.status).toBe(201)
+      const { case: created } = (await res.json()) as { case: { id: string; code: string } }
+      expect(created.code).toMatch(/^\d{2}-\d{5}$/)
+
+      const ficha = (await (
+        await app.request(`/api/trabajos/${created.id}`, req(admin, 'GET'))
+      ).json()) as {
+        case: {
+          status: string
+          parentCaseId: string | null
+          remakeReason: string
+          remakeResponsibility: string
+          remakeChargePct: string
+          items: { teeth: number[] }[]
+        }
+      }
+      expect(ficha.case.status).toBe('nuevo')
+      expect(ficha.case.parentCaseId).toBe(id)
+      expect(ficha.case.remakeReason).toBe('Fractura en cerámica al probar')
+      expect(ficha.case.remakeResponsibility).toBe('laboratorio')
+      expect(ficha.case.remakeChargePct).toBe('0.00')
+      expect(ficha.case.items).toHaveLength(1)
+      expect(ficha.case.items[0]!.teeth).toEqual([11, 12])
+    })
+
+    it('deja el evento remake_created en el original y en el hijo', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      const { case: created } = (await res.json()) as { case: { id: string } }
+
+      const eventosPadre = (await (
+        await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string }[] }
+      expect(eventosPadre.events.some((e) => e.type === 'remake_created')).toBe(true)
+
+      const eventosHijo = (await (
+        await app.request(`/api/trabajos/${created.id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string }[] }
+      expect(eventosHijo.events.some((e) => e.type === 'remake_created')).toBe(true)
+    })
+
+    it('el hijo nace sin técnico asignado aunque el padre lo tuviera', async () => {
+      const id = await createOne(recepcion, {
+        dueDate: '2026-12-01',
+        prescription: 'Corona completa disilicato',
+      })
+      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'aceptar' }))
+      await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId }))
+      await avanzarAEntregado(id)
+
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      const { case: created } = (await res.json()) as { case: { id: string } }
+      const ficha = (await (
+        await app.request(`/api/trabajos/${created.id}`, req(admin, 'GET'))
+      ).json()) as { case: { assignedTechnicianId: string | null } }
+      expect(ficha.case.assignedTechnicianId).toBeNull()
+    })
+
+    it('se puede repetir más de una vez el mismo trabajo', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const primero = (await (
+        await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      ).json()) as { case: { id: string } }
+      const segundo = (await (
+        await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      ).json()) as { case: { id: string } }
+      expect(primero.case.id).not.toBe(segundo.case.id)
+    })
+
+    it('se puede repetir una repetición (encadenado al padre inmediato)', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const hijoRes = await app.request(
+        `/api/trabajos/${id}/repetir`,
+        req(admin, 'POST', remakeBody()),
+      )
+      const { case: hijo } = (await hijoRes.json()) as { case: { id: string } }
+      await avanzarAEntregado(hijo.id)
+
+      const nietoRes = await app.request(
+        `/api/trabajos/${hijo.id}/repetir`,
+        req(admin, 'POST', remakeBody()),
+      )
+      expect(nietoRes.status).toBe(201)
+      const { case: nieto } = (await nietoRes.json()) as { case: { id: string } }
+      const ficha = (await (
+        await app.request(`/api/trabajos/${nieto.id}`, req(admin, 'GET'))
+      ).json()) as { case: { parentCaseId: string | null } }
+      expect(ficha.case.parentCaseId).toBe(hijo.id)
+    })
+
+    it('responde 409 al repetir un trabajo nuevo', async () => {
+      const id = await createOne(recepcion)
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      expect(res.status).toBe(409)
+    })
+
+    it('responde 404 si el trabajo no existe', async () => {
+      const res = await app.request(
+        `/api/trabajos/${randomUUID()}/repetir`,
+        req(admin, 'POST', remakeBody()),
+      )
+      expect(res.status).toBe(404)
+    })
+
+    it('responde 422 sin motivo', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(
+        `/api/trabajos/${id}/repetir`,
+        req(admin, 'POST', remakeBody({ motivo: '' })),
+      )
+      expect(res.status).toBe(422)
+    })
+
+    it('responde 403 sin sesión y con rol técnico', async () => {
+      const { id } = await crearTrabajoEntregado()
+      expect(
+        (await app.request(`/api/trabajos/${id}/repetir`, req('', 'POST', remakeBody()))).status,
+      ).toBe(403)
+      expect(
+        (await app.request(`/api/trabajos/${id}/repetir`, req(tecnico, 'POST', remakeBody())))
+          .status,
+      ).toBe(403)
+    })
+  })
 })

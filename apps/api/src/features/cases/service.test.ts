@@ -1,4 +1,4 @@
-import type { CaseStatus } from '@dentalware/shared'
+import type { CaseStatus, RemakeInput } from '@dentalware/shared'
 import { describe, expect, it } from 'vitest'
 import { CaseForbiddenError, CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import {
@@ -507,5 +507,98 @@ describe('técnico responsable', () => {
       const service = servicioConTecnicos([{ id: 't1' }], { status })
       await expect(service.assignTechnician('1', { tecnicoId: 't1' }, admin)).resolves.toBeDefined()
     }
+  })
+})
+
+describe('repetición', () => {
+  const remake: RemakeInput = {
+    motivo: 'Fractura en cerámica al probar',
+    responsabilidad: 'laboratorio',
+    cobroPct: 0,
+  }
+
+  it('crea un trabajo hijo con las líneas y el odontograma del original', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado' }))
+    const hijo = await service.createRemake('1', remake, admin)
+    const ficha = await service.detail(hijo.id, admin)
+    expect(ficha.case.status).toBe('nuevo')
+    expect(ficha.case.parentCaseId).toBe('1')
+    expect(ficha.case.items).toHaveLength(1)
+    expect(ficha.case.items[0]!.teeth).toEqual([11, 12])
+  })
+
+  it('deja el evento «repetición creada» en el original y en el hijo', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado' }))
+    const hijo = await service.createRemake('1', remake, admin)
+    expect((await service.events('1', admin)).some((e) => e.type === 'remake_created')).toBe(true)
+    expect((await service.events(hijo.id, admin)).some((e) => e.type === 'remake_created')).toBe(
+      true,
+    )
+  })
+
+  it('guarda el motivo, la responsabilidad y el porcentaje de cobro en el hijo', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado' }))
+    const hijo = await service.createRemake(
+      '1',
+      { motivo: 'Color equivocado', responsabilidad: 'compartida', cobroPct: 50 },
+      admin,
+    )
+    const ficha = await service.detail(hijo.id, admin)
+    expect(ficha.case.remakeReason).toBe('Color equivocado')
+    expect(ficha.case.remakeResponsibility).toBe('compartida')
+    expect(ficha.case.remakeChargePct).toBe('50.00')
+  })
+
+  it('el hijo nace sin fase ni técnico asignado, aunque el padre los tuviera', async () => {
+    const service = servicioCon(
+      completo({ id: '1', status: 'terminado', currentStageId: 'f1', assignedTechnicianId: 't1' }),
+    )
+    const hijo = await service.createRemake('1', remake, admin)
+    const ficha = await service.detail(hijo.id, admin)
+    expect(ficha.case.currentStageId).toBeNull()
+    expect(ficha.case.assignedTechnicianId).toBeNull()
+  })
+
+  it('se puede repetir un trabajo que ya es una repetición (encadenado al padre inmediato)', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado', parentCaseId: 'abuelo' }))
+    const hijo = await service.createRemake('1', remake, admin)
+    const ficha = await service.detail(hijo.id, admin)
+    expect(ficha.case.parentCaseId).toBe('1')
+  })
+
+  it('se puede repetir el mismo trabajo más de una vez', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado' }))
+    const primero = await service.createRemake('1', remake, admin)
+    const segundo = await service.createRemake('1', remake, admin)
+    expect(primero.id).not.toBe(segundo.id)
+  })
+
+  it('se puede repetir desde enviado y desde entregado, no solo desde terminado', async () => {
+    for (const status of ['enviado', 'entregado'] as const) {
+      const service = servicioCon(completo({ id: '1', status }))
+      await expect(service.createRemake('1', remake, admin)).resolves.toBeDefined()
+    }
+  })
+
+  it('no se puede repetir un trabajo que aún está en proceso', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'en_proceso' }))
+    await expect(service.createRemake('1', remake, admin)).rejects.toThrow(CaseStateError)
+  })
+
+  it('un trabajo inexistente lanza CaseNotFoundError', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado' }))
+    await expect(service.createRemake('nope', remake, admin)).rejects.toBeInstanceOf(
+      CaseNotFoundError,
+    )
+  })
+
+  it('un técnico no puede crear repeticiones', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado' }))
+    await expect(service.createRemake('1', remake, tecnico)).rejects.toThrow(CaseForbiddenError)
+  })
+
+  it('un mensajero no puede crear repeticiones', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado' }))
+    await expect(service.createRemake('1', remake, mensajero)).rejects.toThrow(CaseForbiddenError)
   })
 })

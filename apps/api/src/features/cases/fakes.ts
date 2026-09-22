@@ -1,6 +1,6 @@
 import { caseInputSchema, isEditableStatus } from '@dentalware/shared'
-import type { CaseInput, StageRef } from '@dentalware/shared'
-import { CaseInputError, CaseStateError } from './errors.ts'
+import type { CaseInput, CaseStatus, StageRef } from '@dentalware/shared'
+import { CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type {
   CaseDetail,
   CaseEventRow,
@@ -12,6 +12,10 @@ import type {
   UnitOfWork,
   UsersQuery,
 } from './ports.ts'
+
+/** Mismos estados que `REMAKEABLE_STATUSES` en `repo.ts` (CIC-4): duplicado a propósito, el
+ * fake no importa el repo real. */
+const REMAKEABLE_STATUSES: readonly CaseStatus[] = ['terminado', 'enviado', 'entregado']
 
 /** Turnaround por defecto que usan las fixtures (mismo default que `products.turnaroundDays`
  * en el schema): las pruebas de `action('aceptar')` no necesitan variarlo por caso. */
@@ -215,6 +219,76 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
     // Mismo valor para todas las fixtures (ver DEFAULT_TURNAROUND_DAYS): a las pruebas de
     // `action('aceptar')` les basta un turnaround fijo, no el de un producto real.
     turnaroundFor: async () => DEFAULT_TURNAROUND_DAYS,
+    async createRemake(parentId, input, actorId) {
+      const parent = rows.get(parentId)
+      if (!parent) throw new CaseNotFoundError()
+      if (!REMAKEABLE_STATUSES.includes(parent.status)) {
+        throw new CaseStateError(`No se puede repetir un trabajo en estado "${parent.status}"`)
+      }
+      seq += 1
+      const id = `c${seq}`
+      const code = `26-0000${seq}`
+      rows.set(
+        id,
+        caseDetailFixture({
+          id,
+          code,
+          clinicId: parent.clinicId,
+          doctorId: parent.doctorId,
+          patientRef: parent.patientRef,
+          patientAge: parent.patientAge,
+          patientSex: parent.patientSex,
+          boxNumber: parent.boxNumber,
+          priority: parent.priority,
+          status: 'nuevo',
+          currentStageId: null,
+          assignedTechnicianId: null,
+          receivedAt: input.receivedAt,
+          dueDate: parent.dueDate,
+          promisedDate: null,
+          finishedAt: null,
+          shippedAt: null,
+          deliveredAt: null,
+          paidAt: null,
+          shade: parent.shade,
+          shadeSystem: parent.shadeSystem,
+          reference: parent.reference,
+          checklist: { antagonista: false, mordida: false, color: false, fotos: false },
+          observations: parent.observations,
+          prescription: parent.prescription,
+          internalNotes: parent.internalNotes,
+          holdReason: null,
+          parentCaseId: parentId,
+          remakeReason: input.motivo,
+          remakeResponsibility: input.responsabilidad,
+          remakeChargePct: input.cobroPct.toFixed(2),
+          total: parent.total,
+          createdBy: actorId,
+          clinic: parent.clinic,
+          doctor: parent.doctor,
+          technician: null,
+          stage: null,
+          items: parent.items.map((i, sort) => ({ ...i, id: `${id}-i${sort}`, caseId: id, sort })),
+        }),
+      )
+      await repo.addEvent({
+        caseId: parentId,
+        type: 'remake_created',
+        fromValue: parent.code,
+        toValue: code,
+        reason: input.motivo,
+        actorId,
+      })
+      await repo.addEvent({
+        caseId: id,
+        type: 'remake_created',
+        fromValue: parent.code,
+        toValue: code,
+        reason: input.motivo,
+        actorId,
+      })
+      return { id, code }
+    },
   }
   return { repo, rows, events, lastListQuery: () => lastListQuery }
 }
