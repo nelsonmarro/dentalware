@@ -59,6 +59,7 @@ export type NewCaseEvent = {
 export type CaseTransitionPatch = {
   status: CaseStatus
   currentStageId?: string | null
+  assignedTechnicianId?: string | null
   promisedDate?: string | null
   holdReason?: string | null
   finishedAt?: Date | null
@@ -89,6 +90,11 @@ export interface AttachmentsQuery {
 /** Puerto de OTRA feature (fases): se inyecta en la raíz de composición. */
 export interface StagesQuery {
   active(): Promise<StageRef[]>
+}
+
+/** Puerto de OTRA feature (usuarios): valida a quién se puede asignar como técnico responsable. */
+export interface UsersQuery {
+  activeTechnicians(): Promise<{ id: string }[]>
 }
 
 /** Pruebas en boca (`case_tryins`): abiertas por trabajo, cerradas al recibirlas de vuelta. */

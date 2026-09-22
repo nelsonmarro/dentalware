@@ -10,6 +10,7 @@ describe('/api/trabajos', () => {
   let admin: string
   let recepcion: string
   let tecnico: string
+  let tecnicoId: string
   let mensajero: string
   let clinicId: string
   let doctorId: string
@@ -42,7 +43,7 @@ describe('/api/trabajos', () => {
       name: 'Recepción',
       role: 'recepcion',
     })
-    await createUser(ctx.auth, ctx.db, {
+    tecnicoId = await createUser(ctx.auth, ctx.db, {
       email: 'tec@t.local',
       password: 'Tecnico123!',
       name: 'Ana Técnico',
@@ -538,6 +539,145 @@ describe('/api/trabajos', () => {
         req('', 'POST', { accion: 'pausar' }),
       )
       expect(res.status).toBe(403)
+    })
+  })
+
+  describe('PUT /api/trabajos/:id/fase', () => {
+    let stage2: string
+
+    // Dos fases con `sort` distintos, sembradas una sola vez (mismo ruling que en
+    // `describe('POST /api/trabajos/:id/acciones', ...)`  arriba): con una fase no se puede
+    // probar el avance, y `stages` no tiene unicidad por `name`, así que hay que sembrarlas
+    // en un único `beforeEach` para que `firstStage`/`nextStage` elijan de forma determinista.
+    beforeEach(async () => {
+      await ctx.db.insert(ctx.schema.stages).values({ name: 'Diseño', sort: 0 })
+      const [s2] = await ctx.db
+        .insert(ctx.schema.stages)
+        .values({ name: 'Cerámica', sort: 1 })
+        .returning()
+      stage2 = s2!.id
+    })
+
+    async function crearTrabajoEnProceso() {
+      const id = await createOne(recepcion, {
+        dueDate: '2026-12-01',
+        prescription: 'Corona completa disilicato',
+      })
+      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'aceptar' }))
+      return { id }
+    }
+
+    it('avanza la fase (200) y deja el evento stage_changed', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      const res = await app.request(
+        `/api/trabajos/${id}/fase`,
+        req(admin, 'PUT', { direccion: 'avanzar' }),
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { case: { id: string; currentStageId: string } }
+      expect(body.case.currentStageId).toBe(stage2)
+
+      const eventos = (await (
+        await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string }[] }
+      expect(eventos.events.some((e) => e.type === 'stage_changed')).toBe(true)
+    })
+
+    it('responde 409 al avanzar desde la última fase activa', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      await app.request(`/api/trabajos/${id}/fase`, req(admin, 'PUT', { direccion: 'avanzar' }))
+      const res = await app.request(
+        `/api/trabajos/${id}/fase`,
+        req(admin, 'PUT', { direccion: 'avanzar' }),
+      )
+      expect(res.status).toBe(409)
+    })
+
+    it('responde 409 en un trabajo en espera', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'pausar', motivo: 'Falta antagonista' }),
+      )
+      const res = await app.request(
+        `/api/trabajos/${id}/fase`,
+        req(admin, 'PUT', { direccion: 'avanzar' }),
+      )
+      expect(res.status).toBe(409)
+    })
+
+    it('el técnico puede cambiar de fase (200)', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      const res = await app.request(
+        `/api/trabajos/${id}/fase`,
+        req(tecnico, 'PUT', { direccion: 'avanzar' }),
+      )
+      expect(res.status).toBe(200)
+    })
+
+    it('responde 403 sin sesión y con rol mensajero', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      expect(
+        (await app.request(`/api/trabajos/${id}/fase`, req('', 'PUT', { direccion: 'avanzar' })))
+          .status,
+      ).toBe(403)
+      expect(
+        (
+          await app.request(
+            `/api/trabajos/${id}/fase`,
+            req(mensajero, 'PUT', { direccion: 'avanzar' }),
+          )
+        ).status,
+      ).toBe(403)
+    })
+  })
+
+  describe('PUT /api/trabajos/:id/tecnico', () => {
+    it('asigna un técnico activo (200) y deja el evento assigned', async () => {
+      const id = await createOne(recepcion)
+      const res = await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId }))
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        case: { id: string; assignedTechnicianId: string | null }
+      }
+      expect(body.case.assignedTechnicianId).toBe(tecnicoId)
+
+      const eventos = (await (
+        await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string }[] }
+      expect(eventos.events.some((e) => e.type === 'assigned')).toBe(true)
+    })
+
+    it('responde 422 si el técnico no existe o no está activo', async () => {
+      const id = await createOne(recepcion)
+      const res = await app.request(
+        `/api/trabajos/${id}/tecnico`,
+        req(admin, 'PUT', { tecnicoId: randomUUID() }),
+      )
+      expect(res.status).toBe(422)
+    })
+
+    it('acepta desasignar con tecnicoId: null', async () => {
+      const id = await createOne(recepcion)
+      await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId }))
+      const res = await app.request(
+        `/api/trabajos/${id}/tecnico`,
+        req(admin, 'PUT', { tecnicoId: null }),
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { case: { assignedTechnicianId: string | null } }
+      expect(body.case.assignedTechnicianId).toBeNull()
+    })
+
+    it('responde 403 sin sesión y con rol técnico', async () => {
+      const id = await createOne(recepcion)
+      expect(
+        (await app.request(`/api/trabajos/${id}/tecnico`, req('', 'PUT', { tecnicoId }))).status,
+      ).toBe(403)
+      expect(
+        (await app.request(`/api/trabajos/${id}/tecnico`, req(tecnico, 'PUT', { tecnicoId })))
+          .status,
+      ).toBe(403)
     })
   })
 })

@@ -4,11 +4,15 @@ import {
   canPerform,
   firstStage,
   missingForAccept,
+  nextStage,
+  previousStage,
   toIsoDate,
+  type AssignTechnicianInput,
   type CaseActionInput,
   type CaseEventType,
   type CaseInput,
   type CaseListQuery,
+  type StageChangeInput,
   type UserRole,
 } from '@dentalware/shared'
 import type { Clock } from '../../lib/clock.ts'
@@ -22,6 +26,7 @@ import type {
   CaseTransitionPatch,
   StagesQuery,
   UnitOfWork,
+  UsersQuery,
 } from './ports.ts'
 
 const hidesPrices = (role: UserRole) => role === 'tecnico' || role === 'mensajero'
@@ -81,10 +86,16 @@ const EVENT_TYPE_FOR_ACTION: Record<CaseActionInput['accion'], CaseEventType> = 
   cancelar: 'cancelled',
 }
 
+/** Estados en los que un trabajo tiene su fase en pausa: en espera de algo externo (`en_espera`)
+ * o fuera del taller en una prueba en boca (`en_prueba`). CIC-5: no se avanza ni se retrocede
+ * de fase mientras el trabajo está en uno de estos dos. */
+const STAGE_LOCKED_STATUSES = ['en_espera', 'en_prueba'] as const
+
 export function createCasesService(deps: {
   cases: CasesRepository
   attachments: AttachmentsQuery
   stages: StagesQuery
+  users: UsersQuery
   uow: UnitOfWork
   clock: Clock
 }) {
@@ -194,6 +205,81 @@ export function createCasesService(deps: {
           fromValue: found.status,
           toValue: result.status,
           reason: input.motivo,
+          actorId: ctx.userId,
+        })
+      })
+      const updated = await mustGet(id)
+      return hidesPrices(ctx.role) ? stripPrices(updated) : updated
+    },
+    /**
+     * Cambia la fase de producción del trabajo (CIC-2/CIC-5), sin tocar su estado: avanza o
+     * retrocede una posición entre las fases activas (`shared/stages.ts`). Un trabajo en espera
+     * o en prueba en boca no cambia de fase, y avanzar desde la última fase activa no hace
+     * nada: el cliente debe usar la acción "finalizar". Retroceder exige motivo (el schema ya
+     * lo garantiza) y queda en el evento `stage_changed`. Todo corre dentro de `uow.run`
+     * (ADR 19): el trabajo, la fase y su evento son atómicos.
+     */
+    async changeStage(id: string, input: StageChangeInput, ctx: RequestContext) {
+      await deps.uow.run(async ({ cases }) => {
+        const found = await cases.byId(id)
+        if (!found) throw new CaseNotFoundError()
+        if ((STAGE_LOCKED_STATUSES as readonly string[]).includes(found.status)) {
+          throw new CaseStateError(
+            `No se puede cambiar de fase un trabajo en estado "${found.status}"`,
+          )
+        }
+        const activeStages = await deps.stages.active()
+        const target =
+          input.direccion === 'avanzar'
+            ? nextStage(activeStages, found.currentStageId)
+            : previousStage(activeStages, found.currentStageId)
+        if (!target) {
+          throw new CaseStateError(
+            input.direccion === 'avanzar'
+              ? 'El trabajo ya está en la última fase: usa "finalizar" para terminarlo'
+              : 'El trabajo ya está en la primera fase',
+          )
+        }
+        await cases.applyTransition(id, { status: found.status, currentStageId: target.id })
+        await cases.addEvent({
+          caseId: id,
+          type: 'stage_changed',
+          fromValue: found.currentStageId,
+          toValue: target.id,
+          reason: input.motivo,
+          actorId: ctx.userId,
+        })
+      })
+      const updated = await mustGet(id)
+      return hidesPrices(ctx.role) ? stripPrices(updated) : updated
+    },
+    /**
+     * Asigna o quita (con `tecnicoId: null`) el técnico responsable del trabajo (CIC-2). Solo
+     * admin y recepción pueden asignar (defensa en profundidad: la ruta ya filtra por rol, ver
+     * `canWrite` en `routes.ts`, pero un test de servicio con fakes no pasa por la ruta). El
+     * técnico debe estar activo (`UsersQuery.activeTechnicians`, puerto de la feature `users`);
+     * si no, `CaseInputError`. Deja el evento `assigned` con el técnico anterior y el nuevo.
+     */
+    async assignTechnician(id: string, input: AssignTechnicianInput, ctx: RequestContext) {
+      await deps.uow.run(async ({ cases }) => {
+        if (ctx.role !== 'admin' && ctx.role !== 'recepcion') throw new CaseForbiddenError()
+        const found = await cases.byId(id)
+        if (!found) throw new CaseNotFoundError()
+        if (input.tecnicoId) {
+          const technicians = await deps.users.activeTechnicians()
+          if (!technicians.some((t) => t.id === input.tecnicoId)) {
+            throw new CaseInputError('El técnico no existe o no está activo', 'tecnicoId')
+          }
+        }
+        await cases.applyTransition(id, {
+          status: found.status,
+          assignedTechnicianId: input.tecnicoId,
+        })
+        await cases.addEvent({
+          caseId: id,
+          type: 'assigned',
+          fromValue: found.assignedTechnicianId,
+          toValue: input.tecnicoId,
           actorId: ctx.userId,
         })
       })

@@ -10,6 +10,7 @@ import type {
   TryinRow,
   TryinsRepository,
   UnitOfWork,
+  UsersQuery,
 } from './ports.ts'
 
 /** Turnaround por defecto que usan las fixtures (mismo default que `products.turnaroundDays`
@@ -241,6 +242,12 @@ export function fakeTryins(seed: TryinRow[] = []): TryinsRepository {
 const DEFAULT_STAGES: StageRef[] = [{ id: 'f1', sort: 1, active: true }]
 export const fakeStagesQuery = (stages: StageRef[] = DEFAULT_STAGES): StagesQuery => ({
   active: async () => stages,
+})
+
+/** Técnicos activos en memoria, para `assignTechnician`. Vacío por defecto: los llamadores
+ * que no prueban esa ruta no necesitan declarar ningún técnico. */
+export const fakeUsersQuery = (technicians: { id: string }[] = []): UsersQuery => ({
+  activeTechnicians: async () => technicians,
 })
 
 // `tryins` por defecto para llamadores que no lo necesitan (p. ej. `import.service.test.ts`,

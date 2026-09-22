@@ -7,6 +7,7 @@ import {
   fakeStagesQuery,
   fakeTryins,
   fakeUow,
+  fakeUsersQuery,
   fixedClock,
 } from './fakes.ts'
 import type { CaseDetail } from './ports.ts'
@@ -27,6 +28,7 @@ function build(seed = [caseDetailFixture()], hasDocument = false) {
     cases: repo,
     attachments: { hasDocument: async () => hasDocument },
     stages: fakeStagesQuery(),
+    users: fakeUsersQuery(),
     uow: fakeUow(repo, fakeTryins()),
     clock: fixedClock(),
   })
@@ -48,8 +50,38 @@ function servicioCon(
     cases: repo,
     attachments: { hasDocument: async () => overrides.hasDocument ?? true },
     stages: fakeStagesQuery(),
+    users: fakeUsersQuery(),
     uow: fakeUow(repo, tryins),
     clock: fixedClock('2026-09-18'),
+  })
+}
+
+/** Servicio listo para probar `changeStage(...)`: fases activas `stageIds` (en ese orden,
+ * `sort` correlativo) y un trabajo `1` con los overrides dados. */
+function servicioConFases(stageIds: string[], overrides: Partial<CaseDetail>) {
+  const { repo } = fakeCasesRepo([caseDetailFixture({ id: '1', ...overrides })])
+  const stages = stageIds.map((id, sort) => ({ id, sort, active: true }))
+  return createCasesService({
+    cases: repo,
+    attachments: { hasDocument: async () => true },
+    stages: fakeStagesQuery(stages),
+    users: fakeUsersQuery(),
+    uow: fakeUow(repo, fakeTryins()),
+    clock: fixedClock(),
+  })
+}
+
+/** Servicio listo para probar `assignTechnician(...)`: técnicos activos `technicians` y un
+ * trabajo `1` con los overrides dados. */
+function servicioConTecnicos(technicians: { id: string }[], overrides: Partial<CaseDetail>) {
+  const { repo } = fakeCasesRepo([caseDetailFixture({ id: '1', ...overrides })])
+  return createCasesService({
+    cases: repo,
+    attachments: { hasDocument: async () => true },
+    stages: fakeStagesQuery(),
+    users: fakeUsersQuery(technicians),
+    uow: fakeUow(repo, fakeTryins()),
+    clock: fixedClock(),
   })
 }
 
@@ -283,5 +315,108 @@ describe('acciones de estado', () => {
     expect(eventos[3]).toMatchObject({ fromValue: 'en_proceso', toValue: 'terminado' })
     expect(eventos[4]).toMatchObject({ fromValue: 'terminado', toValue: 'enviado' })
     expect(eventos[5]).toMatchObject({ fromValue: 'enviado', toValue: 'entregado' })
+  })
+})
+
+describe('cambio de fase', () => {
+  it('avanza a la siguiente fase activa y deja el evento con la fase anterior y la nueva', async () => {
+    const service = servicioConFases(['f1', 'f2'], { status: 'en_proceso', currentStageId: 'f1' })
+    await service.changeStage('1', { direccion: 'avanzar', motivo: null }, admin)
+    expect((await service.detail('1', admin)).case.currentStageId).toBe('f2')
+    // Desviación del snippet del brief (fromStageId/toStageId): `case_events` solo tiene las
+    // columnas genéricas `from_value`/`to_value` (ya usadas por `status_changed`/`price_changed`);
+    // esta tarea no trae migración nueva (schema.ts no está en su lista de archivos).
+    expect((await service.events('1', admin)).at(-1)).toMatchObject({
+      type: 'stage_changed',
+      fromValue: 'f1',
+      toValue: 'f2',
+    })
+  })
+
+  it('no avanza desde la última fase: hay que finalizar', async () => {
+    const service = servicioConFases(['f1'], { status: 'en_proceso', currentStageId: 'f1' })
+    await expect(
+      service.changeStage('1', { direccion: 'avanzar', motivo: null }, admin),
+    ).rejects.toThrow(CaseStateError)
+  })
+
+  it('un trabajo en espera o en prueba no cambia de fase', async () => {
+    for (const status of ['en_espera', 'en_prueba'] as const) {
+      const service = servicioConFases(['f1', 'f2'], { status, currentStageId: 'f1' })
+      await expect(
+        service.changeStage('1', { direccion: 'avanzar', motivo: null }, admin),
+      ).rejects.toThrow(CaseStateError)
+    }
+  })
+
+  it('el técnico asignado puede avanzar la fase', async () => {
+    const service = servicioConFases(['f1', 'f2'], { status: 'en_proceso', currentStageId: 'f1' })
+    await expect(
+      service.changeStage('1', { direccion: 'avanzar', motivo: null }, tecnico),
+    ).resolves.toBeDefined()
+  })
+
+  it('retrocede a la fase anterior y guarda el motivo en el evento', async () => {
+    const service = servicioConFases(['f1', 'f2'], { status: 'en_proceso', currentStageId: 'f2' })
+    await service.changeStage('1', { direccion: 'retroceder', motivo: 'Se rompió' }, admin)
+    expect((await service.detail('1', admin)).case.currentStageId).toBe('f1')
+    expect((await service.events('1', admin)).at(-1)).toMatchObject({
+      type: 'stage_changed',
+      fromValue: 'f2',
+      toValue: 'f1',
+      reason: 'Se rompió',
+    })
+  })
+
+  it('no retrocede desde la primera fase', async () => {
+    const service = servicioConFases(['f1', 'f2'], { status: 'en_proceso', currentStageId: 'f1' })
+    await expect(
+      service.changeStage('1', { direccion: 'retroceder', motivo: 'Se rompió' }, admin),
+    ).rejects.toThrow(CaseStateError)
+  })
+
+  it('un trabajo inexistente lanza CaseNotFoundError', async () => {
+    const service = servicioConFases(['f1', 'f2'], { status: 'en_proceso', currentStageId: 'f1' })
+    await expect(
+      service.changeStage('nope', { direccion: 'avanzar', motivo: null }, admin),
+    ).rejects.toBeInstanceOf(CaseNotFoundError)
+  })
+})
+
+describe('técnico responsable', () => {
+  it('asigna un técnico activo y deja el evento con antes y después', async () => {
+    const service = servicioConTecnicos([{ id: 't1' }, { id: 't2' }], {
+      assignedTechnicianId: 't1',
+    })
+    await service.assignTechnician('1', { tecnicoId: 't2' }, admin)
+    expect((await service.detail('1', admin)).case.assignedTechnicianId).toBe('t2')
+    expect((await service.events('1', admin)).at(-1)).toMatchObject({ type: 'assigned' })
+  })
+
+  it('rechaza un usuario que no es técnico activo', async () => {
+    const service = servicioConTecnicos([{ id: 't1' }], {})
+    await expect(service.assignTechnician('1', { tecnicoId: 'otro' }, admin)).rejects.toThrow(
+      CaseInputError,
+    )
+  })
+
+  it('acepta desasignar con null', async () => {
+    const service = servicioConTecnicos([{ id: 't1' }], { assignedTechnicianId: 't1' })
+    await service.assignTechnician('1', { tecnicoId: null }, admin)
+    expect((await service.detail('1', admin)).case.assignedTechnicianId).toBeNull()
+  })
+
+  it('un técnico no puede asignar', async () => {
+    const service = servicioConTecnicos([{ id: 't1' }], {})
+    await expect(service.assignTechnician('1', { tecnicoId: 't1' }, tecnico)).rejects.toThrow(
+      CaseForbiddenError,
+    )
+  })
+
+  it('un trabajo inexistente lanza CaseNotFoundError', async () => {
+    const service = servicioConTecnicos([{ id: 't1' }], {})
+    await expect(
+      service.assignTechnician('nope', { tecnicoId: 't1' }, admin),
+    ).rejects.toBeInstanceOf(CaseNotFoundError)
   })
 })

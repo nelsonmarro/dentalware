@@ -16,7 +16,13 @@ import { doctors } from '../doctors/schema.ts'
 import { clinicProductPrices, products } from '../products/schema.ts'
 import { stages } from '../stages/schema.ts'
 import { CaseInputError, CaseStateError } from './errors.ts'
-import type { CasesRepository, NewCaseEvent, TryinsRepository, UnitOfWork } from './ports.ts'
+import type {
+  CasesRepository,
+  NewCaseEvent,
+  TryinsRepository,
+  UnitOfWork,
+  UsersQuery,
+} from './ports.ts'
 import { caseEvents, caseItems, caseTryins, cases, caseSequences } from './schema.ts'
 
 async function nextCaseCode(db: Db | Tx, year: number): Promise<string> {
@@ -325,6 +331,19 @@ export function createTryinsRepo(db: Db | Tx): TryinsRepository {
     },
     async close(id, returnedAt) {
       await db.update(caseTryins).set({ returnedAt }).where(eq(caseTryins.id, id))
+    },
+  }
+}
+
+/** Puerto `UsersQuery` (ADR 24: lectura de solo lectura de la tabla `users` de otra feature,
+ * sin importar su `repo.ts`): técnicos activos, para validar `assignTechnician`. */
+export function createUsersQuery(db: Db | Tx): UsersQuery {
+  return {
+    async activeTechnicians() {
+      return db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.role, 'tecnico'), or(eq(users.banned, false), isNull(users.banned))))
     },
   }
 }

@@ -1,9 +1,11 @@
 import {
+  assignTechnicianSchema,
   caseActionSchema,
   caseInputSchema,
   caseListQuerySchema,
   commentSchema,
   idParamSchema,
+  stageChangeSchema,
 } from '@dentalware/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
@@ -24,6 +26,10 @@ const canWrite = requireRole('admin', 'recepcion')
 // `json`, igual que las demás rutas de escritura, en vez de dejar que un anónimo reciba
 // issues de validación como si la ruta le perteneciera.
 const canAct = requireRole('admin', 'recepcion', 'tecnico', 'mensajero')
+
+// Cambiar de fase lo hace el técnico además de admin y recepción (Tarea 6); asignar técnico
+// responsable, en cambio, es de admin/recepción como cualquier otra escritura (`canWrite`).
+const canChangeStage = requireRole('admin', 'recepcion', 'tecnico')
 
 /** Traduce los errores de dominio del servicio a la respuesta HTTP que espera la web. */
 function toHttp(e: unknown): never {
@@ -122,6 +128,50 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
             ctxFrom(c),
           )
           return c.json({ case: updated }, 200)
+        } catch (e) {
+          if (e instanceof CaseInputError)
+            return c.json(
+              { message: 'Datos inválidos', issues: [{ path: e.path, message: e.message }] },
+              422,
+            )
+          toHttp(e)
+        }
+      },
+    )
+    .put(
+      '/:id/fase',
+      canChangeStage,
+      validate('param', idParamSchema),
+      validate('json', stageChangeSchema),
+      async (c) => {
+        try {
+          const updated = await service.changeStage(
+            c.req.valid('param').id,
+            c.req.valid('json'),
+            ctxFrom(c),
+          )
+          return c.json({ case: { id: updated.id, currentStageId: updated.currentStageId } }, 200)
+        } catch (e) {
+          toHttp(e)
+        }
+      },
+    )
+    .put(
+      '/:id/tecnico',
+      canWrite,
+      validate('param', idParamSchema),
+      validate('json', assignTechnicianSchema),
+      async (c) => {
+        try {
+          const updated = await service.assignTechnician(
+            c.req.valid('param').id,
+            c.req.valid('json'),
+            ctxFrom(c),
+          )
+          return c.json(
+            { case: { id: updated.id, assignedTechnicianId: updated.assignedTechnicianId } },
+            200,
+          )
         } catch (e) {
           if (e instanceof CaseInputError)
             return c.json(
