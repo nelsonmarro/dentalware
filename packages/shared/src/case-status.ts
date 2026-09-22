@@ -81,3 +81,15 @@ export const EDITABLE_CASE_STATUSES = [
 export function isEditableStatus(status: CaseStatus): boolean {
   return (EDITABLE_CASE_STATUSES as readonly CaseStatus[]).includes(status)
 }
+
+/** Estados desde los que se puede repetir un trabajo (CIC-4): cualquier punto en el que ya se
+ * vio o se entregó el resultado y se decidió que no sirve. */
+export const REMAKEABLE_STATUSES = [
+  'terminado',
+  'enviado',
+  'entregado',
+] as const satisfies readonly CaseStatus[]
+
+export function canRemake(status: CaseStatus): boolean {
+  return (REMAKEABLE_STATUSES as readonly CaseStatus[]).includes(status)
+}

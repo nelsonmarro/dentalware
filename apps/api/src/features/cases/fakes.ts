@@ -1,5 +1,12 @@
-import { caseInputSchema, isEditableStatus } from '@dentalware/shared'
-import type { CaseInput, CaseStatus, StageRef } from '@dentalware/shared'
+import {
+  caseInputSchema,
+  canRemake,
+  fromCents,
+  isEditableStatus,
+  sumCents,
+  toCents,
+} from '@dentalware/shared'
+import type { CaseInput, StageRef } from '@dentalware/shared'
 import { CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type {
   CaseDetail,
@@ -12,10 +19,6 @@ import type {
   UnitOfWork,
   UsersQuery,
 } from './ports.ts'
-
-/** Mismos estados que `REMAKEABLE_STATUSES` en `repo.ts` (CIC-4): duplicado a propósito, el
- * fake no importa el repo real. */
-const REMAKEABLE_STATUSES: readonly CaseStatus[] = ['terminado', 'enviado', 'entregado']
 
 /** Turnaround por defecto que usan las fixtures (mismo default que `products.turnaroundDays`
  * en el schema): las pruebas de `action('aceptar')` no necesitan variarlo por caso. */
@@ -222,12 +225,22 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
     async createRemake(parentId, input, actorId) {
       const parent = rows.get(parentId)
       if (!parent) throw new CaseNotFoundError()
-      if (!REMAKEABLE_STATUSES.includes(parent.status)) {
+      if (!canRemake(parent.status)) {
         throw new CaseStateError(`No se puede repetir un trabajo en estado "${parent.status}"`)
       }
       seq += 1
       const id = `c${seq}`
       const code = `26-0000${seq}`
+      const items = parent.items.map((i, sort) => ({
+        ...i,
+        id: `${id}-i${sort}`,
+        caseId: id,
+        sort,
+      }))
+      // I-3 (ronda de fixes 1): mismo criterio que `repo.ts` — solo se copia la fecha deseada
+      // del padre si todavía no pasó; si ya venció, se deja en null para que `missingForAccept`
+      // la reclame y no meta al hijo en "atrasados" desde que nace.
+      const dueDate = parent.dueDate && parent.dueDate >= input.receivedAt ? parent.dueDate : null
       rows.set(
         id,
         caseDetailFixture({
@@ -244,7 +257,7 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
           currentStageId: null,
           assignedTechnicianId: null,
           receivedAt: input.receivedAt,
-          dueDate: parent.dueDate,
+          dueDate,
           promisedDate: null,
           finishedAt: null,
           shippedAt: null,
@@ -262,13 +275,16 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
           remakeReason: input.motivo,
           remakeResponsibility: input.responsabilidad,
           remakeChargePct: input.cobroPct.toFixed(2),
-          total: parent.total,
+          // M-5 (ronda de fixes 1): recalculado de las líneas copiadas, igual que `totalOf` en
+          // `repo.ts` — no una segunda copia manual de `parent.total` (que además ya no
+          // coincidiría si algún día el hijo pudiera copiar un subconjunto de líneas).
+          total: fromCents(sumCents(items.map((i) => toCents(i.lineTotal)))),
           createdBy: actorId,
           clinic: parent.clinic,
           doctor: parent.doctor,
           technician: null,
           stage: null,
-          items: parent.items.map((i, sort) => ({ ...i, id: `${id}-i${sort}`, caseId: id, sort })),
+          items,
         }),
       )
       await repo.addEvent({

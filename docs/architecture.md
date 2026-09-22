@@ -278,6 +278,8 @@ Criterio de aceptación de cada migración: la feature migrada compila, sus test
 
 Configuración: `lab_settings`, `users` (+ tablas de Better Auth), `clinics`, `doctors`, `product_categories`, `products`, `clinic_product_prices`, `stages`. Operación: `cases`, `case_items`, `case_events`, `attachments`, `case_sequences` (código anual); previstas: `case_tryins`, `deliveries`, `account_adjustments`, `payments`, `invoice_refs`. Saldo de clínica = Σ trabajos entregados + Σ ajustes − Σ pagos (calculado, no almacenado). Detalle en la spec §4. Las tablas son un detalle de persistencia: solo las importa el `repo.ts` de su feature.
 
+`cases.remake_charge_pct` (repetición, CIC-4, Tarea 7) es un **modificador diferido**, no aplicado en `cases.total`: el hijo de una repetición guarda el 100 % del precio de sus líneas en `total` (el costo real del trabajo) y por separado el porcentaje que se le cobra a la clínica. Quien calcule el saldo de clínica (Iteración 5) debe leer `remake_charge_pct` y aplicarlo sobre el `total` de cada trabajo hijo al sumarlo a la cuenta — si se suma `total` sin más, se le cobra a la clínica una repetición que el laboratorio decidió no cobrar (o cobrar parcialmente).
+
 ## 5. Seguridad y privacidad
 
 - Autorización en cada ruta (403 uniforme) y **reglas de visibilidad en el servicio**: precios y notas internas ocultos a técnico/mensajero antes de salir del hexágono, no en la UI. Validación zod en la frontera, límites de tamaño y MIME real en subidas, archivos servidos solo con sesión y nombrados por UUID, cookies HttpOnly/SameSite, rate limit en login, audit trail en `case_events`.

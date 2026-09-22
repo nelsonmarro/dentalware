@@ -91,14 +91,36 @@ export interface CasesRepository {
   turnaroundFor(caseId: string): Promise<number>
   /**
    * Crea el trabajo hijo de una repetición (CIC-4): copia clínica, doctor, paciente, prioridad,
-   * fecha deseada, color, referencia, observaciones, prescripción y notas internas del padre;
-   * copia sus líneas y el odontograma (`case_items`, con las piezas FDI que ya llevan); fija
-   * `parentCaseId` al padre (encadenable: repetir una repetición apunta al padre inmediato, no
-   * al ancestro original), el motivo, la responsabilidad y el porcentaje de cobro del `input`.
-   * El hijo nace en `nuevo`, sin fase ni técnico asignado (la responsabilidad de la repetición
-   * puede no ser la misma persona) y con el checklist sin verificar (es una producción nueva).
-   * Dos eventos `remake_created`, uno en cada ficha. Lanza `CaseNotFoundError` si el padre no
-   * existe; `CaseStateError` si su estado no es `terminado`, `enviado` ni `entregado`.
+   * color, referencia, observaciones, prescripción y notas internas del padre; copia sus líneas
+   * y el odontograma (`case_items`, con las piezas FDI que ya llevan); fija `parentCaseId` al
+   * padre (encadenable: repetir una repetición apunta al padre inmediato, no al ancestro
+   * original), el motivo, la responsabilidad y el porcentaje de cobro del `input`. El hijo nace
+   * en `nuevo`, sin fase ni técnico asignado (la responsabilidad de la repetición puede no ser
+   * la misma persona) y con el checklist sin verificar (es una producción nueva). Dos eventos
+   * `remake_created`, uno en cada ficha. Lanza `CaseNotFoundError` si el padre no existe;
+   * `CaseStateError` si su estado no es `terminado`, `enviado` ni `entregado`.
+   *
+   * **`dueDate`** (ronda de fixes 1, I-3): solo se copia si todavía no pasó respecto a
+   * `input.receivedAt` (la fecha de recepción del hijo, "hoy"); si ya venció —el disparador
+   * típico de una repetición es que el trabajo salió mal *después* de la fecha comprometida—
+   * queda en `null`, así el hijo no nace en la vista "atrasados" y `missingForAccept` exige una
+   * fecha nueva al aceptar, que es la pregunta que corresponde en ese momento.
+   *
+   * **`prescription`/adjuntos** (ronda de fixes 1, I-2): solo se copia el texto de
+   * `prescription`; los adjuntos (fotos, documentos, incluida una receta escaneada) del padre
+   * **no** se copian ni se referencian desde el hijo — son evidencia de esa producción
+   * específica, y duplicar el archivo en disco (o hacer que dos trabajos referencien el mismo)
+   * es un cambio del modelo de `attachments`, fuera del alcance de esta feature. Si el padre se
+   * aceptó con `prescription: null` y la orden solo como documento adjunto (caso cotidiano:
+   * receta escaneada), el hijo nace sin prescripción de ningún tipo y `missingForAccept` la
+   * reclama (texto o documento) al intentar aceptarlo — quien repite debe escribir el texto o
+   * volver a subir el documento.
+   *
+   * **`remakeChargePct`** (ronda de fixes 1, I-4): se guarda como dato informativo; `total` del
+   * hijo es el 100 % de las líneas copiadas (el precio del trabajo, no lo que se le cobra a la
+   * clínica). `remakeChargePct` es un **modificador diferido**: quien calcule el saldo de la
+   * clínica (`docs/architecture.md` §4) tiene que leerlo y aplicarlo aparte — esta capa no
+   * descuenta nada de `total` ni de ningún cálculo de cuenta corriente.
    */
   createRemake(
     parentId: string,

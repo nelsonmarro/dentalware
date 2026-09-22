@@ -1,6 +1,7 @@
-import type { CaseInput, CaseListQuery, CaseStatus } from '@dentalware/shared'
+import type { CaseInput, CaseListQuery } from '@dentalware/shared'
 import {
   CASE_PAGE_SIZE,
+  canRemake,
   formatCaseCode,
   fromCents,
   isEditableStatus,
@@ -115,10 +116,6 @@ async function addEventWith(db: Db | Tx, e: NewCaseEvent): Promise<void> {
     actorId: e.actorId,
   })
 }
-
-/** Estados desde los que se puede repetir un trabajo (CIC-4): cualquier punto en el que ya se
- * vio o se entregó el resultado y se decidió que no sirve. */
-const REMAKEABLE_STATUSES: readonly CaseStatus[] = ['terminado', 'enviado', 'entregado']
 
 const ACTIVE_FOR_DATES = ['nuevo', 'en_proceso', 'en_espera', 'en_prueba'] as const
 const effectiveDate = sql<string | null>`coalesce(${cases.promisedDate}, ${cases.dueDate})`
@@ -317,12 +314,15 @@ export function createCasesRepo(db: Db | Tx) {
     },
 
     async createRemake(parentId, input, actorId) {
-      // `FOR UPDATE` sobre el padre: mismo patrón que `update` para que dos repeticiones
-      // concurrentes del mismo trabajo no lean el mismo estado a la vez (aquí no importa,
-      // se puede repetir más de una vez, pero si el trabajo se cancela mientras tanto sí).
+      // `FOR UPDATE` sobre el padre: mismo patrón que `update`. Protege contra otra
+      // `createRemake` concurrente sobre el mismo padre (la segunda espera a que la primera
+      // libere la fila antes de leer el estado); no protege contra `action()`, que lee con
+      // `cases.byId(id)` sin `FOR UPDATE` — una acción concurrente puede seguir colándose
+      // entre esta lectura y el insert. El bloqueo sigue siendo necesario y correcto para lo
+      // que sí cubre; el comentario anterior prometía más de lo que da.
       const [parent] = await db.select().from(cases).where(eq(cases.id, parentId)).for('update')
       if (!parent) throw new CaseNotFoundError()
-      if (!REMAKEABLE_STATUSES.includes(parent.status)) {
+      if (!canRemake(parent.status)) {
         throw new CaseStateError(`No se puede repetir un trabajo en estado "${parent.status}"`)
       }
       const parentItems = await db
@@ -333,6 +333,13 @@ export function createCasesRepo(db: Db | Tx) {
 
       const year = Number(input.receivedAt.slice(0, 4))
       const code = await nextCaseCode(db, year)
+      // I-3 (ronda de fixes 1): copiar `dueDate` tal cual metería al hijo en "atrasados" desde
+      // que nace, justo cuando el disparador típico de una repetición es que el trabajo salió
+      // mal *después* de la fecha comprometida. Solo se copia si todavía no pasó (>= la fecha
+      // de recepción del hijo); si ya pasó, se deja en null: `missingForAccept` la reclamará
+      // como "Fecha deseada" y obliga a quien repite a decidir una nueva, que es justo la
+      // pregunta que corresponde en ese momento.
+      const dueDate = parent.dueDate && parent.dueDate >= input.receivedAt ? parent.dueDate : null
       const [row] = await db
         .insert(cases)
         .values({
@@ -346,7 +353,7 @@ export function createCasesRepo(db: Db | Tx) {
           patientSex: parent.patientSex,
           boxNumber: parent.boxNumber,
           priority: parent.priority,
-          dueDate: parent.dueDate,
+          dueDate,
           shade: parent.shade,
           shadeSystem: parent.shadeSystem,
           reference: parent.reference,

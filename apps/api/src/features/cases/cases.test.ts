@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
-import { createUser, loginAs, setupTestDb, truncateAll } from '../../test/setup.ts'
+import {
+  cleanupTestStorage,
+  createUser,
+  loginAs,
+  setupTestDb,
+  truncateAll,
+} from '../../test/setup.ts'
 
 describe('/api/trabajos', () => {
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
@@ -29,6 +35,7 @@ describe('/api/trabajos', () => {
   })
   afterAll(async () => {
     await ctx.pool.end()
+    await cleanupTestStorage(ctx)
   })
   beforeEach(async () => {
     await truncateAll(ctx.db)
@@ -891,6 +898,46 @@ describe('/api/trabajos', () => {
         (await app.request(`/api/trabajos/${id}/repetir`, req(tecnico, 'POST', remakeBody())))
           .status,
       ).toBe(403)
+    })
+
+    // I-2 (ronda de fixes 1): el hijo no copia adjuntos (solo el texto de `prescription`, ver
+    // el JSDoc de `CasesRepository.createRemake`). Si el padre se aceptó con prescripción solo
+    // como documento adjunto (caso cotidiano: receta escaneada), el hijo nace sin prescripción
+    // de ningún tipo. Este test deja constancia de qué ve la Tarea 8/9 en `missing` para que la
+    // UI pueda avisar, no solo lo documenta en el código.
+    it('si la prescripción del padre era solo un documento adjunto, el hijo la reclama en missing', async () => {
+      const id = await createOne(recepcion, {
+        dueDate: '2026-12-01',
+        items: [{ productId: zr, quantity: 1, teeth: [11, 12] }],
+        // Sin `prescription` de texto a propósito: el padre se acepta gracias al documento.
+      })
+      const pdf = Buffer.from('%PDF-1.4\n%¥±ë\n1 0 obj\n<< >>\nendobj\ntrailer\n<< >>\n%%EOF')
+      const form = new FormData()
+      form.set('file', new File([pdf], 'orden.pdf', { type: 'application/pdf' }))
+      form.set('kind', 'document')
+      const subida = await app.request(`/api/adjuntos/trabajo/${id}`, {
+        method: 'POST',
+        headers: { cookie: recepcion, origin: ctx.config.WEB_ORIGIN },
+        body: form,
+      })
+      expect(subida.status).toBe(201)
+
+      // El padre no reclama prescripción: el documento la cubre.
+      const fichaPadre = (await (
+        await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))
+      ).json()) as { missing: string[] }
+      expect(fichaPadre.missing).not.toContain('Prescripción (texto o documento)')
+
+      await avanzarAEntregado(id)
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      expect(res.status).toBe(201)
+      const { case: created } = (await res.json()) as { case: { id: string } }
+
+      const fichaHijo = (await (
+        await app.request(`/api/trabajos/${created.id}`, req(admin, 'GET'))
+      ).json()) as { case: { prescription: string | null }; missing: string[] }
+      expect(fichaHijo.case.prescription).toBeNull()
+      expect(fichaHijo.missing).toContain('Prescripción (texto o documento)')
     })
   })
 })

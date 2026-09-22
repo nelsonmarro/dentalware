@@ -1,0 +1,2 @@
+CREATE INDEX "cases_parent_idx" ON "cases" ("parent_case_id");--> statement-breakpoint
+ALTER TABLE "cases" ADD CONSTRAINT "cases_parent_case_id_cases_id_fkey" FOREIGN KEY ("parent_case_id") REFERENCES "cases"("id");

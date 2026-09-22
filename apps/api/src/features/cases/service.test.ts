@@ -11,7 +11,7 @@ import {
   fakeUsersQuery,
   fixedClock,
 } from './fakes.ts'
-import type { CaseDetail } from './ports.ts'
+import type { CaseDetail, UnitOfWork } from './ports.ts'
 import { createCasesService, stripPrices } from './service.ts'
 
 const admin = { userId: 'u1', role: 'admin' } as const
@@ -600,5 +600,71 @@ describe('repetición', () => {
   it('un mensajero no puede crear repeticiones', async () => {
     const service = servicioCon(completo({ id: '1', status: 'terminado' }))
     await expect(service.createRemake('1', remake, mensajero)).rejects.toThrow(CaseForbiddenError)
+  })
+
+  // I-3 (ronda de fixes 1): el disparador típico de una repetición es que el trabajo salió
+  // mal *después* de la fecha comprometida (se entrega el 15, la clínica lo rechaza el 18,
+  // recepción repite el 18): copiar `dueDate` tal cual metería al hijo en la vista
+  // "atrasados" desde el momento en que se crea. `servicioCon` fija el reloj en 2026-09-18.
+  it('no copia la fecha deseada del padre si ya pasó: el hijo no nace atrasado', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado', dueDate: '2026-09-16' }))
+    const hijo = await service.createRemake('1', remake, admin)
+    const ficha = await service.detail(hijo.id, admin)
+    expect(ficha.case.dueDate).toBeNull()
+  })
+
+  it('copia la fecha deseada del padre si todavía no ha pasado', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado', dueDate: '2026-09-20' }))
+    const hijo = await service.createRemake('1', remake, admin)
+    const ficha = await service.detail(hijo.id, admin)
+    expect(ficha.case.dueDate).toBe('2026-09-20')
+  })
+
+  it('copia la fecha deseada del padre si es exactamente hoy', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado', dueDate: '2026-09-18' }))
+    const hijo = await service.createRemake('1', remake, admin)
+    const ficha = await service.detail(hijo.id, admin)
+    expect(ficha.case.dueDate).toBe('2026-09-18')
+  })
+
+  // M-3 (ronda de fixes 1): el riesgo declarado de la tarea es que el hijo, sus líneas y los
+  // dos eventos se creen todo-o-nada dentro de `uow.run`. `UnitOfWork` de este `uow` hace lo
+  // mismo que `drizzleUnitOfWork` con una transacción real: si `fn` lanza, deshace lo que
+  // haya mutado antes de propagar el error — así, si algo falla *después* de que
+  // `cases.createRemake` ya escribió el hijo (aquí, un fallo forzado), la instantánea de
+  // `rows`/`events` demuestra que no queda rastro, igual que un `ROLLBACK` real.
+  it('si algo falla después de crear el hijo, no queda hijo huérfano ni eventos sueltos', async () => {
+    const { repo, rows, events } = fakeCasesRepo([completo({ id: '1', status: 'terminado' })])
+    const rowsAntes = rows.size
+    const eventsAntes = events.length
+    const uowQueFalla: UnitOfWork = {
+      async run(fn) {
+        const rowsSnapshot = new Map(rows)
+        const eventsSnapshot = [...events]
+        try {
+          await fn({ cases: repo, tryins: fakeTryins() })
+          throw new Error('fallo simulado después de crear el hijo')
+        } catch (e) {
+          rows.clear()
+          for (const [k, v] of rowsSnapshot) rows.set(k, v)
+          events.length = 0
+          events.push(...eventsSnapshot)
+          throw e
+        }
+      },
+    }
+    const service = createCasesService({
+      cases: repo,
+      attachments: { hasDocument: async () => true },
+      stages: fakeStagesQuery(),
+      users: fakeUsersQuery(),
+      uow: uowQueFalla,
+      clock: fixedClock('2026-09-18'),
+    })
+    await expect(service.createRemake('1', remake, admin)).rejects.toThrow(
+      'fallo simulado después de crear el hijo',
+    )
+    expect(rows.size).toBe(rowsAntes)
+    expect(events.length).toBe(eventsAntes)
   })
 })

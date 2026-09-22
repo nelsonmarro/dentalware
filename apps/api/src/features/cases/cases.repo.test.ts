@@ -222,6 +222,42 @@ describe('features/cases/repo', () => {
     ).toBe(0)
   })
 
+  // M-3 (ronda de fixes 1): el riesgo declarado de la Tarea 7 es que el hijo, sus líneas y
+  // los dos eventos `remake_created` se escriban todo-o-nada. Mismo patrón que la prueba de
+  // arriba (`drizzleUnitOfWork` + `uow.run` que falla a mitad de camino), pero forzando el
+  // fallo *después* de que `createRemake` ya insertó el hijo y sus eventos: si la transacción
+  // real no revirtiera, quedaría un trabajo huérfano y un evento en el padre sin su contraparte.
+  it('createRemake no deja hijo huérfano si algo falla después de crearlo (misma transacción)', async () => {
+    const repo = createCasesRepo(ctx.db)
+    const parentId = (await repo.create(input(), actor)).id
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'terminado' })
+      .where(eq(ctx.schema.cases.id, parentId))
+
+    const uow = drizzleUnitOfWork(ctx.db)
+    await expect(
+      uow.run(async ({ cases }) => {
+        await cases.createRemake(
+          parentId,
+          {
+            motivo: 'Fractura en cerámica',
+            responsabilidad: 'laboratorio',
+            cobroPct: 0,
+            receivedAt: '2026-09-06',
+          },
+          actor,
+        )
+        throw new Error('fallo simulado después de crear el hijo')
+      }),
+    ).rejects.toThrow('fallo simulado después de crear el hijo')
+
+    // Solo el padre existe: ningún hijo quedó a medio crear.
+    expect((await repo.list(caseListQuerySchema.parse({}), '2026-09-06')).total).toBe(1)
+    // El padre tampoco conserva el evento remake_created: la transacción lo deshizo entero.
+    expect((await repo.events(parentId)).map((e) => e.type)).toEqual(['created'])
+  })
+
   it('applyTransition actualiza los campos del patch sin tocar los que no vienen', async () => {
     const repo = createCasesRepo(ctx.db)
     const id = (await repo.create(input(), actor)).id

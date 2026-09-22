@@ -7,6 +7,7 @@ import {
   SHADE_SYSTEMS,
 } from '@dentalware/shared'
 import { sql } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import {
   date,
   index,
@@ -74,7 +75,11 @@ export const cases = pgTable(
     prescription: text(),
     internalNotes: text('internal_notes'),
     holdReason: text('hold_reason'),
-    parentCaseId: uuid('parent_case_id'),
+    // Autorreferencia (M-1, ronda de fixes 1): sin FK, un trabajo podía apuntar a un
+    // `parentCaseId` inexistente y nada lo impedía. `AnyPgColumn` en el tipo de retorno es lo
+    // que exige Drizzle para que TypeScript no intente resolver el tipo de `cases` en medio de
+    // su propia declaración (referencia circular).
+    parentCaseId: uuid('parent_case_id').references((): AnyPgColumn => cases.id),
     remakeReason: text('remake_reason'),
     remakeResponsibility: text('remake_responsibility'),
     remakeChargePct: numeric('remake_charge_pct', { precision: 5, scale: 2 }),
@@ -89,6 +94,7 @@ export const cases = pgTable(
     index('cases_status_idx').on(t.status),
     index('cases_clinic_idx').on(t.clinicId),
     index('cases_due_idx').on(t.promisedDate, t.dueDate),
+    index('cases_parent_idx').on(t.parentCaseId),
   ],
 )
 

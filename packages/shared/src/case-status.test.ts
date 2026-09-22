@@ -4,10 +4,12 @@ import {
   applyAction,
   availableActions,
   canPerform,
+  canRemake,
   CASE_ACTIONS,
   CASE_STATUSES,
   EDITABLE_CASE_STATUSES,
   isEditableStatus,
+  REMAKEABLE_STATUSES,
 } from './case-status.ts'
 
 describe('estados y acciones', () => {
@@ -49,6 +51,18 @@ describe('isEditableStatus', () => {
   it('responde true solo para nuevo y en_proceso', () => {
     for (const s of CASE_STATUSES) {
       expect(isEditableStatus(s)).toBe(s === 'nuevo' || s === 'en_proceso')
+    }
+  })
+})
+
+describe('canRemake', () => {
+  it('define terminado, enviado y entregado como los únicos estados desde los que se repite', () => {
+    expect(REMAKEABLE_STATUSES).toEqual(['terminado', 'enviado', 'entregado'])
+  })
+
+  it('responde true solo para terminado, enviado y entregado', () => {
+    for (const s of CASE_STATUSES) {
+      expect(canRemake(s)).toBe(s === 'terminado' || s === 'enviado' || s === 'entregado')
     }
   })
 })
