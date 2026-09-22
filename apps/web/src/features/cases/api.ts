@@ -1,4 +1,4 @@
-import type { CaseInput, CaseListQuery, ImportReport } from '@dentalware/shared'
+import type { CaseActionInput, CaseInput, CaseListQuery, ImportReport } from '@dentalware/shared'
 import { api } from '@/lib/api'
 import { throwIfNotOk } from '@/lib/api-error'
 
@@ -35,6 +35,16 @@ export async function createCase(input: CaseInput) {
 export async function updateCase(id: string, input: CaseInput) {
   return (
     await (await throwIfNotOk(await trabajos[':id'].$put({ param: { id }, json: input }))).json()
+  ).case
+}
+
+/** `POST /api/trabajos/:id/acciones` (Tarea 5): responde el detalle completo y ya
+ * enmascarado por rol del trabajo, igual que `fetchCase`, no `{ id, status }`. */
+export async function postCaseAction(id: string, input: CaseActionInput) {
+  return (
+    await (
+      await throwIfNotOk(await trabajos[':id'].acciones.$post({ param: { id }, json: input }))
+    ).json()
   ).case
 }
 

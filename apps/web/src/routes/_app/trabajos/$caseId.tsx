@@ -2,6 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { CaseActions } from '@/features/cases/case-actions'
 import { CaseDetailTab } from '@/features/cases/case-detail-tab'
 import { CaseHeader } from '@/features/cases/case-header'
 import { CaseHistory, historyTabLabel } from '@/features/cases/case-history'
@@ -41,6 +42,7 @@ function CasePage() {
   return (
     <div className="flex flex-col gap-6">
       <CaseHeader case={q.data.case} missing={q.data.missing} role={user.role} />
+      <CaseActions case={q.data.case} missing={q.data.missing} role={user.role} />
       <Tabs defaultValue="detalle">
         <TabsList>
           <TabsTrigger value="detalle">Detalle</TabsTrigger>

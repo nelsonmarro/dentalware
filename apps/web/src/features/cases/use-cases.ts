@@ -1,10 +1,18 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CaseInput } from '@dentalware/shared'
+import type { CaseActionInput, CaseInput } from '@dentalware/shared'
 import { toast } from 'sonner'
 import { toastApiError } from '@/lib/api-error'
 import { queryKeys } from '@/lib/query-keys'
 import type { CaseListQueryInput } from './api'
-import { createCase, fetchCase, fetchCases, fetchEvents, postComment, updateCase } from './api'
+import {
+  createCase,
+  fetchCase,
+  fetchCases,
+  fetchEvents,
+  postCaseAction,
+  postComment,
+  updateCase,
+} from './api'
 
 export function useCases(query: CaseListQueryInput) {
   return useQuery({
@@ -49,6 +57,21 @@ export function useUpdateCase() {
 
 export function useEvents(id: string) {
   return useQuery({ queryKey: queryKeys.caseEvents(id), queryFn: () => fetchEvents(id) })
+}
+
+/** `POST /api/trabajos/:id/acciones`: invalida la lista, el detalle y los eventos del
+ * trabajo (cada acción escribe su `case_event`) — las tres bajo el mismo prefijo
+ * `['trabajos']` que ya usa `useInvalidateCases`. */
+export function useCaseAction(id: string) {
+  const invalidate = useInvalidateCases()
+  return useMutation({
+    mutationFn: (input: CaseActionInput) => postCaseAction(id, input),
+    onSuccess: () => {
+      void invalidate()
+      toast.success('Trabajo actualizado')
+    },
+    onError: toastApiError,
+  })
 }
 
 export function useAddComment(id: string) {
