@@ -627,13 +627,13 @@ describe('repetición', () => {
     expect(ficha.case.dueDate).toBe('2026-09-18')
   })
 
-  // M-3 (ronda de fixes 1): el riesgo declarado de la tarea es que el hijo, sus líneas y los
-  // dos eventos se creen todo-o-nada dentro de `uow.run`. `UnitOfWork` de este `uow` hace lo
-  // mismo que `drizzleUnitOfWork` con una transacción real: si `fn` lanza, deshace lo que
-  // haya mutado antes de propagar el error — así, si algo falla *después* de que
-  // `cases.createRemake` ya escribió el hijo (aquí, un fallo forzado), la instantánea de
-  // `rows`/`events` demuestra que no queda rastro, igual que un `ROLLBACK` real.
-  it('si algo falla después de crear el hijo, no queda hijo huérfano ni eventos sueltos', async () => {
+  // M-3 (ronda de fixes 1). Ojo con lo que este test cubre y lo que no: quien deshace aquí es
+  // el propio `uowQueFalla`, no Postgres, así que NO demuestra que la transacción revierta —
+  // eso lo prueba `cases.repo.test.ts` con `drizzleUnitOfWork` contra la BD real. Lo que sí
+  // demuestra, y es la mitad que le toca al servicio, es que `createRemake` hace **todas** sus
+  // escrituras dentro de `uow.run`: si se le escapara una (un evento suelto antes o después),
+  // la instantánea de `rows`/`events` no la cubriría y los dos `expect` finales caerían.
+  it('hace todas sus escrituras dentro de uow.run, así que el rollback no deja rastro', async () => {
     const { repo, rows, events } = fakeCasesRepo([completo({ id: '1', status: 'terminado' })])
     const rowsAntes = rows.size
     const eventsAntes = events.length
