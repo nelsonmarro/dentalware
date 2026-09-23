@@ -20,26 +20,29 @@ const ACTION_LABELS: Record<CaseAction, string> = {
   cancelar: 'Cancelar trabajo',
 }
 
-/** Acciones que piden confirmación (`ConfirmDialog`) antes de enviarse: el criterio es la
- * reversibilidad, no la frecuencia. Las tres llevan a un estado del que no hay transición
- * de vuelta (`case-status.ts`) y estampan una fecha que no se reconstruye después; las
- * demás se quedan a un clic porque "pausar"/"cancelar" siguen disponibles después. */
-const CONFIRM_ACTIONS = ['finalizar', 'marcar_enviado', 'marcar_entregado'] as const
-type ConfirmAction = (typeof CONFIRM_ACTIONS)[number]
-
-function isConfirmAction(a: CaseAction): a is ConfirmAction {
-  return (CONFIRM_ACTIONS as readonly CaseAction[]).includes(a)
-}
-
-/** Consecuencia concreta de cada acción de `CONFIRM_ACTIONS`, no un genérico "¿estás
- * seguro?": qué fecha queda registrada y por qué no se puede deshacer. */
-const CONFIRM_DESCRIPTIONS: Record<ConfirmAction, string> = {
+/** Qué confirma cada acción antes de enviarse, o `null` si se envía al primer clic. El
+ * criterio es la **reversibilidad, no la frecuencia**: las tres que llevan texto van a un
+ * estado del que `CASE_TRANSITIONS` no ofrece vuelta y estampan una fecha que no se
+ * reconstruye; las demás se quedan a un clic porque "pausar"/"cancelar" siguen disponibles.
+ *
+ * Es un `Record<CaseAction, …>` exhaustivo a propósito, no una lista de las que confirman:
+ * así una acción nueva en `shared` **no compila** hasta que alguien decide si es reversible.
+ * Con una lista se quedaría en un clic por omisión, que es justo el fallo que esto corrige.
+ * El texto dice la consecuencia concreta —qué fecha queda registrada y a dónde no se
+ * vuelve—, nunca un "¿estás seguro?". */
+const CONFIRM_DESCRIPTIONS: Record<CaseAction, string | null> = {
+  aceptar: null,
+  pausar: null,
+  reanudar: null,
+  enviar_prueba: null,
+  recibir_prueba: null,
   finalizar:
     'El trabajo pasará a "Terminado" con la fecha de hoy. No hay ninguna acción para devolverlo a "En proceso".',
   marcar_enviado:
     'Se registrará el envío con la fecha de hoy. No hay ninguna acción para devolverlo a "Terminado".',
   marcar_entregado:
     'Se registrará la entrega con la fecha de hoy y el trabajo quedará cerrado: no queda ninguna acción para deshacerlo.',
+  cancelar: null,
 }
 
 /** Barra de acciones de estado de la ficha del trabajo: los botones disponibles se
@@ -47,8 +50,8 @@ const CONFIRM_DESCRIPTIONS: Record<ConfirmAction, string> = {
  * deshabilita mientras `missing` no esté vacío (el aviso de qué falta lo pinta
  * `CaseHeader`, no este componente, para no duplicarlo); las acciones de
  * `ACTIONS_REQUIRING_REASON` (pausar, cancelar) abren un diálogo con motivo
- * obligatorio, las de `CONFIRM_ACTIONS` piden confirmación, y el resto se envía
- * directo al hacer clic. */
+ * obligatorio, las que tienen texto en `CONFIRM_DESCRIPTIONS` piden confirmación, y el
+ * resto se envía directo al hacer clic. */
 export function CaseActions({
   case: c,
   missing,
@@ -59,7 +62,7 @@ export function CaseActions({
   role: UserRole
 }) {
   const [dialogAction, setDialogAction] = useState<CaseAction | null>(null)
-  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
+  const [confirm, setConfirm] = useState<{ action: CaseAction; description: string } | null>(null)
   const action = useCaseAction(c.id)
 
   const actions = availableActions(c.status).filter((a) => canPerform(role, a))
@@ -71,8 +74,9 @@ export function CaseActions({
       setDialogAction(a)
       return
     }
-    if (isConfirmAction(a)) {
-      setConfirmAction(a)
+    const description = CONFIRM_DESCRIPTIONS[a]
+    if (description) {
+      setConfirm({ action: a, description })
       return
     }
     action.mutate({ accion: a, motivo: null })
@@ -108,20 +112,20 @@ export function CaseActions({
           }}
         />
       )}
-      {confirmAction && (
+      {confirm && (
         <ConfirmDialog
           open
           onOpenChange={(open) => {
-            if (!open) setConfirmAction(null)
+            if (!open) setConfirm(null)
           }}
-          title={ACTION_LABELS[confirmAction]}
-          description={CONFIRM_DESCRIPTIONS[confirmAction]}
-          confirmLabel={ACTION_LABELS[confirmAction]}
+          title={ACTION_LABELS[confirm.action]}
+          description={confirm.description}
+          confirmLabel={ACTION_LABELS[confirm.action]}
           pending={action.isPending}
           onConfirm={() => {
             action.mutate(
-              { accion: confirmAction, motivo: null },
-              { onSuccess: () => setConfirmAction(null) },
+              { accion: confirm.action, motivo: null },
+              { onSuccess: () => setConfirm(null) },
             )
           }}
         />
