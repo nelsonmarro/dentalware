@@ -66,6 +66,20 @@ describe('RemakeDialog', () => {
     expect(createRemake).not.toHaveBeenCalled()
   })
 
+  it('con el porcentaje vacío avisa en español y no crea la repetición', async () => {
+    // Antes, `z.coerce.number()` convertía el campo vacío en 0 y la repetición nacía como
+    // "no se le cobra nada a la clínica". Como `remakeChargePct` no se ve ni se edita en
+    // ninguna pantalla, el descuido solo se arreglaba tocando la BD y la Iteración 5 lo
+    // leería como decisión deliberada (I-4 de la revisión).
+    const { user } = renderWithProviders(<RemakeDialog case={caso({ status: 'entregado' })} />)
+    await user.click(await screen.findByRole('button', { name: 'Repetir' }))
+    await user.type(screen.getByLabelText('Motivo'), 'La cofia no asienta')
+    await user.clear(screen.getByLabelText('Porcentaje a cobrar a la clínica'))
+    await user.click(screen.getByRole('button', { name: 'Crear repetición' }))
+    expect(await screen.findByText('Escribe el porcentaje a cobrar')).toBeInTheDocument()
+    expect(createRemake).not.toHaveBeenCalled()
+  })
+
   it('crea la repetición con los datos del formulario', async () => {
     const created = caso({ id: 'c2', code: '26-00002', status: 'nuevo', parentCaseId: 'c1' })
     createRemake.mockResolvedValue(created)

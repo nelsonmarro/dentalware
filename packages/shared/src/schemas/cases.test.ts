@@ -186,4 +186,30 @@ describe('remakeSchema', () => {
       remakeSchema.safeParse({ motivo: 'x', responsabilidad: 'clinica', cobroPct: 101 }).success,
     ).toBe(false)
   })
+
+  it('rechaza el porcentaje vacío en vez de convertirlo en 0', () => {
+    // `z.coerce.number()` convierte '' y '   ' en 0 sin quejarse. Como no hay ninguna
+    // pantalla donde `remakeChargePct` se pueda ver ni corregir después, un campo que se
+    // quedó vacío por descuido nacía como "no se le cobra nada a la clínica" y solo se
+    // arreglaba tocando la BD (I-4 de la revisión de la Tarea 9).
+    for (const vacio of ['', '   ']) {
+      const r = remakeSchema.safeParse({
+        motivo: 'Fractura',
+        responsabilidad: 'laboratorio',
+        cobroPct: vacio,
+      })
+      expect(r.success).toBe(false)
+      expect(r.error?.issues[0]?.message).toBe('Escribe el porcentaje a cobrar')
+    }
+  })
+
+  it('da los mensajes de porcentaje en español', () => {
+    const conPct = (cobroPct: unknown) =>
+      remakeSchema.safeParse({ motivo: 'Fractura', responsabilidad: 'laboratorio', cobroPct }).error
+        ?.issues[0]?.message
+    expect(conPct('abc')).toBe('El porcentaje debe ser un número')
+    expect(conPct('150')).toBe('El porcentaje no puede ser mayor que 100')
+    expect(conPct('-1')).toBe('El porcentaje no puede ser menor que 0')
+    expect(conPct('50.5')).toBe('El porcentaje debe ser un número entero')
+  })
 })

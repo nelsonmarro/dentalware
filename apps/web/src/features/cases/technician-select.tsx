@@ -24,8 +24,13 @@ export function TechnicianSelect({ case: c, role }: { case: CaseDetail; role: Us
   if (!canControl) {
     return (
       <Field>
-        <FieldLabel>Técnico responsable</FieldLabel>
-        <p className="text-sm">{c.technician?.name ?? 'Sin asignar'}</p>
+        {/* `htmlFor` apunta al `<p>` con `id` (no hay control que etiquetar en la rama de
+         * solo lectura): sin esto, un lector de pantalla lee el nombre suelto, sin saber de
+         * qué es (M-7 de la revisión de la Tarea 9). */}
+        <FieldLabel htmlFor="tecnico-asignado">Técnico responsable</FieldLabel>
+        <p id="tecnico-asignado" className="text-sm">
+          {c.technician?.name ?? 'Sin asignar'}
+        </p>
       </Field>
     )
   }

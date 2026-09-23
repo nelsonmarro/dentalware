@@ -189,9 +189,34 @@ export type StageChangeInput = z.infer<typeof stageChangeSchema>
 export const assignTechnicianSchema = z.object({ tecnicoId: z.string().min(1).nullable() })
 export type AssignTechnicianInput = z.infer<typeof assignTechnicianSchema>
 
+/** Porcentaje del trabajo que se le cobra a la clínica al repetirlo (0–100).
+ *
+ * El campo llega como cadena desde el formulario, pero `z.coerce.number()` a secas convierte
+ * `''` y `'   '` en **0** sin quejarse, y 0 significa "no se le cobra nada". Como no existe
+ * ninguna pantalla donde `remakeChargePct` se pueda ver ni corregir después, un campo que se
+ * quedó vacío por descuido solo se arreglaba tocando la BD, y la Iteración 5 lo leería como
+ * una decisión deliberada del laboratorio. Por eso el vacío se rechaza **antes** de convertir,
+ * con mensaje propio (I-4 de la revisión de la Tarea 9).
+ *
+ * La conversión es explícita (`Number`) en vez de `z.coerce`: la unión de entrada deja fuera
+ * `null`, `[]` y `false`, que `Number` también convertiría en 0 en silencio. */
+const porcentajeCobro = z
+  .union([z.number(), z.string()], { error: 'Escribe el porcentaje a cobrar' })
+  .refine((v) => typeof v === 'number' || v.trim() !== '', {
+    error: 'Escribe el porcentaje a cobrar',
+  })
+  .transform((v) => (typeof v === 'number' ? v : Number(v)))
+  .pipe(
+    z
+      .number({ error: 'El porcentaje debe ser un número' })
+      .int({ error: 'El porcentaje debe ser un número entero' })
+      .min(0, { error: 'El porcentaje no puede ser menor que 0' })
+      .max(100, { error: 'El porcentaje no puede ser mayor que 100' }),
+  )
+
 export const remakeSchema = z.object({
   motivo: motivoObligatorio,
   responsabilidad: z.enum(REMAKE_RESPONSIBILITIES, { error: 'Responsabilidad inválida' }),
-  cobroPct: z.coerce.number().int().min(0).max(100),
+  cobroPct: porcentajeCobro,
 })
 export type RemakeInput = z.infer<typeof remakeSchema>

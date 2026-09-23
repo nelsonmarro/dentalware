@@ -4,12 +4,17 @@ import { renderWithProviders } from '@/test/render'
 import type { Stage } from '@/features/stages/api'
 import type { CaseDetail } from './api'
 import { StageControl } from './stage-control'
+import { useCase } from './use-cases'
 
-const { changeStage } = vi.hoisted(() => ({ changeStage: vi.fn() }))
-vi.mock('./api', () => ({ changeStage }))
+const { changeStage, fetchCase } = vi.hoisted(() => ({
+  changeStage: vi.fn(),
+  fetchCase: vi.fn(),
+}))
+vi.mock('./api', () => ({ changeStage, fetchCase }))
 
 beforeEach(() => {
   changeStage.mockClear()
+  fetchCase.mockClear()
   changeStage.mockResolvedValue({ id: 'c1', currentStageId: 'f2' })
 })
 
@@ -125,7 +130,7 @@ describe('StageControl', () => {
     )
   })
 
-  it('en la última fase ofrece Finalizar en vez de Avanzar', async () => {
+  it('en la última fase no ofrece Avanzar y remite a las acciones de arriba', async () => {
     renderWithProviders(
       <StageControl
         case={caso({ status: 'en_proceso', currentStageId: 'f3' })}
@@ -133,8 +138,66 @@ describe('StageControl', () => {
         role="tecnico"
       />,
     )
-    expect(await screen.findByRole('button', { name: 'Finalizar' })).toBeInTheDocument()
+    expect(await screen.findByText(/Es la última fase/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Avanzar fase' })).not.toBeInTheDocument()
+    // "Finalizar" es de la barra de acciones (`case-actions.tsx`), único dueño de las
+    // transiciones de estado: aquí duplicaba el botón y rompía los E2E por modo estricto.
+    expect(screen.queryByRole('button', { name: 'Finalizar' })).not.toBeInTheDocument()
+  })
+
+  it('si la fase actual fue desactivada lo dice, sin dejar los botones mudos', async () => {
+    renderWithProviders(
+      <StageControl
+        case={caso({ status: 'en_proceso', currentStageId: 'f2' })}
+        stages={[
+          fases[0]!,
+          stage({ id: 'f2', name: 'Fresado', sort: 1, active: false }),
+          fases[2]!,
+        ]}
+        role="tecnico"
+      />,
+    )
+    // El nombre se sigue viendo: el técnico necesita saber en qué fase estaba.
+    expect(await screen.findByText('Fresado')).toBeInTheDocument()
+    expect(screen.getByText(/ya no está activa/)).toBeInTheDocument()
+  })
+
+  it('mientras las fases no han cargado dice "Cargando", no "Fase desconocida"', async () => {
+    renderWithProviders(
+      <StageControl
+        case={caso({ status: 'en_proceso', currentStageId: 'f1' })}
+        stages={[]}
+        role="tecnico"
+      />,
+    )
+    expect(await screen.findByText('Cargando…')).toBeInTheDocument()
+    expect(screen.queryByText('Fase desconocida')).not.toBeInTheDocument()
+  })
+
+  it('retroceder no envía nada hasta que se escribe el motivo', async () => {
+    const { user } = renderWithProviders(
+      <StageControl
+        case={caso({ status: 'en_proceso', currentStageId: 'f2' })}
+        stages={fases}
+        role="tecnico"
+      />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Retroceder fase' }))
+    const confirmar = screen.getByRole('button', { name: 'Confirmar' })
+    await user.click(confirmar)
+    expect(await screen.findByText('Escribe el motivo')).toBeInTheDocument()
+    // Lo que de verdad importa: el `toBeRequired()` del textarea no bloquea nada en
+    // ejecución (el formulario es `noValidate`), así que sin esta aserción el `zodResolver`
+    // se podía quitar entero sin que cayera ningún test (M-3 de la revisión).
+    expect(changeStage).not.toHaveBeenCalled()
+    await user.type(screen.getByLabelText('Motivo'), 'La cofia no asienta')
+    await user.click(confirmar)
+    await waitFor(() =>
+      expect(changeStage).toHaveBeenCalledWith('c1', {
+        direccion: 'retroceder',
+        motivo: 'La cofia no asienta',
+      }),
+    )
   })
 
   it('un trabajo en espera no deja cambiar de fase', async () => {
@@ -171,5 +234,45 @@ describe('StageControl', () => {
       />,
     )
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('un segundo toque mientras se confirma el avance no salta dos fases', async () => {
+    // Mismo arnés que `case-actions.test.tsx`: la ruta monta `useCase(caseId)` junto al
+    // componente, así que la invalidación dispara un refetch real que podemos retener para
+    // reproducir la ventana entre "la API respondió" y "la tarjeta sigue mostrando la fase
+    // anterior". Con `void invalidate()` el botón se rehabilitaba ahí y el técnico con
+    // guantes saltaba dos fases, dejando dos `stage_changed` en la auditoría (I-2).
+    fetchCase.mockResolvedValueOnce({
+      case: caso({ status: 'en_proceso', currentStageId: 'f1' }),
+      missing: [],
+    })
+    let resolveRefetch!: (value: unknown) => void
+    fetchCase.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRefetch = resolve
+      }),
+    )
+
+    function Harness() {
+      useCase('c1')
+      return (
+        <StageControl
+          case={caso({ status: 'en_proceso', currentStageId: 'f1' })}
+          stages={fases}
+          role="tecnico"
+        />
+      )
+    }
+    const { user } = renderWithProviders(<Harness />)
+
+    const avanzar = await screen.findByRole('button', { name: 'Avanzar fase' })
+    await user.click(avanzar)
+    await waitFor(() => expect(avanzar).toBeDisabled())
+    await user.click(avanzar) // deshabilitado: no debe disparar una segunda mutación
+
+    resolveRefetch({ case: caso({ status: 'en_proceso', currentStageId: 'f2' }), missing: [] })
+
+    await waitFor(() => expect(avanzar).not.toBeDisabled())
+    expect(changeStage).toHaveBeenCalledTimes(1)
   })
 })

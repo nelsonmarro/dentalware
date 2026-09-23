@@ -11,7 +11,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import type { z } from 'zod'
-import { ConfirmDialog } from '@/components/confirm-dialog'
 import { FormDialog } from '@/components/form-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,7 +18,7 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import type { Stage } from '@/features/stages/api'
 import type { CaseDetail } from './api'
-import { useCaseAction, useChangeStage } from './use-cases'
+import { useChangeStage } from './use-cases'
 
 /** Solo estos roles cambian de fase (mismo criterio que `canChangeStage` en `routes.ts`,
  * defensa en profundidad: la web no confía solo en ocultar el botón). */
@@ -111,11 +110,16 @@ function BackStageDialog({
   )
 }
 
-/** Control de fase de producción de la ficha (CIC-2/CIC-5): fase actual, "Avanzar fase" /
- * "Retroceder fase" (con motivo) mientras el trabajo está `en_proceso`, y "Finalizar" en vez
- * de "Avanzar" en la última fase activa (avanzar ahí no hace nada: la API responde 409 y
- * pide usar "finalizar"). Fuera de `en_proceso` la fase queda de solo lectura con el motivo
- * de por qué. Sin fase asignada (trabajo `nuevo`, todavía sin aceptar) no muestra nada. */
+/** Control de fase de producción de la ficha (CIC-2/CIC-5): fase actual, "Avanzar fase" y
+ * "Retroceder fase" (con motivo) mientras el trabajo está `en_proceso`. Fuera de
+ * `en_proceso` la fase queda de solo lectura con el motivo de por qué. Sin fase asignada
+ * (trabajo `nuevo`, todavía sin aceptar) no muestra nada.
+ *
+ * En la última fase **no** ofrece "Finalizar": esa acción la sirve la barra de acciones
+ * (`case-actions.tsx`), que deriva de `CASE_TRANSITIONS` y es el único dueño de las
+ * transiciones de estado. Tenerla aquí también dejaba dos botones idénticos en pantalla con
+ * la misma copia duplicada, y rompía por modo estricto los E2E que buscan "Finalizar" por
+ * nombre (I-1 de la revisión de la Tarea 9). Aquí solo se dice que es la última fase. */
 export function StageControl({
   case: c,
   stages,
@@ -126,12 +130,15 @@ export function StageControl({
   role: UserRole
 }) {
   const [showBack, setShowBack] = useState(false)
-  const [showFinish, setShowFinish] = useState(false)
   const changeStage = useChangeStage(c.id)
-  const finalize = useCaseAction(c.id)
 
   if (!c.currentStageId) return null
+  const stagesLoading = stages.length === 0
+  // El nombre se resuelve contra la lista completa (`useStages(true)` trae también las
+  // inactivas): si el laboratorio desactivó la fase con el trabajo dentro, el técnico
+  // necesita ver cuál era, no un "desconocida" que no le dice nada.
   const current = stages.find((s) => s.id === c.currentStageId)
+  const currentInactive = !!current && !current.active
   const canControl = canControlStage(role) && c.status === 'en_proceso'
   const next = canControl ? nextStage(stages, c.currentStageId) : undefined
   const last = canControl && isLastStage(stages, c.currentStageId)
@@ -142,9 +149,22 @@ export function StageControl({
         <CardTitle>Fase de producción</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <p className="text-sm font-medium">{current?.name ?? 'Fase desconocida'}</p>
+        <p className="text-sm font-medium">
+          {stagesLoading ? 'Cargando…' : (current?.name ?? 'Fase desconocida')}
+        </p>
         {c.status !== 'en_proceso' && (
           <p className="text-sm text-muted-foreground">{STAGE_BLOCKED_MESSAGE[c.status]}</p>
+        )}
+        {c.status === 'en_proceso' && !stagesLoading && (currentInactive || !current) && (
+          <p className="text-sm text-muted-foreground">
+            La fase en la que estaba este trabajo ya no está activa. Pide a administración que la
+            reactive o mueve el trabajo desde Configuración.
+          </p>
+        )}
+        {last && (
+          <p className="text-sm text-muted-foreground">
+            Es la última fase: para terminar el trabajo usa "Finalizar" en las acciones de arriba.
+          </p>
         )}
         {canControl && (
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -156,15 +176,7 @@ export function StageControl({
             >
               Retroceder fase
             </Button>
-            {last ? (
-              <Button
-                className="w-full sm:w-auto"
-                disabled={finalize.isPending}
-                onClick={() => setShowFinish(true)}
-              >
-                Finalizar
-              </Button>
-            ) : (
+            {!last && (
               <Button
                 className="w-full sm:w-auto"
                 disabled={!next || changeStage.isPending}
@@ -184,20 +196,6 @@ export function StageControl({
           changeStage.mutate(
             { direccion: 'retroceder', motivo },
             { onSuccess: () => setShowBack(false) },
-          )
-        }}
-      />
-      <ConfirmDialog
-        open={showFinish}
-        onOpenChange={setShowFinish}
-        title="Finalizar"
-        description='El trabajo pasará a "Terminado" con la fecha de hoy. No hay ninguna acción para devolverlo a "En proceso".'
-        confirmLabel="Finalizar"
-        pending={finalize.isPending}
-        onConfirm={() => {
-          finalize.mutate(
-            { accion: 'finalizar', motivo: null },
-            { onSuccess: () => setShowFinish(false) },
           )
         }}
       />

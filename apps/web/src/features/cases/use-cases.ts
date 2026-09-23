@@ -89,13 +89,20 @@ export function useCaseAction(id: string) {
 }
 
 /** `PUT /api/trabajos/:id/fase` (Tarea 9): invalida el detalle (la fase queda en
- * `currentStageId`) y los eventos (`stage_changed`) bajo el mismo prefijo `['trabajos']`. */
+ * `currentStageId`) y los eventos (`stage_changed`) bajo el mismo prefijo `['trabajos']`.
+ *
+ * `onSuccess` **espera** la invalidación, igual que `useCaseAction` y por el mismo motivo
+ * (I-2 de la Tarea 9, que repitió M-3 de la Tarea 8): `isPending` es el único indicador de
+ * "ocupado" que ven los botones, y con `void invalidate()` se rehabilitan mientras la
+ * tarjeta sigue pintando la fase anterior. Aquí el doble toque es peor que en las acciones:
+ * salta **dos** fases, deja dos `stage_changed` en la auditoría y obliga al técnico a
+ * retroceder inventando un motivo. Lo mismo vale para las dos mutaciones de abajo. */
 export function useChangeStage(id: string) {
   const invalidate = useInvalidateCases()
   return useMutation({
     mutationFn: (input: StageChangeInput) => changeStage(id, input),
-    onSuccess: () => {
-      void invalidate()
+    onSuccess: async () => {
+      await invalidate()
       toast.success('Fase actualizada')
     },
     onError: toastApiError,
@@ -107,8 +114,8 @@ export function useAssignTechnician(id: string) {
   const invalidate = useInvalidateCases()
   return useMutation({
     mutationFn: (input: AssignTechnicianInput) => assignTechnician(id, input),
-    onSuccess: () => {
-      void invalidate()
+    onSuccess: async () => {
+      await invalidate()
       toast.success('Técnico asignado')
     },
     onError: toastApiError,
@@ -133,8 +140,8 @@ export function useCreateRemake(parentId: string) {
   const invalidate = useInvalidateCases()
   return useMutation({
     mutationFn: (input: RemakeInput) => createRemake(parentId, input),
-    onSuccess: () => {
-      void invalidate()
+    onSuccess: async () => {
+      await invalidate()
       toast.success('Repetición creada')
     },
     onError: toastApiError,
