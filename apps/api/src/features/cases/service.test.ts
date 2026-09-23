@@ -73,15 +73,19 @@ function servicioConFases(stageIds: string[], overrides: Partial<CaseDetail>) {
   })
 }
 
-/** Servicio listo para probar `assignTechnician(...)`: técnicos activos `technicians` y un
- * trabajo `1` con los overrides dados. */
-function servicioConTecnicos(technicians: { id: string }[], overrides: Partial<CaseDetail>) {
+/** Servicio listo para probar `assignTechnician(...)` y `technicians(...)`: técnicos activos
+ * `technicians` (el `name` es opcional aquí — las pruebas de asignación solo comparan `id` —
+ * y se completa con un nombre por defecto) y un trabajo `1` con los overrides dados. */
+function servicioConTecnicos(
+  technicians: { id: string; name?: string }[],
+  overrides: Partial<CaseDetail>,
+) {
   const { repo } = fakeCasesRepo([caseDetailFixture({ id: '1', ...overrides })])
   return createCasesService({
     cases: repo,
     attachments: { hasDocument: async () => true },
     stages: fakeStagesQuery(),
-    users: fakeUsersQuery(technicians),
+    users: fakeUsersQuery(technicians.map((t) => ({ name: 'Técnico', ...t }))),
     uow: fakeUow(repo, fakeTryins()),
     clock: fixedClock(),
   })
@@ -507,6 +511,32 @@ describe('técnico responsable', () => {
       const service = servicioConTecnicos([{ id: 't1' }], { status })
       await expect(service.assignTechnician('1', { tecnicoId: 't1' }, admin)).resolves.toBeDefined()
     }
+  })
+})
+
+describe('lista de técnicos para asignar (Tarea 9)', () => {
+  it('admin y recepción reciben id y nombre de los técnicos activos', async () => {
+    const service = servicioConTecnicos(
+      [
+        { id: 't1', name: 'Ana Técnica' },
+        { id: 't2', name: 'Beto Técnico' },
+      ],
+      {},
+    )
+    await expect(service.technicians(admin)).resolves.toEqual([
+      { id: 't1', name: 'Ana Técnica' },
+      { id: 't2', name: 'Beto Técnico' },
+    ])
+    await expect(service.technicians({ userId: 'u4', role: 'recepcion' })).resolves.toEqual([
+      { id: 't1', name: 'Ana Técnica' },
+      { id: 't2', name: 'Beto Técnico' },
+    ])
+  })
+
+  it('técnico y mensajero no pueden pedir la lista', async () => {
+    const service = servicioConTecnicos([{ id: 't1', name: 'Ana Técnica' }], {})
+    await expect(service.technicians(tecnico)).rejects.toThrow(CaseForbiddenError)
+    await expect(service.technicians(mensajero)).rejects.toThrow(CaseForbiddenError)
   })
 })
 

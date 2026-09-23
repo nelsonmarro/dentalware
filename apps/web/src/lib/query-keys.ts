@@ -14,6 +14,7 @@ export const queryKeys = {
   users: ['users'] as const,
   cases: (query: CaseListQueryInput) => ['trabajos', 'lista', query] as const,
   case: (id: string) => ['trabajos', id] as const,
+  caseTechnicians: ['trabajos', 'tecnicos'] as const,
   caseEvents: (id: string) => ['trabajos', id, 'eventos'] as const,
   attachments: (caseId: string) => ['trabajos', caseId, 'adjuntos'] as const,
 }

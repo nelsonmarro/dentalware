@@ -7,10 +7,14 @@ import {
 import { Check, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { Stage } from '@/features/stages/api'
 import { formatMoney } from '@/features/products/pricing-unit-label'
 import { cn } from '@/lib/utils'
 import type { CaseDetail } from './api'
 import { Odontogram } from './odontogram'
+import { RemakeDialog } from './remake-dialog'
+import { StageControl } from './stage-control'
+import { TechnicianSelect } from './technician-select'
 
 function money(value: string | null) {
   return value === null ? '—' : formatMoney(value)
@@ -91,14 +95,37 @@ export function CaseDetailTab({
   case: c,
   hidePrices,
   role,
+  stages = [],
+  onRemakeCreated,
 }: {
   case: CaseDetail
   hidePrices: boolean
   role: UserRole
+  /** Fases (todas, activas o no: `STAGE_BLOCKED_MESSAGE`/`current?.name` en `StageControl`
+   * necesitan resolver el nombre aunque la fase actual se haya desactivado después). Vacío
+   * por defecto: un trabajo sin fase (`currentStageId: null`) no necesita la lista. */
+  stages?: Stage[]
+  /** Adónde ir tras crear una repetición (Tarea 9): el hijo puede nacer incompleto, así que
+   * quien monta esta pestaña navega a su ficha en vez de quedarse en la del padre. */
+  onRemakeCreated?: (created: CaseDetail) => void
 }) {
   const canSeeInternal = role === 'admin' || role === 'recepcion'
   return (
     <div className="flex flex-col gap-6">
+      <StageControl case={c} stages={stages} role={role} />
+
+      <Card>
+        <CardContent>
+          <TechnicianSelect case={c} role={role} />
+        </CardContent>
+      </Card>
+
+      {(role === 'admin' || role === 'recepcion') && (
+        <div className="flex justify-end">
+          <RemakeDialog case={c} onCreated={onRemakeCreated} />
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Líneas</CardTitle>

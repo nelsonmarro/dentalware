@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -10,6 +10,7 @@ import { CommentForm } from '@/features/cases/comment-form'
 import { PhotosTab } from '@/features/cases/photos-tab'
 import { useAttachments } from '@/features/cases/use-attachments'
 import { useAddComment, useCase, useEvents } from '@/features/cases/use-cases'
+import { useStages } from '@/features/stages/use-stages'
 
 export const Route = createFileRoute('/_app/trabajos/$caseId')({
   component: CasePage,
@@ -18,10 +19,14 @@ export const Route = createFileRoute('/_app/trabajos/$caseId')({
 function CasePage() {
   const { caseId } = Route.useParams()
   const { user } = Route.useRouteContext()
+  const navigate = useNavigate()
   const q = useCase(caseId)
   const events = useEvents(caseId)
   const attachments = useAttachments(caseId)
   const addComment = useAddComment(caseId)
+  // `true` (incluir inactivos): `StageControl` necesita resolver el nombre de la fase
+  // actual del trabajo aunque se haya desactivado después de asignarla.
+  const stages = useStages(true)
 
   if (q.isPending) return <p className="text-sm text-muted-foreground">Cargando…</p>
   if (q.isError || !q.data) {
@@ -50,7 +55,15 @@ function CasePage() {
           <TabsTrigger value="historial">{historyTabLabel(events.data?.length ?? 0)}</TabsTrigger>
         </TabsList>
         <TabsContent value="detalle" className="pt-4">
-          <CaseDetailTab case={q.data.case} hidePrices={hidePrices} role={user.role} />
+          <CaseDetailTab
+            case={q.data.case}
+            hidePrices={hidePrices}
+            role={user.role}
+            stages={stages.data ?? []}
+            onRemakeCreated={(created) =>
+              void navigate({ to: '/trabajos/$caseId', params: { caseId: created.id } })
+            }
+          />
         </TabsContent>
         <TabsContent value="fotos" className="pt-4">
           <PhotosTab caseId={caseId} role={user.role} />

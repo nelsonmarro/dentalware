@@ -666,6 +666,43 @@ describe('/api/trabajos', () => {
     })
   })
 
+  describe('GET /api/trabajos/tecnicos', () => {
+    // Trampa de orden (ruling de la Tarea 9): `GET /:id` está declarado en `routes.ts` y, si
+    // `/tecnicos` se declarara después, ese segmento literal se colaría como si fuera un `id`
+    // (404 o 422 de uuid inválido) en vez de devolver la lista. Este test fija que la ruta
+    // nueva gana.
+    it('devuelve la lista de técnicos, no un error de uuid inválido', async () => {
+      const res = await app.request('/api/trabajos/tecnicos', req(admin, 'GET'))
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { technicians: { id: string; name: string }[] }
+      expect(body.technicians).toContainEqual({ id: tecnicoId, name: 'Ana Técnico' })
+    })
+
+    it('no expone correo, rol ni estado de baneo', async () => {
+      const res = await app.request('/api/trabajos/tecnicos', req(recepcion, 'GET'))
+      const body = (await res.json()) as { technicians: Record<string, unknown>[] }
+      for (const t of body.technicians) {
+        expect(Object.keys(t).sort()).toEqual(['id', 'name'])
+      }
+    })
+
+    it('un técnico baneado no aparece en la lista', async () => {
+      await ctx.db
+        .update(ctx.schema.users)
+        .set({ banned: true })
+        .where(eq(ctx.schema.users.id, tecnicoId))
+      const res = await app.request('/api/trabajos/tecnicos', req(admin, 'GET'))
+      const body = (await res.json()) as { technicians: { id: string }[] }
+      expect(body.technicians.some((t) => t.id === tecnicoId)).toBe(false)
+    })
+
+    it('responde 403 sin sesión y con rol técnico o mensajero', async () => {
+      expect((await app.request('/api/trabajos/tecnicos', req('', 'GET'))).status).toBe(403)
+      expect((await app.request('/api/trabajos/tecnicos', req(tecnico, 'GET'))).status).toBe(403)
+      expect((await app.request('/api/trabajos/tecnicos', req(mensajero, 'GET'))).status).toBe(403)
+    })
+  })
+
   describe('PUT /api/trabajos/:id/tecnico', () => {
     it('asigna un técnico activo (200) y deja el evento assigned', async () => {
       const id = await createOne(recepcion)

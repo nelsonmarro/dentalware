@@ -139,9 +139,11 @@ export interface StagesQuery {
   active(): Promise<StageRef[]>
 }
 
-/** Puerto de OTRA feature (usuarios): valida a quién se puede asignar como técnico responsable. */
+/** Puerto de OTRA feature (usuarios): valida a quién se puede asignar como técnico responsable
+ * y, con `id` y `name`, alimenta el combobox de `TechnicianSelect` en la web (Tarea 9) sin
+ * exponer correo, rol ni estado de baneo. */
 export interface UsersQuery {
-  activeTechnicians(): Promise<{ id: string }[]>
+  activeTechnicians(): Promise<Named[]>
 }
 
 /** Pruebas en boca (`case_tryins`): abiertas por trabajo, cerradas al recibirlas de vuelta. */

@@ -35,7 +35,7 @@ export const EVENT_LABEL: Record<CaseEventType, string> = {
   shipped: 'Enviado',
   delivered: 'Entregado',
   cancelled: 'Cancelado',
-  remake_created: 'Reproceso creado',
+  remake_created: 'Repetición creada',
   edited: 'Datos editados',
   price_changed: 'Precio modificado',
 }

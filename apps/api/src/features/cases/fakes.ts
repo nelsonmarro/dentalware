@@ -12,6 +12,7 @@ import type {
   CaseDetail,
   CaseEventRow,
   CasesRepository,
+  Named,
   NewCaseEvent,
   StagesQuery,
   TryinRow,
@@ -334,9 +335,10 @@ export const fakeStagesQuery = (stages: StageRef[] = DEFAULT_STAGES): StagesQuer
   active: async () => stages,
 })
 
-/** Técnicos activos en memoria, para `assignTechnician`. Vacío por defecto: los llamadores
- * que no prueban esa ruta no necesitan declarar ningún técnico. */
-export const fakeUsersQuery = (technicians: { id: string }[] = []): UsersQuery => ({
+/** Técnicos activos en memoria, para `assignTechnician` y para `CasesService.technicians`.
+ * Vacío por defecto: los llamadores que no prueban esas rutas no necesitan declarar ningún
+ * técnico. */
+export const fakeUsersQuery = (technicians: Named[] = []): UsersQuery => ({
   activeTechnicians: async () => technicians,
 })
 

@@ -1,14 +1,24 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CaseActionInput, CaseInput } from '@dentalware/shared'
+import type {
+  AssignTechnicianInput,
+  CaseActionInput,
+  CaseInput,
+  RemakeInput,
+  StageChangeInput,
+} from '@dentalware/shared'
 import { toast } from 'sonner'
 import { toastApiError } from '@/lib/api-error'
 import { queryKeys } from '@/lib/query-keys'
 import type { CaseListQueryInput } from './api'
 import {
+  assignTechnician,
+  changeStage,
   createCase,
+  createRemake,
   fetchCase,
   fetchCases,
   fetchEvents,
+  fetchTechnicians,
   postCaseAction,
   postComment,
   updateCase,
@@ -73,6 +83,59 @@ export function useCaseAction(id: string) {
     onSuccess: async () => {
       await invalidate()
       toast.success('Trabajo actualizado')
+    },
+    onError: toastApiError,
+  })
+}
+
+/** `PUT /api/trabajos/:id/fase` (Tarea 9): invalida el detalle (la fase queda en
+ * `currentStageId`) y los eventos (`stage_changed`) bajo el mismo prefijo `['trabajos']`. */
+export function useChangeStage(id: string) {
+  const invalidate = useInvalidateCases()
+  return useMutation({
+    mutationFn: (input: StageChangeInput) => changeStage(id, input),
+    onSuccess: () => {
+      void invalidate()
+      toast.success('Fase actualizada')
+    },
+    onError: toastApiError,
+  })
+}
+
+/** `PUT /api/trabajos/:id/tecnico`: invalida el detalle y los eventos (`assigned`). */
+export function useAssignTechnician(id: string) {
+  const invalidate = useInvalidateCases()
+  return useMutation({
+    mutationFn: (input: AssignTechnicianInput) => assignTechnician(id, input),
+    onSuccess: () => {
+      void invalidate()
+      toast.success('Técnico asignado')
+    },
+    onError: toastApiError,
+  })
+}
+
+/** `GET /api/trabajos/tecnicos`: solo se llama cuando el rol puede asignar (`enabled`);
+ * técnico y mensajero reciben 403 de la API, así que `TechnicianSelect` ni siquiera dispara
+ * la consulta para ellos. */
+export function useTechnicians(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.caseTechnicians,
+    queryFn: fetchTechnicians,
+    enabled,
+  })
+}
+
+/** `POST /api/trabajos/:id/repetir` (Tarea 9): dos eventos `remake_created` (padre e hijo,
+ * ver `repo.createRemake`), así que invalida todo bajo `['trabajos']` en vez de solo el
+ * detalle del padre. */
+export function useCreateRemake(parentId: string) {
+  const invalidate = useInvalidateCases()
+  return useMutation({
+    mutationFn: (input: RemakeInput) => createRemake(parentId, input),
+    onSuccess: () => {
+      void invalidate()
+      toast.success('Repetición creada')
     },
     onError: toastApiError,
   })

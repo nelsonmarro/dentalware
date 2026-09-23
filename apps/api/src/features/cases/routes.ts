@@ -48,6 +48,14 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
     .get('/', requireAuth, validate('query', caseListQuerySchema), async (c) =>
       c.json(await service.list(c.req.valid('query'), ctxFrom(c)), 200),
     )
+    // Declarada antes de `/:id` a propósito (ruling de la Tarea 9): si fuera después, el
+    // segmento literal "tecnicos" caería en el parámetro `:id` de la ruta de abajo. Solo
+    // admin y recepción (`canWrite`, los roles que pueden asignar en `PUT /:id/tecnico`):
+    // recepción puede asignar pero no tiene acceso a `GET /api/usuarios` (solo admin), así
+    // que este endpoint vive en el router de trabajos, no en el de usuarios.
+    .get('/tecnicos', canWrite, async (c) =>
+      c.json({ technicians: await service.technicians(ctxFrom(c)) }, 200),
+    )
     .get('/:id', requireAuth, validate('param', idParamSchema), async (c) => {
       try {
         const { case: found, missing } = await service.detail(c.req.valid('param').id, ctxFrom(c))

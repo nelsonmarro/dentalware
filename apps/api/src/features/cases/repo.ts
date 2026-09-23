@@ -436,12 +436,13 @@ export function createTryinsRepo(db: Db | Tx): TryinsRepository {
 }
 
 /** Puerto `UsersQuery` (ADR 24: lectura de solo lectura de la tabla `users` de otra feature,
- * sin importar su `repo.ts`): técnicos activos, para validar `assignTechnician`. */
+ * sin importar su `repo.ts`): técnicos activos, para validar `assignTechnician` y para listar
+ * `id`+`name` en `GET /api/trabajos/tecnicos` (Tarea 9) sin exponer correo, rol ni baneo. */
 export function createUsersQuery(db: Db | Tx): UsersQuery {
   return {
     async activeTechnicians() {
       return db
-        .select({ id: users.id })
+        .select({ id: users.id, name: users.name })
         .from(users)
         .where(and(eq(users.role, 'tecnico'), or(eq(users.banned, false), isNull(users.banned))))
     },

@@ -4,7 +4,11 @@ import { createClinicWithDoctor, createProduct, login, loginAsAdmin } from './he
 
 const FOTO_PATH = path.join(import.meta.dirname, 'fixtures', 'foto.png')
 
-/** Crea un trabajo mínimo por API (sesión admin ya iniciada en `page`). */
+/** Crea un trabajo mínimo por API (sesión admin ya iniciada en `page`). Sin `dueDate` ni
+ * `prescription` a propósito: varios tests de esta suite comparten la misma BD sin reset
+ * entre ellos, y el test "ordena por entrega" depende de ser el único trabajo con fecha
+ * deseada explícita en la vista "nuevos" (ver su comentario). Quien necesite un trabajo listo
+ * para "Aceptar" usa `createCompleteCase`. */
 async function createCase(
   page: Page,
   opts: {
@@ -13,6 +17,7 @@ async function createCase(
     productId: string
     teeth?: number[]
     dueDate?: string
+    prescription?: string
   },
 ) {
   const res = await page.request.post('/api/trabajos', {
@@ -22,6 +27,7 @@ async function createCase(
       patientRef: `Paciente E2E ${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       receivedAt: new Date().toISOString().slice(0, 10),
       dueDate: opts.dueDate ?? null,
+      prescription: opts.prescription ?? null,
       items: [
         {
           productId: opts.productId,
@@ -36,6 +42,25 @@ async function createCase(
   expect(res.ok()).toBe(true)
   const { case: created } = (await res.json()) as { case: { id: string; code: string } }
   return created
+}
+
+/**
+ * Crea un trabajo completo por API: piezas, fecha deseada y prescripción, listo para
+ * "Aceptar" sin que `missingForAccept` (shared) reclame nada — a diferencia de `createCase`,
+ * deliberadamente incompleto. El trabajo termina en un estado distinto de `nuevo` antes de
+ * que termine el test que lo usa (se acepta y se avanza), así que no interfiere con "ordena
+ * por entrega" (filtra `vista=nuevos`) sin importar el orden de ejecución entre tests.
+ */
+async function createCompleteCase(
+  page: Page,
+  opts: { clinicId: string; doctorId: string; productId: string },
+) {
+  return createCase(page, {
+    ...opts,
+    teeth: [11],
+    dueDate: '2026-12-31',
+    prescription: 'Prescripción E2E: corona completa',
+  })
 }
 
 test.describe('Trabajos', () => {
@@ -276,4 +301,89 @@ test.describe('Trabajos', () => {
       await expect(page.getByRole('link', { name: code })).toBeVisible()
     }
   })
+
+  test(
+    'acepta un trabajo, avanza la fase y lo finaliza',
+    { tag: '@esencial' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      // `createCompleteCase`, no `createCase`: sin fecha deseada ni prescripción "Aceptar"
+      // sale deshabilitada (`missingForAccept`, shared) y el test fallaría por la razón
+      // equivocada (ver comentario del helper).
+      const trabajo = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      await page.goto(`/trabajos/${trabajo.id}`)
+
+      await page.getByRole('button', { name: 'Aceptar' }).click()
+      await expect(page.getByText('En proceso')).toBeVisible()
+
+      // Primera fase activa sembrada por `seed-data.ts` (`STAGES`): "Recepción"; un clic de
+      // "Avanzar fase" la mueve a la siguiente, "Modelo". `.first()`: el nombre aparece dos
+      // veces (el campo "Fase" de `CaseHeader` y el propio `StageControl`).
+      await page.getByRole('button', { name: 'Avanzar fase' }).click()
+      await expect(page.getByText('Modelo').first()).toBeVisible()
+
+      // El diálogo de confirmación de "Finalizar" (Tarea 8) deja dos botones con el mismo
+      // nombre en pantalla: el de la barra de acciones y el de confirmar dentro del diálogo.
+      // El primer clic es al único que hay antes de abrirlo; el segundo se acota al
+      // `alertdialog` (ver ruling de la Tarea 9). `exact: true` porque el chip de estado
+      // "Terminado" convive con el texto de `StageControl` para los demás estados
+      // ("El trabajo ya está terminado."), que también contiene la palabra.
+      await page.getByRole('button', { name: 'Finalizar' }).click()
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Finalizar' }).click()
+      await expect(page.getByText('Terminado', { exact: true })).toBeVisible()
+    },
+  )
+
+  test(
+    'asigna el técnico responsable y repite un trabajo entregado',
+    { tag: '@clave' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const trabajo = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+
+      const email = `tecnico-e2e-${Date.now()}@t.local`
+      const createdUser = await page.request.post('/api/users', {
+        data: { name: 'Técnico Repetición E2E', email, password: 'Tecnico1234', role: 'tecnico' },
+      })
+      expect(createdUser.ok()).toBe(true)
+      const { user: tecnico } = (await createdUser.json()) as { user: { id: string; name: string } }
+
+      await page.goto(`/trabajos/${trabajo.id}`)
+      await page.getByLabel('Técnico responsable').selectOption(tecnico.id)
+      await expect(page.getByLabel('Técnico responsable')).toHaveValue(tecnico.id)
+
+      // Hasta "entregado" para poder repetirlo (`REMAKEABLE_STATUSES`, shared).
+      await page.getByRole('button', { name: 'Aceptar' }).click()
+      await page.getByRole('button', { name: 'Finalizar' }).click()
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Finalizar' }).click()
+      await expect(page.getByText('Terminado', { exact: true })).toBeVisible()
+      await page.getByRole('button', { name: 'Marcar enviado' }).click()
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Marcar enviado' }).click()
+      await expect(page.getByText('Enviado', { exact: true })).toBeVisible()
+      await page.getByRole('button', { name: 'Marcar entregado' }).click()
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Marcar entregado' }).click()
+      await expect(page.getByText('Entregado', { exact: true })).toBeVisible()
+
+      await page.getByRole('button', { name: 'Repetir' }).click()
+      const dialog = page.getByRole('dialog')
+      await dialog.getByLabel('Motivo').fill('Fractura en cerámica al probar (E2E)')
+      await dialog.getByRole('button', { name: 'Crear repetición' }).click()
+
+      // Navega a la ficha del hijo (código distinto del padre, estado "Nuevo"): la Tarea 9
+      // lleva al usuario ahí después de crear la repetición en vez de dejarlo en la del padre.
+      await expect(page).toHaveURL(/\/trabajos\/[^/]+$/)
+      await expect(page.getByText(trabajo.code)).not.toBeVisible()
+      await expect(page.getByText('Nuevo', { exact: true })).toBeVisible()
+    },
+  )
 })

@@ -355,6 +355,19 @@ export function createCasesService(deps: {
       )
       return mustGet(id)
     },
+    /**
+     * Técnicos activos para el combobox de `assignTechnician` en la web (Tarea 9): mismo
+     * puerto `UsersQuery.activeTechnicians` que valida la asignación, pero expuesto de
+     * lectura para que recepción pueda elegir a quién asignar (hoy solo puede asignar, no
+     * listar: `GET /api/usuarios` es de admin únicamente, ver ruling de la Tarea 9). Solo
+     * admin y recepción (`canWrite` en `routes.ts`; defensa en profundidad igual que el
+     * resto de métodos de este servicio, un test con fakes no pasa por la ruta). Sin
+     * enmascarar: `Named` ya no lleva correo, rol ni estado de baneo.
+     */
+    async technicians(ctx: RequestContext) {
+      if (ctx.role !== 'admin' && ctx.role !== 'recepcion') throw new CaseForbiddenError()
+      return deps.users.activeTechnicians()
+    },
   }
 }
 export type CasesService = ReturnType<typeof createCasesService>
