@@ -1,6 +1,7 @@
 import type { CaseAction, UserRole } from '@dentalware/shared'
 import { ACTIONS_REQUIRING_REASON, availableActions, canPerform } from '@dentalware/shared'
 import { useState } from 'react'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import type { CaseDetail } from './api'
 import { CaseActionDialog } from './case-action-dialog'
@@ -19,11 +20,35 @@ const ACTION_LABELS: Record<CaseAction, string> = {
   cancelar: 'Cancelar trabajo',
 }
 
+/** Acciones que piden confirmación (`ConfirmDialog`) antes de enviarse: el criterio es la
+ * reversibilidad, no la frecuencia. Las tres llevan a un estado del que no hay transición
+ * de vuelta (`case-status.ts`) y estampan una fecha que no se reconstruye después; las
+ * demás se quedan a un clic porque "pausar"/"cancelar" siguen disponibles después. */
+const CONFIRM_ACTIONS = ['finalizar', 'marcar_enviado', 'marcar_entregado'] as const
+type ConfirmAction = (typeof CONFIRM_ACTIONS)[number]
+
+function isConfirmAction(a: CaseAction): a is ConfirmAction {
+  return (CONFIRM_ACTIONS as readonly CaseAction[]).includes(a)
+}
+
+/** Consecuencia concreta de cada acción de `CONFIRM_ACTIONS`, no un genérico "¿estás
+ * seguro?": qué fecha queda registrada y por qué no se puede deshacer. */
+const CONFIRM_DESCRIPTIONS: Record<ConfirmAction, string> = {
+  finalizar:
+    'El trabajo pasará a "Terminado" con la fecha de hoy. No hay ninguna acción para devolverlo a "En proceso".',
+  marcar_enviado:
+    'Se registrará el envío con la fecha de hoy. No hay ninguna acción para devolverlo a "Terminado".',
+  marcar_entregado:
+    'Se registrará la entrega con la fecha de hoy y el trabajo quedará cerrado: no queda ninguna acción para deshacerlo.',
+}
+
 /** Barra de acciones de estado de la ficha del trabajo: los botones disponibles se
  * derivan de `CASE_TRANSITIONS` (estado actual × rol), nunca a mano. "Aceptar" se
- * deshabilita mientras `missing` no esté vacío; las acciones de
+ * deshabilita mientras `missing` no esté vacío (el aviso de qué falta lo pinta
+ * `CaseHeader`, no este componente, para no duplicarlo); las acciones de
  * `ACTIONS_REQUIRING_REASON` (pausar, cancelar) abren un diálogo con motivo
- * obligatorio antes de enviarse; el resto se envía directo al hacer clic. */
+ * obligatorio, las de `CONFIRM_ACTIONS` piden confirmación, y el resto se envía
+ * directo al hacer clic. */
 export function CaseActions({
   case: c,
   missing,
@@ -34,6 +59,7 @@ export function CaseActions({
   role: UserRole
 }) {
   const [dialogAction, setDialogAction] = useState<CaseAction | null>(null)
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
   const action = useCaseAction(c.id)
 
   const actions = availableActions(c.status).filter((a) => canPerform(role, a))
@@ -45,6 +71,10 @@ export function CaseActions({
       setDialogAction(a)
       return
     }
+    if (isConfirmAction(a)) {
+      setConfirmAction(a)
+      return
+    }
     action.mutate({ accion: a, motivo: null })
   }
 
@@ -53,19 +83,15 @@ export function CaseActions({
       {actions.map((a) => {
         const disabled = a === 'aceptar' && missing.length > 0
         return (
-          <div key={a} className="flex w-full flex-col gap-1 sm:w-auto">
-            <Button
-              variant={a === 'cancelar' ? 'destructive' : 'default'}
-              className="w-full sm:w-auto"
-              disabled={disabled || action.isPending}
-              onClick={() => run(a)}
-            >
-              {ACTION_LABELS[a]}
-            </Button>
-            {disabled && (
-              <p className="text-xs text-muted-foreground">Falta: {missing.join(', ')}</p>
-            )}
-          </div>
+          <Button
+            key={a}
+            variant={a === 'cancelar' ? 'destructive' : 'default'}
+            className="w-full sm:w-auto"
+            disabled={disabled || action.isPending}
+            onClick={() => run(a)}
+          >
+            {ACTION_LABELS[a]}
+          </Button>
         )
       })}
       {dialogAction && (
@@ -79,6 +105,24 @@ export function CaseActions({
           pending={action.isPending}
           onConfirm={(input) => {
             action.mutate(input, { onSuccess: () => setDialogAction(null) })
+          }}
+        />
+      )}
+      {confirmAction && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setConfirmAction(null)
+          }}
+          title={ACTION_LABELS[confirmAction]}
+          description={CONFIRM_DESCRIPTIONS[confirmAction]}
+          confirmLabel={ACTION_LABELS[confirmAction]}
+          pending={action.isPending}
+          onConfirm={() => {
+            action.mutate(
+              { accion: confirmAction, motivo: null },
+              { onSuccess: () => setConfirmAction(null) },
+            )
           }}
         />
       )}

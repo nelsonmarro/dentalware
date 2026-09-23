@@ -61,13 +61,17 @@ export function useEvents(id: string) {
 
 /** `POST /api/trabajos/:id/acciones`: invalida la lista, el detalle y los eventos del
  * trabajo (cada acción escribe su `case_event`) — las tres bajo el mismo prefijo
- * `['trabajos']` que ya usa `useInvalidateCases`. */
+ * `['trabajos']` que ya usa `useInvalidateCases`. `onSuccess` **espera** esa invalidación
+ * (no `void invalidate()`) para que `isPending` — el único indicador de "ocupado" que
+ * expone este hook — siga en `true` mientras el detalle todavía está refetcheando: sin
+ * esto, un botón de acción se rehabilita con el estado viejo todavía en pantalla y un
+ * segundo clic duplica la mutación (M-3, revisión de la Tarea 8). */
 export function useCaseAction(id: string) {
   const invalidate = useInvalidateCases()
   return useMutation({
     mutationFn: (input: CaseActionInput) => postCaseAction(id, input),
-    onSuccess: () => {
-      void invalidate()
+    onSuccess: async () => {
+      await invalidate()
       toast.success('Trabajo actualizado')
     },
     onError: toastApiError,

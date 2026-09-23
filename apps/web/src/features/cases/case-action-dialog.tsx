@@ -52,8 +52,11 @@ export function CaseActionDialog({
       title={title}
       footer={
         <>
+          {/* "Volver", no "Cancelar": la acción "cancelar" (cancelar trabajo) también abre
+           * este diálogo — "Cancelar" junto a "Confirmar" leía como una segunda acción de
+           * cancelar el trabajo, no como cerrar el diálogo (M-2, revisión de la Tarea 8). */}
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
-            Cancelar
+            Volver
           </Button>
           <Button type="submit" form="case-action-form" disabled={pending}>
             {pending ? 'Guardando…' : 'Confirmar'}

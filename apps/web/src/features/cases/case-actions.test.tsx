@@ -1,11 +1,20 @@
-import { screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { screen, waitFor, within } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithProviders } from '@/test/render'
 import type { CaseDetail } from './api'
 import { CaseActions } from './case-actions'
+import { useCase } from './use-cases'
 
-const { postCaseAction } = vi.hoisted(() => ({ postCaseAction: vi.fn() }))
-vi.mock('./api', () => ({ postCaseAction }))
+const { postCaseAction, fetchCase } = vi.hoisted(() => ({
+  postCaseAction: vi.fn(),
+  fetchCase: vi.fn(),
+}))
+vi.mock('./api', () => ({ postCaseAction, fetchCase }))
+
+beforeEach(() => {
+  postCaseAction.mockClear()
+  fetchCase.mockClear()
+})
 
 function caso(overrides: Partial<CaseDetail> = {}): CaseDetail {
   return {
@@ -63,7 +72,7 @@ describe('CaseActions', () => {
     expect(screen.queryByRole('button', { name: 'Finalizar' })).not.toBeInTheDocument()
   })
 
-  it('deshabilita Aceptar y dice qué falta cuando el trabajo está incompleto', async () => {
+  it('deshabilita Aceptar cuando el trabajo está incompleto', async () => {
     renderWithProviders(
       <CaseActions
         case={caso({ status: 'nuevo' })}
@@ -71,8 +80,9 @@ describe('CaseActions', () => {
         role="recepcion"
       />,
     )
+    // El texto de qué falta lo pinta `CaseHeader` ("Para aceptar falta: …"); aquí solo
+    // importa que "Aceptar" quede deshabilitado, sin repetir el aviso (M-1).
     expect(await screen.findByRole('button', { name: 'Aceptar' })).toBeDisabled()
-    expect(screen.getByText(/Falta: Color, Prescripción/)).toBeInTheDocument()
   })
 
   it('a un técnico no le ofrece Aceptar ni Cancelar', async () => {
@@ -92,6 +102,7 @@ describe('CaseActions', () => {
     const confirmar = screen.getByRole('button', { name: 'Confirmar' })
     await user.click(confirmar)
     expect(await screen.findByText('Escribe el motivo')).toBeInTheDocument()
+    expect(postCaseAction).not.toHaveBeenCalled()
     await user.type(screen.getByLabelText('Motivo'), 'Falta antagonista')
     await user.click(confirmar)
     await waitFor(() =>
@@ -107,5 +118,54 @@ describe('CaseActions', () => {
       <CaseActions case={caso({ status: 'entregado' })} missing={[]} role="recepcion" />,
     )
     await waitFor(() => expect(screen.queryAllByRole('button')).toHaveLength(0))
+  })
+
+  it('finalizar pide confirmación con la consecuencia concreta y no se envía hasta confirmar', async () => {
+    const { user } = renderWithProviders(
+      <CaseActions case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Finalizar' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(
+      within(dialog).getByText(/No hay ninguna acción para devolverlo a "En proceso"/),
+    ).toBeInTheDocument()
+    expect(postCaseAction).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: 'Finalizar' }))
+    await waitFor(() =>
+      expect(postCaseAction).toHaveBeenCalledWith('c1', { accion: 'finalizar', motivo: null }),
+    )
+  })
+
+  it('un segundo clic mientras se confirma el cambio de estado no duplica la acción', async () => {
+    // La lista de trabajos también monta `useCase('c1')` (misma clave que invalida la
+    // mutación): así la invalidación de `useCaseAction` dispara un refetch real que
+    // podemos mantener pendiente para reproducir la ventana entre "la API respondió" y
+    // "el detalle todavía muestra el estado viejo" (M-3).
+    fetchCase.mockResolvedValueOnce({ case: caso({ status: 'en_proceso' }), missing: [] })
+    let resolveRefetch!: (value: unknown) => void
+    fetchCase.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRefetch = resolve
+      }),
+    )
+
+    function Harness() {
+      useCase('c1')
+      return <CaseActions case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />
+    }
+    const { user } = renderWithProviders(<Harness />)
+
+    const finalizarBtn = await screen.findByRole('button', { name: 'Finalizar' })
+    await user.click(finalizarBtn)
+    const dialog = screen.getByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Finalizar' }))
+
+    await waitFor(() => expect(finalizarBtn).toBeDisabled())
+    await user.click(finalizarBtn) // botón deshabilitado: no debe disparar una segunda mutación
+
+    resolveRefetch({ case: caso({ status: 'terminado' }), missing: [] })
+
+    await waitFor(() => expect(finalizarBtn).not.toBeDisabled())
+    expect(postCaseAction).toHaveBeenCalledTimes(1)
   })
 })
