@@ -211,5 +211,14 @@ describe('remakeSchema', () => {
     expect(conPct('150')).toBe('El porcentaje no puede ser mayor que 100')
     expect(conPct('-1')).toBe('El porcentaje no puede ser menor que 0')
     expect(conPct('50.5')).toBe('El porcentaje debe ser un número entero')
+    expect(conPct('0x10')).toBe('El porcentaje debe ser un número')
+    expect(conPct('1e2')).toBe('El porcentaje debe ser un número')
+    expect(
+      remakeSchema.safeParse({
+        motivo: 'Fractura',
+        responsabilidad: 'laboratorio',
+        cobroPct: ' 50 ',
+      }).data?.cobroPct,
+    ).toBe(50)
   })
 })

@@ -160,6 +160,9 @@ describe('StageControl', () => {
     // El nombre se sigue viendo: el técnico necesita saber en qué fase estaba.
     expect(await screen.findByText('Fresado')).toBeInTheDocument()
     expect(screen.getByText(/ya no está activa/)).toBeInTheDocument()
+    // Solo se ofrece la salida que existe: reactivar la fase. No hay forma de "mover" el
+    // trabajo desde Configuración, y `PUT /:id/fase` rechaza justo este caso.
+    expect(screen.queryByText(/mueve el trabajo/)).not.toBeInTheDocument()
   })
 
   it('mientras las fases no han cargado dice "Cargando", no "Fase desconocida"', async () => {

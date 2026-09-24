@@ -158,7 +158,7 @@ export function StageControl({
         {c.status === 'en_proceso' && !stagesLoading && (currentInactive || !current) && (
           <p className="text-sm text-muted-foreground">
             La fase en la que estaba este trabajo ya no está activa. Pide a administración que la
-            reactive o mueve el trabajo desde Configuración.
+            reactive en Configuración → Fases.
           </p>
         )}
         {last && (

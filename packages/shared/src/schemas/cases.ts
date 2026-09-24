@@ -205,6 +205,11 @@ const porcentajeCobro = z
   .refine((v) => typeof v === 'number' || v.trim() !== '', {
     error: 'Escribe el porcentaje a cobrar',
   })
+  // Solo notación decimal: `Number` también acepta '0x10' (16) o '1e2' (100), que el
+  // formulario no deja teclear pero la API sí recibiría.
+  .refine((v) => typeof v === 'number' || /^\s*-?\d+(\.\d+)?\s*$/.test(v), {
+    error: 'El porcentaje debe ser un número',
+  })
   .transform((v) => (typeof v === 'number' ? v : Number(v)))
   .pipe(
     z
