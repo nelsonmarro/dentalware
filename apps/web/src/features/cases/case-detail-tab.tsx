@@ -1,6 +1,7 @@
 import {
   CHECKLIST_KEYS,
   CHECKLIST_LABEL,
+  REMAKE_ROLES,
   SHADE_SYSTEM_LABEL,
   type UserRole,
 } from '@dentalware/shared'
@@ -101,7 +102,7 @@ export function CaseDetailTab({
   case: CaseDetail
   hidePrices: boolean
   role: UserRole
-  /** Fases (todas, activas o no: `STAGE_BLOCKED_MESSAGE`/`current?.name` en `StageControl`
+  /** Fases (todas, activas o no: `STAGE_CHANGE_BLOCKED_REASON`/`current?.name` en `StageControl`
    * necesitan resolver el nombre aunque la fase actual se haya desactivado después). Vacío
    * por defecto: un trabajo sin fase (`currentStageId: null`) no necesita la lista. */
   stages?: Stage[]
@@ -120,7 +121,7 @@ export function CaseDetailTab({
         </CardContent>
       </Card>
 
-      {(role === 'admin' || role === 'recepcion') && (
+      {(REMAKE_ROLES as readonly UserRole[]).includes(role) && (
         <div className="flex justify-end">
           <RemakeDialog case={c} onCreated={onRemakeCreated} />
         </div>

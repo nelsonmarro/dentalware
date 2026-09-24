@@ -2,8 +2,9 @@ import {
   isLastStage,
   nextStage,
   previousStage,
+  STAGE_CHANGE_BLOCKED_REASON,
+  STAGE_CHANGE_ROLES,
   stageChangeSchema,
-  type CaseStatus,
   type StageChangeInput,
   type UserRole,
 } from '@dentalware/shared'
@@ -20,26 +21,11 @@ import type { Stage } from '@/features/stages/api'
 import type { CaseDetail } from './api'
 import { useChangeStage } from './use-cases'
 
-/** Solo estos roles cambian de fase (mismo criterio que `canChangeStage` en `routes.ts`,
- * defensa en profundidad: la web no confía solo en ocultar el botón). */
+/** Solo estos roles cambian de fase (I-5 + M-5 + M-9, ola de fixes del PR 1: `STAGE_CHANGE_ROLES`
+ * de shared, antes una lista a mano aquí y en `routes.ts`/`service.ts`; defensa en profundidad:
+ * la web no confía solo en ocultar el botón). */
 function canControlStage(role: UserRole): boolean {
-  return role === 'admin' || role === 'recepcion' || role === 'tecnico'
-}
-
-/** Motivo (en español, UI) de por qué no se puede cambiar de fase en cada estado que no sea
- * `en_proceso` — mismo criterio que `STAGE_CHANGE_BLOCKED_REASON` del servicio (API), pero un
- * `Record` propio: es texto de presentación, no la regla en sí (la regla es "solo en_proceso
- * cambia de fase", una sola comparación, no una lista que haya que mantener sincronizada).
- * `Record<Exclude<CaseStatus, 'en_proceso'>, string>` exhaustivo a propósito (mismo patrón que
- * `CONFIRM_DESCRIPTIONS` en `case-actions.tsx`): un estado nuevo no compila hasta tener texto. */
-const STAGE_BLOCKED_MESSAGE: Record<Exclude<CaseStatus, 'en_proceso'>, string> = {
-  nuevo: 'El trabajo no tiene fase todavía: acéptalo primero.',
-  en_espera: 'El trabajo está pausado: reanúdalo para volver a cambiar de fase.',
-  en_prueba: 'El trabajo está en una prueba en boca: recíbela para volver a cambiar de fase.',
-  terminado: 'El trabajo ya está terminado.',
-  enviado: 'El trabajo ya fue enviado.',
-  entregado: 'El trabajo ya fue entregado.',
-  cancelado: 'El trabajo está cancelado.',
+  return (STAGE_CHANGE_ROLES as readonly UserRole[]).includes(role)
 }
 
 type StageChangeFormValues = z.input<typeof stageChangeSchema>
@@ -153,7 +139,7 @@ export function StageControl({
           {stagesLoading ? 'Cargando…' : (current?.name ?? 'Fase desconocida')}
         </p>
         {c.status !== 'en_proceso' && (
-          <p className="text-sm text-muted-foreground">{STAGE_BLOCKED_MESSAGE[c.status]}</p>
+          <p className="text-sm text-muted-foreground">{STAGE_CHANGE_BLOCKED_REASON[c.status]}</p>
         )}
         {c.status === 'en_proceso' && !stagesLoading && (currentInactive || !current) && (
           <p className="text-sm text-muted-foreground">

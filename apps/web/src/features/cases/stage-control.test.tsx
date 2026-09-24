@@ -211,7 +211,7 @@ describe('StageControl', () => {
         role="tecnico"
       />,
     )
-    expect(await screen.findByText(/pausado/i)).toBeInTheDocument()
+    expect(await screen.findByText(/en espera/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Avanzar fase' })).not.toBeInTheDocument()
   })
 

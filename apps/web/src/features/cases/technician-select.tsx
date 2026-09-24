@@ -1,16 +1,17 @@
-import type { UserRole } from '@dentalware/shared'
+import { ASSIGN_TECHNICIAN_ROLES, type UserRole } from '@dentalware/shared'
 import { Field, FieldLabel } from '@/components/ui/field'
 import type { CaseDetail } from './api'
 import { useAssignTechnician, useTechnicians } from './use-cases'
 
-/** Solo admin y recepción asignan (mismo criterio que `canWrite` en `routes.ts`); técnico y
- * mensajero ven el nombre pero no el control. */
+/** Solo admin y recepción asignan (I-5 + M-5 + M-9, ola de fixes del PR 1:
+ * `ASSIGN_TECHNICIAN_ROLES` de shared, antes una lista a mano); técnico y mensajero ven el
+ * nombre pero no el control. */
 function canAssign(role: UserRole): boolean {
-  return role === 'admin' || role === 'recepcion'
+  return (ASSIGN_TECHNICIAN_ROLES as readonly UserRole[]).includes(role)
 }
 
 /**
- * Técnico responsable del trabajo (CIC-2): admin y recepción ven un `<select>` nativo (no el
+ * Técnico responsable del trabajo (CIC-5): admin y recepción ven un `<select>` nativo (no el
  * combobox de Radix — el mismo patrón que la barra de filtros, más simple para una lista
  * corta) con los técnicos activos (`useTechnicians`, solo consultado para estos roles: técnico
  * y mensajero recibirían 403 de `GET /api/trabajos/tecnicos`) más "Sin asignar"; el resto de
