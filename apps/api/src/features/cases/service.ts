@@ -1,19 +1,25 @@
 import {
   addBusinessDays,
   applyAction,
+  ASSIGN_TECHNICIAN_ROLES,
+  canAssignTechnician,
+  canChangeStage,
   canPerform,
+  CASE_WRITE_ROLES,
   firstStage,
   isLastStage,
   missingForAccept,
   nextStage,
   previousStage,
+  REMAKE_ROLES,
+  STAGE_CHANGE_BLOCKED_REASON,
+  STAGE_CHANGE_ROLES,
   toIsoDate,
   type AssignTechnicianInput,
   type CaseActionInput,
   type CaseEventType,
   type CaseInput,
   type CaseListQuery,
-  type CaseStatus,
   type RemakeInput,
   type StageChangeInput,
   type StageRef,
@@ -38,14 +44,18 @@ const hidesPrices = (role: UserRole) => role === 'tecnico' || role === 'mensajer
 type Priced = {
   total: string | null
   internalNotes: string | null
+  remakeChargePct: string | null
   items: { unitPrice: string | null; lineTotal: string | null; discountPct: string | null }[]
 }
-/** Oculta precios y notas internas a quien no debe verlos (técnico/mensajero). */
+/** Oculta precios, notas internas y el porcentaje de cobro de una repetición a quien no debe
+ * verlos (técnico/mensajero). `remakeChargePct` es política de cobro a la clínica (M-7, ola de
+ * fixes del PR 1): `docs/conventions.md` §4 dice que técnico y mensajero no reciben precios. */
 export function stripPrices<T extends Priced>(row: T): T {
   return {
     ...row,
     total: null,
     internalNotes: null,
+    remakeChargePct: null,
     items: row.items.map((i) => ({ ...i, unitPrice: null, lineTotal: null, discountPct: null })),
   }
 }
@@ -92,27 +102,14 @@ const EVENT_TYPE_FOR_ACTION: Record<CaseActionInput['accion'], CaseEventType> = 
 
 /**
  * Único estado en el que un trabajo tiene una fase de producción en curso: `aceptar` deja la
- * fase inicial y desde `en_proceso` se finaliza (CIC-5). Lista blanca, no negra (ronda de
+ * fase inicial y desde `en_proceso` se finaliza (CIC-2). Lista blanca, no negra (ronda de
  * fixes 1, I-1): antes de este fix la lista negra (`en_espera`/`en_prueba`) dejaba pasar
  * `terminado`/`enviado`/`entregado`/`cancelado`, y como `finalizar` no limpia `currentStageId`,
  * un trabajo ya cerrado seguía cambiando de fase (evento `stage_changed` espurio en su
- * historial). Cada estado bloqueado tiene su propio motivo en español.
+ * historial). `canChangeStage` y `STAGE_CHANGE_BLOCKED_REASON` viven en `shared`
+ * (I-5 + M-5 + M-9, ola de fixes del PR 1): antes de ese fix era una copia local de un `Record`
+ * que también duplicaba la web, con las mismas claves y texto casi idéntico.
  */
-const STAGE_CHANGE_BLOCKED_REASON: Record<Exclude<CaseStatus, 'en_proceso'>, string> = {
-  nuevo: 'El trabajo todavía no tiene fase: acéptalo primero',
-  en_espera: 'El trabajo está en espera: reanúdalo para poder cambiar de fase',
-  en_prueba: 'El trabajo está en una prueba en boca: recíbela para poder cambiar de fase',
-  terminado: 'El trabajo ya está terminado',
-  enviado: 'El trabajo ya fue enviado',
-  entregado: 'El trabajo ya fue entregado',
-  cancelado: 'El trabajo está cancelado',
-}
-
-/** Estados terminales en los que ya no tiene sentido reasignar el técnico responsable
- * (ronda de fixes 1, I-1). A diferencia de `changeStage`, el resto de estados sí lo permite:
- * corregir quién es responsable de un trabajo que todavía se mueve por el laboratorio es
- * legítimo (recepción lo va a necesitar); hacerlo sobre uno ya cerrado no. */
-const ASSIGN_TECHNICIAN_BLOCKED_STATUSES: readonly CaseStatus[] = ['entregado', 'cancelado']
 
 /** Distingue "la fase actual es la última/primera de las activas" de "no se sabe cuál es la
  * fase actual" (currentStageId nulo, o una fase que se desactivó con el trabajo todavía en
@@ -256,12 +253,12 @@ export function createCasesService(deps: {
      */
     async changeStage(id: string, input: StageChangeInput, ctx: RequestContext) {
       await deps.uow.run(async ({ cases }) => {
-        if (ctx.role !== 'admin' && ctx.role !== 'recepcion' && ctx.role !== 'tecnico') {
+        if (!(STAGE_CHANGE_ROLES as readonly UserRole[]).includes(ctx.role)) {
           throw new CaseForbiddenError()
         }
         const found = await cases.byId(id)
         if (!found) throw new CaseNotFoundError()
-        if (found.status !== 'en_proceso') {
+        if (!canChangeStage(found.status)) {
           throw new CaseStateError(STAGE_CHANGE_BLOCKED_REASON[found.status])
         }
         const activeStages = await deps.stages.active()
@@ -296,20 +293,22 @@ export function createCasesService(deps: {
       return hidesPrices(ctx.role) ? stripPrices(updated) : updated
     },
     /**
-     * Asigna o quita (con `tecnicoId: null`) el técnico responsable del trabajo (CIC-2). Solo
+     * Asigna o quita (con `tecnicoId: null`) el técnico responsable del trabajo (CIC-5). Solo
      * admin y recepción pueden asignar (defensa en profundidad: la ruta ya filtra por rol, ver
      * `canWrite` en `routes.ts`, pero un test de servicio con fakes no pasa por la ruta). No se
-     * puede reasignar un trabajo ya cerrado (`ASSIGN_TECHNICIAN_BLOCKED_STATUSES`); el resto de
+     * puede reasignar un trabajo ya cerrado (`canAssignTechnician`, shared); el resto de
      * estados sí lo permite. El técnico debe estar activo (`UsersQuery.activeTechnicians`,
      * puerto de la feature `users`); si no, `CaseInputError`. Deja el evento `assigned` con el
      * técnico anterior y el nuevo.
      */
     async assignTechnician(id: string, input: AssignTechnicianInput, ctx: RequestContext) {
       await deps.uow.run(async ({ cases }) => {
-        if (ctx.role !== 'admin' && ctx.role !== 'recepcion') throw new CaseForbiddenError()
+        if (!(ASSIGN_TECHNICIAN_ROLES as readonly UserRole[]).includes(ctx.role)) {
+          throw new CaseForbiddenError()
+        }
         const found = await cases.byId(id)
         if (!found) throw new CaseNotFoundError()
-        if (ASSIGN_TECHNICIAN_BLOCKED_STATUSES.includes(found.status)) {
+        if (!canAssignTechnician(found.status)) {
           throw new CaseStateError(
             `No se puede reasignar el técnico de un trabajo en estado "${found.status}"`,
           )
@@ -349,7 +348,9 @@ export function createCasesService(deps: {
      * ya les impide llegar aquí a técnico o mensajero).
      */
     async createRemake(parentId: string, input: RemakeInput, ctx: RequestContext) {
-      if (ctx.role !== 'admin' && ctx.role !== 'recepcion') throw new CaseForbiddenError()
+      if (!(REMAKE_ROLES as readonly UserRole[]).includes(ctx.role)) {
+        throw new CaseForbiddenError()
+      }
       const { id } = await deps.uow.run(({ cases }) =>
         cases.createRemake(parentId, { ...input, receivedAt: deps.clock.today() }, ctx.userId),
       )
@@ -365,7 +366,9 @@ export function createCasesService(deps: {
      * enmascarar: `Named` ya no lleva correo, rol ni estado de baneo.
      */
     async technicians(ctx: RequestContext) {
-      if (ctx.role !== 'admin' && ctx.role !== 'recepcion') throw new CaseForbiddenError()
+      if (!(CASE_WRITE_ROLES as readonly UserRole[]).includes(ctx.role)) {
+        throw new CaseForbiddenError()
+      }
       return deps.users.activeTechnicians()
     },
   }

@@ -175,14 +175,16 @@ describe('createCasesService', () => {
     await expect(service.comment('nope', 'Hola', admin)).rejects.toBeInstanceOf(CaseNotFoundError)
   })
 
-  it('stripPrices anula precios y totales', () => {
+  it('stripPrices anula precios, totales y el porcentaje de cobro de la repetición (M-7)', () => {
     const s = stripPrices({
       total: '10.00',
       internalNotes: 'nota',
+      remakeChargePct: '50.00',
       items: [{ unitPrice: '1.00', lineTotal: '1.00', discountPct: '0.00', quantity: 1 }],
     })
     expect(s.total).toBeNull()
     expect(s.internalNotes).toBeNull()
+    expect(s.remakeChargePct).toBeNull()
     expect(s.items[0]).toMatchObject({
       unitPrice: null,
       lineTotal: null,

@@ -1,5 +1,6 @@
 import {
   assignTechnicianSchema,
+  CASE_WRITE_ROLES,
   caseActionSchema,
   caseInputSchema,
   caseListQuerySchema,
@@ -7,6 +8,8 @@ import {
   idParamSchema,
   remakeSchema,
   stageChangeSchema,
+  STAGE_CHANGE_ROLES,
+  USER_ROLES,
 } from '@dentalware/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
@@ -18,19 +21,21 @@ import type { CasesService } from './service.ts'
 
 // canWrite ya cubre "sin sesión" y "rol incorrecto" con 403 (ver comentario en session.ts):
 // no se combina con requireAuth para no dar 401 antes de llegar al chequeo de rol.
-const canWrite = requireRole('admin', 'recepcion')
+// CASE_WRITE_ROLES (shared, I-5 + M-5 + M-9): misma lista que consumen el servicio y la web.
+const canWrite = requireRole(...CASE_WRITE_ROLES)
 
-// Unión de los roles de `CASE_TRANSITIONS` (shared): el rol exacto permitido por acción
-// lo decide `CasesService.action` con `canPerform` (dentro de `uow.run`, ver ruling de la
-// Tarea 5 fix 1), pero un guardián por rol en la ruta dobla esa defensa (sobrevive a que
-// alguien mueva `canPerform` al refactorizar el servicio) y da 403 antes del validador de
-// `json`, igual que las demás rutas de escritura, en vez de dejar que un anónimo reciba
-// issues de validación como si la ruta le perteneciera.
-const canAct = requireRole('admin', 'recepcion', 'tecnico', 'mensajero')
+// Unión de los roles de `CASE_TRANSITIONS` (shared, que hoy son los 4 roles de `USER_ROLES`):
+// el rol exacto permitido por acción lo decide `CasesService.action` con `canPerform` (dentro
+// de `uow.run`, ver ruling de la Tarea 5 fix 1), pero un guardián por rol en la ruta dobla esa
+// defensa (sobrevive a que alguien mueva `canPerform` al refactorizar el servicio) y da 403
+// antes del validador de `json`, igual que las demás rutas de escritura, en vez de dejar que
+// un anónimo reciba issues de validación como si la ruta le perteneciera.
+const canAct = requireRole(...USER_ROLES)
 
 // Cambiar de fase lo hace el técnico además de admin y recepción (Tarea 6); asignar técnico
 // responsable, en cambio, es de admin/recepción como cualquier otra escritura (`canWrite`).
-const canChangeStage = requireRole('admin', 'recepcion', 'tecnico')
+// STAGE_CHANGE_ROLES (shared, I-5 + M-5 + M-9): misma lista que consumen el servicio y la web.
+const canChangeStage = requireRole(...STAGE_CHANGE_ROLES)
 
 /** Traduce los errores de dominio del servicio a la respuesta HTTP que espera la web. */
 function toHttp(e: unknown): never {
@@ -121,9 +126,9 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
         }
       },
     )
-    // `canAct` filtra por la unión de roles de `CASE_TRANSITIONS`; el rol exacto por
-    // acción (p. ej. solo mensajero para `marcar_entregado`) lo decide `CasesService.action`
-    // con `canPerform`, traducido a 403 por `CaseForbiddenError` más abajo.
+    // `canAct` filtra por la unión de roles de `CASE_TRANSITIONS`; el rol exacto por acción
+    // (p. ej. admin, recepción y mensajero para `marcar_entregado`, pero no técnico) lo decide
+    // `CasesService.action` con `canPerform`, traducido a 403 por `CaseForbiddenError` más abajo.
     .post(
       '/:id/acciones',
       canAct,

@@ -146,8 +146,10 @@ export const REMAKE_ROLES: readonly UserRole[] = CASE_WRITE_ROLES
 /** Único estado en el que un trabajo tiene una fase de producción en curso (CIC-2): `aceptar`
  * deja la fase inicial y desde `en_proceso` se finaliza. Lista blanca, no negra: un trabajo
  * `terminado`/`enviado`/`entregado`/`cancelado` no debe seguir cambiando de fase aunque
- * `finalizar` no limpie `currentStageId`. */
-export function canChangeStage(status: CaseStatus): boolean {
+ * `finalizar` no limpie `currentStageId`. Predicado de tipo (no solo `boolean`) para que
+ * `!canChangeStage(found.status)` estreche a `Exclude<CaseStatus, 'en_proceso'>` y así indexar
+ * `STAGE_CHANGE_BLOCKED_REASON` sin un cast. */
+export function canChangeStage(status: CaseStatus): status is 'en_proceso' {
   return status === 'en_proceso'
 }
 
