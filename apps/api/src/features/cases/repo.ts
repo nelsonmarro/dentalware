@@ -6,6 +6,7 @@ import {
   fromCents,
   isEditableStatus,
   lineTotalCents,
+  remakeDueDate,
   sumCents,
   toCents,
 } from '@dentalware/shared'
@@ -333,13 +334,11 @@ export function createCasesRepo(db: Db | Tx) {
 
       const year = Number(input.receivedAt.slice(0, 4))
       const code = await nextCaseCode(db, year)
-      // I-3 (ronda de fixes 1): copiar `dueDate` tal cual metería al hijo en "atrasados" desde
-      // que nace, justo cuando el disparador típico de una repetición es que el trabajo salió
-      // mal *después* de la fecha comprometida. Solo se copia si todavía no pasó (>= la fecha
-      // de recepción del hijo); si ya pasó, se deja en null: `missingForAccept` la reclamará
-      // como "Fecha deseada" y obliga a quien repite a decidir una nueva, que es justo la
-      // pregunta que corresponde en ese momento.
-      const dueDate = parent.dueDate && parent.dueDate >= input.receivedAt ? parent.dueDate : null
+      // I-3 (ronda de fixes 1, corregido en la ola de fixes del PR 1): la regla vive en
+      // `remakeDueDate` (shared), no aquí — antes estaba duplicada a mano en este archivo y en
+      // `fakes.ts`, y solo la copia del fake tenía test (ver `cases.test.ts`, «una fecha
+      // deseada ya vencida…», que sí ejercita este adaptador contra Postgres).
+      const dueDate = remakeDueDate(parent.dueDate, input.receivedAt)
       const [row] = await db
         .insert(cases)
         .values({

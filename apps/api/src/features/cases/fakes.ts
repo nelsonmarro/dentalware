@@ -3,6 +3,7 @@ import {
   canRemake,
   fromCents,
   isEditableStatus,
+  remakeDueDate,
   sumCents,
   toCents,
 } from '@dentalware/shared'
@@ -238,10 +239,9 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
         caseId: id,
         sort,
       }))
-      // I-3 (ronda de fixes 1): mismo criterio que `repo.ts` — solo se copia la fecha deseada
-      // del padre si todavía no pasó; si ya venció, se deja en null para que `missingForAccept`
-      // la reclame y no meta al hijo en "atrasados" desde que nace.
-      const dueDate = parent.dueDate && parent.dueDate >= input.receivedAt ? parent.dueDate : null
+      // I-3 (ronda de fixes 1): misma regla que `repo.ts`, ahora en `remakeDueDate` (shared)
+      // en vez de duplicada a mano en cada adaptador.
+      const dueDate = remakeDueDate(parent.dueDate, input.receivedAt)
       rows.set(
         id,
         caseDetailFixture({

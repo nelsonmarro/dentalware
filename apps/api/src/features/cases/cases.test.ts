@@ -838,6 +838,27 @@ describe('/api/trabajos', () => {
       expect(ficha.case.items[0]!.teeth).toEqual([11, 12])
     })
 
+    // I-3 (ronda de fixes 1 del PR 1): esta prueba corre contra el `repo.ts` real (Postgres),
+    // no contra `fakes.ts` — el hallazgo original era justo que solo la copia del fake estaba
+    // protegida. Un padre con `dueDate` ya vencida (2020, muy anterior a "hoy") no debe
+    // colar esa fecha al hijo: si `createRemake` copiara `parent.dueDate` tal cual, el hijo
+    // nacería ya "atrasado" el mismo día que se crea.
+    it('una fecha deseada ya vencida en el padre no se copia al hijo (dueDate queda null)', async () => {
+      const id = await createOne(recepcion, {
+        dueDate: '2020-01-01',
+        prescription: 'Corona completa disilicato',
+        items: [{ productId: zr, quantity: 1, teeth: [11, 12] }],
+      })
+      await avanzarAEntregado(id)
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      expect(res.status).toBe(201)
+      const { case: created } = (await res.json()) as { case: { id: string } }
+      const ficha = (await (
+        await app.request(`/api/trabajos/${created.id}`, req(admin, 'GET'))
+      ).json()) as { case: { dueDate: string | null } }
+      expect(ficha.case.dueDate).toBeNull()
+    })
+
     it('deja el evento remake_created en el original y en el hijo', async () => {
       const { id } = await crearTrabajoEntregado()
       const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
