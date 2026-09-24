@@ -262,6 +262,29 @@ describe('/api/trabajos', () => {
     expect(comoMensajeroBody.cases.every((c) => c.total === null)).toBe(true)
   })
 
+  // M-5 (revisión final del PR 1, CIC-4): `vista=en_curso` filtra por una lista blanca de
+  // estados (`en_proceso`/`en_espera`/`en_prueba`); un trabajo cancelado nunca debe aparecer
+  // ahí, aunque un cancelado también sea, en cierto sentido, un trabajo "que ya no avanza".
+  it('un trabajo cancelado no aparece en la vista en_curso', async () => {
+    const enProcesoId = await createOne(recepcion, { patientRef: 'En proceso' })
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'en_proceso' })
+      .where(eq(ctx.schema.cases.id, enProcesoId))
+
+    const canceladoId = await createOne(recepcion, { patientRef: 'Cancelado' })
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'cancelado' })
+      .where(eq(ctx.schema.cases.id, canceladoId))
+
+    const res = await app.request('/api/trabajos?vista=en_curso', req(recepcion, 'GET'))
+    const body = (await res.json()) as { cases: { id: string }[] }
+    const idsEnCurso = body.cases.map((c) => c.id)
+    expect(idsEnCurso).toContain(enProcesoId)
+    expect(idsEnCurso).not.toContain(canceladoId)
+  })
+
   async function ids(qs: string) {
     return (
       (await (await app.request(`/api/trabajos${qs}`, req(recepcion, 'GET'))).json()) as {
@@ -504,16 +527,40 @@ describe('/api/trabajos', () => {
     // I-1: lo que hace especial a esta ruta (sin `canWrite` fijo) es justo que un técnico
     // pueda finalizar y un mensajero pueda marcar entregas; sin estos tres, los 6 tests de
     // arriba quedarían en verde aunque alguien rompiera ese comportamiento por HTTP.
-    it('técnico puede finalizar un trabajo en proceso (200)', async () => {
+    // M-6 (ronda de fixes 1 del PR 1): estos dos tests solo comprobaban el 200; una fuga de
+    // precios o notas internas en esta ruta pasaba inadvertida. El tipo de `body.case` fuerza
+    // a que la respuesta real traiga estos campos (si el servicio dejara de enmascarar, el
+    // `.toBeNull()` cae, no el tipo).
+    it('técnico puede finalizar un trabajo en proceso (200) sin ver precios ni notas internas', async () => {
       const { id } = await crearTrabajoEnProceso()
       const res = await app.request(
         `/api/trabajos/${id}/acciones`,
         req(tecnico, 'POST', { accion: 'finalizar' }),
       )
       expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        case: {
+          total: string | null
+          internalNotes: string | null
+          remakeChargePct: string | null
+          items: {
+            unitPrice: string | null
+            lineTotal: string | null
+            discountPct: string | null
+          }[]
+        }
+      }
+      expect(body.case.total).toBeNull()
+      expect(body.case.internalNotes).toBeNull()
+      expect(body.case.remakeChargePct).toBeNull()
+      for (const item of body.case.items) {
+        expect(item.unitPrice).toBeNull()
+        expect(item.lineTotal).toBeNull()
+        expect(item.discountPct).toBeNull()
+      }
     })
 
-    it('mensajero puede marcar entregado un trabajo enviado (200)', async () => {
+    it('mensajero puede marcar entregado un trabajo enviado (200) sin ver precios ni notas internas', async () => {
       const { id } = await crearTrabajoEnProceso()
       await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' }))
       await app.request(
@@ -525,6 +572,79 @@ describe('/api/trabajos', () => {
         req(mensajero, 'POST', { accion: 'marcar_entregado' }),
       )
       expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        case: {
+          total: string | null
+          internalNotes: string | null
+          remakeChargePct: string | null
+          items: {
+            unitPrice: string | null
+            lineTotal: string | null
+            discountPct: string | null
+          }[]
+        }
+      }
+      expect(body.case.total).toBeNull()
+      expect(body.case.internalNotes).toBeNull()
+      expect(body.case.remakeChargePct).toBeNull()
+      for (const item of body.case.items) {
+        expect(item.unitPrice).toBeNull()
+        expect(item.lineTotal).toBeNull()
+        expect(item.discountPct).toBeNull()
+      }
+    })
+
+    // M-6: caso donde `remakeChargePct` sí trae un valor antes de enmascarar (una repetición),
+    // para que el `.toBeNull()` de arriba no pase "por casualidad" porque el campo ya nacía
+    // vacío en un trabajo que nunca fue una repetición.
+    it('técnico no ve el porcentaje de cobro de una repetición al finalizarla', async () => {
+      const padreId = await createOne(recepcion, {
+        dueDate: '2026-12-01',
+        prescription: 'Corona completa disilicato',
+        items: [{ productId: zr, quantity: 1, teeth: [11, 12] }],
+      })
+      await app.request(
+        `/api/trabajos/${padreId}/acciones`,
+        req(admin, 'POST', { accion: 'aceptar' }),
+      )
+      await app.request(
+        `/api/trabajos/${padreId}/acciones`,
+        req(admin, 'POST', { accion: 'finalizar' }),
+      )
+      await app.request(
+        `/api/trabajos/${padreId}/acciones`,
+        req(admin, 'POST', { accion: 'marcar_enviado' }),
+      )
+      await app.request(
+        `/api/trabajos/${padreId}/acciones`,
+        req(admin, 'POST', { accion: 'marcar_entregado' }),
+      )
+      const repetir = await app.request(
+        `/api/trabajos/${padreId}/repetir`,
+        req(admin, 'POST', {
+          motivo: 'Color equivocado',
+          responsabilidad: 'laboratorio',
+          cobroPct: 50,
+        }),
+      )
+      const { case: hijo } = (await repetir.json()) as { case: { id: string } }
+      await app.request(
+        `/api/trabajos/${hijo.id}/acciones`,
+        req(admin, 'POST', { accion: 'aceptar' }),
+      )
+      const res = await app.request(
+        `/api/trabajos/${hijo.id}/acciones`,
+        req(tecnico, 'POST', { accion: 'finalizar' }),
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { case: { remakeChargePct: string | null } }
+      expect(body.case.remakeChargePct).toBeNull()
+
+      // Confirma que el dato existe de verdad (no es null "por casualidad"): admin sí lo ve.
+      const fichaAdmin = (await (
+        await app.request(`/api/trabajos/${hijo.id}`, req(admin, 'GET'))
+      ).json()) as { case: { remakeChargePct: string | null } }
+      expect(fichaAdmin.case.remakeChargePct).toBe('50.00')
     })
 
     it('mensajero no puede aceptar (403)', async () => {
