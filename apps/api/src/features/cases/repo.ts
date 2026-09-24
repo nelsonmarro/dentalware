@@ -278,6 +278,7 @@ export function createCasesRepo(db: Db | Tx) {
           doctor: { columns: { id: true, name: true } },
           technician: { columns: { id: true, name: true } },
           stage: { columns: { id: true, name: true, color: true } },
+          parentCase: { columns: { code: true } },
           items: {
             orderBy: { sort: 'asc' },
             with: {
@@ -289,12 +290,39 @@ export function createCasesRepo(db: Db | Tx) {
 
     list: (q, today) => listCasesWith(db, q, today),
 
-    events: (caseId) =>
-      db.query.caseEvents.findMany({
+    async events(caseId) {
+      const rows = await db.query.caseEvents.findMany({
         where: { caseId },
         orderBy: { createdAt: 'asc' },
         with: { actor: { columns: { id: true, name: true } } },
-      }),
+      })
+      // `relatedCaseId` (I-2, ola de fixes del PR 1, lote B): solo `remake_created` lleva un
+      // código de trabajo en `toValue`; se resuelve a un id con un join de solo lectura sobre
+      // el propio schema (mismo patrón que cualquier `repo.ts`, sin cruzar features). En la
+      // ficha del padre resuelve al hijo; en la del hijo, a sí mismo (la web lo ignora ahí).
+      const codes = [
+        ...new Set(
+          rows
+            .filter(
+              (r): r is typeof r & { toValue: string } =>
+                r.type === 'remake_created' && !!r.toValue,
+            )
+            .map((r) => r.toValue),
+        ),
+      ]
+      const related = codes.length
+        ? await db
+            .select({ id: cases.id, code: cases.code })
+            .from(cases)
+            .where(inArray(cases.code, codes))
+        : []
+      const idByCode = new Map(related.map((c) => [c.code, c.id]))
+      return rows.map((r) => ({
+        ...r,
+        relatedCaseId:
+          r.type === 'remake_created' && r.toValue ? (idByCode.get(r.toValue) ?? null) : null,
+      }))
+    },
 
     addEvent: (e) => addEventWith(db, e),
 

@@ -71,6 +71,7 @@ export function caseDetailFixture(over: Partial<CaseDetail> = {}): CaseDetail {
     doctor: { id: DOCTOR_ID, name: 'Dr. Pérez' },
     technician: null,
     stage: null,
+    parentCase: null,
     items: [
       {
         id: 'i1',
@@ -202,7 +203,18 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
         pageSize: 20,
       }
     },
-    events: async (caseId) => events.filter((e) => e.caseId === caseId),
+    events: async (caseId) =>
+      events
+        .filter((e) => e.caseId === caseId)
+        .map((e) => ({
+          ...e,
+          // Mismo criterio que `repo.ts`: resuelve por código el id del trabajo relacionado
+          // de un `remake_created` contra las filas conocidas del fake.
+          relatedCaseId:
+            e.type === 'remake_created' && e.toValue
+              ? ([...rows.values()].find((r) => r.code === e.toValue)?.id ?? null)
+              : null,
+        })),
     async addEvent(e: NewCaseEvent) {
       events.push({
         id: `e${events.length + 1}`,
@@ -214,6 +226,9 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
         actorId: e.actorId,
         createdAt: new Date(),
         actor: e.actorId ? { id: e.actorId, name: 'Actor' } : null,
+        // Placeholder: `events()` lo recalcula por código en cada lectura (ver arriba), igual
+        // que `repo.ts` lo resuelve con un `select` al leer en vez de guardarlo.
+        relatedCaseId: null,
       })
     },
     async applyTransition(id, patch) {
@@ -285,6 +300,7 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
           doctor: parent.doctor,
           technician: null,
           stage: null,
+          parentCase: { code: parent.code },
           items,
         }),
       )

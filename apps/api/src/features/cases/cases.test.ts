@@ -995,6 +995,47 @@ describe('/api/trabajos', () => {
       expect(eventosHijo.events.some((e) => e.type === 'remake_created')).toBe(true)
     })
 
+    // I-2 (ola de fixes del PR 1, lote B): la ficha necesita enlazar la repetición en ambos
+    // sentidos. El hijo ya expone `parentCaseId`; para mostrar "Repetición de {código}" en su
+    // ficha falta el código del padre, que se añade como relación de solo lectura en `byId`.
+    it('el hijo expone el código del padre en parentCase', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const padre = (await (
+        await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))
+      ).json()) as { case: { code: string } }
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      const { case: created } = (await res.json()) as { case: { id: string } }
+
+      const ficha = (await (
+        await app.request(`/api/trabajos/${created.id}`, req(admin, 'GET'))
+      ).json()) as { case: { parentCase: { code: string } | null } }
+      expect(ficha.case.parentCase).toEqual({ code: padre.case.code })
+    })
+
+    it('un trabajo sin padre expone parentCase nulo', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const ficha = (await (
+        await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))
+      ).json()) as { case: { parentCase: { code: string } | null } }
+      expect(ficha.case.parentCase).toBeNull()
+    })
+
+    // El evento `remake_created` del padre guarda el código del hijo en `toValue`, pero un
+    // código no es un enlace: `relatedCaseId` resuelve el id del trabajo hijo (join por código,
+    // solo lectura, mismo patrón que un `repo.ts` sobre su propio schema) para que la ficha del
+    // padre pueda enlazarlo en su historial.
+    it('el evento remake_created del padre expone el id del hijo en relatedCaseId', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      const { case: created } = (await res.json()) as { case: { id: string } }
+
+      const eventosPadre = (await (
+        await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string; relatedCaseId: string | null }[] }
+      const evento = eventosPadre.events.find((e) => e.type === 'remake_created')
+      expect(evento?.relatedCaseId).toBe(created.id)
+    })
+
     it('el hijo nace sin técnico asignado aunque el padre lo tuviera', async () => {
       const id = await createOne(recepcion, {
         dueDate: '2026-12-01',

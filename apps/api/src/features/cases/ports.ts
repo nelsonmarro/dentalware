@@ -20,11 +20,22 @@ export type CaseDetail = typeof cases.$inferSelect & {
   doctor: Named
   technician: Named | null
   stage: { id: string; name: string; color: string } | null
+  // Solo el código (I-2, ola de fixes del PR 1, lote B): la ficha del hijo enlaza "Repetición
+  // de {código}" sin cargar el detalle completo del padre. `null` si el trabajo no es una
+  // repetición (`parentCaseId` nulo).
+  parentCase: { code: string } | null
   items: (typeof caseItems.$inferSelect & {
     product: { id: string; code: string; name: string; pricingUnit: PricingUnit } | null
   })[]
 }
-export type CaseEventRow = typeof caseEvents.$inferSelect & { actor: Named | null }
+export type CaseEventRow = typeof caseEvents.$inferSelect & {
+  actor: Named | null
+  // Id del trabajo relacionado por un evento `remake_created` (I-2): en la ficha del padre,
+  // el id del hijo que se creó (resuelto por código, ver `repo.ts:events`); en la ficha del
+  // hijo, su propio id (no enlazable a sí mismo, la web lo ignora ahí). `null` para el resto
+  // de tipos de evento y si el código no se pudo resolver.
+  relatedCaseId: string | null
+}
 export type TryinRow = typeof caseTryins.$inferSelect
 export type CaseListRow = {
   id: string

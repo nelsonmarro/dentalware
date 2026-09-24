@@ -29,6 +29,9 @@ export const appRelations = defineRelations(schema, (r) => ({
     technician: r.one.users({ from: r.cases.assignedTechnicianId, to: r.users.id }),
     stage: r.one.stages({ from: r.cases.currentStageId, to: r.stages.id }),
     creator: r.one.users({ from: r.cases.createdBy, to: r.users.id }),
+    // Autorrelación de solo lectura (I-2, ola de fixes del PR 1, lote B): la ficha del hijo
+    // enlaza "Repetición de {código}" y necesita el código del padre sin cargar toda su ficha.
+    parentCase: r.one.cases({ from: r.cases.parentCaseId, to: r.cases.id }),
     items: r.many.caseItems(),
     events: r.many.caseEvents(),
     attachments: r.many.attachments(),
