@@ -19,6 +19,7 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import type { Stage } from '@/features/stages/api'
 import type { CaseDetail } from './api'
+import { isStageVisible } from './case-views'
 import { useChangeStage } from './use-cases'
 
 /** Solo estos roles cambian de fase (I-5 + M-5 + M-9, ola de fixes del PR 1: `STAGE_CHANGE_ROLES`
@@ -109,17 +110,23 @@ function BackStageDialog({
 export function StageControl({
   case: c,
   stages,
+  stagesError = false,
   role,
 }: {
   case: CaseDetail
   stages: Stage[]
+  /** La consulta de fases falló (M-13): sin esto, `stages={[]}` se leía siempre como
+   * "cargando" y la tarjeta se quedaba en "Cargando…" para siempre. */
+  stagesError?: boolean
   role: UserRole
 }) {
   const [showBack, setShowBack] = useState(false)
   const changeStage = useChangeStage(c.id)
 
-  if (!c.currentStageId) return null
-  const stagesLoading = stages.length === 0
+  // M-3: `finalizar`/`cancelar` no limpian `currentStageId`, así que un trabajo ya cerrado
+  // sigue trayendo fase. Fuera de los estados de producción la tarjeta es ruido.
+  if (!c.currentStageId || !isStageVisible(c.status)) return null
+  const stagesLoading = stages.length === 0 && !stagesError
   // El nombre se resuelve contra la lista completa (`useStages(true)` trae también las
   // inactivas): si el laboratorio desactivó la fase con el trabajo dentro, el técnico
   // necesita ver cuál era, no un "desconocida" que no le dice nada.
@@ -136,17 +143,24 @@ export function StageControl({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <p className="text-sm font-medium">
-          {stagesLoading ? 'Cargando…' : (current?.name ?? 'Fase desconocida')}
+          {stagesError
+            ? 'No se pudieron cargar las fases. Recarga la página.'
+            : stagesLoading
+              ? 'Cargando…'
+              : (current?.name ?? 'Fase desconocida')}
         </p>
         {c.status !== 'en_proceso' && (
           <p className="text-sm text-muted-foreground">{STAGE_CHANGE_BLOCKED_REASON[c.status]}</p>
         )}
-        {c.status === 'en_proceso' && !stagesLoading && (currentInactive || !current) && (
-          <p className="text-sm text-muted-foreground">
-            La fase en la que estaba este trabajo ya no está activa. Pide a administración que la
-            reactive en Configuración → Fases.
-          </p>
-        )}
+        {c.status === 'en_proceso' &&
+          !stagesLoading &&
+          !stagesError &&
+          (currentInactive || !current) && (
+            <p className="text-sm text-muted-foreground">
+              La fase en la que estaba este trabajo ya no está activa. Pide a administración que la
+              reactive en Configuración → Fases.
+            </p>
+          )}
         {last && (
           <p className="text-sm text-muted-foreground">
             Es la última fase: para terminar el trabajo usa "Finalizar" en las acciones de arriba.

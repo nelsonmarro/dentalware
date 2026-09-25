@@ -97,6 +97,7 @@ export function CaseDetailTab({
   hidePrices,
   role,
   stages = [],
+  stagesError = false,
   onRemakeCreated,
 }: {
   case: CaseDetail
@@ -106,6 +107,8 @@ export function CaseDetailTab({
    * necesitan resolver el nombre aunque la fase actual se haya desactivado después). Vacío
    * por defecto: un trabajo sin fase (`currentStageId: null`) no necesita la lista. */
   stages?: Stage[]
+  /** La consulta de fases falló: `StageControl` lo dice en vez de quedarse en "Cargando…". */
+  stagesError?: boolean
   /** Adónde ir tras crear una repetición (Tarea 9): el hijo puede nacer incompleto, así que
    * quien monta esta pestaña navega a su ficha en vez de quedarse en la del padre. */
   onRemakeCreated?: (created: CaseDetail) => void
@@ -113,7 +116,7 @@ export function CaseDetailTab({
   const canSeeInternal = role === 'admin' || role === 'recepcion'
   return (
     <div className="flex flex-col gap-6">
-      <StageControl case={c} stages={stages} role={role} />
+      <StageControl case={c} stages={stages} stagesError={stagesError} role={role} />
 
       <Card>
         <CardContent>

@@ -46,7 +46,12 @@ function CasePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <CaseHeader case={q.data.case} missing={q.data.missing} role={user.role} />
+      <CaseHeader
+        case={q.data.case}
+        missing={q.data.missing}
+        role={user.role}
+        events={events.data ?? []}
+      />
       <CaseActions case={q.data.case} missing={q.data.missing} role={user.role} />
       <Tabs defaultValue="detalle">
         <TabsList>
@@ -60,6 +65,7 @@ function CasePage() {
             hidePrices={hidePrices}
             role={user.role}
             stages={stages.data ?? []}
+            stagesError={stages.isError}
             onRemakeCreated={(created) =>
               void navigate({ to: '/trabajos/$caseId', params: { caseId: created.id } })
             }

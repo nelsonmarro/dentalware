@@ -239,6 +239,36 @@ describe('StageControl', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  // M-3, ola de fixes del PR 1 (lote B): `finalizar` no limpia `currentStageId` en la API
+  // (ruling: no se toca la API), así que un trabajo entregado sigue trayendo `currentStageId`.
+  // Mostrar la tarjeta de fase ahí es ruido: el trabajo ya salió del laboratorio.
+  it('un trabajo entregado con currentStageId en la respuesta no muestra nada', () => {
+    const { container } = renderWithProviders(
+      <StageControl
+        case={caso({ status: 'entregado', currentStageId: 'f1' })}
+        stages={fases}
+        role="admin"
+      />,
+    )
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  // M-13, ola de fixes del PR 1 (lote B): antes de este fix `stages={[]}` significaba siempre
+  // "cargando", así que un `useStages` fallido dejaba "Cargando…" para siempre en vez de decir
+  // que la carga falló.
+  it('si las fases fallan al cargar lo dice, en vez de "Cargando…" para siempre', () => {
+    renderWithProviders(
+      <StageControl
+        case={caso({ status: 'en_proceso', currentStageId: 'f1' })}
+        stages={[]}
+        stagesError
+        role="tecnico"
+      />,
+    )
+    expect(screen.getByText(/No se pudieron cargar las fases/)).toBeInTheDocument()
+    expect(screen.queryByText('Cargando…')).not.toBeInTheDocument()
+  })
+
   it('un segundo toque mientras se confirma el avance no salta dos fases', async () => {
     // Mismo arnés que `case-actions.test.tsx`: la ruta monta `useCase(caseId)` junto al
     // componente, así que la invalidación dispara un refetch real que podemos retener para
