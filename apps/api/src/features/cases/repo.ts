@@ -173,6 +173,13 @@ async function summaryWith(db: Db | Tx, today: string): Promise<CaseSummary> {
     }),
   )
   const [row] = await db.select(selection).from(cases)
+  // Un agregado sin `GROUP BY` devuelve siempre exactamente una fila, aunque no haya ningún
+  // trabajo (los `count` valen 0), así que `row` no puede faltar. Se comprueba de todos modos
+  // en vez de descartar el `| undefined` con el cast: si alguien añade un `GROUP BY`, esto
+  // falla en voz alta en lugar de devolver `undefined` como resumen.
+  if (!row) throw new Error('El resumen de trabajos no devolvió ninguna fila')
+  // `Object.fromEntries` pierde el literal de las claves; salen de `CASE_VIEWS`, la misma lista
+  // de la que se deriva `CaseView`, así que no pueden faltar ni sobrar.
   return row as CaseSummary
 }
 
