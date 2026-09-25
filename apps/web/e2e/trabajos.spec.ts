@@ -381,7 +381,12 @@ test.describe('Trabajos', () => {
 
       // Navega a la ficha del hijo (código distinto del padre, estado "Nuevo"): la Tarea 9
       // lleva al usuario ahí después de crear la repetición en vez de dejarlo en la del padre.
+      // `/\/trabajos\/[^/]+$/` por sí solo también casa con la URL del padre (M-12, ola de
+      // fixes del PR 1, lote B): si la navegación al hijo fallara, esta aserción pasaría en
+      // silencio con la ficha del padre todavía en pantalla. Se afirma aparte que la URL ya no
+      // contiene el id del padre.
       await expect(page).toHaveURL(/\/trabajos\/[^/]+$/)
+      await expect(page).not.toHaveURL(new RegExp(`/trabajos/${trabajo.id}$`))
       await expect(page.getByText(trabajo.code)).not.toBeVisible()
       await expect(page.getByText('Nuevo', { exact: true })).toBeVisible()
     },

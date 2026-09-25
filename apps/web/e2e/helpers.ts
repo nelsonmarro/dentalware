@@ -134,8 +134,14 @@ export async function expectTouchTargets(
  *   controlador del plan (celdas de 37-41 px en 360/390) — no forma parte de esta tarea. El
  *   pie del diálogo "Piezas" (Guardar/Cancelar/Arcada superior/inferior/Limpiar, UX2-08) NO
  *   está dentro de ese `role="group"`, así que sigue sujeto al mínimo de 44 px.
+ *
+ * `select` (M-6, ola de fixes del PR 1, lote B): faltaba en la lista, así que el `<select>`
+ * nativo de `TechnicianSelect`/`RemakeDialog` (responsabilidad, en el diálogo "Repetir") nunca
+ * se medía en el barrido táctil pese a UX2-01 (Select en 32 px, la misma regla CSS de la que
+ * ya advertía el comentario de la clase de este módulo). `[role=combobox]` sigue cubriendo el
+ * combobox de Radix, que no es un `<select>` nativo.
  */
 export const TOUCH_CONTROLS =
-  'button:not([role=switch]):not([data-testid=odontogram] [role=group] button), a[href]:not([data-target-size=inline]), [role=tab], [role=combobox], input:not([type=hidden]):not([type=checkbox]):not([type=radio])'
+  'button:not([role=switch]):not([data-testid=odontogram] [role=group] button), a[href]:not([data-target-size=inline]), [role=tab], [role=combobox], select, input:not([type=hidden]):not([type=checkbox]):not([type=radio])'
 /** Los switches miden menos por diseño (patrón interruptor): alto ≥ 24, ancho ≥ 44. */
 export const TOUCH_SWITCHES = '[role=switch]'
