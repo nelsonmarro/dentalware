@@ -1,6 +1,9 @@
 import {
   assignTechnicianSchema,
+  ASSIGN_TECHNICIAN_ROLES,
+  CASE_ACTION_ROLES,
   CASE_WRITE_ROLES,
+  REMAKE_ROLES,
   caseActionSchema,
   caseInputSchema,
   caseListQuerySchema,
@@ -9,7 +12,6 @@ import {
   remakeSchema,
   stageChangeSchema,
   STAGE_CHANGE_ROLES,
-  USER_ROLES,
 } from '@dentalware/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
@@ -24,18 +26,24 @@ import type { CasesService } from './service.ts'
 // CASE_WRITE_ROLES (shared, I-5 + M-5 + M-9): misma lista que consumen el servicio y la web.
 const canWrite = requireRole(...CASE_WRITE_ROLES)
 
-// Unión de los roles de `CASE_TRANSITIONS` (shared, que hoy son los 4 roles de `USER_ROLES`):
+// Unión de los roles de `CASE_TRANSITIONS` (`CASE_ACTION_ROLES`, derivada en shared):
 // el rol exacto permitido por acción lo decide `CasesService.action` con `canPerform` (dentro
 // de `uow.run`, ver ruling de la Tarea 5 fix 1), pero un guardián por rol en la ruta dobla esa
 // defensa (sobrevive a que alguien mueva `canPerform` al refactorizar el servicio) y da 403
 // antes del validador de `json`, igual que las demás rutas de escritura, en vez de dejar que
 // un anónimo reciba issues de validación como si la ruta le perteneciera.
-const canAct = requireRole(...USER_ROLES)
+const canAct = requireRole(...CASE_ACTION_ROLES)
 
 // Cambiar de fase lo hace el técnico además de admin y recepción (Tarea 6); asignar técnico
 // responsable, en cambio, es de admin/recepción como cualquier otra escritura (`canWrite`).
 // STAGE_CHANGE_ROLES (shared, I-5 + M-5 + M-9): misma lista que consumen el servicio y la web.
 const canChangeStage = requireRole(...STAGE_CHANGE_ROLES)
+
+// Asignar técnico y repetir tienen su propia constante aunque hoy valgan lo mismo que
+// `CASE_WRITE_ROLES` (ADR 31): si una cambia, la ruta tiene que cambiar con ella, o la web y
+// el servicio lo permitirían y la ruta respondería 403 (N-1 de la re-revisión de la ola).
+const canAssignTechnician = requireRole(...ASSIGN_TECHNICIAN_ROLES)
+const canRemake = requireRole(...REMAKE_ROLES)
 
 /** Traduce los errores de dominio del servicio a la respuesta HTTP que espera la web. */
 function toHttp(e: unknown): never {
@@ -58,7 +66,7 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
     // admin y recepción (`canWrite`, los roles que pueden asignar en `PUT /:id/tecnico`):
     // recepción puede asignar pero no tiene acceso a `GET /api/usuarios` (solo admin), así
     // que este endpoint vive en el router de trabajos, no en el de usuarios.
-    .get('/tecnicos', canWrite, async (c) =>
+    .get('/tecnicos', canAssignTechnician, async (c) =>
       c.json({ technicians: await service.technicians(ctxFrom(c)) }, 200),
     )
     .get('/:id', requireAuth, validate('param', idParamSchema), async (c) => {
@@ -172,7 +180,7 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
     )
     .post(
       '/:id/repetir',
-      canWrite,
+      canRemake,
       validate('param', idParamSchema),
       validate('json', remakeSchema),
       async (c) => {
@@ -190,7 +198,7 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
     )
     .put(
       '/:id/tecnico',
-      canWrite,
+      canAssignTechnician,
       validate('param', idParamSchema),
       validate('json', assignTechnicianSchema),
       async (c) => {

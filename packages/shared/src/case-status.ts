@@ -122,6 +122,14 @@ export function canRemake(status: CaseStatus): boolean {
  * mantuviera sincronizados entre sí.
  */
 
+/** Roles que pueden ejecutar **alguna** transición de estado: la unión de los roles de
+ * `CASE_TRANSITIONS`, derivada y no escrita a mano, para que dar una acción nueva a un rol
+ * amplíe también el guardián de `POST /:id/acciones` (ADR 27). Qué acción puede cada uno lo
+ * decide después `canPerform` en el servicio. */
+export const CASE_ACTION_ROLES: readonly UserRole[] = [
+  ...new Set(Object.values(CASE_TRANSITIONS).flatMap((t) => t.roles)),
+]
+
 /** Roles que escriben sobre un trabajo por defecto: crear, editar, repetir, asignar técnico y
  * listar técnicos (mismo criterio que `canWrite` en `routes.ts`). */
 export const CASE_WRITE_ROLES = ['admin', 'recepcion'] as const satisfies readonly UserRole[]

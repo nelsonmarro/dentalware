@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { formatMoney } from '@/features/products/pricing-unit-label'
 import type { CaseDetail, CaseEvent } from './api'
 import { isStageVisible } from './case-views'
-import { formatDate } from './date-format'
+import { formatDate, formatTimestampDate } from './date-format'
 import { STATUS_COLOR, StatusChip } from './status-chip'
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
@@ -105,7 +105,9 @@ export function CaseHeader({
 
         {c.status === 'en_espera' && (
           <p className="rounded-lg border border-[color:var(--wax-amber)]/40 bg-[color:var(--wax-amber)]/10 px-3 py-2 text-sm text-[color:var(--wax-amber)]">
-            En espera desde {formatDate((lastHold?.createdAt ?? c.updatedAt).slice(0, 10))}
+            {/* Sin el evento `hold` todavía cargado no se inventa una fecha con `updatedAt`
+             * (puede ser otra modificación posterior): se dice solo el motivo. */}
+            {lastHold ? `En espera desde ${formatTimestampDate(lastHold.createdAt)}` : 'En espera'}
             {c.holdReason ? `: ${c.holdReason}` : ''}
           </p>
         )}

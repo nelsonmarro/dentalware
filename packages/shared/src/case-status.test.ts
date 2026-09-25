@@ -8,8 +8,10 @@ import {
   canChangeStage,
   canPerform,
   canRemake,
+  CASE_ACTION_ROLES,
   CASE_ACTIONS,
   CASE_STATUSES,
+  CASE_TRANSITIONS,
   CASE_WRITE_ROLES,
   EDITABLE_CASE_STATUSES,
   isEditableStatus,
@@ -174,5 +176,13 @@ describe('STAGE_CHANGE_BLOCKED_REASON', () => {
       expect(typeof STAGE_CHANGE_BLOCKED_REASON[s]).toBe('string')
       expect(STAGE_CHANGE_BLOCKED_REASON[s]!.length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('CASE_ACTION_ROLES', () => {
+  it('es la unión de los roles de CASE_TRANSITIONS, sin repetidos', () => {
+    const union = new Set(Object.values(CASE_TRANSITIONS).flatMap((t) => t.roles))
+    expect(new Set(CASE_ACTION_ROLES)).toEqual(union)
+    expect(CASE_ACTION_ROLES).toHaveLength(union.size)
   })
 })

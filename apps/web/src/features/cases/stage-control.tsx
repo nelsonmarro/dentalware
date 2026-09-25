@@ -1,4 +1,5 @@
 import {
+  canChangeStage,
   isLastStage,
   nextStage,
   previousStage,
@@ -132,7 +133,7 @@ export function StageControl({
   // necesita ver cuál era, no un "desconocida" que no le dice nada.
   const current = stages.find((s) => s.id === c.currentStageId)
   const currentInactive = !!current && !current.active
-  const canControl = canControlStage(role) && c.status === 'en_proceso'
+  const canControl = canControlStage(role) && canChangeStage(c.status)
   const next = canControl ? nextStage(stages, c.currentStageId) : undefined
   const last = canControl && isLastStage(stages, c.currentStageId)
 
@@ -149,10 +150,10 @@ export function StageControl({
               ? 'Cargando…'
               : (current?.name ?? 'Fase desconocida')}
         </p>
-        {c.status !== 'en_proceso' && (
+        {!canChangeStage(c.status) && (
           <p className="text-sm text-muted-foreground">{STAGE_CHANGE_BLOCKED_REASON[c.status]}</p>
         )}
-        {c.status === 'en_proceso' &&
+        {canChangeStage(c.status) &&
           !stagesLoading &&
           !stagesError &&
           (currentInactive || !current) && (
