@@ -1,4 +1,5 @@
 import {
+  CASE_VIEWS,
   caseInputSchema,
   canRemake,
   fromCents,
@@ -7,7 +8,7 @@ import {
   sumCents,
   toCents,
 } from '@dentalware/shared'
-import type { CaseInput, StageRef } from '@dentalware/shared'
+import type { CaseInput, CaseListQuery, CaseSummary, CaseView, StageRef } from '@dentalware/shared'
 import { CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type {
   CaseDetail,
@@ -149,6 +150,38 @@ export function caseInputFixture(over: Partial<CaseInput> = {}): CaseInput {
   })
 }
 
+/** Mismas cuatro estados "vivos" que `ACTIVE_FOR_DATES` en `repo.ts`: solo un trabajo en uno de
+ * ellos puede caer en `vencen_hoy`/`atrasados` (un trabajo cerrado no "vence"). */
+const FAKE_ACTIVE_FOR_DATES = ['nuevo', 'en_proceso', 'en_espera', 'en_prueba']
+
+/**
+ * Aproximación en memoria de `viewCondition` (`repo.ts`, T10): el fake no ejecuta SQL, así que
+ * no puede reutilizar esa función directamente. Es una sola definición dentro de `fakes.ts`
+ * (T11, #68): `list` filtra con ella y `summary` cuenta llamando a `list`, así que no hay una
+ * segunda copia de "qué es atrasado" dentro de este archivo (la lección cara del PR 1). La
+ * garantía de que coincide con `viewCondition` la da el test de integración contra Postgres
+ * (`cases.test.ts`), no este fake: los tests de servicio con fakes prueban la orquestación.
+ */
+function matchesView(view: CaseView | undefined, today: string, r: CaseDetail): boolean {
+  if (!view || view === 'todos') return true
+  const effectiveDate = r.promisedDate ?? r.dueDate
+  const activeForDates = FAKE_ACTIVE_FOR_DATES.includes(r.status)
+  switch (view) {
+    case 'nuevos':
+      return r.status === 'nuevo'
+    case 'en_curso':
+      return r.status === 'en_proceso' || r.status === 'en_espera' || r.status === 'en_prueba'
+    case 'vencen_hoy':
+      return activeForDates && effectiveDate === today
+    case 'atrasados':
+      return activeForDates && effectiveDate !== null && effectiveDate < today
+    case 'en_prueba':
+      return r.status === 'en_prueba'
+    case 'listos':
+      return r.status === 'terminado' || r.status === 'enviado'
+  }
+}
+
 /** Repositorio en memoria: suficiente para probar orquestación, enmascarado y errores. */
 export function fakeCasesRepo(seed: CaseDetail[] = []) {
   const rows = new Map(seed.map((r) => [r.id, r]))
@@ -178,10 +211,11 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
       return true
     },
     byId: async (id) => rows.get(id),
-    list: async (q) => {
+    list: async (q, today) => {
       lastListQuery = q
+      const filtered = [...rows.values()].filter((r) => matchesView(q.vista, today, r))
       return {
-        cases: [...rows.values()].map((r) => ({
+        cases: filtered.map((r) => ({
           id: r.id,
           code: r.code,
           boxNumber: r.boxNumber,
@@ -198,10 +232,21 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
           technician: null,
           itemsSummary: 'Zirconio ×2',
         })),
-        total: rows.size,
+        total: filtered.length,
         page: q.pagina,
         pageSize: 20,
       }
+    },
+    // T11 (#68): deriva de `repo.list` por vista (llamar y contar), no reescribe "qué es
+    // atrasado" en una segunda copia (ver el comentario de `matchesView` arriba).
+    async summary(today) {
+      const entries = await Promise.all(
+        CASE_VIEWS.map(async (v) => {
+          const page = await repo.list({ vista: v, pagina: 1 } as CaseListQuery, today)
+          return [v, page.total] as const
+        }),
+      )
+      return Object.fromEntries(entries) as CaseSummary
     },
     events: async (caseId) =>
       events

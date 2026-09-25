@@ -69,6 +69,11 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
     .get('/tecnicos', canAssignTechnician, async (c) =>
       c.json({ technicians: await service.technicians(ctxFrom(c)) }, 200),
     )
+    // Declarada antes de `/:id` por la misma razón que "tecnicos" arriba (ruling C1, T11,
+    // #68): si fuera después, el segmento literal "resumen" caería en el parámetro `:id`, que
+    // valida uuid, y respondería 422 en vez de 200. Solo `requireAuth`: el resumen no lleva
+    // dinero, así que un técnico también lo ve (ver `service.summary`).
+    .get('/resumen', requireAuth, async (c) => c.json({ resumen: await service.summary() }, 200))
     .get('/:id', requireAuth, validate('param', idParamSchema), async (c) => {
       try {
         const { case: found, missing } = await service.detail(c.req.valid('param').id, ctxFrom(c))

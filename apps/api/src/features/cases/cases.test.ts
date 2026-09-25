@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { CASE_VIEWS } from '@dentalware/shared'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
@@ -1178,6 +1179,114 @@ describe('/api/trabajos', () => {
       ).json()) as { case: { prescription: string | null }; missing: string[] }
       expect(fichaHijo.case.prescription).toBeNull()
       expect(fichaHijo.missing).toContain('Prescripción (texto o documento)')
+    })
+  })
+
+  // T11 (#68): resumen del día por vista. `app` (el de todo el archivo) usa el reloj real del
+  // sistema, así que "hoy" no es determinista para `vencen_hoy`/`atrasados`: esta app propia
+  // con un reloj fijo (mismo patrón que `clock` en `createApp`, ver `app.ts`) es la que deja
+  // fijar qué trabajo vence hoy y cuál está atrasado.
+  describe('GET /api/trabajos/resumen', () => {
+    const HOY = '2026-09-20'
+    let resumenApp: ReturnType<typeof createApp>
+
+    beforeAll(() => {
+      resumenApp = createApp({
+        auth: ctx.auth,
+        db: ctx.db,
+        webOrigin: ctx.config.WEB_ORIGIN,
+        storage: ctx.storage,
+        clock: { today: () => HOY, now: () => new Date(`${HOY}T12:00:00Z`) },
+      })
+    })
+
+    // Ruling C1 (T11): si `/resumen` se declarara después de `/:id`, el segmento literal
+    // "resumen" caería en el parámetro `:id` (que valida uuid) y respondería 422, no 200.
+    it('responde 200 (no cae en /:id ni da 422 de uuid)', async () => {
+      const r = await resumenApp.request('/api/trabajos/resumen', req(admin, 'GET'))
+      expect(r.status).toBe(200)
+    })
+
+    // `requireAuth` a secas (no `requireRole`, mismo guardián que `/:id` y `/eventos`):
+    // "sin sesión" es 401 aquí, no el 403 uniforme de las rutas con `requireRole`.
+    it('401 sin sesión', async () => {
+      const r = await resumenApp.request('/api/trabajos/resumen', req('', 'GET'))
+      expect(r.status).toBe(401)
+    })
+
+    it('un técnico también lo ve: el resumen no lleva dinero', async () => {
+      const r = await resumenApp.request('/api/trabajos/resumen', req(tecnico, 'GET'))
+      expect(r.status).toBe(200)
+    })
+
+    // Criterio de aceptación de INI-1: cada contador de `resumen` coincide con el `total` que
+    // devuelve `GET /api/trabajos?vista=<v>` para esa misma vista, para las 7 vistas — sin
+    // números escritos a mano. Distribución no trivial (deliberada): al menos un trabajo por
+    // vista salvo `atrasados`/`vencen_hoy`, que comparten sus dos `en_proceso` con `en_curso`.
+    it('cada contador coincide con el total de la lista de su misma vista', async () => {
+      await createOne(recepcion, { patientRef: 'Nuevo' })
+
+      const venceHoyId = await createOne(recepcion, { patientRef: 'Vence hoy' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_proceso', promisedDate: HOY })
+        .where(eq(ctx.schema.cases.id, venceHoyId))
+
+      const atrasadoId = await createOne(recepcion, { patientRef: 'Atrasado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_proceso', promisedDate: '2026-09-10' })
+        .where(eq(ctx.schema.cases.id, atrasadoId))
+
+      const enEsperaId = await createOne(recepcion, { patientRef: 'En espera' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_espera' })
+        .where(eq(ctx.schema.cases.id, enEsperaId))
+
+      const enPruebaId = await createOne(recepcion, { patientRef: 'En prueba' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_prueba' })
+        .where(eq(ctx.schema.cases.id, enPruebaId))
+
+      const terminadoId = await createOne(recepcion, { patientRef: 'Terminado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'terminado' })
+        .where(eq(ctx.schema.cases.id, terminadoId))
+
+      const enviadoId = await createOne(recepcion, { patientRef: 'Enviado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'enviado' })
+        .where(eq(ctx.schema.cases.id, enviadoId))
+
+      const entregadoId = await createOne(recepcion, { patientRef: 'Entregado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'entregado' })
+        .where(eq(ctx.schema.cases.id, entregadoId))
+
+      const canceladoId = await createOne(recepcion, { patientRef: 'Cancelado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'cancelado' })
+        .where(eq(ctx.schema.cases.id, canceladoId))
+
+      const resumenRes = await resumenApp.request('/api/trabajos/resumen', req(admin, 'GET'))
+      expect(resumenRes.status).toBe(200)
+      const { resumen } = (await resumenRes.json()) as { resumen: Record<string, number> }
+
+      for (const vista of CASE_VIEWS) {
+        const listaRes = await resumenApp.request(`/api/trabajos?vista=${vista}`, req(admin, 'GET'))
+        const { total } = (await listaRes.json()) as { total: number }
+        expect(resumen[vista]).toBe(total)
+      }
+      // Sanity: si todo diera 0 (p. ej. porque `/resumen` cayó en `/:id` y ambas listas
+      // fallaran igual de silenciosas), la comparación de arriba pasaría igual. `todos` debe
+      // ver los 9 trabajos creados en este test.
+      expect(resumen.todos).toBe(9)
     })
   })
 })

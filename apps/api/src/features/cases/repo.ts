@@ -1,6 +1,7 @@
-import type { CaseInput, CaseListQuery, CaseView } from '@dentalware/shared'
+import type { CaseInput, CaseListQuery, CaseSummary, CaseView } from '@dentalware/shared'
 import {
   CASE_PAGE_SIZE,
+  CASE_VIEWS,
   canRemake,
   formatCaseCode,
   fromCents,
@@ -154,6 +155,27 @@ function viewCondition(view: CaseView, today: string): SQL | undefined {
   return conditionByView[view]
 }
 
+/**
+ * Un contador por vista, un solo viaje a la BD (T11, #68): reutiliza `viewCondition` (misma
+ * condición que filtra `listCasesWith`) agregada con `count(*) filter (where …)`; `todos`
+ * (`viewCondition` devuelve `undefined`) cuenta sin filtro. Ninguna condición se reescribe aquí.
+ */
+async function summaryWith(db: Db | Tx, today: string): Promise<CaseSummary> {
+  const selection = Object.fromEntries(
+    CASE_VIEWS.map((view) => {
+      const cond = viewCondition(view, today)
+      return [
+        view,
+        cond
+          ? sql<number>`count(*) filter (where ${cond})`.mapWith(Number)
+          : sql<number>`count(*)`.mapWith(Number),
+      ]
+    }),
+  )
+  const [row] = await db.select(selection).from(cases)
+  return row as CaseSummary
+}
+
 /** Traduce `orden` a columnas SQL; urgentes primero y código desc como desempate siempre. */
 function orderFor(orden: CaseListQuery['orden']) {
   const urgentFirst = desc(sql`${cases.priority} = 'urgente'`)
@@ -303,6 +325,8 @@ export function createCasesRepo(db: Db | Tx) {
       }),
 
     list: (q, today) => listCasesWith(db, q, today),
+
+    summary: (today) => summaryWith(db, today),
 
     async events(caseId) {
       const rows = await db.query.caseEvents.findMany({

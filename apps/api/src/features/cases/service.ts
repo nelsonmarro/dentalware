@@ -142,6 +142,14 @@ export function createCasesService(deps: {
         cases: page.cases.map((r): CaseListRow => ({ ...r, total: null })),
       }
     },
+    /**
+     * Contador por vista rápida (INI-1, T11, #68): sin dinero, así que no se enmascara por rol
+     * (a diferencia de `list`/`detail`) ni necesita `ctx` — cualquier persona autenticada lo ve
+     * igual, incluido un técnico (`requireAuth` en la ruta ya cubre "sin sesión" con 403).
+     */
+    async summary() {
+      return deps.cases.summary(deps.clock.today())
+    },
     async detail(id: string, ctx: RequestContext) {
       const found = await mustGet(id)
       const hasDoc = await deps.attachments.hasDocument(id)
