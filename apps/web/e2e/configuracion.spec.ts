@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { login, loginAsAdmin } from './helpers'
+import { login, loginAsAdmin, uniqueSuffix } from './helpers'
 
 test.describe('Configuración', () => {
   test.beforeEach(async ({ page }) => {
@@ -7,7 +7,7 @@ test.describe('Configuración', () => {
   })
 
   test('crea una clínica y la ve en la lista', { tag: '@esencial' }, async ({ page }) => {
-    const name = `Clínica E2E ${Date.now()}`
+    const name = `Clínica E2E ${uniqueSuffix()}`
     await page.goto('/configuracion/clinicas')
     await page.getByRole('button', { name: 'Nueva clínica' }).first().click()
     // Se acota al diálogo: la cabecera de la tabla de clínicas ya trae un botón "Ordenar por

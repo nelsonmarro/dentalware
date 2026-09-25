@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createUser, setupTestDb, truncateAll } from '../../test/setup.ts'
 import { CaseInputError, CaseStateError } from './errors.ts'
-import { createCasesRepo, drizzleUnitOfWork } from './repo.ts'
+import { createCasesRepo, createTryinsRepo, drizzleUnitOfWork } from './repo.ts'
 
 describe('features/cases/repo', () => {
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
@@ -220,5 +220,98 @@ describe('features/cases/repo', () => {
     expect(
       (await createCasesRepo(ctx.db).list(caseListQuerySchema.parse({}), '2026-09-09')).total,
     ).toBe(0)
+  })
+
+  // M-3 (ronda de fixes 1): el riesgo declarado de la Tarea 7 es que el hijo, sus líneas y
+  // los dos eventos `remake_created` se escriban todo-o-nada. Mismo patrón que la prueba de
+  // arriba (`drizzleUnitOfWork` + `uow.run` que falla a mitad de camino), pero forzando el
+  // fallo *después* de que `createRemake` ya insertó el hijo y sus eventos: si la transacción
+  // real no revirtiera, quedaría un trabajo huérfano y un evento en el padre sin su contraparte.
+  it('createRemake no deja hijo huérfano si algo falla después de crearlo (misma transacción)', async () => {
+    const repo = createCasesRepo(ctx.db)
+    const parentId = (await repo.create(input(), actor)).id
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'terminado' })
+      .where(eq(ctx.schema.cases.id, parentId))
+
+    const uow = drizzleUnitOfWork(ctx.db)
+    await expect(
+      uow.run(async ({ cases }) => {
+        await cases.createRemake(
+          parentId,
+          {
+            motivo: 'Fractura en cerámica',
+            responsabilidad: 'laboratorio',
+            cobroPct: 0,
+            receivedAt: '2026-09-06',
+          },
+          actor,
+        )
+        throw new Error('fallo simulado después de crear el hijo')
+      }),
+    ).rejects.toThrow('fallo simulado después de crear el hijo')
+
+    // Solo el padre existe: ningún hijo quedó a medio crear.
+    expect((await repo.list(caseListQuerySchema.parse({}), '2026-09-06')).total).toBe(1)
+    // El padre tampoco conserva el evento remake_created: la transacción lo deshizo entero.
+    expect((await repo.events(parentId)).map((e) => e.type)).toEqual(['created'])
+  })
+
+  it('applyTransition actualiza los campos del patch sin tocar los que no vienen', async () => {
+    const repo = createCasesRepo(ctx.db)
+    const id = (await repo.create(input(), actor)).id
+    await repo.applyTransition(id, {
+      status: 'en_proceso',
+      promisedDate: '2026-09-20',
+      currentStageId: null,
+    })
+    const c = (await repo.byId(id))!
+    expect(c.status).toBe('en_proceso')
+    expect(c.promisedDate).toBe('2026-09-20')
+    expect(c.holdReason).toBeNull() // no viene en el patch: sigue como estaba (null)
+  })
+
+  it('turnaroundFor devuelve el máximo de días hábiles de los productos del trabajo', async () => {
+    const repo = createCasesRepo(ctx.db)
+    await ctx.db
+      .update(ctx.schema.products)
+      .set({ turnaroundDays: 7 })
+      .where(eq(ctx.schema.products.id, ac))
+    const id = (
+      await repo.create(
+        input({
+          items: [
+            { productId: zr, quantity: 1 },
+            { productId: ac, quantity: 1 },
+          ],
+        }),
+        actor,
+      )
+    ).id
+    expect(await repo.turnaroundFor(id)).toBe(7)
+  })
+
+  it('createTryinsRepo abre, encuentra y cierra una prueba en boca', async () => {
+    const repo = createCasesRepo(ctx.db)
+    const id = (await repo.create(input(), actor)).id
+    const tryins = createTryinsRepo(ctx.db)
+    expect(await tryins.open(id)).toBeUndefined()
+    await tryins.create(id, '2026-09-10', 'Ajuste de oclusión')
+    const open = await tryins.open(id)
+    expect(open).toMatchObject({
+      caseId: id,
+      sentAt: '2026-09-10',
+      returnedAt: null,
+      note: 'Ajuste de oclusión',
+    })
+    await tryins.close(open!.id, '2026-09-12')
+    expect(await tryins.open(id)).toBeUndefined()
+  })
+
+  it('drizzleUnitOfWork.run entrega también el repositorio de pruebas en boca', async () => {
+    const id = (await createCasesRepo(ctx.db).create(input(), actor)).id
+    await drizzleUnitOfWork(ctx.db).run(({ tryins }) => tryins.create(id, '2026-09-10', null))
+    expect(await createTryinsRepo(ctx.db).open(id)).toMatchObject({ caseId: id })
   })
 })

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { CASE_STATUSES } from '../case-status.ts'
+import { ACTIONS_REQUIRING_REASON, CASE_ACTIONS, CASE_STATUSES } from '../case-status.ts'
 import { fdiTeethSchema } from '../fdi.ts'
 import { priceString, textoOpcional, uuid } from './config.ts'
 
@@ -161,3 +161,67 @@ export const commentSchema = z.object({
     .max(2000, { error: 'Máximo 2000 caracteres' }),
 })
 export type CommentInput = z.infer<typeof commentSchema>
+
+export const REMAKE_RESPONSIBILITIES = ['laboratorio', 'clinica', 'compartida'] as const
+export type RemakeResponsibility = (typeof REMAKE_RESPONSIBILITIES)[number]
+
+const motivoObligatorio = z.string().trim().min(1, { error: 'Escribe el motivo' }).max(500)
+
+export const caseActionSchema = z
+  .object({
+    accion: z.enum(CASE_ACTIONS, { error: 'Acción inválida' }),
+    motivo: textoOpcional(500),
+  })
+  .superRefine((v, ctx) => {
+    if (ACTIONS_REQUIRING_REASON.includes(v.accion) && !v.motivo)
+      ctx.addIssue({ code: 'custom', path: ['motivo'], message: 'Escribe el motivo' })
+  })
+export type CaseActionInput = z.infer<typeof caseActionSchema>
+
+export const stageChangeSchema = z
+  .object({ direccion: z.enum(['avanzar', 'retroceder']), motivo: textoOpcional(500) })
+  .superRefine((v, ctx) => {
+    if (v.direccion === 'retroceder' && !v.motivo)
+      ctx.addIssue({ code: 'custom', path: ['motivo'], message: 'Escribe el motivo' })
+  })
+export type StageChangeInput = z.infer<typeof stageChangeSchema>
+
+export const assignTechnicianSchema = z.object({ tecnicoId: z.string().min(1).nullable() })
+export type AssignTechnicianInput = z.infer<typeof assignTechnicianSchema>
+
+/** Porcentaje del trabajo que se le cobra a la clínica al repetirlo (0–100).
+ *
+ * El campo llega como cadena desde el formulario, pero `z.coerce.number()` a secas convierte
+ * `''` y `'   '` en **0** sin quejarse, y 0 significa "no se le cobra nada". Como no existe
+ * ninguna pantalla donde `remakeChargePct` se pueda ver ni corregir después, un campo que se
+ * quedó vacío por descuido solo se arreglaba tocando la BD, y la Iteración 5 lo leería como
+ * una decisión deliberada del laboratorio. Por eso el vacío se rechaza **antes** de convertir,
+ * con mensaje propio (I-4 de la revisión de la Tarea 9).
+ *
+ * La conversión es explícita (`Number`) en vez de `z.coerce`: la unión de entrada deja fuera
+ * `null`, `[]` y `false`, que `Number` también convertiría en 0 en silencio. */
+const porcentajeCobro = z
+  .union([z.number(), z.string()], { error: 'Escribe el porcentaje a cobrar' })
+  .refine((v) => typeof v === 'number' || v.trim() !== '', {
+    error: 'Escribe el porcentaje a cobrar',
+  })
+  // Solo notación decimal: `Number` también acepta '0x10' (16) o '1e2' (100), que el
+  // formulario no deja teclear pero la API sí recibiría.
+  .refine((v) => typeof v === 'number' || /^\s*-?\d+(\.\d+)?\s*$/.test(v), {
+    error: 'El porcentaje debe ser un número',
+  })
+  .transform((v) => (typeof v === 'number' ? v : Number(v)))
+  .pipe(
+    z
+      .number({ error: 'El porcentaje debe ser un número' })
+      .int({ error: 'El porcentaje debe ser un número entero' })
+      .min(0, { error: 'El porcentaje no puede ser menor que 0' })
+      .max(100, { error: 'El porcentaje no puede ser mayor que 100' }),
+  )
+
+export const remakeSchema = z.object({
+  motivo: motivoObligatorio,
+  responsabilidad: z.enum(REMAKE_RESPONSIBILITIES, { error: 'Responsabilidad inválida' }),
+  cobroPct: porcentajeCobro,
+})
+export type RemakeInput = z.infer<typeof remakeSchema>

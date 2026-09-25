@@ -25,9 +25,17 @@ export async function loginAsAdmin(page: Page) {
   await login(page, ADMIN)
 }
 
+/** Sufijo único por ejecución para datos de prueba. `Date.now()` solo no basta: escritorio y
+ * android corren el mismo test en paralelo contra la misma BD y pueden caer en el mismo
+ * milisegundo, lo que deja dos registros con el mismo nombre y rompe `getByRole` en modo
+ * estricto (le pasó a «crea una clínica y la ve en la lista»). */
+export function uniqueSuffix(): string {
+  return `${Date.now()}-${Math.floor(Math.random() * 100_000)}`
+}
+
 /** Crea una clínica y un doctor únicos por API (sesión admin ya iniciada en `page`). */
 export async function createClinicWithDoctor(page: Page) {
-  const suffix = `${Date.now()}-${Math.floor(Math.random() * 100_000)}`
+  const suffix = uniqueSuffix()
 
   const clinicRes = await page.request.post('/api/config/clinicas', {
     data: { name: `Clínica E2E ${suffix}` },
@@ -134,8 +142,14 @@ export async function expectTouchTargets(
  *   controlador del plan (celdas de 37-41 px en 360/390) — no forma parte de esta tarea. El
  *   pie del diálogo "Piezas" (Guardar/Cancelar/Arcada superior/inferior/Limpiar, UX2-08) NO
  *   está dentro de ese `role="group"`, así que sigue sujeto al mínimo de 44 px.
+ *
+ * `select` (M-6, ola de fixes del PR 1, lote B): faltaba en la lista, así que el `<select>`
+ * nativo de `TechnicianSelect`/`RemakeDialog` (responsabilidad, en el diálogo "Repetir") nunca
+ * se medía en el barrido táctil pese a UX2-01 (Select en 32 px, la misma regla CSS de la que
+ * ya advertía el comentario de la clase de este módulo). `[role=combobox]` sigue cubriendo el
+ * combobox de Radix, que no es un `<select>` nativo.
  */
 export const TOUCH_CONTROLS =
-  'button:not([role=switch]):not([data-testid=odontogram] [role=group] button), a[href]:not([data-target-size=inline]), [role=tab], [role=combobox], input:not([type=hidden]):not([type=checkbox]):not([type=radio])'
+  'button:not([role=switch]):not([data-testid=odontogram] [role=group] button), a[href]:not([data-target-size=inline]), [role=tab], [role=combobox], select, input:not([type=hidden]):not([type=checkbox]):not([type=radio])'
 /** Los switches miden menos por diseño (patrón interruptor): alto ≥ 24, ancho ≥ 44. */
 export const TOUCH_SWITCHES = '[role=switch]'

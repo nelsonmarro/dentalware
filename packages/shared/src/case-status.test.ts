@@ -2,12 +2,23 @@ import { describe, expect, it } from 'vitest'
 import {
   ACTIONS_REQUIRING_REASON,
   applyAction,
+  ASSIGN_TECHNICIAN_ROLES,
   availableActions,
+  canAssignTechnician,
+  canChangeStage,
   canPerform,
+  canRemake,
+  CASE_ACTION_ROLES,
   CASE_ACTIONS,
   CASE_STATUSES,
+  CASE_TRANSITIONS,
+  CASE_WRITE_ROLES,
   EDITABLE_CASE_STATUSES,
   isEditableStatus,
+  REMAKE_ROLES,
+  REMAKEABLE_STATUSES,
+  STAGE_CHANGE_BLOCKED_REASON,
+  STAGE_CHANGE_ROLES,
 } from './case-status.ts'
 
 describe('estados y acciones', () => {
@@ -49,6 +60,18 @@ describe('isEditableStatus', () => {
   it('responde true solo para nuevo y en_proceso', () => {
     for (const s of CASE_STATUSES) {
       expect(isEditableStatus(s)).toBe(s === 'nuevo' || s === 'en_proceso')
+    }
+  })
+})
+
+describe('canRemake', () => {
+  it('define terminado, enviado y entregado como los únicos estados desde los que se repite', () => {
+    expect(REMAKEABLE_STATUSES).toEqual(['terminado', 'enviado', 'entregado'])
+  })
+
+  it('responde true solo para terminado, enviado y entregado', () => {
+    for (const s of CASE_STATUSES) {
+      expect(canRemake(s)).toBe(s === 'terminado' || s === 'enviado' || s === 'entregado')
     }
   })
 })
@@ -112,5 +135,54 @@ describe('motivo obligatorio y permisos por rol', () => {
     expect(canPerform('mensajero', 'marcar_entregado')).toBe(true)
     expect(canPerform('mensajero', 'finalizar')).toBe(false)
     expect(canPerform('tecnico', 'cancelar')).toBe(false)
+  })
+})
+
+describe('roles por acción sobre el trabajo (I-5 + M-5 + M-9, fuente única en shared)', () => {
+  it('CASE_WRITE_ROLES es admin y recepción', () => {
+    expect([...CASE_WRITE_ROLES].sort()).toEqual(['admin', 'recepcion'])
+  })
+
+  it('STAGE_CHANGE_ROLES suma al técnico (CIC-2)', () => {
+    expect([...STAGE_CHANGE_ROLES].sort()).toEqual(['admin', 'recepcion', 'tecnico'])
+  })
+
+  it('ASSIGN_TECHNICIAN_ROLES y REMAKE_ROLES son admin y recepción (CIC-5/CIC-4)', () => {
+    expect([...ASSIGN_TECHNICIAN_ROLES].sort()).toEqual(['admin', 'recepcion'])
+    expect([...REMAKE_ROLES].sort()).toEqual(['admin', 'recepcion'])
+  })
+})
+
+describe('canChangeStage', () => {
+  it('solo en_proceso puede cambiar de fase (CIC-2)', () => {
+    for (const s of CASE_STATUSES) {
+      expect(canChangeStage(s)).toBe(s === 'en_proceso')
+    }
+  })
+})
+
+describe('canAssignTechnician', () => {
+  it('bloquea entregado y cancelado; el resto de estados sí permite reasignar (CIC-5)', () => {
+    for (const s of CASE_STATUSES) {
+      expect(canAssignTechnician(s)).toBe(s !== 'entregado' && s !== 'cancelado')
+    }
+  })
+})
+
+describe('STAGE_CHANGE_BLOCKED_REASON', () => {
+  it('tiene un motivo en español para cada estado que no sea en_proceso', () => {
+    const estadosBloqueados = CASE_STATUSES.filter((s) => s !== 'en_proceso')
+    for (const s of estadosBloqueados) {
+      expect(typeof STAGE_CHANGE_BLOCKED_REASON[s]).toBe('string')
+      expect(STAGE_CHANGE_BLOCKED_REASON[s]!.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('CASE_ACTION_ROLES', () => {
+  it('es la unión de los roles de CASE_TRANSITIONS, sin repetidos', () => {
+    const union = new Set(Object.values(CASE_TRANSITIONS).flatMap((t) => t.roles))
+    expect(new Set(CASE_ACTION_ROLES)).toEqual(union)
+    expect(CASE_ACTION_ROLES).toHaveLength(union.size)
   })
 })

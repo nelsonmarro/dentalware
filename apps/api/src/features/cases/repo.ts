@@ -1,23 +1,31 @@
 import type { CaseInput, CaseListQuery } from '@dentalware/shared'
 import {
   CASE_PAGE_SIZE,
+  canRemake,
   formatCaseCode,
   fromCents,
   isEditableStatus,
   lineTotalCents,
+  remakeDueDate,
   sumCents,
   toCents,
 } from '@dentalware/shared'
-import { and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { Db, Tx } from '../../db/index.ts'
 import { users } from '../../db/schema/auth.ts'
 import { clinics } from '../clinics/schema.ts'
 import { doctors } from '../doctors/schema.ts'
 import { clinicProductPrices, products } from '../products/schema.ts'
 import { stages } from '../stages/schema.ts'
-import { CaseInputError, CaseStateError } from './errors.ts'
-import type { CasesRepository, NewCaseEvent, UnitOfWork } from './ports.ts'
-import { caseEvents, caseItems, cases, caseSequences } from './schema.ts'
+import { CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
+import type {
+  CasesRepository,
+  NewCaseEvent,
+  TryinsRepository,
+  UnitOfWork,
+  UsersQuery,
+} from './ports.ts'
+import { caseEvents, caseItems, caseTryins, cases, caseSequences } from './schema.ts'
 
 async function nextCaseCode(db: Db | Tx, year: number): Promise<string> {
   const [row] = await db
@@ -270,6 +278,7 @@ export function createCasesRepo(db: Db | Tx) {
           doctor: { columns: { id: true, name: true } },
           technician: { columns: { id: true, name: true } },
           stage: { columns: { id: true, name: true, color: true } },
+          parentCase: { columns: { code: true } },
           items: {
             orderBy: { sort: 'asc' },
             with: {
@@ -281,17 +290,193 @@ export function createCasesRepo(db: Db | Tx) {
 
     list: (q, today) => listCasesWith(db, q, today),
 
-    events: (caseId) =>
-      db.query.caseEvents.findMany({
+    async events(caseId) {
+      const rows = await db.query.caseEvents.findMany({
         where: { caseId },
         orderBy: { createdAt: 'asc' },
         with: { actor: { columns: { id: true, name: true } } },
-      }),
+      })
+      // `relatedCaseId` (I-2, ola de fixes del PR 1, lote B): solo `remake_created` lleva un
+      // código de trabajo en `toValue`; se resuelve a un id con un join de solo lectura sobre
+      // el propio schema (mismo patrón que cualquier `repo.ts`, sin cruzar features). En la
+      // ficha del padre resuelve al hijo; en la del hijo, a sí mismo (la web lo ignora ahí).
+      const codes = [
+        ...new Set(
+          rows
+            .filter(
+              (r): r is typeof r & { toValue: string } =>
+                r.type === 'remake_created' && !!r.toValue,
+            )
+            .map((r) => r.toValue),
+        ),
+      ]
+      const related = codes.length
+        ? await db
+            .select({ id: cases.id, code: cases.code })
+            .from(cases)
+            .where(inArray(cases.code, codes))
+        : []
+      const idByCode = new Map(related.map((c) => [c.code, c.id]))
+      return rows.map((r) => ({
+        ...r,
+        relatedCaseId:
+          r.type === 'remake_created' && r.toValue ? (idByCode.get(r.toValue) ?? null) : null,
+      }))
+    },
 
     addEvent: (e) => addEventWith(db, e),
+
+    async applyTransition(id, patch) {
+      await db
+        .update(cases)
+        .set({ ...patch, updatedAt: new Date() })
+        .where(eq(cases.id, id))
+    },
+
+    async turnaroundFor(caseId) {
+      const rows = await db
+        .select({ turnaroundDays: products.turnaroundDays })
+        .from(caseItems)
+        .innerJoin(products, eq(products.id, caseItems.productId))
+        .where(eq(caseItems.caseId, caseId))
+      return rows.reduce((max, r) => Math.max(max, r.turnaroundDays), 0)
+    },
+
+    async createRemake(parentId, input, actorId) {
+      // `FOR UPDATE` sobre el padre: mismo patrón que `update`. Protege contra otra
+      // `createRemake` concurrente sobre el mismo padre (la segunda espera a que la primera
+      // libere la fila antes de leer el estado); no protege contra `action()`, que lee con
+      // `cases.byId(id)` sin `FOR UPDATE` — una acción concurrente puede seguir colándose
+      // entre esta lectura y el insert. El bloqueo sigue siendo necesario y correcto para lo
+      // que sí cubre; el comentario anterior prometía más de lo que da.
+      const [parent] = await db.select().from(cases).where(eq(cases.id, parentId)).for('update')
+      if (!parent) throw new CaseNotFoundError()
+      if (!canRemake(parent.status)) {
+        throw new CaseStateError(`No se puede repetir un trabajo en estado "${parent.status}"`)
+      }
+      const parentItems = await db
+        .select()
+        .from(caseItems)
+        .where(eq(caseItems.caseId, parentId))
+        .orderBy(caseItems.sort)
+
+      const year = Number(input.receivedAt.slice(0, 4))
+      const code = await nextCaseCode(db, year)
+      // I-3 (ronda de fixes 1, corregido en la ola de fixes del PR 1): la regla vive en
+      // `remakeDueDate` (shared), no aquí — antes estaba duplicada a mano en este archivo y en
+      // `fakes.ts`, y solo la copia del fake tenía test (ver `cases.test.ts`, «una fecha
+      // deseada ya vencida…», que sí ejercita este adaptador contra Postgres).
+      const dueDate = remakeDueDate(parent.dueDate, input.receivedAt)
+      const [row] = await db
+        .insert(cases)
+        .values({
+          // Copiado del padre: mismo paciente/clínica/doctor, mismos datos clínicos de
+          // referencia (color, prescripción, notas). El hijo parte de ahí para no reescribir
+          // a mano lo que ya se sabía del trabajo original.
+          clinicId: parent.clinicId,
+          doctorId: parent.doctorId,
+          patientRef: parent.patientRef,
+          patientAge: parent.patientAge,
+          patientSex: parent.patientSex,
+          boxNumber: parent.boxNumber,
+          priority: parent.priority,
+          dueDate,
+          shade: parent.shade,
+          shadeSystem: parent.shadeSystem,
+          reference: parent.reference,
+          observations: parent.observations,
+          prescription: parent.prescription,
+          internalNotes: parent.internalNotes,
+          // Reiniciado a propósito: es una producción nueva. `checklist` se omite (usa el
+          // default de la tabla, todo sin verificar): no se puede asumir que "antagonista"
+          // o "fotos" del trabajo original todavía apliquen. Sin fase ni técnico: quien
+          // repite decide después quién la hace, no se asume el mismo técnico responsable
+          // del original (la responsabilidad de la repetición puede ser justo suya).
+          code,
+          receivedAt: input.receivedAt,
+          // `checklist` se omite: usa el default de la tabla (todo sin verificar, ver el
+          // comentario de arriba).
+          parentCaseId: parentId,
+          remakeReason: input.motivo,
+          remakeResponsibility: input.responsabilidad,
+          remakeChargePct: input.cobroPct.toFixed(2),
+          total: totalOf(parentItems),
+          createdBy: actorId,
+        })
+        .returning({ id: cases.id })
+      const childId = row!.id
+      await db.insert(caseItems).values(
+        parentItems.map((i, sort) => ({
+          caseId: childId,
+          productId: i.productId,
+          description: i.description,
+          quantity: i.quantity,
+          teeth: i.teeth,
+          unitPrice: i.unitPrice,
+          discountPct: i.discountPct,
+          lineTotal: i.lineTotal,
+          material: i.material,
+          notes: i.notes,
+          sort,
+        })),
+      )
+      await addEventWith(db, {
+        caseId: parentId,
+        type: 'remake_created',
+        fromValue: parent.code,
+        toValue: code,
+        reason: input.motivo,
+        actorId,
+      })
+      await addEventWith(db, {
+        caseId: childId,
+        type: 'remake_created',
+        fromValue: parent.code,
+        toValue: code,
+        reason: input.motivo,
+        actorId,
+      })
+      return { id: childId, code }
+    },
   } satisfies CasesRepository
 }
 
+/** Pruebas en boca (`case_tryins`): mismo patrón `db | tx` que `createCasesRepo`, sobre la
+ * misma tabla que le pertenece a esta feature (no es una feature aparte). */
+export function createTryinsRepo(db: Db | Tx): TryinsRepository {
+  return {
+    async open(caseId) {
+      const [row] = await db
+        .select()
+        .from(caseTryins)
+        .where(and(eq(caseTryins.caseId, caseId), isNull(caseTryins.returnedAt)))
+        .limit(1)
+      return row
+    },
+    async create(caseId, sentAt, note) {
+      await db.insert(caseTryins).values({ caseId, sentAt, note })
+    },
+    async close(id, returnedAt) {
+      await db.update(caseTryins).set({ returnedAt }).where(eq(caseTryins.id, id))
+    },
+  }
+}
+
+/** Puerto `UsersQuery` (ADR 24: lectura de solo lectura de la tabla `users` de otra feature,
+ * sin importar su `repo.ts`): técnicos activos, para validar `assignTechnician` y para listar
+ * `id`+`name` en `GET /api/trabajos/tecnicos` (Tarea 9) sin exponer correo, rol ni baneo. */
+export function createUsersQuery(db: Db | Tx): UsersQuery {
+  return {
+    async activeTechnicians() {
+      return db
+        .select({ id: users.id, name: users.name })
+        .from(users)
+        .where(and(eq(users.role, 'tecnico'), or(eq(users.banned, false), isNull(users.banned))))
+    },
+  }
+}
+
 export const drizzleUnitOfWork = (db: Db): UnitOfWork => ({
-  run: (fn) => db.transaction((tx) => fn({ cases: createCasesRepo(tx) })),
+  run: (fn) =>
+    db.transaction((tx) => fn({ cases: createCasesRepo(tx), tryins: createTryinsRepo(tx) })),
 })

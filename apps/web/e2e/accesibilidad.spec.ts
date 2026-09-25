@@ -11,7 +11,14 @@ import {
 /** Crea un trabajo mínimo por API (sesión admin ya iniciada en `page`). */
 async function createCase(
   page: Page,
-  opts: { clinicId: string; doctorId: string; productId: string },
+  opts: {
+    clinicId: string
+    doctorId: string
+    productId: string
+    teeth?: number[]
+    dueDate?: string
+    prescription?: string
+  },
 ) {
   const res = await page.request.post('/api/trabajos', {
     data: {
@@ -19,14 +26,57 @@ async function createCase(
       doctorId: opts.doctorId,
       patientRef: `Paciente E2E ${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       receivedAt: new Date().toISOString().slice(0, 10),
+      dueDate: opts.dueDate ?? null,
+      prescription: opts.prescription ?? null,
       items: [
-        { productId: opts.productId, quantity: 1, teeth: [], unitPrice: null, discountPct: 0 },
+        {
+          productId: opts.productId,
+          quantity: 1,
+          teeth: opts.teeth ?? [],
+          unitPrice: null,
+          discountPct: 0,
+        },
       ],
     },
   })
   expect(res.ok()).toBe(true)
   const { case: created } = (await res.json()) as { case: { id: string; code: string } }
   return created
+}
+
+/**
+ * Crea un trabajo completo por API (mismo criterio que `createCompleteCase` de
+ * `trabajos.spec.ts`): piezas, fecha deseada y prescripción, listo para "Aceptar" sin que
+ * `missingForAccept` (shared) reclame nada.
+ */
+async function createCompleteCase(
+  page: Page,
+  opts: { clinicId: string; doctorId: string; productId: string },
+) {
+  return createCase(page, {
+    ...opts,
+    teeth: [11],
+    dueDate: '2026-12-31',
+    prescription: 'Prescripción E2E: corona completa',
+  })
+}
+
+/** Ejecuta una acción de estado por API (`POST /api/trabajos/:id/acciones`, sesión admin ya
+ * iniciada en `page`): para llevar un trabajo a `en_proceso`/`entregado` sin pasar por la UI,
+ * que es justo lo que el barrido táctil va a examinar (M-6, ola de fixes del PR 1, lote B). */
+async function runCaseAction(page: Page, caseId: string, accion: string) {
+  const res = await page.request.post(`/api/trabajos/${caseId}/acciones`, { data: { accion } })
+  expect(res.ok()).toBe(true)
+}
+
+/** Avanza una fase por API (`PUT /api/trabajos/:id/fase`): deja un trabajo recién aceptado en
+ * la segunda fase activa, para que "Retroceder fase" quede habilitado (hay una fase anterior a
+ * la que volver) — un trabajo recién aceptado está en la primera fase, sin fase previa. */
+async function advanceStage(page: Page, caseId: string) {
+  const res = await page.request.put(`/api/trabajos/${caseId}/fase`, {
+    data: { direccion: 'avanzar', motivo: null },
+  })
+  expect(res.ok()).toBe(true)
 }
 
 /**
@@ -86,6 +136,61 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await page.goto(`/trabajos/${created.id}`)
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
+
+  // M-6 (ola de fixes del PR 1, lote B): un trabajo `nuevo` (el único caso que cubría el test
+  // de arriba) no monta la tarjeta de fase (`StageControl`) ni el `<select>` de técnico
+  // (`TechnicianSelect`, de solo lectura mientras no hay sesión de trabajo en curso) ni sus
+  // diálogos ("Retroceder fase", "Repetir"); y `TOUCH_CONTROLS` no medía `<select>` nativos
+  // (ver el comentario de `TOUCH_CONTROLS` en `helpers.ts`). Dos trabajos por API: uno
+  // `en_proceso` (fase, técnico y "Retroceder fase") y uno `entregado` (diálogo "Repetir").
+  test(
+    'ficha de un trabajo en proceso: fase, técnico responsable y "Retroceder fase"',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      await runCaseAction(page, created.id, 'aceptar')
+      // La segunda fase activa (seed: Recepción, Modelo, …): la primera no tiene fase
+      // anterior, así que "Retroceder fase" nace deshabilitado y no se puede abrir su diálogo.
+      await advanceStage(page, created.id)
+
+      await page.goto(`/trabajos/${created.id}`)
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+
+      await page.getByRole('button', { name: 'Retroceder fase' }).click()
+      const backDialog = page.getByRole('dialog')
+      await expect(backDialog).toBeVisible()
+      await expectTouchTargets(backDialog, TOUCH_CONTROLS)
+    },
+  )
+
+  test(
+    'ficha de un trabajo entregado: diálogo "Repetir"',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar', 'marcar_enviado', 'marcar_entregado']) {
+        await runCaseAction(page, created.id, accion)
+      }
+
+      await page.goto(`/trabajos/${created.id}`)
+      await page.getByRole('button', { name: 'Repetir' }).click()
+      const dialog = page.getByRole('dialog')
+      await expect(dialog).toBeVisible()
+      await expectTouchTargets(dialog, TOUCH_CONTROLS)
+    },
+  )
 
   test(
     'importar: enlace de plantilla y controles del diálogo',

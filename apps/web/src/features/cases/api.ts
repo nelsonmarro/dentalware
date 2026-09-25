@@ -1,4 +1,12 @@
-import type { CaseInput, CaseListQuery, ImportReport } from '@dentalware/shared'
+import type {
+  AssignTechnicianInput,
+  CaseActionInput,
+  CaseInput,
+  CaseListQuery,
+  ImportReport,
+  RemakeInput,
+  StageChangeInput,
+} from '@dentalware/shared'
 import { api } from '@/lib/api'
 import { throwIfNotOk } from '@/lib/api-error'
 
@@ -38,6 +46,16 @@ export async function updateCase(id: string, input: CaseInput) {
   ).case
 }
 
+/** `POST /api/trabajos/:id/acciones` (Tarea 5): responde el detalle completo y ya
+ * enmascarado por rol del trabajo, igual que `fetchCase`, no `{ id, status }`. */
+export async function postCaseAction(id: string, input: CaseActionInput) {
+  return (
+    await (
+      await throwIfNotOk(await trabajos[':id'].acciones.$post({ param: { id }, json: input }))
+    ).json()
+  ).case
+}
+
 export async function fetchEvents(id: string) {
   return (await (await throwIfNotOk(await trabajos[':id'].eventos.$get({ param: { id } }))).json())
     .events
@@ -50,6 +68,45 @@ export async function postComment(id: string, text: string) {
       await throwIfNotOk(await trabajos[':id'].comentarios.$post({ param: { id }, json: { text } }))
     ).json()
   ).event
+}
+
+/** `PUT /api/trabajos/:id/fase` (Tarea 6): responde solo `{ id, currentStageId }`, no el
+ * detalle completo — el nombre de la fase se resuelve en el cliente contra `useStages`. */
+export async function changeStage(id: string, input: StageChangeInput) {
+  return (
+    await (
+      await throwIfNotOk(await trabajos[':id'].fase.$put({ param: { id }, json: input }))
+    ).json()
+  ).case
+}
+
+/** `PUT /api/trabajos/:id/tecnico` (Tarea 6): responde solo `{ id, assignedTechnicianId }`. */
+export async function assignTechnician(id: string, input: AssignTechnicianInput) {
+  return (
+    await (
+      await throwIfNotOk(await trabajos[':id'].tecnico.$put({ param: { id }, json: input }))
+    ).json()
+  ).case
+}
+
+/** `POST /api/trabajos/:id/repetir` (Tarea 7): responde el detalle completo del trabajo hijo
+ * recién creado, igual que `fetchCase`. */
+export async function createRemake(id: string, input: RemakeInput) {
+  return (
+    await (
+      await throwIfNotOk(await trabajos[':id'].repetir.$post({ param: { id }, json: input }))
+    ).json()
+  ).case
+}
+
+/**
+ * `GET /api/trabajos/tecnicos` (Tarea 9): solo `id` y `name` de los técnicos activos, para el
+ * combobox de `TechnicianSelect`. Solo admin y recepción (403 el resto): `TechnicianSelect`
+ * consulta este endpoint únicamente cuando el rol puede asignar (`useTechnicians`, no llamado
+ * para técnico/mensajero, que solo ven el nombre ya presente en `CaseDetail`).
+ */
+export async function fetchTechnicians() {
+  return (await (await throwIfNotOk(await trabajos.tecnicos.$get())).json()).technicians
 }
 
 export type { ImportReport }

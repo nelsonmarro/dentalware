@@ -9,6 +9,6 @@ import type { Db } from './index.ts'
  */
 export async function truncateAll(db: Db) {
   await db.execute(
-    sql`truncate table "attachments", "case_events", "case_items", "cases", "case_sequences", "clinic_product_prices", "products", "product_categories", "doctors", "clinics", "stages", "lab_settings", "sessions", "accounts", "verifications", "users" cascade`,
+    sql`truncate table "attachments", "case_tryins", "case_events", "case_items", "cases", "case_sequences", "clinic_product_prices", "products", "product_categories", "doctors", "clinics", "stages", "lab_settings", "sessions", "accounts", "verifications", "users" cascade`,
   )
 }

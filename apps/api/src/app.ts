@@ -15,13 +15,14 @@ import { createImportCatalog } from './features/cases/import.repo.ts'
 import { importRoutes } from './features/cases/import.routes.ts'
 import { createImportService } from './features/cases/import.service.ts'
 import { casesRoutes } from './features/cases/routes.ts'
-import { createCasesRepo, drizzleUnitOfWork } from './features/cases/repo.ts'
+import { createCasesRepo, createUsersQuery, drizzleUnitOfWork } from './features/cases/repo.ts'
 import { createCasesService } from './features/cases/service.ts'
 import { clinicsRoutes } from './features/clinics/routes.ts'
 import { doctorsRoutes } from './features/doctors/routes.ts'
 import { healthRoutes } from './features/health/routes.ts'
 import { labSettingsRoutes } from './features/lab-settings/routes.ts'
 import { productsRoutes } from './features/products/routes.ts'
+import { listStages } from './features/stages/repo.ts'
 import { stagesRoutes } from './features/stages/routes.ts'
 import { usersRoutes } from './features/users/routes.ts'
 import type { Clock } from './lib/clock.ts'
@@ -49,6 +50,13 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
   const casesService = createCasesService({
     cases: casesRepo,
     attachments: attachmentsRepo,
+    // Puerto de la feature `stages` (CRUD simple, sin ports.ts propio): solo las fases activas.
+    stages: { active: () => listStages(db, false) },
+    // Puerto de la feature `users` (ADR 24: `createUsersQuery` lee `users` por join/lectura de
+    // solo lectura desde el `repo.ts` de `cases`, sin importar el `repo`/rutas de `users`).
+    users: createUsersQuery(db),
+    // Sin `tryins` aquí: el servicio solo accede a pruebas en boca dentro de `uow.run`
+    // (transaccional, ADR 19). Una instancia suelta invitaría a escribir fuera de la tx.
     uow: drizzleUnitOfWork(db),
     clock: effectiveClock,
   })

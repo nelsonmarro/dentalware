@@ -1,8 +1,23 @@
 import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { renderWithRouter } from '@/test/router'
-import type { CaseDetail } from './api'
+import type { CaseDetail, CaseEvent } from './api'
 import { CaseHeader } from './case-header'
+
+function event(overrides: Partial<CaseEvent>): CaseEvent {
+  return {
+    id: 'e1',
+    caseId: 'caso-1',
+    type: 'hold',
+    fromValue: 'en_proceso',
+    toValue: 'en_espera',
+    reason: null,
+    actorId: 'u1',
+    actor: { id: 'u1', name: 'Ana' },
+    createdAt: '2026-01-10T12:00:00.000Z',
+    ...overrides,
+  } as CaseEvent
+}
 
 function baseCase(overrides: Partial<CaseDetail> = {}): CaseDetail {
   return {
@@ -76,6 +91,91 @@ describe('CaseHeader', () => {
     )
     await screen.findByText('26-00001')
     expect(screen.queryByRole('link', { name: /Editar/ })).not.toBeInTheDocument()
+  })
+
+  it('un trabajo en proceso con fase asignada muestra la fase', async () => {
+    renderWithRouter(
+      <CaseHeader
+        case={baseCase({
+          status: 'en_proceso',
+          stage: { id: 'f1', name: 'Modelo', color: '#000' },
+        })}
+        missing={[]}
+        role="admin"
+      />,
+    )
+    expect(await screen.findByText('Modelo')).toBeInTheDocument()
+  })
+
+  // M-3, ola de fixes del PR 1 (lote B): `finalizar` no limpia `currentStageId`/`stage` en la
+  // API (ruling: no se toca la API), así que un trabajo entregado sigue trayendo la fase en la
+  // que se quedó. Mostrarla ahí es ruido: ya está entregado, la fase no aporta nada.
+  it('un trabajo entregado con fase en la respuesta no la muestra', async () => {
+    renderWithRouter(
+      <CaseHeader
+        case={baseCase({
+          status: 'entregado',
+          stage: { id: 'f1', name: 'Modelo', color: '#000' },
+        })}
+        missing={[]}
+        role="admin"
+      />,
+    )
+    await screen.findByText('26-00001')
+    expect(screen.queryByText('Modelo')).not.toBeInTheDocument()
+  })
+
+  // I-1, ola de fixes del PR 1 (lote B): CIC-3 exige que la ficha muestre el motivo y desde
+  // cuándo está en espera, no solo que quede guardado (`holdReason` ya viajaba en `CaseDetail`
+  // sin que ninguna pantalla lo mostrara).
+  it('en espera muestra el motivo y la fecha del último evento "hold"', async () => {
+    renderWithRouter(
+      <CaseHeader
+        case={baseCase({ status: 'en_espera', holdReason: 'Esperando color del paciente' })}
+        missing={[]}
+        role="admin"
+        events={[
+          event({ id: 'e1', createdAt: '2026-01-05T12:00:00.000Z', reason: 'Motivo viejo' }),
+          event({ id: 'e2', createdAt: '2026-01-10T12:00:00.000Z' }),
+        ]}
+      />,
+    )
+    expect(
+      await screen.findByText('En espera desde 10/01/2026: Esperando color del paciente'),
+    ).toBeInTheDocument()
+  })
+
+  it('sin trabajo en espera no muestra el aviso', async () => {
+    renderWithRouter(
+      <CaseHeader
+        case={baseCase({ status: 'en_proceso' })}
+        missing={[]}
+        role="admin"
+        events={[]}
+      />,
+    )
+    await screen.findByText('26-00001')
+    expect(screen.queryByText(/En espera desde/)).not.toBeInTheDocument()
+  })
+
+  // I-2, ola de fixes del PR 1 (lote B): CIC-4 exige que la repetición quede enlazada en la
+  // ficha del hijo, no solo en `parentCaseId` (sin código ni enlace, invisible para quien la ve).
+  it('un trabajo que es repetición enlaza al padre por su código', async () => {
+    renderWithRouter(
+      <CaseHeader
+        case={baseCase({ parentCaseId: 'caso-padre', parentCase: { code: '26-00099' } })}
+        missing={[]}
+        role="admin"
+      />,
+    )
+    const link = await screen.findByRole('link', { name: /Repetición de 26-00099/ })
+    expect(link).toHaveAttribute('href', '/trabajos/caso-padre')
+  })
+
+  it('un trabajo que no es repetición no muestra el enlace', async () => {
+    renderWithRouter(<CaseHeader case={baseCase()} missing={[]} role="admin" />)
+    await screen.findByText('26-00001')
+    expect(screen.queryByText(/Repetición de/)).not.toBeInTheDocument()
   })
 
   it('con datos faltantes muestra el aviso "Para aceptar falta: …"', async () => {

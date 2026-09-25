@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
-import { createUser, loginAs, setupTestDb, truncateAll } from '../../test/setup.ts'
+import {
+  cleanupTestStorage,
+  createUser,
+  loginAs,
+  setupTestDb,
+  truncateAll,
+} from '../../test/setup.ts'
 
 describe('/api/trabajos', () => {
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
@@ -10,7 +16,9 @@ describe('/api/trabajos', () => {
   let admin: string
   let recepcion: string
   let tecnico: string
+  let tecnicoId: string
   let mensajero: string
+  let mensajeroId: string
   let clinicId: string
   let doctorId: string
   let zr: string
@@ -27,6 +35,7 @@ describe('/api/trabajos', () => {
   })
   afterAll(async () => {
     await ctx.pool.end()
+    await cleanupTestStorage(ctx)
   })
   beforeEach(async () => {
     await truncateAll(ctx.db)
@@ -42,13 +51,13 @@ describe('/api/trabajos', () => {
       name: 'Recepción',
       role: 'recepcion',
     })
-    await createUser(ctx.auth, ctx.db, {
+    tecnicoId = await createUser(ctx.auth, ctx.db, {
       email: 'tec@t.local',
       password: 'Tecnico123!',
       name: 'Ana Técnico',
       role: 'tecnico',
     })
-    await createUser(ctx.auth, ctx.db, {
+    mensajeroId = await createUser(ctx.auth, ctx.db, {
       email: 'mens@t.local',
       password: 'Mensajero1!',
       name: 'Mensajero',
@@ -253,6 +262,29 @@ describe('/api/trabajos', () => {
     expect(comoMensajeroBody.cases.every((c) => c.total === null)).toBe(true)
   })
 
+  // M-5 (revisión final del PR 1, CIC-4): `vista=en_curso` filtra por una lista blanca de
+  // estados (`en_proceso`/`en_espera`/`en_prueba`); un trabajo cancelado nunca debe aparecer
+  // ahí, aunque un cancelado también sea, en cierto sentido, un trabajo "que ya no avanza".
+  it('un trabajo cancelado no aparece en la vista en_curso', async () => {
+    const enProcesoId = await createOne(recepcion, { patientRef: 'En proceso' })
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'en_proceso' })
+      .where(eq(ctx.schema.cases.id, enProcesoId))
+
+    const canceladoId = await createOne(recepcion, { patientRef: 'Cancelado' })
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'cancelado' })
+      .where(eq(ctx.schema.cases.id, canceladoId))
+
+    const res = await app.request('/api/trabajos?vista=en_curso', req(recepcion, 'GET'))
+    const body = (await res.json()) as { cases: { id: string }[] }
+    const idsEnCurso = body.cases.map((c) => c.id)
+    expect(idsEnCurso).toContain(enProcesoId)
+    expect(idsEnCurso).not.toContain(canceladoId)
+  })
+
   async function ids(qs: string) {
     return (
       (await (await app.request(`/api/trabajos${qs}`, req(recepcion, 'GET'))).json()) as {
@@ -387,5 +419,744 @@ describe('/api/trabajos', () => {
     const put = await app.request(`/api/trabajos/${idDesconocido}`, req(admin, 'PUT', caseInput()))
     expect(put.status).toBe(404)
     expect(await put.json()).toMatchObject({ message: 'El trabajo no existe' })
+  })
+
+  describe('POST /api/trabajos/:id/acciones', () => {
+    // Una sola fase por test (no una por llamada a `crearTrabajoCompleto`): `stages` no
+    // tiene unicidad por `name`, así que dos filas "Diseño" con `sort: 0` en el mismo test
+    // dejarían a `firstStage` eligiendo entre ellas sin orden determinista.
+    beforeEach(async () => {
+      await ctx.db.insert(ctx.schema.stages).values({ name: 'Diseño', sort: 0 })
+    })
+
+    async function crearTrabajoCompleto(overrides: Record<string, unknown> = {}) {
+      const id = await createOne(recepcion, {
+        dueDate: '2026-12-01',
+        prescription: 'Corona completa disilicato',
+        ...overrides,
+      })
+      return { id }
+    }
+
+    async function crearTrabajoSinPrescripcion() {
+      const id = await createOne(recepcion, { dueDate: '2026-12-01' })
+      return { id }
+    }
+
+    async function crearTrabajoEnProceso() {
+      const { id } = await crearTrabajoCompleto()
+      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'aceptar' }))
+      return { id }
+    }
+
+    it('acepta un trabajo completo y fija fecha comprometida, fase y evento', async () => {
+      const { id } = await crearTrabajoCompleto()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'aceptar' }),
+      )
+      expect(res.status).toBe(200)
+      const ficha = (await (
+        await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))
+      ).json()) as {
+        case: { status: string; promisedDate: string | null; currentStageId: string | null }
+      }
+      expect(ficha.case.status).toBe('en_proceso')
+      expect(ficha.case.promisedDate).not.toBeNull()
+      expect(ficha.case.currentStageId).not.toBeNull()
+      const eventos = (await (
+        await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string }[] }
+      expect(eventos.events.some((e) => e.type === 'status_changed')).toBe(true)
+    })
+
+    it('responde 422 con el detalle cuando faltan datos obligatorios', async () => {
+      const { id } = await crearTrabajoSinPrescripcion()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'aceptar' }),
+      )
+      expect(res.status).toBe(422)
+      const body = (await res.json()) as { message: string; issues: unknown }
+      expect(body.message).toBe('Datos inválidos')
+      expect(JSON.stringify(body.issues)).toContain('Prescripción')
+    })
+
+    it('responde 409 ante una transición inválida', async () => {
+      const { id } = await crearTrabajoCompleto()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'finalizar' }),
+      )
+      expect(res.status).toBe(409)
+    })
+
+    it('responde 403 sin sesión y con rol técnico', async () => {
+      const { id } = await crearTrabajoCompleto()
+      expect(
+        (await app.request(`/api/trabajos/${id}/acciones`, req('', 'POST', { accion: 'aceptar' })))
+          .status,
+      ).toBe(403)
+      expect(
+        (
+          await app.request(
+            `/api/trabajos/${id}/acciones`,
+            req(tecnico, 'POST', { accion: 'aceptar' }),
+          )
+        ).status,
+      ).toBe(403)
+    })
+
+    it('responde 422 al pausar sin motivo', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'pausar' }),
+      )
+      expect(res.status).toBe(422)
+    })
+
+    it('responde 404 si el trabajo no existe', async () => {
+      const res = await app.request(
+        `/api/trabajos/${randomUUID()}/acciones`,
+        req(admin, 'POST', { accion: 'aceptar' }),
+      )
+      expect(res.status).toBe(404)
+    })
+
+    // I-1: lo que hace especial a esta ruta (sin `canWrite` fijo) es justo que un técnico
+    // pueda finalizar y un mensajero pueda marcar entregas; sin estos tres, los 6 tests de
+    // arriba quedarían en verde aunque alguien rompiera ese comportamiento por HTTP.
+    // M-6 (ronda de fixes 1 del PR 1): estos dos tests solo comprobaban el 200; una fuga de
+    // precios o notas internas en esta ruta pasaba inadvertida. El tipo de `body.case` fuerza
+    // a que la respuesta real traiga estos campos (si el servicio dejara de enmascarar, el
+    // `.toBeNull()` cae, no el tipo).
+    it('técnico puede finalizar un trabajo en proceso (200) sin ver precios ni notas internas', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(tecnico, 'POST', { accion: 'finalizar' }),
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        case: {
+          total: string | null
+          internalNotes: string | null
+          remakeChargePct: string | null
+          items: {
+            unitPrice: string | null
+            lineTotal: string | null
+            discountPct: string | null
+          }[]
+        }
+      }
+      expect(body.case.total).toBeNull()
+      expect(body.case.internalNotes).toBeNull()
+      expect(body.case.remakeChargePct).toBeNull()
+      for (const item of body.case.items) {
+        expect(item.unitPrice).toBeNull()
+        expect(item.lineTotal).toBeNull()
+        expect(item.discountPct).toBeNull()
+      }
+    })
+
+    it('mensajero puede marcar entregado un trabajo enviado (200) sin ver precios ni notas internas', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' }))
+      await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'marcar_enviado' }),
+      )
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(mensajero, 'POST', { accion: 'marcar_entregado' }),
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        case: {
+          total: string | null
+          internalNotes: string | null
+          remakeChargePct: string | null
+          items: {
+            unitPrice: string | null
+            lineTotal: string | null
+            discountPct: string | null
+          }[]
+        }
+      }
+      expect(body.case.total).toBeNull()
+      expect(body.case.internalNotes).toBeNull()
+      expect(body.case.remakeChargePct).toBeNull()
+      for (const item of body.case.items) {
+        expect(item.unitPrice).toBeNull()
+        expect(item.lineTotal).toBeNull()
+        expect(item.discountPct).toBeNull()
+      }
+    })
+
+    // M-6: caso donde `remakeChargePct` sí trae un valor antes de enmascarar (una repetición),
+    // para que el `.toBeNull()` de arriba no pase "por casualidad" porque el campo ya nacía
+    // vacío en un trabajo que nunca fue una repetición.
+    it('técnico no ve el porcentaje de cobro de una repetición al finalizarla', async () => {
+      const padreId = await createOne(recepcion, {
+        dueDate: '2026-12-01',
+        prescription: 'Corona completa disilicato',
+        items: [{ productId: zr, quantity: 1, teeth: [11, 12] }],
+      })
+      await app.request(
+        `/api/trabajos/${padreId}/acciones`,
+        req(admin, 'POST', { accion: 'aceptar' }),
+      )
+      await app.request(
+        `/api/trabajos/${padreId}/acciones`,
+        req(admin, 'POST', { accion: 'finalizar' }),
+      )
+      await app.request(
+        `/api/trabajos/${padreId}/acciones`,
+        req(admin, 'POST', { accion: 'marcar_enviado' }),
+      )
+      await app.request(
+        `/api/trabajos/${padreId}/acciones`,
+        req(admin, 'POST', { accion: 'marcar_entregado' }),
+      )
+      const repetir = await app.request(
+        `/api/trabajos/${padreId}/repetir`,
+        req(admin, 'POST', {
+          motivo: 'Color equivocado',
+          responsabilidad: 'laboratorio',
+          cobroPct: 50,
+        }),
+      )
+      const { case: hijo } = (await repetir.json()) as { case: { id: string } }
+      await app.request(
+        `/api/trabajos/${hijo.id}/acciones`,
+        req(admin, 'POST', { accion: 'aceptar' }),
+      )
+      const res = await app.request(
+        `/api/trabajos/${hijo.id}/acciones`,
+        req(tecnico, 'POST', { accion: 'finalizar' }),
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { case: { remakeChargePct: string | null } }
+      expect(body.case.remakeChargePct).toBeNull()
+
+      // Confirma que el dato existe de verdad (no es null "por casualidad"): admin sí lo ve.
+      const fichaAdmin = (await (
+        await app.request(`/api/trabajos/${hijo.id}`, req(admin, 'GET'))
+      ).json()) as { case: { remakeChargePct: string | null } }
+      expect(fichaAdmin.case.remakeChargePct).toBe('50.00')
+    })
+
+    it('mensajero no puede aceptar (403)', async () => {
+      const { id } = await crearTrabajoCompleto()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(mensajero, 'POST', { accion: 'aceptar' }),
+      )
+      expect(res.status).toBe(403)
+    })
+
+    // M-1: `canAct` corre antes del validador de `json`; sin sesión, un cuerpo inválido
+    // (falta el motivo obligatorio de "pausar") debe dar 403 uniforme y no 422, igual que
+    // en las demás rutas de escritura, en vez de confirmarle a un anónimo que la ruta
+    // existe con un mensaje de validación.
+    it('sin sesión con cuerpo inválido responde 403 y no 422', async () => {
+      const { id } = await crearTrabajoCompleto()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req('', 'POST', { accion: 'pausar' }),
+      )
+      expect(res.status).toBe(403)
+    })
+  })
+
+  describe('PUT /api/trabajos/:id/fase', () => {
+    let stage2: string
+
+    // Dos fases con `sort` distintos, sembradas una sola vez (mismo ruling que en
+    // `describe('POST /api/trabajos/:id/acciones', ...)`  arriba): con una fase no se puede
+    // probar el avance, y `stages` no tiene unicidad por `name`, así que hay que sembrarlas
+    // en un único `beforeEach` para que `firstStage`/`nextStage` elijan de forma determinista.
+    beforeEach(async () => {
+      await ctx.db.insert(ctx.schema.stages).values({ name: 'Diseño', sort: 0 })
+      const [s2] = await ctx.db
+        .insert(ctx.schema.stages)
+        .values({ name: 'Cerámica', sort: 1 })
+        .returning()
+      stage2 = s2!.id
+    })
+
+    async function crearTrabajoEnProceso() {
+      const id = await createOne(recepcion, {
+        dueDate: '2026-12-01',
+        prescription: 'Corona completa disilicato',
+      })
+      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'aceptar' }))
+      return { id }
+    }
+
+    it('avanza la fase (200) y deja el evento stage_changed', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      const res = await app.request(
+        `/api/trabajos/${id}/fase`,
+        req(admin, 'PUT', { direccion: 'avanzar' }),
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { case: { id: string; currentStageId: string } }
+      expect(body.case.currentStageId).toBe(stage2)
+
+      const eventos = (await (
+        await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string }[] }
+      expect(eventos.events.some((e) => e.type === 'stage_changed')).toBe(true)
+    })
+
+    it('responde 409 al avanzar desde la última fase activa', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      await app.request(`/api/trabajos/${id}/fase`, req(admin, 'PUT', { direccion: 'avanzar' }))
+      const res = await app.request(
+        `/api/trabajos/${id}/fase`,
+        req(admin, 'PUT', { direccion: 'avanzar' }),
+      )
+      expect(res.status).toBe(409)
+    })
+
+    it('responde 409 en un trabajo en espera', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'pausar', motivo: 'Falta antagonista' }),
+      )
+      const res = await app.request(
+        `/api/trabajos/${id}/fase`,
+        req(admin, 'PUT', { direccion: 'avanzar' }),
+      )
+      expect(res.status).toBe(409)
+    })
+
+    // M-4 (ronda de fixes 1): faltaba el 409 gemelo con `en_prueba` (solo estaba `en_espera`).
+    it('responde 409 en un trabajo en prueba en boca', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'enviar_prueba' }),
+      )
+      const res = await app.request(
+        `/api/trabajos/${id}/fase`,
+        req(admin, 'PUT', { direccion: 'avanzar' }),
+      )
+      expect(res.status).toBe(409)
+    })
+
+    // M-4 (ronda de fixes 1): faltaba el 422 de `stageChangeSchema` (motivo obligatorio al
+    // retroceder) ejercitado por HTTP, no solo a nivel de schema (`cases.test.ts` en `shared`).
+    it('responde 422 al retroceder sin motivo', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      await app.request(`/api/trabajos/${id}/fase`, req(admin, 'PUT', { direccion: 'avanzar' }))
+      const res = await app.request(
+        `/api/trabajos/${id}/fase`,
+        req(admin, 'PUT', { direccion: 'retroceder' }),
+      )
+      expect(res.status).toBe(422)
+    })
+
+    it('el técnico puede cambiar de fase (200)', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      const res = await app.request(
+        `/api/trabajos/${id}/fase`,
+        req(tecnico, 'PUT', { direccion: 'avanzar' }),
+      )
+      expect(res.status).toBe(200)
+    })
+
+    it('responde 403 sin sesión y con rol mensajero', async () => {
+      const { id } = await crearTrabajoEnProceso()
+      expect(
+        (await app.request(`/api/trabajos/${id}/fase`, req('', 'PUT', { direccion: 'avanzar' })))
+          .status,
+      ).toBe(403)
+      expect(
+        (
+          await app.request(
+            `/api/trabajos/${id}/fase`,
+            req(mensajero, 'PUT', { direccion: 'avanzar' }),
+          )
+        ).status,
+      ).toBe(403)
+    })
+  })
+
+  describe('GET /api/trabajos/tecnicos', () => {
+    // Trampa de orden (ruling de la Tarea 9): `GET /:id` está declarado en `routes.ts` y, si
+    // `/tecnicos` se declarara después, ese segmento literal se colaría como si fuera un `id`
+    // (404 o 422 de uuid inválido) en vez de devolver la lista. Este test fija que la ruta
+    // nueva gana.
+    it('devuelve la lista de técnicos, no un error de uuid inválido', async () => {
+      const res = await app.request('/api/trabajos/tecnicos', req(admin, 'GET'))
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { technicians: { id: string; name: string }[] }
+      expect(body.technicians).toContainEqual({ id: tecnicoId, name: 'Ana Técnico' })
+    })
+
+    it('no expone correo, rol ni estado de baneo', async () => {
+      const res = await app.request('/api/trabajos/tecnicos', req(recepcion, 'GET'))
+      const body = (await res.json()) as { technicians: Record<string, unknown>[] }
+      for (const t of body.technicians) {
+        expect(Object.keys(t).sort()).toEqual(['id', 'name'])
+      }
+    })
+
+    it('un técnico baneado no aparece en la lista', async () => {
+      await ctx.db
+        .update(ctx.schema.users)
+        .set({ banned: true })
+        .where(eq(ctx.schema.users.id, tecnicoId))
+      const res = await app.request('/api/trabajos/tecnicos', req(admin, 'GET'))
+      const body = (await res.json()) as { technicians: { id: string }[] }
+      expect(body.technicians.some((t) => t.id === tecnicoId)).toBe(false)
+    })
+
+    it('responde 403 sin sesión y con rol técnico o mensajero', async () => {
+      expect((await app.request('/api/trabajos/tecnicos', req('', 'GET'))).status).toBe(403)
+      expect((await app.request('/api/trabajos/tecnicos', req(tecnico, 'GET'))).status).toBe(403)
+      expect((await app.request('/api/trabajos/tecnicos', req(mensajero, 'GET'))).status).toBe(403)
+    })
+  })
+
+  describe('PUT /api/trabajos/:id/tecnico', () => {
+    it('asigna un técnico activo (200) y deja el evento assigned', async () => {
+      const id = await createOne(recepcion)
+      const res = await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId }))
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as {
+        case: { id: string; assignedTechnicianId: string | null }
+      }
+      expect(body.case.assignedTechnicianId).toBe(tecnicoId)
+
+      const eventos = (await (
+        await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string }[] }
+      expect(eventos.events.some((e) => e.type === 'assigned')).toBe(true)
+    })
+
+    it('responde 422 si el técnico no existe o no está activo', async () => {
+      const id = await createOne(recepcion)
+      const res = await app.request(
+        `/api/trabajos/${id}/tecnico`,
+        req(admin, 'PUT', { tecnicoId: randomUUID() }),
+      )
+      expect(res.status).toBe(422)
+    })
+
+    // I-2 (ronda de fixes 1): `fakeUsersQuery` en los tests de servicio es un array literal,
+    // así que no ejercita el `where` real de `createUsersQuery`; el único 422 de integración
+    // mandaba un `randomUUID()` que tampoco existe en `users`. Estos dos casos sí pasan por
+    // Postgres con un usuario que existe de verdad: si el `where` filtrara mal (por rol y no
+    // por `banned`, por `banned` y no por rol, o por la columna equivocada), alguno de los dos
+    // dejaría pasar el 200. Verificado por mutación (ver Reporte de fixes).
+    it('responde 422 al asignar el id de un usuario que no es técnico', async () => {
+      const id = await createOne(recepcion)
+      const res = await app.request(
+        `/api/trabajos/${id}/tecnico`,
+        req(admin, 'PUT', { tecnicoId: mensajeroId }),
+      )
+      expect(res.status).toBe(422)
+    })
+
+    it('responde 422 al asignar un técnico baneado', async () => {
+      await ctx.db
+        .update(ctx.schema.users)
+        .set({ banned: true })
+        .where(eq(ctx.schema.users.id, tecnicoId))
+      const id = await createOne(recepcion)
+      const res = await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId }))
+      expect(res.status).toBe(422)
+    })
+
+    it('acepta desasignar con tecnicoId: null', async () => {
+      const id = await createOne(recepcion)
+      await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId }))
+      const res = await app.request(
+        `/api/trabajos/${id}/tecnico`,
+        req(admin, 'PUT', { tecnicoId: null }),
+      )
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { case: { assignedTechnicianId: string | null } }
+      expect(body.case.assignedTechnicianId).toBeNull()
+    })
+
+    it('responde 403 sin sesión y con rol técnico', async () => {
+      const id = await createOne(recepcion)
+      expect(
+        (await app.request(`/api/trabajos/${id}/tecnico`, req('', 'PUT', { tecnicoId }))).status,
+      ).toBe(403)
+      expect(
+        (await app.request(`/api/trabajos/${id}/tecnico`, req(tecnico, 'PUT', { tecnicoId })))
+          .status,
+      ).toBe(403)
+    })
+  })
+
+  describe('POST /api/trabajos/:id/repetir', () => {
+    async function avanzarAEntregado(id: string) {
+      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'aceptar' }))
+      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' }))
+      await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'marcar_enviado' }),
+      )
+      await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(admin, 'POST', { accion: 'marcar_entregado' }),
+      )
+    }
+
+    async function crearTrabajoEntregado() {
+      const id = await createOne(recepcion, {
+        dueDate: '2026-12-01',
+        prescription: 'Corona completa disilicato',
+        items: [{ productId: zr, quantity: 1, teeth: [11, 12] }],
+      })
+      await avanzarAEntregado(id)
+      return { id }
+    }
+
+    function remakeBody(overrides: Record<string, unknown> = {}) {
+      return {
+        motivo: 'Fractura en cerámica al probar',
+        responsabilidad: 'laboratorio',
+        cobroPct: 0,
+        ...overrides,
+      }
+    }
+
+    it('repite un trabajo entregado (201): código nuevo, hijo enlazado al padre y líneas copiadas', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      expect(res.status).toBe(201)
+      const { case: created } = (await res.json()) as { case: { id: string; code: string } }
+      expect(created.code).toMatch(/^\d{2}-\d{5}$/)
+
+      const ficha = (await (
+        await app.request(`/api/trabajos/${created.id}`, req(admin, 'GET'))
+      ).json()) as {
+        case: {
+          status: string
+          parentCaseId: string | null
+          remakeReason: string
+          remakeResponsibility: string
+          remakeChargePct: string
+          items: { teeth: number[] }[]
+        }
+      }
+      expect(ficha.case.status).toBe('nuevo')
+      expect(ficha.case.parentCaseId).toBe(id)
+      expect(ficha.case.remakeReason).toBe('Fractura en cerámica al probar')
+      expect(ficha.case.remakeResponsibility).toBe('laboratorio')
+      expect(ficha.case.remakeChargePct).toBe('0.00')
+      expect(ficha.case.items).toHaveLength(1)
+      expect(ficha.case.items[0]!.teeth).toEqual([11, 12])
+    })
+
+    // I-3 (ronda de fixes 1 del PR 1): esta prueba corre contra el `repo.ts` real (Postgres),
+    // no contra `fakes.ts` — el hallazgo original era justo que solo la copia del fake estaba
+    // protegida. Un padre con `dueDate` ya vencida (2020, muy anterior a "hoy") no debe
+    // colar esa fecha al hijo: si `createRemake` copiara `parent.dueDate` tal cual, el hijo
+    // nacería ya "atrasado" el mismo día que se crea.
+    it('una fecha deseada ya vencida en el padre no se copia al hijo (dueDate queda null)', async () => {
+      const id = await createOne(recepcion, {
+        dueDate: '2020-01-01',
+        prescription: 'Corona completa disilicato',
+        items: [{ productId: zr, quantity: 1, teeth: [11, 12] }],
+      })
+      await avanzarAEntregado(id)
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      expect(res.status).toBe(201)
+      const { case: created } = (await res.json()) as { case: { id: string } }
+      const ficha = (await (
+        await app.request(`/api/trabajos/${created.id}`, req(admin, 'GET'))
+      ).json()) as { case: { dueDate: string | null } }
+      expect(ficha.case.dueDate).toBeNull()
+    })
+
+    it('deja el evento remake_created en el original y en el hijo', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      const { case: created } = (await res.json()) as { case: { id: string } }
+
+      const eventosPadre = (await (
+        await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string }[] }
+      expect(eventosPadre.events.some((e) => e.type === 'remake_created')).toBe(true)
+
+      const eventosHijo = (await (
+        await app.request(`/api/trabajos/${created.id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string }[] }
+      expect(eventosHijo.events.some((e) => e.type === 'remake_created')).toBe(true)
+    })
+
+    // I-2 (ola de fixes del PR 1, lote B): la ficha necesita enlazar la repetición en ambos
+    // sentidos. El hijo ya expone `parentCaseId`; para mostrar "Repetición de {código}" en su
+    // ficha falta el código del padre, que se añade como relación de solo lectura en `byId`.
+    it('el hijo expone el código del padre en parentCase', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const padre = (await (
+        await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))
+      ).json()) as { case: { code: string } }
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      const { case: created } = (await res.json()) as { case: { id: string } }
+
+      const ficha = (await (
+        await app.request(`/api/trabajos/${created.id}`, req(admin, 'GET'))
+      ).json()) as { case: { parentCase: { code: string } | null } }
+      expect(ficha.case.parentCase).toEqual({ code: padre.case.code })
+    })
+
+    it('un trabajo sin padre expone parentCase nulo', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const ficha = (await (
+        await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))
+      ).json()) as { case: { parentCase: { code: string } | null } }
+      expect(ficha.case.parentCase).toBeNull()
+    })
+
+    // El evento `remake_created` del padre guarda el código del hijo en `toValue`, pero un
+    // código no es un enlace: `relatedCaseId` resuelve el id del trabajo hijo (join por código,
+    // solo lectura, mismo patrón que un `repo.ts` sobre su propio schema) para que la ficha del
+    // padre pueda enlazarlo en su historial.
+    it('el evento remake_created del padre expone el id del hijo en relatedCaseId', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      const { case: created } = (await res.json()) as { case: { id: string } }
+
+      const eventosPadre = (await (
+        await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string; relatedCaseId: string | null }[] }
+      const evento = eventosPadre.events.find((e) => e.type === 'remake_created')
+      expect(evento?.relatedCaseId).toBe(created.id)
+    })
+
+    it('el hijo nace sin técnico asignado aunque el padre lo tuviera', async () => {
+      const id = await createOne(recepcion, {
+        dueDate: '2026-12-01',
+        prescription: 'Corona completa disilicato',
+      })
+      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'aceptar' }))
+      await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId }))
+      await avanzarAEntregado(id)
+
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      const { case: created } = (await res.json()) as { case: { id: string } }
+      const ficha = (await (
+        await app.request(`/api/trabajos/${created.id}`, req(admin, 'GET'))
+      ).json()) as { case: { assignedTechnicianId: string | null } }
+      expect(ficha.case.assignedTechnicianId).toBeNull()
+    })
+
+    it('se puede repetir más de una vez el mismo trabajo', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const primero = (await (
+        await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      ).json()) as { case: { id: string } }
+      const segundo = (await (
+        await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      ).json()) as { case: { id: string } }
+      expect(primero.case.id).not.toBe(segundo.case.id)
+    })
+
+    it('se puede repetir una repetición (encadenado al padre inmediato)', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const hijoRes = await app.request(
+        `/api/trabajos/${id}/repetir`,
+        req(admin, 'POST', remakeBody()),
+      )
+      const { case: hijo } = (await hijoRes.json()) as { case: { id: string } }
+      await avanzarAEntregado(hijo.id)
+
+      const nietoRes = await app.request(
+        `/api/trabajos/${hijo.id}/repetir`,
+        req(admin, 'POST', remakeBody()),
+      )
+      expect(nietoRes.status).toBe(201)
+      const { case: nieto } = (await nietoRes.json()) as { case: { id: string } }
+      const ficha = (await (
+        await app.request(`/api/trabajos/${nieto.id}`, req(admin, 'GET'))
+      ).json()) as { case: { parentCaseId: string | null } }
+      expect(ficha.case.parentCaseId).toBe(hijo.id)
+    })
+
+    it('responde 409 al repetir un trabajo nuevo', async () => {
+      const id = await createOne(recepcion)
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      expect(res.status).toBe(409)
+    })
+
+    it('responde 404 si el trabajo no existe', async () => {
+      const res = await app.request(
+        `/api/trabajos/${randomUUID()}/repetir`,
+        req(admin, 'POST', remakeBody()),
+      )
+      expect(res.status).toBe(404)
+    })
+
+    it('responde 422 sin motivo', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(
+        `/api/trabajos/${id}/repetir`,
+        req(admin, 'POST', remakeBody({ motivo: '' })),
+      )
+      expect(res.status).toBe(422)
+    })
+
+    it('responde 403 sin sesión y con rol técnico', async () => {
+      const { id } = await crearTrabajoEntregado()
+      expect(
+        (await app.request(`/api/trabajos/${id}/repetir`, req('', 'POST', remakeBody()))).status,
+      ).toBe(403)
+      expect(
+        (await app.request(`/api/trabajos/${id}/repetir`, req(tecnico, 'POST', remakeBody())))
+          .status,
+      ).toBe(403)
+    })
+
+    // I-2 (ronda de fixes 1): el hijo no copia adjuntos (solo el texto de `prescription`, ver
+    // el JSDoc de `CasesRepository.createRemake`). Si el padre se aceptó con prescripción solo
+    // como documento adjunto (caso cotidiano: receta escaneada), el hijo nace sin prescripción
+    // de ningún tipo. Este test deja constancia de qué ve la Tarea 8/9 en `missing` para que la
+    // UI pueda avisar, no solo lo documenta en el código.
+    it('si la prescripción del padre era solo un documento adjunto, el hijo la reclama en missing', async () => {
+      const id = await createOne(recepcion, {
+        dueDate: '2026-12-01',
+        items: [{ productId: zr, quantity: 1, teeth: [11, 12] }],
+        // Sin `prescription` de texto a propósito: el padre se acepta gracias al documento.
+      })
+      const pdf = Buffer.from('%PDF-1.4\n%¥±ë\n1 0 obj\n<< >>\nendobj\ntrailer\n<< >>\n%%EOF')
+      const form = new FormData()
+      form.set('file', new File([pdf], 'orden.pdf', { type: 'application/pdf' }))
+      form.set('kind', 'document')
+      const subida = await app.request(`/api/adjuntos/trabajo/${id}`, {
+        method: 'POST',
+        headers: { cookie: recepcion, origin: ctx.config.WEB_ORIGIN },
+        body: form,
+      })
+      expect(subida.status).toBe(201)
+
+      // El padre no reclama prescripción: el documento la cubre.
+      const fichaPadre = (await (
+        await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))
+      ).json()) as { missing: string[] }
+      expect(fichaPadre.missing).not.toContain('Prescripción (texto o documento)')
+
+      await avanzarAEntregado(id)
+      const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      expect(res.status).toBe(201)
+      const { case: created } = (await res.json()) as { case: { id: string } }
+
+      const fichaHijo = (await (
+        await app.request(`/api/trabajos/${created.id}`, req(admin, 'GET'))
+      ).json()) as { case: { prescription: string | null }; missing: string[] }
+      expect(fichaHijo.case.prescription).toBeNull()
+      expect(fichaHijo.missing).toContain('Prescripción (texto o documento)')
+    })
   })
 })

@@ -1,11 +1,15 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { z } from 'zod'
 import {
+  assignTechnicianSchema,
+  caseActionSchema,
   caseInputSchema,
   caseItemSchema,
   caseListQuerySchema,
   commentSchema,
   isoDate,
+  remakeSchema,
+  stageChangeSchema,
 } from './cases.ts'
 
 const clinicId = '11111111-1111-4111-8111-111111111111'
@@ -126,5 +130,95 @@ describe('commentSchema', () => {
   it('exige texto', () => {
     expect(commentSchema.safeParse({ text: '   ' }).success).toBe(false)
     expect(commentSchema.parse({ text: ' hola ' })).toEqual({ text: 'hola' })
+  })
+})
+
+describe('caseActionSchema', () => {
+  it('exige motivo en las acciones que lo requieren', () => {
+    expect(caseActionSchema.safeParse({ accion: 'pausar' }).success).toBe(false)
+    expect(caseActionSchema.safeParse({ accion: 'cancelar', motivo: '  ' }).success).toBe(false)
+    expect(
+      caseActionSchema.safeParse({ accion: 'pausar', motivo: 'Falta antagonista' }).success,
+    ).toBe(true)
+  })
+
+  it('no exige motivo en las demás acciones y lo normaliza a null', () => {
+    const r = caseActionSchema.parse({ accion: 'aceptar' })
+    expect(r).toEqual({ accion: 'aceptar', motivo: null })
+  })
+
+  it('rechaza una acción que no existe', () => {
+    expect(caseActionSchema.safeParse({ accion: 'inventada' }).success).toBe(false)
+  })
+})
+
+describe('stageChangeSchema', () => {
+  it('retroceder exige motivo; avanzar no', () => {
+    expect(stageChangeSchema.safeParse({ direccion: 'retroceder' }).success).toBe(false)
+    expect(
+      stageChangeSchema.safeParse({ direccion: 'retroceder', motivo: 'Se rompió' }).success,
+    ).toBe(true)
+    expect(stageChangeSchema.safeParse({ direccion: 'avanzar' }).success).toBe(true)
+  })
+})
+
+describe('assignTechnicianSchema', () => {
+  it('acepta un id de técnico o null para desasignar, y rechaza cadena vacía', () => {
+    expect(assignTechnicianSchema.parse({ tecnicoId: 'tec-1' })).toEqual({ tecnicoId: 'tec-1' })
+    expect(assignTechnicianSchema.parse({ tecnicoId: null })).toEqual({ tecnicoId: null })
+    expect(assignTechnicianSchema.safeParse({ tecnicoId: '' }).success).toBe(false)
+  })
+})
+
+describe('remakeSchema', () => {
+  it('exige motivo y responsabilidad, y acota el porcentaje de cobro a 0–100', () => {
+    expect(
+      remakeSchema.safeParse({ motivo: 'Fractura', responsabilidad: 'laboratorio', cobroPct: 0 })
+        .success,
+    ).toBe(true)
+    expect(
+      remakeSchema.safeParse({ motivo: '', responsabilidad: 'laboratorio', cobroPct: 0 }).success,
+    ).toBe(false)
+    expect(
+      remakeSchema.safeParse({ motivo: 'x', responsabilidad: 'otra', cobroPct: 0 }).success,
+    ).toBe(false)
+    expect(
+      remakeSchema.safeParse({ motivo: 'x', responsabilidad: 'clinica', cobroPct: 101 }).success,
+    ).toBe(false)
+  })
+
+  it('rechaza el porcentaje vacío en vez de convertirlo en 0', () => {
+    // `z.coerce.number()` convierte '' y '   ' en 0 sin quejarse. Como no hay ninguna
+    // pantalla donde `remakeChargePct` se pueda ver ni corregir después, un campo que se
+    // quedó vacío por descuido nacía como "no se le cobra nada a la clínica" y solo se
+    // arreglaba tocando la BD (I-4 de la revisión de la Tarea 9).
+    for (const vacio of ['', '   ']) {
+      const r = remakeSchema.safeParse({
+        motivo: 'Fractura',
+        responsabilidad: 'laboratorio',
+        cobroPct: vacio,
+      })
+      expect(r.success).toBe(false)
+      expect(r.error?.issues[0]?.message).toBe('Escribe el porcentaje a cobrar')
+    }
+  })
+
+  it('da los mensajes de porcentaje en español', () => {
+    const conPct = (cobroPct: unknown) =>
+      remakeSchema.safeParse({ motivo: 'Fractura', responsabilidad: 'laboratorio', cobroPct }).error
+        ?.issues[0]?.message
+    expect(conPct('abc')).toBe('El porcentaje debe ser un número')
+    expect(conPct('150')).toBe('El porcentaje no puede ser mayor que 100')
+    expect(conPct('-1')).toBe('El porcentaje no puede ser menor que 0')
+    expect(conPct('50.5')).toBe('El porcentaje debe ser un número entero')
+    expect(conPct('0x10')).toBe('El porcentaje debe ser un número')
+    expect(conPct('1e2')).toBe('El porcentaje debe ser un número')
+    expect(
+      remakeSchema.safeParse({
+        motivo: 'Fractura',
+        responsabilidad: 'laboratorio',
+        cobroPct: ' 50 ',
+      }).data?.cobroPct,
+    ).toBe(50)
   })
 })
