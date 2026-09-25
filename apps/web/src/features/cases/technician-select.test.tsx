@@ -100,4 +100,48 @@ describe('TechnicianSelect', () => {
     renderWithProviders(<TechnicianSelect case={caso({})} role="mensajero" />)
     expect(await screen.findByText('Sin asignar')).toBeInTheDocument()
   })
+
+  // I-5 (ola de fixes del PR 1, lote B): la API responde 409 para reasignar un trabajo
+  // `entregado`/`cancelado` (`canAssignTechnician`, shared); antes el `<select>` seguía
+  // habilitado para admin/recepción en esos estados y solo el 409 lo impedía.
+  it('en un trabajo entregado, admin ve el nombre pero no puede reasignar', async () => {
+    renderWithProviders(
+      <TechnicianSelect
+        case={caso({
+          status: 'entregado',
+          assignedTechnicianId: 't1',
+          technician: { id: 't1', name: 'Ana Técnica' },
+        })}
+        role="admin"
+      />,
+    )
+    expect(await screen.findByText('Ana Técnica')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(fetchTechnicians).not.toHaveBeenCalled()
+  })
+
+  it('en un trabajo cancelado, recepción ve el nombre pero no puede reasignar', async () => {
+    renderWithProviders(<TechnicianSelect case={caso({ status: 'cancelado' })} role="recepcion" />)
+    expect(await screen.findByText('Sin asignar')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+  })
+
+  // M-4 (ola de fixes del PR 1, lote B): el técnico asignado se dio de baja después y ya no
+  // está en `technicians.data` (solo activos); sin esto el `<select>` mostraba "Sin asignar"
+  // mientras la cabecera seguía diciendo su nombre.
+  it('el técnico asignado ya no activo aparece como opción marcada "(inactivo)"', async () => {
+    renderWithProviders(
+      <TechnicianSelect
+        case={caso({
+          assignedTechnicianId: 't9',
+          technician: { id: 't9', name: 'Carla Ex Técnica' },
+        })}
+        role="admin"
+      />,
+    )
+    const select = await screen.findByLabelText('Técnico responsable')
+    const option = await screen.findByRole('option', { name: 'Carla Ex Técnica (inactivo)' })
+    expect(select).toHaveValue('t9')
+    expect(option).toHaveValue('t9')
+  })
 })
