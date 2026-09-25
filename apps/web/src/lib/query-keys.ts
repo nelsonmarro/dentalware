@@ -13,6 +13,11 @@ export const queryKeys = {
   stages: (inactive: boolean) => ['config', 'fases', { inactive }] as const,
   users: ['users'] as const,
   cases: (query: CaseListQueryInput) => ['trabajos', 'lista', query] as const,
+  // Bajo el prefijo `trabajos` (T12, #68/#69): el resumen del panel de inicio depende de los
+  // mismos datos que la lista, así que `useInvalidateCases` (invalida `['trabajos']`) también
+  // lo refresca tras aceptar, finalizar o cualquier otra mutación de un trabajo, sin que
+  // `use-summary.ts` tenga que invalidarlo aparte.
+  summary: ['trabajos', 'resumen'] as const,
   case: (id: string) => ['trabajos', id] as const,
   // Bajo el prefijo `users`, no `trabajos` (M-7, ola de fixes del PR 1, lote B): son los
   // técnicos activos (`GET /api/trabajos/tecnicos`, dato de la feature `users`, no de
