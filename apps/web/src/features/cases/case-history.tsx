@@ -1,4 +1,10 @@
-import type { CaseEventType } from '@dentalware/shared'
+import {
+  ASSIGN_TECHNICIAN_ROLES,
+  type CaseEventType,
+  type CaseStatus,
+  type UserRole,
+} from '@dentalware/shared'
+import { Link } from '@tanstack/react-router'
 import {
   ArrowLeftRight,
   Ban,
@@ -18,7 +24,10 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
-import type { CaseEvent } from './api'
+import type { Stage } from '@/features/stages/api'
+import type { CaseDetail, CaseEvent } from './api'
+import { STATUS_LABEL } from './status-chip'
+import { useTechnicians } from './use-cases'
 
 export const EVENT_LABEL: Record<CaseEventType, string> = {
   created: 'Trabajo creado',
@@ -80,9 +89,112 @@ export function historyTabLabel(total: number): string {
   return total === 0 ? 'Historial' : `Historial (${total})`
 }
 
+/**
+ * Motivo/destino de cada evento, con rótulo humano en vez de la clave cruda (I-1, ola de
+ * fixes del PR 1, lote B). `aceptar` y `finalizar` escriben ambos `status_changed`: sin el
+ * subtítulo del estado destino se ven en el historial como dos "Estado cambiado" idénticos.
+ * `stageName`/`technicianName` resuelven ids contra lo que la ficha ya tiene cargado
+ * (`useStages(true)` y `useTechnicians`, ver `CaseHistory`); no disparan ninguna consulta
+ * nueva.
+ */
+function EventDetail({
+  event: e,
+  caseId,
+  stageName,
+  technicianName,
+}: {
+  event: CaseEvent
+  caseId: string
+  stageName: (id: string | null) => string | null
+  technicianName: (id: string | null) => string
+}) {
+  switch (e.type) {
+    case 'status_changed': {
+      const label = e.toValue ? (STATUS_LABEL[e.toValue as CaseStatus] ?? e.toValue) : null
+      if (!label) return null
+      return <p className="text-sm text-muted-foreground">Nuevo estado: {label}</p>
+    }
+    case 'hold':
+    case 'cancelled':
+      return e.reason ? <p className="text-sm text-muted-foreground">Motivo: {e.reason}</p> : null
+    case 'stage_changed': {
+      const from = stageName(e.fromValue)
+      const to = stageName(e.toValue)
+      return (
+        <>
+          {(from ?? to) && (
+            <p className="text-sm text-muted-foreground">
+              {from ?? '—'} → {to ?? '—'}
+            </p>
+          )}
+          {e.reason && <p className="text-sm text-muted-foreground">Motivo: {e.reason}</p>}
+        </>
+      )
+    }
+    case 'assigned':
+      return (
+        <p className="text-sm text-muted-foreground">
+          {technicianName(e.fromValue)} → {technicianName(e.toValue)}
+        </p>
+      )
+    case 'remake_created':
+      return (
+        <>
+          {e.relatedCaseId && e.relatedCaseId !== caseId && (
+            <Link
+              to="/trabajos/$caseId"
+              params={{ caseId: e.relatedCaseId }}
+              className="w-fit text-sm text-primary underline underline-offset-2"
+            >
+              Ver repetición {e.toValue}
+            </Link>
+          )}
+          {e.reason && <p className="text-sm text-muted-foreground">Motivo: {e.reason}</p>}
+        </>
+      )
+    default:
+      return null
+  }
+}
+
 /** Historial cronológico del trabajo: un ícono y texto en español por tipo de evento,
- * autor y fecha relativa; los comentarios muestran su texto en un bloque aparte. */
-export function CaseHistory({ events }: { events: CaseEvent[] }) {
+ * autor y fecha relativa; los comentarios muestran su texto en un bloque aparte y el resto
+ * de eventos su motivo o destino cuando lo tienen (I-1). `stages` (todas, activas o no,
+ * igual que `StageControl`) y `role` resuelven nombres de fase y de técnico sin disparar
+ * una consulta nueva: `useTechnicians` solo se llama para los roles que ya pueden verlos
+ * (`ASSIGN_TECHNICIAN_ROLES`); técnico y mensajero solo resuelven el técnico actualmente
+ * asignado (`case.technician`), no uno anterior que ya no está activo — ver el reporte de
+ * esta tarea. */
+export function CaseHistory({
+  events,
+  case: c,
+  stages,
+  role,
+}: {
+  events: CaseEvent[]
+  case: CaseDetail
+  stages: Stage[]
+  role: UserRole
+}) {
+  const canSeeTechnicians = (ASSIGN_TECHNICIAN_ROLES as readonly UserRole[]).includes(role)
+  const technicians = useTechnicians(canSeeTechnicians)
+
+  const stageName = (id: string | null): string | null => {
+    if (!id) return null
+    return stages.find((s) => s.id === id)?.name ?? 'Fase desconocida'
+  }
+
+  // El técnico actualmente asignado (`c.technician`) resuelve siempre, esté activo o no
+  // (mismo criterio que `TechnicianSelect`/`CaseHeader`); uno anterior solo si sigue activo
+  // y el rol puede consultar la lista (`technicians.data`). Un técnico anterior ya inactivo
+  // no es resoluble en cliente sin una consulta nueva: fallback legible mínimo (M-4/I-1, ver
+  // reporte).
+  const technicianName = (id: string | null): string => {
+    if (!id) return 'Sin asignar'
+    if (c.technician?.id === id) return c.technician.name
+    return technicians.data?.find((t) => t.id === id)?.name ?? 'Técnico'
+  }
+
   if (events.length === 0) {
     return <p className="text-sm text-muted-foreground">Sin actividad todavía.</p>
   }
@@ -114,6 +226,12 @@ export function CaseHistory({ events }: { events: CaseEvent[] }) {
                   {e.toValue}
                 </p>
               )}
+              <EventDetail
+                event={e}
+                caseId={c.id}
+                stageName={stageName}
+                technicianName={technicianName}
+              />
             </div>
           </li>
         )
