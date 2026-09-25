@@ -285,6 +285,27 @@ describe('/api/trabajos', () => {
     expect(idsEnCurso).not.toContain(canceladoId)
   })
 
+  // T10 (#68): vista rápida de trabajos en prueba en boca.
+  it('vista=en_prueba lista solo los trabajos en estado en_prueba', async () => {
+    const enPruebaId = await createOne(recepcion, { patientRef: 'En prueba' })
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'en_prueba' })
+      .where(eq(ctx.schema.cases.id, enPruebaId))
+
+    const enProcesoId = await createOne(recepcion, { patientRef: 'En proceso' })
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'en_proceso' })
+      .where(eq(ctx.schema.cases.id, enProcesoId))
+
+    const res = await app.request('/api/trabajos?vista=en_prueba', req(recepcion, 'GET'))
+    const body = (await res.json()) as { cases: { id: string }[] }
+    const idsEnPrueba = body.cases.map((c) => c.id)
+    expect(idsEnPrueba).toContain(enPruebaId)
+    expect(idsEnPrueba).not.toContain(enProcesoId)
+  })
+
   async function ids(qs: string) {
     return (
       (await (await app.request(`/api/trabajos${qs}`, req(recepcion, 'GET'))).json()) as {

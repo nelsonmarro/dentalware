@@ -1,4 +1,4 @@
-import type { CaseInput, CaseListQuery } from '@dentalware/shared'
+import type { CaseInput, CaseListQuery, CaseView } from '@dentalware/shared'
 import {
   CASE_PAGE_SIZE,
   canRemake,
@@ -10,7 +10,7 @@ import {
   sumCents,
   toCents,
 } from '@dentalware/shared'
-import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import type { Db, Tx } from '../../db/index.ts'
 import { users } from '../../db/schema/auth.ts'
 import { clinics } from '../clinics/schema.ts'
@@ -128,6 +128,32 @@ const ORDER_COLUMNS = {
   estado: () => cases.status,
 } as const
 
+/**
+ * Condición SQL de cada vista rápida, en un `Record<CaseView, …>` exhaustivo (T10, #68): una
+ * vista nueva en `CASE_VIEWS` no compila aquí sin su condición. Única definición de "qué cae
+ * en cada vista": la usa `listCasesWith` para filtrar la lista y la Tarea 11 la reutiliza en
+ * `count(*) filter (where …)` para el resumen (INI-1 exige que cada contador coincida con el
+ * total de su lista; dos definiciones podrían divergir en silencio).
+ */
+function viewCondition(view: CaseView, today: string): SQL | undefined {
+  const conditionByView: Record<CaseView, SQL | undefined> = {
+    nuevos: eq(cases.status, 'nuevo'),
+    en_curso: inArray(cases.status, ['en_proceso', 'en_espera', 'en_prueba']),
+    vencen_hoy: and(
+      inArray(cases.status, [...ACTIVE_FOR_DATES]),
+      sql`${effectiveDate} = ${today}::date`,
+    ),
+    atrasados: and(
+      inArray(cases.status, [...ACTIVE_FOR_DATES]),
+      sql`${effectiveDate} < ${today}::date`,
+    ),
+    en_prueba: eq(cases.status, 'en_prueba'),
+    listos: inArray(cases.status, ['terminado', 'enviado']),
+    todos: undefined,
+  }
+  return conditionByView[view]
+}
+
 /** Traduce `orden` a columnas SQL; urgentes primero y código desc como desempate siempre. */
 function orderFor(orden: CaseListQuery['orden']) {
   const urgentFirst = desc(sql`${cases.priority} = 'urgente'`)
@@ -143,20 +169,8 @@ function orderFor(orden: CaseListQuery['orden']) {
 
 async function listCasesWith(db: Db | Tx, q: CaseListQuery, today: string) {
   const conds = []
-  if (q.vista === 'nuevos') conds.push(eq(cases.status, 'nuevo'))
-  if (q.vista === 'en_curso')
-    conds.push(inArray(cases.status, ['en_proceso', 'en_espera', 'en_prueba']))
-  if (q.vista === 'vencen_hoy') {
-    conds.push(
-      and(inArray(cases.status, [...ACTIVE_FOR_DATES]), sql`${effectiveDate} = ${today}::date`)!,
-    )
-  }
-  if (q.vista === 'atrasados') {
-    conds.push(
-      and(inArray(cases.status, [...ACTIVE_FOR_DATES]), sql`${effectiveDate} < ${today}::date`)!,
-    )
-  }
-  if (q.vista === 'listos') conds.push(inArray(cases.status, ['terminado', 'enviado']))
+  const vista = viewCondition(q.vista, today)
+  if (vista) conds.push(vista)
   if (q.estado) conds.push(eq(cases.status, q.estado))
   if (q.clinicId) conds.push(eq(cases.clinicId, q.clinicId))
   if (q.doctorId) conds.push(eq(cases.doctorId, q.doctorId))

@@ -6,6 +6,7 @@ export const CASE_VIEW_LABEL: Record<CaseView, string> = {
   en_curso: 'En curso',
   vencen_hoy: 'Vencen hoy',
   atrasados: 'Atrasados',
+  en_prueba: 'En prueba',
   listos: 'Listos',
   todos: 'Todos',
 }

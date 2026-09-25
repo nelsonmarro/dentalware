@@ -8,6 +8,21 @@ describe('CASE_VIEW_LABEL', () => {
       expect(CASE_VIEW_LABEL[view]).toBeTruthy()
     }
   })
+
+  // Sustituye la tautología del brief original (comparaba `label.slice(1)` consigo mismo en
+  // las dos ramas del ternario, así que pasaba siempre). Esta sí prueba sentence case: primera
+  // letra mayúscula, resto en minúscula.
+  it('cada etiqueta está en sentence case (mayúscula inicial, resto en minúscula)', () => {
+    for (const view of CASE_VIEWS) {
+      const label = CASE_VIEW_LABEL[view]
+      expect(label[0]).toBe(label[0]!.toUpperCase())
+      expect(label.slice(1)).toBe(label.slice(1).toLowerCase())
+    }
+  })
+
+  it('rotula la vista en prueba', () => {
+    expect(CASE_VIEW_LABEL.en_prueba).toBe('En prueba')
+  })
 })
 
 describe('dueBadge', () => {
