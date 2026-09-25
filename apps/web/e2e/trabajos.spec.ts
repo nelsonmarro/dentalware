@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
-import { createClinicWithDoctor, createProduct, login, loginAsAdmin } from './helpers'
+import { createClinicWithDoctor, createProduct, login, loginAsAdmin, uniqueSuffix } from './helpers'
 
 const FOTO_PATH = path.join(import.meta.dirname, 'fixtures', 'foto.png')
 
@@ -74,7 +74,7 @@ test.describe('Trabajos', () => {
     async ({ page }, testInfo) => {
       const { clinic, doctor } = await createClinicWithDoctor(page)
       const product = await createProduct(page)
-      const patientRef = `Paciente E2E ${Date.now()}`
+      const patientRef = `Paciente E2E ${uniqueSuffix()}`
 
       await page.goto('/trabajos/nuevo')
 
@@ -141,7 +141,7 @@ test.describe('Trabajos', () => {
 
     await page.goto(`/trabajos/${created.id}`)
 
-    const comentario = `Comentario E2E ${Date.now()}`
+    const comentario = `Comentario E2E ${uniqueSuffix()}`
     await page.getByRole('tab', { name: /^Historial/ }).click()
     await page.getByLabel('Comentario').fill(comentario)
     await page.getByRole('button', { name: 'Comentar' }).click()
@@ -223,7 +223,7 @@ test.describe('Trabajos', () => {
     expect(bodyText).not.toContain('$')
     expect(bodyText).not.toContain('Total')
 
-    const comentario = `Comentario técnico E2E ${Date.now()}`
+    const comentario = `Comentario técnico E2E ${uniqueSuffix()}`
     await tecnicoPage.getByRole('tab', { name: /^Historial/ }).click()
     await tecnicoPage.getByLabel('Comentario').fill(comentario)
     await tecnicoPage.getByRole('button', { name: 'Comentar' }).click()

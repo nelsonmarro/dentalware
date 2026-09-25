@@ -25,9 +25,17 @@ export async function loginAsAdmin(page: Page) {
   await login(page, ADMIN)
 }
 
+/** Sufijo único por ejecución para datos de prueba. `Date.now()` solo no basta: escritorio y
+ * android corren el mismo test en paralelo contra la misma BD y pueden caer en el mismo
+ * milisegundo, lo que deja dos registros con el mismo nombre y rompe `getByRole` en modo
+ * estricto (le pasó a «crea una clínica y la ve en la lista»). */
+export function uniqueSuffix(): string {
+  return `${Date.now()}-${Math.floor(Math.random() * 100_000)}`
+}
+
 /** Crea una clínica y un doctor únicos por API (sesión admin ya iniciada en `page`). */
 export async function createClinicWithDoctor(page: Page) {
-  const suffix = `${Date.now()}-${Math.floor(Math.random() * 100_000)}`
+  const suffix = uniqueSuffix()
 
   const clinicRes = await page.request.post('/api/config/clinicas', {
     data: { name: `Clínica E2E ${suffix}` },
