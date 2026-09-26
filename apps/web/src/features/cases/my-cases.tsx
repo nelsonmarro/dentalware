@@ -14,6 +14,12 @@ import { useCases } from './use-cases'
  *
  * La API ya enmascara el total a `null` para el rol técnico (`stripPrices` en `service.ts`),
  * así que este componente ni siquiera intenta leerlo.
+ *
+ * `orden: 'entrega'` no ordena solo por fecha (M-7, ronda de fixes 1): `orderFor` (`repo.ts`)
+ * antepone siempre los trabajos urgentes, con la fecha como desempate — es la regla de orden
+ * de toda la lista de trabajos, no una excepción de esta pantalla, y un trabajo urgente es lo
+ * primero que el técnico debe atender aunque venza más tarde que otro normal. INI-2 pide
+ * "ordenados por fecha de entrega" pero no exige que sea el único criterio; no lo contradice.
  */
 export function MyCases({ technicianId }: { technicianId: string }) {
   const today = toIsoDate(new Date())
