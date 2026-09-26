@@ -55,7 +55,7 @@ function caseRow(overrides: Partial<CaseListRow> = {}): CaseListRow {
 }
 
 describe('MyCases', () => {
-  it('lista los trabajos del técnico ordenados por fecha comprometida y sin precios', async () => {
+  it('lista los trabajos del técnico ordenados por fecha comprometida', async () => {
     fetchCases.mockResolvedValue({
       cases: [
         caseRow({ id: 'c2', code: '26-00002', promisedDate: '2026-09-18' }),
@@ -67,6 +67,21 @@ describe('MyCases', () => {
 
     const filas = await screen.findAllByRole('link', { name: /26-000/ })
     expect(filas[0]).toHaveTextContent('26-00002')
+  })
+
+  // M-1 (ronda de fixes 1, T12): con `total: null` (como llega realmente para el rol técnico,
+  // ya enmascarado por el servicio) esta aserción pasaba aunque el componente pintara el total
+  // — nunca ejercitó la omisión. Con un total real en el dato, "80" no debe aparecer en pantalla
+  // porque `MyCases` ni siquiera lee `row.total`, no porque el dato venga vacío.
+  it('no muestra precios aunque la fila los traiga', async () => {
+    fetchCases.mockResolvedValue({
+      cases: [caseRow({ total: '80.00' })],
+      total: null,
+    })
+    renderWithProviders(<MyCases technicianId="tec-1" />)
+
+    await screen.findByRole('link', { name: /26-00001/ })
+    expect(screen.queryByText(/80/)).not.toBeInTheDocument()
     expect(screen.queryByText(/\$/)).not.toBeInTheDocument()
   })
 
