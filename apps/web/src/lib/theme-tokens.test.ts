@@ -33,6 +33,9 @@ const lightBlock = extractBlock(css, ':root')
 const destructive = extractToken(lightBlock, '--destructive')
 const background = extractToken(lightBlock, '--background')
 const foreground = extractToken(lightBlock, '--foreground')
+const card = extractToken(lightBlock, '--card')
+const waxAmber = extractToken(lightBlock, '--wax-amber')
+const waxAmberInk = extractToken(lightBlock, '--wax-amber-ink')
 
 /** Extrae la opacidad de fondo real que usa `Badge variant="destructive"` en modo claro
  * (p. ej. `bg-destructive/10`, sin el prefijo `dark:`), para componer el color real de la insignia. */
@@ -69,5 +72,17 @@ describe('tokens de color del tema claro (index.css)', () => {
     const alpha = extractBadgeDestructiveAlpha()
     const badgeBackground = mixHex(destructive, alpha, background)
     expect(contrastRatio(destructive, badgeBackground)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  // I-3 (ronda de fixes 1, T12): `--wax-amber` (#d99a16) es un acento, no un color de texto —
+  // como texto sobre su propio fondo (`bg-[color:var(--wax-amber)]/10`, los tres avisos "Vence
+  // hoy" en `my-cases.tsx` y "En espera"/"Para aceptar falta" en `case-header.tsx`, siempre
+  // dentro de una `Card`/tarjeta con `bg-card`) da 2,25:1, muy por debajo de AA. `--wax-amber-ink`
+  // es la tinta oscura para ese mismo texto; el fondo real que compone la insignia es
+  // `--wax-amber` al 10 % sobre `--card` (no sobre `--background`: los tres usos viven dentro de
+  // una tarjeta), igual que la insignia destructiva de arriba compone sobre su propio fondo.
+  it('el texto "Vence hoy"/"En espera"/"Para aceptar falta" (--wax-amber-ink) cumple AA sobre su propio fondo', () => {
+    const badgeBackground = mixHex(waxAmber, 0.1, card)
+    expect(contrastRatio(waxAmberInk, badgeBackground)).toBeGreaterThanOrEqual(4.5)
   })
 })

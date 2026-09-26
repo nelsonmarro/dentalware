@@ -56,7 +56,7 @@ export function MyCases({ technicianId }: { technicianId: string }) {
                       </span>
                     )}
                     {badge === 'hoy' && (
-                      <span className="rounded-lg border border-[color:var(--wax-amber)]/40 bg-[color:var(--wax-amber)]/10 px-2 py-0.5 text-xs font-medium text-[color:var(--wax-amber)]">
+                      <span className="rounded-lg border border-[color:var(--wax-amber)]/40 bg-[color:var(--wax-amber)]/10 px-2 py-0.5 text-xs font-medium text-[color:var(--wax-amber-ink)]">
                         Vence hoy
                       </span>
                     )}
