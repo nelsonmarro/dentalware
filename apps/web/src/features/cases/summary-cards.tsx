@@ -41,11 +41,16 @@ export function SummaryCards() {
             // arme solo con el texto de los `<span>` hijos): dos nodos de texto hermanos sin
             // separador literal se concatenan sin espacio en el cómputo del nombre accesible
             // ("Nuevos3", no "Nuevos 3"), así que "Nuevos 3" quedaba fuera del regex del
-            // criterio de aceptación (INI-1) hasta este ajuste.
+            // criterio de aceptación (INI-1) hasta este ajuste. En "En curso" el nombre lleva
+            // también la aclaración visual "Incluye en prueba" (M-6, ronda de fixes 1): quien
+            // usa lector de pantalla necesita el mismo aviso del doble conteo que ve quien
+            // mira la tarjeta, no solo el número.
             aria-label={
               count === undefined
                 ? `${CASE_VIEW_LABEL[vista]}, cargando`
-                : `${CASE_VIEW_LABEL[vista]} ${count}`
+                : vista === 'en_curso'
+                  ? `${CASE_VIEW_LABEL[vista]} ${count}, incluye en prueba`
+                  : `${CASE_VIEW_LABEL[vista]} ${count}`
             }
             className="flex min-h-[88px] flex-col justify-between gap-2 rounded-xl border-l-4 bg-card p-4 ring-1 ring-foreground/10 transition-colors hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             style={{ borderLeftColor: VIEW_COLOR[vista] }}

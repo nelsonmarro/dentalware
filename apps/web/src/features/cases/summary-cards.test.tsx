@@ -66,4 +66,15 @@ describe('SummaryCards', () => {
     await screen.findByRole('link', { name: /Nuevos 3/ })
     expect(screen.queryByRole('link', { name: /^Todos/ })).not.toBeInTheDocument()
   })
+
+  // M-6 (ronda de fixes 1, T12): el `aria-label` de "En curso" dejaba fuera la leyenda visual
+  // "Incluye en prueba" — justo la aclaración del doble conteo (ruling PR 2, T12, punto 4).
+  it('el nombre accesible de "En curso" incluye la aclaración de "en prueba"', async () => {
+    fetchSummary.mockResolvedValue(SUMMARY)
+    renderWithProviders(<SummaryCards />)
+
+    expect(
+      await screen.findByRole('link', { name: /En curso 5.*incluye en prueba/i }),
+    ).toBeInTheDocument()
+  })
 })
