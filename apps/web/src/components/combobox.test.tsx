@@ -15,7 +15,7 @@ describe('Combobox', () => {
     render(<Combobox items={items} value={null} onChange={onChange} placeholder="Clínica" />)
 
     await user.click(screen.getByRole('combobox', { name: 'Clínica' }))
-    await user.type(screen.getByRole('textbox'), 'sonr')
+    await user.type(screen.getByPlaceholderText('Buscar…'), 'sonr')
 
     expect(screen.getAllByRole('option')).toHaveLength(1)
 
@@ -28,7 +28,7 @@ describe('Combobox', () => {
     render(<Combobox items={items} value={null} onChange={vi.fn()} placeholder="Clínica" />)
 
     await user.click(screen.getByRole('combobox', { name: 'Clínica' }))
-    await user.type(screen.getByRole('textbox'), 'ANDINA')
+    await user.type(screen.getByPlaceholderText('Buscar…'), 'ANDINA')
 
     expect(screen.getByRole('option', { name: 'Clínica Dental Andina' })).toBeInTheDocument()
   })
@@ -38,7 +38,7 @@ describe('Combobox', () => {
     render(<Combobox items={items} value={null} onChange={vi.fn()} placeholder="Clínica" />)
 
     await user.click(screen.getByRole('combobox', { name: 'Clínica' }))
-    await user.type(screen.getByRole('textbox'), 'zzz')
+    await user.type(screen.getByPlaceholderText('Buscar…'), 'zzz')
 
     expect(screen.getByText('Sin resultados')).toBeInTheDocument()
   })

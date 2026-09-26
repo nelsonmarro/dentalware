@@ -3,7 +3,7 @@
 import { Command as CommandPrimitive } from 'cmdk'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { Popover as PopoverPrimitive } from 'radix-ui'
-import { useId, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 
 export type ComboboxItem = {
@@ -24,13 +24,21 @@ function normalize(value: string): string {
 /**
  * Select con buscador (UX2-12): un disparador con `role="combobox"` (mismo contrato accesible
  * que `Select` — nombre accesible fijo por `aria-label`/label asociado) abre un popover con un
- * campo de texto y una lista filtrable. El filtro es manual (`shouldFilter={false}` en cmdk) y
- * no el `filter`/`Command.Input` propios de la librería: `Command.Input` fija su propio
- * `role="combobox"` sin poder sobreescribirlo (fuente de cmdk), lo que chocaría con el
- * disparador; aquí el campo de búsqueda es un `<input>` normal (rol `textbox` por defecto,
- * como cualquier campo de texto) dentro del árbol de `Command`, así que la navegación por
- * teclado (flechas, Enter) de cmdk —atada al `onKeyDown` de la raíz, no al input concreto—
- * sigue funcionando igual.
+ * campo de texto (`Command.Input` de cmdk) y una lista filtrable. El filtro es manual
+ * (`shouldFilter={false}` + `items.filter(...)` propio, insensible a tildes) en vez del `filter`
+ * interno de cmdk, para reutilizar el mismo criterio de búsqueda que el resto de la app
+ * (`normalize`, como en `components/data-grid`). `Command.Input` también fija su propio
+ * `role="combobox"` (no se puede sobreescribir, fuente de cmdk): eso es intencional, no un
+ * choque con el disparador — mientras el popover está abierto conviven dos elementos con ese
+ * rol, pero con nombres accesibles distintos («Clínica» en el disparador, el texto de
+ * `searchPlaceholder` en el campo de búsqueda vía la propia `label` de `Command`), así que
+ * `getByRole('combobox', { name: 'Clínica' })` sigue resolviendo a uno solo. Por eso el campo de
+ * búsqueda usa `Command.Input` (no un `<input>` suelto): `Command` siempre renderiza una
+ * etiqueta oculta `<label for={idDelInput}>` para asociarla a su `Input` — con un `<input>`
+ * propio ese `for` quedaba huérfano (ningún elemento con ese id), lo que Chrome marcaba como
+ * aviso de accesibilidad; con `Command.Input` los ids los genera y empareja la propia librería.
+ * Se le pasa `label={searchPlaceholder}` a `Command` para que esa etiqueta oculta no quede
+ * vacía (mismo aviso, por el otro lado: «campo sin nombre accesible»).
  */
 export function Combobox({
   items,
@@ -59,7 +67,6 @@ export function Combobox({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const listId = useId()
   const selected = items.find((item) => item.value === value)
   const ariaLabel = ariaLabelProp ?? placeholder
 
@@ -88,7 +95,6 @@ export function Combobox({
           role="combobox"
           aria-expanded={open}
           aria-haspopup="listbox"
-          aria-controls={listId}
           aria-label={ariaLabel}
           aria-invalid={ariaInvalid}
           disabled={disabled}
@@ -113,16 +119,19 @@ export function Combobox({
           collisionPadding={8}
           className="z-50 w-(--radix-popover-trigger-width) min-w-56 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
         >
-          <CommandPrimitive shouldFilter={false} className="flex flex-col">
-            <input
+          <CommandPrimitive
+            shouldFilter={false}
+            label={searchPlaceholder}
+            className="flex flex-col"
+          >
+            <CommandPrimitive.Input
               autoFocus
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onValueChange={setQuery}
               placeholder={searchPlaceholder}
-              aria-label={searchPlaceholder}
               className="h-11 w-full border-b border-border bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground"
             />
-            <CommandPrimitive.List id={listId} className="max-h-64 overflow-y-auto p-1">
+            <CommandPrimitive.List className="max-h-64 overflow-y-auto p-1">
               {filtered.length === 0 && (
                 <CommandPrimitive.Empty className="px-3 py-6 text-center text-sm text-muted-foreground">
                   {emptyMessage}
