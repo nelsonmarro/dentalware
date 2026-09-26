@@ -108,6 +108,11 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     const product = await createProduct(page)
 
     await page.goto('/trabajos/nuevo')
+    // Esperar a la página antes de medir: `goto` resuelve al cargar el documento, no al pintar
+    // la pantalla, y en móvil la barra lateral está oculta. Sin esta espera el barrido medía
+    // cero controles y pasaba en vacío (lo destapó `expectTouchTargets` al exigir medir algo).
+    await expect(page.getByRole('heading', { name: 'Nuevo trabajo' })).toBeVisible()
+    await expect(page.getByRole('combobox', { name: 'Clínica' })).toBeVisible()
     await expectTouchTargets(page, TOUCH_CONTROLS)
 
     await page.getByRole('combobox', { name: 'Clínica' }).click()
@@ -136,6 +141,11 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     })
 
     await page.goto(`/trabajos/${created.id}`)
+    // Esperar a la página antes de medir: `goto` resuelve al cargar el documento, no al pintar
+    // la pantalla, y en móvil la barra lateral está oculta. Sin esta espera el barrido medía
+    // cero controles y pasaba en vacío (lo destapó `expectTouchTargets` al exigir medir algo).
+    await expect(page.getByRole('heading', { name: created.code, level: 1 })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Detalle' })).toBeVisible()
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
 
@@ -162,6 +172,10 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       await advanceStage(page, created.id)
 
       await page.goto(`/trabajos/${created.id}`)
+      // Esperar a la página antes de medir: `goto` resuelve al cargar el documento, no al pintar
+      // la pantalla, y en móvil la barra lateral está oculta. Sin esta espera el barrido medía
+      // cero controles y pasaba en vacío (lo destapó `expectTouchTargets` al exigir medir algo).
+      await expect(page.getByRole('button', { name: 'Retroceder fase' })).toBeVisible()
       await expectTouchTargets(page, TOUCH_CONTROLS)
 
       await page.getByRole('button', { name: 'Retroceder fase' }).click()
@@ -313,6 +327,9 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       await login(tecnicoPage, { email, password })
 
       await expect(tecnicoPage.getByRole('heading', { name: 'Mis trabajos' })).toBeVisible()
+      // La fila tiene que estar antes de medir: con la lista vacía el barrido no mediría
+      // ninguna fila de "Mis trabajos" y el criterio quedaría sin probar.
+      await expect(tecnicoPage.getByRole('link', { name: new RegExp(trabajo.code) })).toBeVisible()
       expect(
         await tecnicoPage.evaluate(
           () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,

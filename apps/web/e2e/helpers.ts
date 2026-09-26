@@ -115,6 +115,7 @@ export async function expectTouchTargets(
   const { minHeight = 44, minWidth = 44 } = opts
   const items = target.locator(selector)
   const count = await items.count()
+  let measured = 0
   for (let i = 0; i < count; i++) {
     const el = items.nth(i)
     if (!(await el.isVisible())) continue
@@ -128,7 +129,11 @@ export async function expectTouchTargets(
     expect(box!.width, `"${selector}" (${label.trim()}) ancho`).toBeGreaterThanOrEqual(
       minWidth - SUBPIXEL_EPSILON,
     )
+    measured++
   }
+  // Un barrido que no midió nada no prueba nada: si el selector no encuentra ningún control
+  // visible (la pantalla no cargó, o la lista quedó vacía), el test pasaba en vacío.
+  expect(measured, `"${selector}": ningún control visible que medir`).toBeGreaterThan(0)
 }
 
 /**
@@ -148,8 +153,14 @@ export async function expectTouchTargets(
  * se medía en el barrido táctil pese a UX2-01 (Select en 32 px, la misma regla CSS de la que
  * ya advertía el comentario de la clase de este módulo). `[role=combobox]` sigue cubriendo el
  * combobox de Radix, que no es un `<select>` nativo.
+ *
+ * `select:not([aria-hidden=true])`: el `Select` de Radix pinta además un `<select>` nativo de
+ * 1 px (`SelectBubbleInput`, con `aria-hidden` y `tabIndex={-1}`) que solo existe para el envío
+ * nativo del formulario; nadie puede tocarlo ni llegar a él con el teclado, así que no es un
+ * objetivo táctil. Apareció cuando el barrido de «nuevo trabajo» empezó a medir la página de
+ * verdad (antes medía en vacío, ver `expectTouchTargets`).
  */
 export const TOUCH_CONTROLS =
-  'button:not([role=switch]):not([data-testid=odontogram] [role=group] button), a[href]:not([data-target-size=inline]), [role=tab], [role=combobox], select, input:not([type=hidden]):not([type=checkbox]):not([type=radio])'
+  'button:not([role=switch]):not([data-testid=odontogram] [role=group] button), a[href]:not([data-target-size=inline]), [role=tab], [role=combobox], select:not([aria-hidden=true]), input:not([type=hidden]):not([type=checkbox]):not([type=radio])'
 /** Los switches miden menos por diseño (patrón interruptor): alto ≥ 24, ancho ≥ 44. */
 export const TOUCH_SWITCHES = '[role=switch]'
