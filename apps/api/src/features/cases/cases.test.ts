@@ -307,6 +307,44 @@ describe('/api/trabajos', () => {
     expect(idsEnPrueba).not.toContain(enProcesoId)
   })
 
+  // I-2 (ronda de fixes 1, T12, #68/#69): `tecnicoId` (repo.ts) no tenía ningún test propio —
+  // "Mis trabajos" del panel de inicio depende de que un técnico vea solo lo suyo (INI-2), no
+  // lo de todo el laboratorio. Comentar `if (q.tecnicoId) conds.push(…)` en `repo.ts` deja esta
+  // prueba en rojo mientras el resto de la suite sigue en verde (reproducido en la ronda de
+  // fixes 1, ver `task-12-report.md`).
+  it('tecnicoId filtra solo los trabajos asignados a ese técnico', async () => {
+    const otroTecnicoId = await createUser(ctx.auth, ctx.db, {
+      email: 'tec2@t.local',
+      password: 'Tecnico123!',
+      name: 'Beto Técnico',
+      role: 'tecnico',
+    })
+
+    const deAna = await createOne(recepcion, { patientRef: 'De Ana' })
+    const deBeto = await createOne(recepcion, { patientRef: 'De Beto' })
+    const sinAsignar = await createOne(recepcion, { patientRef: 'Sin asignar' })
+
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'en_proceso', assignedTechnicianId: tecnicoId })
+      .where(eq(ctx.schema.cases.id, deAna))
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'en_proceso', assignedTechnicianId: otroTecnicoId })
+      .where(eq(ctx.schema.cases.id, deBeto))
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'en_proceso' })
+      .where(eq(ctx.schema.cases.id, sinAsignar))
+
+    const res = await app.request(
+      `/api/trabajos?tecnicoId=${tecnicoId}&vista=en_curso`,
+      req(recepcion, 'GET'),
+    )
+    const body = (await res.json()) as { cases: { id: string }[] }
+    expect(body.cases.map((c) => c.id)).toEqual([deAna])
+  })
+
   async function ids(qs: string) {
     return (
       (await (await app.request(`/api/trabajos${qs}`, req(recepcion, 'GET'))).json()) as {
