@@ -111,6 +111,22 @@ export function Combobox({
     setOpen(true)
   }
 
+  // M-3 (revisión Tarea 13): dentro del popover el único elemento tabulable es este campo (los
+  // `Command.Item` se navegan con flechas, sin `tabIndex`); el `FocusScope` de Radix fija
+  // `loop` a `true` siempre (no es configurable desde `Popover`), así que con un solo elemento
+  // tabulable Tab se reenfoca a sí mismo en vez de salir — verificado en Chrome real antes de
+  // este fix (el foco no se movía). Se corta el bucle a mano: Tab cierra el desplegable: Radix
+  // devuelve el foco al disparador solo (`onCloseAutoFocus` de `Popover`), así que el siguiente
+  // Tab sigue el orden natural del formulario. `stopPropagation` evita que el `onKeyDown` del
+  // propio `FocusScope` (que sigue viendo el campo enfocado en este mismo evento, antes de que
+  // React desmonte el popover) alcance a reenfocarlo de nuevo.
+  function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Tab') return
+    event.preventDefault()
+    event.stopPropagation()
+    handleOpenChange(false)
+  }
+
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={handleOpenChange}>
       <PopoverPrimitive.Trigger asChild>
@@ -155,6 +171,7 @@ export function Combobox({
               autoFocus
               value={query}
               onValueChange={setQuery}
+              onKeyDown={handleSearchKeyDown}
               placeholder={searchPlaceholder}
               className="h-11 w-full border-b border-border bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground"
             />

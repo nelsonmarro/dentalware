@@ -162,4 +162,27 @@ describe('Combobox', () => {
       expect(option).toHaveClass('min-h-11')
     }
   })
+
+  // M-3 (revisión Tarea 13, verificado primero en Chrome real): el popover de cmdk dentro de
+  // `PopoverPrimitive.Content` es el único elemento con foco tabulable dentro del contenido
+  // (los `Command.Item` no llevan `tabIndex`, se navegan con flechas); el `FocusScope` de Radix
+  // fija `loop` a `true` sin importar `modal` (código propio de Radix, no configurable desde
+  // aquí), así que con un solo elemento tabulable dentro, Tab se reenfoca a sí mismo en un
+  // bucle en vez de salir del campo — confirmado en Chrome (`document.activeElement` seguía
+  // siendo el buscador tras Tab, el popover seguía abierto). Se corta ese bucle a mano: Tab
+  // cierra el desplegable y devuelve el foco al disparador, de modo que el siguiente Tab siga
+  // el orden natural del formulario.
+  it('Tab en el buscador cierra el desplegable y devuelve el foco al disparador', async () => {
+    const user = userEvent.setup()
+    render(<Combobox items={items} value={null} onChange={vi.fn()} placeholder="Clínica" />)
+
+    const trigger = screen.getByRole('combobox', { name: 'Clínica' })
+    await user.click(trigger)
+    expect(screen.getByPlaceholderText('Buscar…')).toHaveFocus()
+
+    await user.tab()
+
+    expect(trigger).toHaveFocus()
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  })
 })
