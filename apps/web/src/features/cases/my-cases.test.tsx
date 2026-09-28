@@ -95,6 +95,33 @@ describe('MyCases', () => {
     expect(await screen.findByText('Atrasado')).toBeInTheDocument()
   })
 
+  // I-3 (fix wave PR 2, #68): antes solo el color del borde distinguía en_espera/en_prueba de
+  // en_proceso — conventions.md §5 prohíbe depender solo del color. La fila debe mostrar el
+  // rótulo del estado con texto además de la fase, cuando el estado no sea en_proceso.
+  it('en espera o en prueba, muestra el estado con texto además de la fase (nunca solo color)', async () => {
+    fetchCases.mockResolvedValue({
+      cases: [caseRow({ status: 'en_espera', stage: { name: 'Cerámica', color: '#89610E' } })],
+      total: null,
+    })
+    renderWithProviders(<MyCases technicianId="tec-1" />)
+
+    const fila = await screen.findByRole('link', { name: /26-00001/ })
+    expect(fila).toHaveTextContent('Cerámica')
+    expect(fila).toHaveTextContent('En espera')
+  })
+
+  it('en proceso con fase, no repite el estado (la fase ya basta)', async () => {
+    fetchCases.mockResolvedValue({
+      cases: [caseRow({ status: 'en_proceso', stage: { name: 'Cerámica', color: '#0F766E' } })],
+      total: null,
+    })
+    renderWithProviders(<MyCases technicianId="tec-1" />)
+
+    const fila = await screen.findByRole('link', { name: /26-00001/ })
+    expect(fila).toHaveTextContent('Cerámica')
+    expect(fila).not.toHaveTextContent('En proceso')
+  })
+
   it('sin trabajos asignados muestra un vacío con texto propio', async () => {
     fetchCases.mockResolvedValue({ cases: [], total: null })
     renderWithProviders(<MyCases technicianId="tec-1" />)

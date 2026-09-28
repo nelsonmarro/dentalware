@@ -63,7 +63,13 @@ export function MyCases({ technicianId }: { technicianId: string }) {
                   </div>
                   <p className="text-sm">{r.patientRef}</p>
                   <p className="text-sm text-muted-foreground">
-                    {r.stage ? r.stage.name : STATUS_LABEL[r.status]} · {formatDate(date)}
+                    {r.stage ? r.stage.name : STATUS_LABEL[r.status]}
+                    {/* I-3: en_espera/en_prueba conservan su fase, así que el borde de color
+                        (`STATUS_COLOR` de arriba) no basta para distinguirlos de en_proceso
+                        (conventions.md §5, nunca solo color) — se repite el rótulo del estado
+                        con texto. Si no hay fase, `STATUS_LABEL` ya salió arriba: no se repite. */}
+                    {r.stage && r.status !== 'en_proceso' && ` · ${STATUS_LABEL[r.status]}`} ·{' '}
+                    {formatDate(date)}
                   </p>
                 </Link>
               </li>
