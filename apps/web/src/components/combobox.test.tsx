@@ -113,4 +113,18 @@ describe('Combobox', () => {
 
     expect(screen.getByRole('listbox', { name: 'Resultados' })).toBeInTheDocument()
   })
+
+  // M-1 (revisión Tarea 13): el patrón combobox de la APG espera que ↓ abra el desplegable con
+  // foco en el disparador (como ya hacía el `Select` de Radix que este componente sustituye);
+  // Enter/Espacio ya funcionaban (activación nativa del `<button>`), pero ↓ no hacía nada.
+  it('ArrowDown con foco en el disparador abre el desplegable', async () => {
+    const user = userEvent.setup()
+    render(<Combobox items={items} value={null} onChange={vi.fn()} placeholder="Clínica" />)
+
+    const trigger = screen.getByRole('combobox', { name: 'Clínica' })
+    trigger.focus()
+    await user.keyboard('{ArrowDown}')
+
+    expect(screen.getByRole('dialog', { name: 'Clínica' })).toBeInTheDocument()
+  })
 })

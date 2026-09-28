@@ -3,7 +3,7 @@
 import { Command as CommandPrimitive } from 'cmdk'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { Popover as PopoverPrimitive } from 'radix-ui'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type KeyboardEvent } from 'react'
 import { cn } from '@/lib/utils'
 
 export type ComboboxItem = {
@@ -94,6 +94,15 @@ export function Combobox({
     handleOpenChange(false)
   }
 
+  // M-1 (revisión Tarea 13): el patrón combobox de la APG espera que ↓ abra el desplegable con
+  // foco en el disparador, como ya hacía el `Select` de Radix que este componente sustituye
+  // (Enter/Espacio ya funcionan solos: activación nativa del `<button>`).
+  function handleTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== 'ArrowDown' || open) return
+    event.preventDefault()
+    setOpen(true)
+  }
+
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={handleOpenChange}>
       <PopoverPrimitive.Trigger asChild>
@@ -101,6 +110,7 @@ export function Combobox({
           type="button"
           id={id}
           role="combobox"
+          onKeyDown={handleTriggerKeyDown}
           aria-label={ariaLabel}
           aria-invalid={ariaInvalid}
           disabled={disabled}
