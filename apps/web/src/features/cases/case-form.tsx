@@ -150,8 +150,11 @@ export function CaseForm({
   )
 
   function handleClinicChange(id: string) {
-    setValue('clinicId', id)
-    setValue('doctorId', '')
+    // M-6 (revisión Tarea 13): sin `shouldValidate`, tras un envío vacío el disparador de
+    // Clínica seguía anunciándose `aria-invalid="true"` con una clínica ya elegida, hasta el
+    // siguiente intento de envío.
+    setValue('clinicId', id, { shouldValidate: true })
+    setValue('doctorId', '', { shouldValidate: true })
   }
 
   const items = watched.items ?? []
