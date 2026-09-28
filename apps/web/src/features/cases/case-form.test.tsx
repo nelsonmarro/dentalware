@@ -193,6 +193,25 @@ describe('CaseForm', () => {
     expect(screen.getByRole('combobox', { name: 'Doctor' })).toHaveTextContent('Elegir doctor')
   })
 
+  // Hallazgo propio durante la verificación de M-6 (no es uno de los 8 puntos de la ronda,
+  // pero es un efecto colateral directo de su fix): forzar `shouldValidate` también en el
+  // `setValue` de `doctorId` hacía aparecer "Identificador inválido" apenas se elegía una
+  // clínica, sin que la persona hubiera intentado enviar el formulario ni una vez. `doctorId`
+  // no lleva `shouldValidate`: el `reValidateMode: 'onChange'` por defecto de react-hook-form
+  // ya lo revalida solo una vez que hubo un envío fallido de por medio (ver el test de arriba,
+  // "al elegir una clínica tras enviar vacío…", para ese caso).
+  it('elegir clínica sin haber intentado enviar no muestra un error prematuro en Doctor', async () => {
+    const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    await pickOption(user, 'Clínica', 'Clínica Uno')
+
+    expect(screen.queryByText('Identificador inválido')).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Doctor' })).toHaveAttribute(
+      'aria-invalid',
+      'false',
+    )
+  })
+
   it('elegir clínica habilita el doctor; el producto con precio especial rellena el precio y el total', async () => {
     const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
 

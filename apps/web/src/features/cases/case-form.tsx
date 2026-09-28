@@ -152,9 +152,13 @@ export function CaseForm({
   function handleClinicChange(id: string) {
     // M-6 (revisión Tarea 13): sin `shouldValidate`, tras un envío vacío el disparador de
     // Clínica seguía anunciándose `aria-invalid="true"` con una clínica ya elegida, hasta el
-    // siguiente intento de envío.
+    // siguiente intento de envío. Solo en `clinicId`: `doctorId` no lo lleva a propósito —
+    // forzarlo mostraba "Identificador inválido" en Doctor apenas se elegía la clínica, antes
+    // de que la persona tuviera oportunidad de tocar ese campo (sin haber intentado enviar
+    // nunca). El comportamiento por defecto de react-hook-form (`reValidateMode: 'onChange'`)
+    // ya revalida `doctorId` solo, en cuanto hubo un envío fallido de por medio.
     setValue('clinicId', id, { shouldValidate: true })
-    setValue('doctorId', '', { shouldValidate: true })
+    setValue('doctorId', '')
   }
 
   const items = watched.items ?? []
