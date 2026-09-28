@@ -39,6 +39,14 @@ function normalize(value: string): string {
  * aviso de accesibilidad; con `Command.Input` los ids los genera y empareja la propia librería.
  * Se le pasa `label={searchPlaceholder}` a `Command` para que esa etiqueta oculta no quede
  * vacía (mismo aviso, por el otro lado: «campo sin nombre accesible»).
+ *
+ * El disparador **no** fija `aria-haspopup` ni `aria-expanded` a mano (I-2, revisión Tarea 13):
+ * `PopoverPrimitive.Trigger` ya los inyecta (`"dialog"`, el estado real de `context.open`, y
+ * `aria-controls` apuntando al id real del contenido) y, al venir por `asChild`/`Slot`, un
+ * atributo puesto en el `<button>` hijo pisa el que trae Radix — un `aria-haspopup="listbox"`
+ * propio anunciaba una lista y luego abría un diálogo sin nombre. El propio
+ * `PopoverPrimitive.Content` recibe `aria-label={placeholder}` para que ese diálogo se anuncie
+ * con el mismo rótulo del campo («Elegir clínica»/«Elegir producto»).
  */
 export function Combobox({
   items,
@@ -93,8 +101,6 @@ export function Combobox({
           type="button"
           id={id}
           role="combobox"
-          aria-expanded={open}
-          aria-haspopup="listbox"
           aria-label={ariaLabel}
           aria-invalid={ariaInvalid}
           disabled={disabled}
@@ -117,6 +123,7 @@ export function Combobox({
           align="start"
           sideOffset={4}
           collisionPadding={8}
+          aria-label={placeholder}
           className="z-50 w-(--radix-popover-trigger-width) min-w-56 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
         >
           <CommandPrimitive

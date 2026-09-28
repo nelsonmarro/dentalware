@@ -84,4 +84,22 @@ describe('Combobox', () => {
     const trigger = screen.getByRole('combobox', { name: 'Clínica' })
     expect(trigger).toHaveTextContent('Clínica Dental Andina')
   })
+
+  // I-2 (revisión Tarea 13): el disparador debe anunciar que abre un diálogo (`aria-haspopup=
+  // "dialog"`, el que trae Radix por defecto) y ese diálogo debe tener nombre — antes
+  // `aria-haspopup="listbox"` puesto a mano en el disparador pisaba el "dialog" de Radix (el
+  // spread de Radix va antes que los props propios), y `PopoverPrimitive.Content` no llevaba
+  // nombre, así que un lector de pantalla caía en un "diálogo" anónimo tras un anuncio de
+  // "lista" que no correspondía a lo que se abre.
+  it('el disparador anuncia un diálogo con nombre, no una lista', async () => {
+    const user = userEvent.setup()
+    render(<Combobox items={items} value={null} onChange={vi.fn()} placeholder="Clínica" />)
+
+    const trigger = screen.getByRole('combobox', { name: 'Clínica' })
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog')
+
+    await user.click(trigger)
+
+    expect(screen.getByRole('dialog', { name: 'Clínica' })).toBeInTheDocument()
+  })
 })
