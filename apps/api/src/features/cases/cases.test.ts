@@ -1326,5 +1326,65 @@ describe('/api/trabajos', () => {
       // ver los 9 trabajos creados en este test.
       expect(resumen.todos).toBe(9)
     })
+
+    // I-1 (fix wave PR 2, #68): el test de arriba compara el contador con la lista, y ambos
+    // salen de la misma `viewCondition` — prueba que coinciden, no que la definición sea
+    // correcta. Este test fija la definición con reloj fijo (`HOY`): "atrasados" es un trabajo
+    // **activo** cuya fecha efectiva (promised_date si existe, si no due_date) quedó antes de
+    // hoy. Un trabajo cerrado (terminado/entregado/cancelado) nunca es atrasado aunque su fecha
+    // esté vencida, y cuando hay `promised_date` esta manda sobre `due_date` aunque diverjan.
+    it('atrasados: solo trabajos activos, por fecha efectiva (promised_date manda sobre due_date)', async () => {
+      // Activo, promised_date pasada y due_date futura: la promesa manda → atrasado.
+      const activoAtrasadoId = await createOne(recepcion, { patientRef: 'Activo atrasado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_proceso', promisedDate: '2026-09-10', dueDate: '2026-12-01' })
+        .where(eq(ctx.schema.cases.id, activoAtrasadoId))
+
+      // Activo, promised_date futura y due_date pasada: la promesa manda → no atrasado.
+      const activoNoAtrasadoId = await createOne(recepcion, { patientRef: 'Activo no atrasado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_proceso', promisedDate: '2026-12-01', dueDate: '2026-09-01' })
+        .where(eq(ctx.schema.cases.id, activoNoAtrasadoId))
+
+      // Cerrados con promised_date vencida: fuera de "atrasados" pase lo que pase con la fecha.
+      const terminadoId = await createOne(recepcion, { patientRef: 'Terminado vencido' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'terminado', promisedDate: '2026-09-01' })
+        .where(eq(ctx.schema.cases.id, terminadoId))
+
+      const entregadoId = await createOne(recepcion, { patientRef: 'Entregado vencido' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'entregado', promisedDate: '2026-09-01' })
+        .where(eq(ctx.schema.cases.id, entregadoId))
+
+      const canceladoId = await createOne(recepcion, { patientRef: 'Cancelado vencido' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'cancelado', promisedDate: '2026-09-01' })
+        .where(eq(ctx.schema.cases.id, canceladoId))
+
+      const listaRes = await resumenApp.request('/api/trabajos?vista=atrasados', req(admin, 'GET'))
+      expect(listaRes.status).toBe(200)
+      const { cases: lista, total } = (await listaRes.json()) as {
+        cases: { id: string }[]
+        total: number
+      }
+      const ids = lista.map((c) => c.id)
+
+      expect(ids).toContain(activoAtrasadoId)
+      expect(ids).not.toContain(activoNoAtrasadoId)
+      expect(ids).not.toContain(terminadoId)
+      expect(ids).not.toContain(entregadoId)
+      expect(ids).not.toContain(canceladoId)
+      expect(total).toBe(1)
+
+      const resumenRes = await resumenApp.request('/api/trabajos/resumen', req(admin, 'GET'))
+      const { resumen } = (await resumenRes.json()) as { resumen: Record<string, number> }
+      expect(resumen.atrasados).toBe(1)
+    })
   })
 })
