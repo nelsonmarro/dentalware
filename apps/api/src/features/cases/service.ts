@@ -145,7 +145,8 @@ export function createCasesService(deps: {
     /**
      * Contador por vista rápida (INI-1, T11, #68): sin dinero, así que no se enmascara por rol
      * (a diferencia de `list`/`detail`) ni necesita `ctx` — cualquier persona autenticada lo ve
-     * igual, incluido un técnico (`requireAuth` en la ruta ya cubre "sin sesión" con 403).
+     * igual, incluido un técnico (`requireAuth` en la ruta ya cubre "sin sesión", con 401, no
+     * el 403 uniforme de `requireRole`).
      */
     async summary() {
       return deps.cases.summary(deps.clock.today())
