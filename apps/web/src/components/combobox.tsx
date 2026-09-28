@@ -138,7 +138,7 @@ export function Combobox({
               placeholder={searchPlaceholder}
               className="h-11 w-full border-b border-border bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground"
             />
-            <CommandPrimitive.List className="max-h-64 overflow-y-auto p-1">
+            <CommandPrimitive.List label="Resultados" className="max-h-64 overflow-y-auto p-1">
               {filtered.length === 0 && (
                 <CommandPrimitive.Empty className="px-3 py-6 text-center text-sm text-muted-foreground">
                   {emptyMessage}

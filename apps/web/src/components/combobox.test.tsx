@@ -102,4 +102,15 @@ describe('Combobox', () => {
 
     expect(screen.getByRole('dialog', { name: 'Clínica' })).toBeInTheDocument()
   })
+
+  // I-3 (revisión Tarea 13): cmdk pone `aria-label="Suggestions"` en `Command.List` por
+  // defecto (inglés); la regla 5 pide español en toda la UI, incluidos los nombres accesibles.
+  it('la lista de resultados se anuncia en español', async () => {
+    const user = userEvent.setup()
+    render(<Combobox items={items} value={null} onChange={vi.fn()} placeholder="Clínica" />)
+
+    await user.click(screen.getByRole('combobox', { name: 'Clínica' }))
+
+    expect(screen.getByRole('listbox', { name: 'Resultados' })).toBeInTheDocument()
+  })
 })
