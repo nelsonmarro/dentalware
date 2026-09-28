@@ -147,4 +147,19 @@ describe('Combobox', () => {
       'false',
     )
   })
+
+  // M-4 (revisión Tarea 13): las opciones medían ~36 px (py-2 text-sm) — el técnico con
+  // guantes elige producto en el móvil y este es un componente nuevo, no hereda la deuda del
+  // `SelectItem` existente. Mismo mecanismo que `button.tsx` (altura fija, no derivada del
+  // padding): `min-h-11`.
+  it('cada opción mide al menos 44 px', async () => {
+    const user = userEvent.setup()
+    render(<Combobox items={items} value={null} onChange={vi.fn()} placeholder="Clínica" />)
+
+    await user.click(screen.getByRole('combobox', { name: 'Clínica' }))
+
+    for (const option of screen.getAllByRole('option')) {
+      expect(option).toHaveClass('min-h-11')
+    }
+  })
 })

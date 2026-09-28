@@ -169,7 +169,7 @@ export function Combobox({
                   key={item.value}
                   value={item.value}
                   onSelect={() => handleSelect(item)}
-                  className="relative flex cursor-default items-center gap-2 rounded-md px-2 py-2 text-sm outline-hidden select-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
+                  className="relative flex min-h-11 w-full cursor-default items-center gap-2 rounded-md px-2 text-sm outline-hidden select-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
                 >
                   <Check
                     className={cn(
