@@ -127,4 +127,24 @@ describe('Combobox', () => {
 
     expect(screen.getByRole('dialog', { name: 'Clínica' })).toBeInTheDocument()
   })
+
+  // M-2 (revisión Tarea 13): sin esto cmdk resalta siempre el primer ítem renderizado al
+  // (re)montar la lista; con muchas opciones, quien reabre para corregir no ve resaltado (ni
+  // `aria-selected`, que es lo único que anuncia un lector de pantalla — el check visual no)
+  // el valor que ya tenía elegido, sino el primero del listado.
+  it('al reabrir con un valor ya elegido, resalta esa opción (no la primera)', async () => {
+    const user = userEvent.setup()
+    render(<Combobox items={items} value="c2" onChange={vi.fn()} placeholder="Clínica" />)
+
+    await user.click(screen.getByRole('combobox', { name: 'Clínica' }))
+
+    expect(screen.getByRole('option', { name: 'Clínica Dental Andina' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('option', { name: 'Sonrisas del Valle' })).toHaveAttribute(
+      'aria-selected',
+      'false',
+    )
+  })
 })

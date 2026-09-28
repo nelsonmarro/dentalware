@@ -75,6 +75,10 @@ export function Combobox({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  // M-2 (revisión Tarea 13): resaltado del `Command` (`aria-selected`, no el check visual),
+  // controlado a mano para que al reabrir empiece en el valor ya elegido y no en el primer
+  // ítem de la lista (comportamiento por defecto de cmdk al montar).
+  const [highlighted, setHighlighted] = useState(value ?? '')
   const selected = items.find((item) => item.value === value)
   const ariaLabel = ariaLabelProp ?? placeholder
 
@@ -86,7 +90,11 @@ export function Combobox({
 
   function handleOpenChange(next: boolean) {
     setOpen(next)
-    if (!next) setQuery('')
+    if (next) {
+      setHighlighted(value ?? '')
+    } else {
+      setQuery('')
+    }
   }
 
   function handleSelect(item: ComboboxItem) {
@@ -139,6 +147,8 @@ export function Combobox({
           <CommandPrimitive
             shouldFilter={false}
             label={searchPlaceholder}
+            value={highlighted}
+            onValueChange={setHighlighted}
             className="flex flex-col"
           >
             <CommandPrimitive.Input
