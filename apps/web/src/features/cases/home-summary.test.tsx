@@ -50,9 +50,9 @@ const SUMMARY = {
 // `HomeSummary` (feature `cases`, no una ruta: `routes/` no tiene archivo de test en este
 // proyecto) para poder probarlo como cualquier otro componente de features.
 describe('HomeSummary', () => {
-  it('admin y recepción no ven "Mis trabajos"', async () => {
+  it.each(['admin', 'recepcion', 'mensajero'] as const)('%s no ve "Mis trabajos"', async (role) => {
     fetchSummary.mockResolvedValue(SUMMARY)
-    renderWithProviders(<HomeSummary role="admin" technicianId="admin-1" />)
+    renderWithProviders(<HomeSummary role={role} technicianId="u-1" />)
 
     await screen.findByRole('link', { name: /Nuevos 1/ })
     expect(screen.queryByRole('heading', { name: 'Mis trabajos' })).not.toBeInTheDocument()
