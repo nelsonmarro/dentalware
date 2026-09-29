@@ -340,4 +340,27 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       await tecnicoContext.close()
     },
   )
+
+  // M-5 (ronda de fixes 1, Tarea 14, #71): la orden imprimible es pantalla nueva y no estaba en
+  // el barrido. Solo mide los controles en pantalla ("Volver al trabajo", "Imprimir"): el resto
+  // de la orden es contenido para papel, sin objetivos táctiles que probar.
+  test(
+    'orden de trabajo imprimible: "Volver al trabajo" e "Imprimir"',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const trabajo = await createCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+
+      await page.goto(`/trabajos/${trabajo.id}/imprimir`)
+      // Esperar a la página antes de medir: `goto` resuelve al cargar el documento, no al pintar
+      // la pantalla. Sin esta espera el barrido medía cero controles y pasaba en vacío.
+      await expect(page.getByRole('button', { name: 'Imprimir' })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+    },
+  )
 })

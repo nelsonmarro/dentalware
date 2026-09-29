@@ -1,51 +1,20 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { Printer } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/empty-state'
-import { useLabSettings } from '@/features/config/use-lab-settings'
-import { PrintOrder } from '@/features/cases/print-order'
-import { useCase } from '@/features/cases/use-cases'
+import { createFileRoute } from '@tanstack/react-router'
+import { PrintCasePage } from '@/features/cases/print-case-page'
 
 // `_` antes de `.imprimir`, igual que `$caseId_.editar.tsx`: sin él, TanStack Router anida esta
 // ruta bajo `$caseId.tsx` (la ficha, sin `<Outlet />`) y nunca se vería. El `_` la deja
 // independiente en `/trabajos/$caseId/imprimir`.
 export const Route = createFileRoute('/_app/trabajos/$caseId_/imprimir')({
-  component: PrintCasePage,
+  component: RouteComponent,
 })
 
-function PrintCasePage() {
+// La lógica (fetch, enmascarado por rol, layout de impresión) vive en `PrintCasePage`
+// (`features/cases/`): este archivo solo lee la sesión y el parámetro de ruta y los reenvía,
+// para que `docs/architecture.md` §3.3 ("routes/ solo importa de features/ y components/, sin
+// lógica de negocio") se cumpla también aquí, y para que la pantalla sea testeable sin montar
+// el árbol de rutas completo (I-3, ronda de fixes 1 de la Tarea 14, #71).
+function RouteComponent() {
   const { caseId } = Route.useParams()
   const { user } = Route.useRouteContext()
-  const detail = useCase(caseId)
-  const settings = useLabSettings()
-  const hidePrices = user.role === 'tecnico' || user.role === 'mensajero'
-
-  if (detail.isPending || settings.isPending) {
-    return <p className="text-sm text-muted-foreground">Cargando…</p>
-  }
-  if (detail.isError || !detail.data || settings.isError || !settings.data) {
-    return (
-      <EmptyState
-        title="No se pudo cargar la orden"
-        action={
-          <Button asChild>
-            <Link to="/trabajos/$caseId" params={{ caseId }}>
-              Volver al trabajo
-            </Link>
-          </Button>
-        }
-      />
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex justify-end print:hidden">
-        <Button onClick={() => window.print()} className="h-11">
-          <Printer /> Imprimir
-        </Button>
-      </div>
-      <PrintOrder case={detail.data.case} settings={settings.data} hidePrices={hidePrices} />
-    </div>
-  )
+  return <PrintCasePage caseId={caseId} role={user.role} />
 }

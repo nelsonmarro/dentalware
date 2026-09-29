@@ -1,9 +1,17 @@
 import { screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { renderWithProviders } from '@/test/render'
 import type { LabSettings } from '@/features/config/api'
 import type { CaseDetail } from './api'
 import { PrintOrder } from './print-order'
+
+// El QR solo necesita comprobar qué `value` recibe (I-2): un fake que lo vuelca a texto evita
+// decodificar una imagen SVG en jsdom y deja la aserción exacta sobre la URL que se codifica.
+vi.mock('./qr-code', () => ({
+  QrCode: ({ value }: { value: string }) => <span data-testid="qr-value">{value}</span>,
+}))
+
+const PUBLIC_URL = 'https://artedental.example'
 
 function settings(overrides: Partial<LabSettings> = {}): LabSettings {
   return {
@@ -105,14 +113,19 @@ function casoCompleto(overrides: Partial<CaseDetail> = {}): CaseDetail {
 }
 
 describe('PrintOrder', () => {
-  it('reproduce los bloques de la orden en papel y en su orden', async () => {
+  it('reproduce los bloques de la orden en papel y en su orden (M-2: título "Orden de trabajo")', async () => {
     renderWithProviders(
-      <PrintOrder case={casoCompleto()} settings={settings()} hidePrices={false} />,
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings()}
+        hidePrices={false}
+        publicUrl={PUBLIC_URL}
+      />,
     )
     const titulos = (await screen.findAllByRole('heading')).map((h) => h.textContent)
     expect(titulos).toEqual([
       'Arte Dental',
-      'Trabajo 26-00123',
+      'Orden de trabajo 26-00123',
       'Paciente',
       'Color y sistema',
       'Odontograma',
@@ -124,41 +137,234 @@ describe('PrintOrder', () => {
   })
 
   it('no muestra precios ni el total cuando la imprime un técnico', async () => {
-    renderWithProviders(<PrintOrder case={casoCompleto()} settings={settings()} hidePrices />)
-    await screen.findByText('26-00123', { exact: false })
+    renderWithProviders(
+      <PrintOrder case={casoCompleto()} settings={settings()} hidePrices publicUrl={PUBLIC_URL} />,
+    )
+    await screen.findByRole('heading', { name: /Orden de trabajo 26-00123/ })
     expect(screen.queryByText(/\$/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Total/)).not.toBeInTheDocument()
   })
 
   it('muestra los precios y el total para recepción', async () => {
     renderWithProviders(
-      <PrintOrder case={casoCompleto()} settings={settings()} hidePrices={false} />,
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings()}
+        hidePrices={false}
+        publicUrl={PUBLIC_URL}
+      />,
     )
     expect(await screen.findByText('$ 147.00')).toBeInTheDocument()
   })
 
   it('marca en el odontograma solo las piezas del trabajo', async () => {
     renderWithProviders(
-      <PrintOrder case={casoCompleto()} settings={settings()} hidePrices={false} />,
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings()}
+        hidePrices={false}
+        publicUrl={PUBLIC_URL}
+      />,
     )
     expect(await screen.findByTestId('pieza-11')).toHaveAttribute('data-marcada', 'true')
     expect(screen.getByTestId('pieza-21')).toHaveAttribute('data-marcada', 'false')
   })
 
+  // I-1 (lo más grave de la revisión): con «Gráficos de fondo» desactivado (por defecto en
+  // Chrome), `background-color` no se imprime pero el color de texto sí — `bg-foreground
+  // text-background` a solas dejaba la marca invisible (texto del mismo color que el fondo
+  // ausente). La marca real es el borde grueso y la negrita, con el texto siempre en
+  // `foreground`; el relleno puede quedar además, pero no es lo único que distingue la pieza.
+  it('marca la pieza con borde grueso y negrita, no solo con el fondo (I-1)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings()}
+        hidePrices={false}
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    const marcada = await screen.findByTestId('pieza-11')
+    expect(marcada.className).toMatch(/border-2/)
+    expect(marcada.className).toMatch(/font-bold/)
+    expect(marcada.className).not.toMatch(/text-background/)
+    const sinMarcar = screen.getByTestId('pieza-21')
+    expect(sinMarcar.className).not.toMatch(/font-bold/)
+  })
+
+  // M-1: el orden de lectura del odontograma en papel es 18→11, 21→28 (arcada superior) y
+  // 48→41, 31→38 (arcada inferior). Mutación: invertir los cuadrantes de una arcada (p. ej.
+  // pasar `[FDI_QUADRANTS[2], FDI_QUADRANTS[1]]` en vez de `[1, 2]`) hace caer este test.
+  it('ordena las piezas del odontograma como en la hoja de papel (M-1)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings()}
+        hidePrices={false}
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    const odontograma = await screen.findByTestId('print-odontogram')
+    const ids = [...odontograma.querySelectorAll('[data-testid^="pieza-"]')].map((el) =>
+      el.getAttribute('data-testid'),
+    )
+    expect(ids).toEqual([
+      'pieza-18',
+      'pieza-17',
+      'pieza-16',
+      'pieza-15',
+      'pieza-14',
+      'pieza-13',
+      'pieza-12',
+      'pieza-11',
+      'pieza-21',
+      'pieza-22',
+      'pieza-23',
+      'pieza-24',
+      'pieza-25',
+      'pieza-26',
+      'pieza-27',
+      'pieza-28',
+      'pieza-48',
+      'pieza-47',
+      'pieza-46',
+      'pieza-45',
+      'pieza-44',
+      'pieza-43',
+      'pieza-42',
+      'pieza-41',
+      'pieza-31',
+      'pieza-32',
+      'pieza-33',
+      'pieza-34',
+      'pieza-35',
+      'pieza-36',
+      'pieza-37',
+      'pieza-38',
+    ])
+  })
+
   it('nunca imprime las notas internas, ni para admin', async () => {
     renderWithProviders(
-      <PrintOrder case={casoCompleto()} settings={settings()} hidePrices={false} />,
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings()}
+        hidePrices={false}
+        publicUrl={PUBLIC_URL}
+      />,
     )
-    await screen.findByText('26-00123', { exact: false })
+    await screen.findByRole('heading', { name: /Orden de trabajo 26-00123/ })
     expect(screen.queryByText(/Nota interna confidencial/)).not.toBeInTheDocument()
   })
 
-  it('el QR codifica la ficha corta del trabajo', async () => {
+  it('el QR codifica la URL pública configurada, no window.location (I-2)', async () => {
     renderWithProviders(
-      <PrintOrder case={casoCompleto()} settings={settings()} hidePrices={false} />,
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings()}
+        hidePrices={false}
+        publicUrl={PUBLIC_URL}
+      />,
     )
-    expect(
-      await screen.findByRole('img', { name: /Código QR del trabajo 26-00123/ }),
-    ).toBeInTheDocument()
+    expect(await screen.findByTestId('qr-value')).toHaveTextContent(`${PUBLIC_URL}/t/26-00123`)
+  })
+
+  // M-2: el logo del laboratorio, cuando `lab_settings.logoUrl` existe.
+  it('muestra el logo del laboratorio cuando settings.logoUrl existe (M-2)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings({ logoUrl: 'https://cdn.example/logo.png' })}
+        hidePrices={false}
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    expect(await screen.findByRole('img', { name: /logo/i })).toHaveAttribute(
+      'src',
+      'https://cdn.example/logo.png',
+    )
+  })
+
+  it('no muestra logo cuando settings.logoUrl es null', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings({ logoUrl: null })}
+        hidePrices={false}
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    await screen.findByRole('heading', { name: /Orden de trabajo 26-00123/ })
+    expect(screen.queryByRole('img', { name: /logo/i })).not.toBeInTheDocument()
+  })
+
+  // M-3: si la línea no tiene producto (borrado o importado sin catálogo), se usa la
+  // descripción libre como respaldo para que la línea no quede en blanco.
+  it('usa la descripción de la línea como respaldo cuando no hay producto (M-3)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto({
+          items: [
+            {
+              id: 'item-1',
+              caseId: 'caso-1',
+              productId: 'producto-eliminado',
+              description: 'Corona provisional (sin catálogo)',
+              quantity: 1,
+              teeth: [],
+              unitPrice: '10.00',
+              discountPct: '0.00',
+              lineTotal: '10.00',
+              material: null,
+              notes: null,
+              sort: 0,
+              product: null,
+            },
+          ],
+        })}
+        settings={settings()}
+        hidePrices={false}
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    expect(await screen.findByText('Corona provisional (sin catálogo)')).toBeInTheDocument()
+  })
+
+  // M-7: "Fecha entrega" es la comprometida (`promisedDate`) si existe; si no, la deseada
+  // (`dueDate`); si tampoco hay deseada, una línea en blanco para escribirla a mano.
+  it('«Fecha entrega» muestra la fecha comprometida cuando existe (M-7)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto({ promisedDate: '2026-02-20', dueDate: '2026-02-10' })}
+        settings={settings()}
+        hidePrices={false}
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    expect(await screen.findByText('20/02/2026')).toBeInTheDocument()
+  })
+
+  it('«Fecha entrega» cae a la fecha deseada si no hay comprometida (M-7)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto({ promisedDate: null, dueDate: '2026-02-10' })}
+        settings={settings()}
+        hidePrices={false}
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    expect(await screen.findByText('10/02/2026')).toBeInTheDocument()
+  })
+
+  it('«Fecha entrega» deja una línea en blanco si no hay comprometida ni deseada (M-7)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto({ promisedDate: null, dueDate: null })}
+        settings={settings()}
+        hidePrices={false}
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    expect(await screen.findByTestId('fecha-entrega-en-blanco')).toBeInTheDocument()
   })
 })
