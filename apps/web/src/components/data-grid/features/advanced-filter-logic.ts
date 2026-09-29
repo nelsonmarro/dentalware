@@ -1,4 +1,4 @@
-import { normalize } from '../lib/normalize'
+import { normalize } from '@/lib/normalize'
 
 export type Operator = 'contiene' | 'es' | 'no_es' | 'empieza' | 'mayor' | 'menor' | 'entre'
 export type Condition = { column: string; op: Operator; value: string }

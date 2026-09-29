@@ -4,21 +4,12 @@ import { Command as CommandPrimitive } from 'cmdk'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { Popover as PopoverPrimitive } from 'radix-ui'
 import { useMemo, useState, type KeyboardEvent } from 'react'
+import { normalize } from '@/lib/normalize'
 import { cn } from '@/lib/utils'
 
 export type ComboboxItem = {
   value: string
   label: string
-}
-
-/** Insensible a mayúsculas y acentos: «Híbrida» → «hibrida» (mismo criterio que el filtro del
- * DataGrid, `components/data-grid/lib/normalize.ts`, duplicado aquí en vez de importado: ese
- * módulo es interno del DataGrid y no forma parte de su barrel público). */
-function normalize(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
 }
 
 /**
