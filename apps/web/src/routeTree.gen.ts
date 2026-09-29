@@ -27,6 +27,7 @@ import { Route as AppTrabajosCaseIdRouteImport } from './routes/_app/trabajos/$c
 import { Route as AppTrabajosNuevoRouteImport } from './routes/_app/trabajos/nuevo'
 import { Route as AppConfiguracionClinicasClinicIdRouteImport } from './routes/_app/configuracion/clinicas.$clinicId'
 import { Route as AppTrabajosCaseIdEditarRouteImport } from './routes/_app/trabajos/$caseId_.editar'
+import { Route as AppTrabajosCaseIdImprimirRouteImport } from './routes/_app/trabajos/$caseId_.imprimir'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -122,6 +123,12 @@ const AppTrabajosCaseIdEditarRoute = AppTrabajosCaseIdEditarRouteImport.update({
   path: '/$caseId/editar',
   getParentRoute: () => AppTrabajosRoute,
 } as any)
+const AppTrabajosCaseIdImprimirRoute =
+  AppTrabajosCaseIdImprimirRouteImport.update({
+    id: '/$caseId_/imprimir',
+    path: '/$caseId/imprimir',
+    getParentRoute: () => AppTrabajosRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByFullPath {
   '/trabajos/': typeof AppTrabajosIndexRoute
   '/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
   '/trabajos/$caseId/editar': typeof AppTrabajosCaseIdEditarRoute
+  '/trabajos/$caseId/imprimir': typeof AppTrabajosCaseIdImprimirRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -158,6 +166,7 @@ export interface FileRoutesByTo {
   '/trabajos': typeof AppTrabajosIndexRoute
   '/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
   '/trabajos/$caseId/editar': typeof AppTrabajosCaseIdEditarRoute
+  '/trabajos/$caseId/imprimir': typeof AppTrabajosCaseIdImprimirRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -179,6 +188,7 @@ export interface FileRoutesById {
   '/_app/trabajos/': typeof AppTrabajosIndexRoute
   '/_app/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
   '/_app/trabajos/$caseId_/editar': typeof AppTrabajosCaseIdEditarRoute
+  '/_app/trabajos/$caseId_/imprimir': typeof AppTrabajosCaseIdImprimirRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/trabajos/'
     | '/configuracion/clinicas/$clinicId'
     | '/trabajos/$caseId/editar'
+    | '/trabajos/$caseId/imprimir'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -217,6 +228,7 @@ export interface FileRouteTypes {
     | '/trabajos'
     | '/configuracion/clinicas/$clinicId'
     | '/trabajos/$caseId/editar'
+    | '/trabajos/$caseId/imprimir'
   id:
     | '__root__'
     | '/_app'
@@ -237,6 +249,7 @@ export interface FileRouteTypes {
     | '/_app/trabajos/'
     | '/_app/configuracion/clinicas/$clinicId'
     | '/_app/trabajos/$caseId_/editar'
+    | '/_app/trabajos/$caseId_/imprimir'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -372,6 +385,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTrabajosCaseIdEditarRouteImport
       parentRoute: typeof AppTrabajosRoute
     }
+    '/_app/trabajos/$caseId_/imprimir': {
+      id: '/_app/trabajos/$caseId_/imprimir'
+      path: '/$caseId/imprimir'
+      fullPath: '/trabajos/$caseId/imprimir'
+      preLoaderRoute: typeof AppTrabajosCaseIdImprimirRouteImport
+      parentRoute: typeof AppTrabajosRoute
+    }
   }
 }
 
@@ -416,6 +436,7 @@ interface AppTrabajosRouteChildren {
   AppTrabajosNuevoRoute: typeof AppTrabajosNuevoRoute
   AppTrabajosIndexRoute: typeof AppTrabajosIndexRoute
   AppTrabajosCaseIdEditarRoute: typeof AppTrabajosCaseIdEditarRoute
+  AppTrabajosCaseIdImprimirRoute: typeof AppTrabajosCaseIdImprimirRoute
 }
 
 const AppTrabajosRouteChildren: AppTrabajosRouteChildren = {
@@ -423,6 +444,7 @@ const AppTrabajosRouteChildren: AppTrabajosRouteChildren = {
   AppTrabajosNuevoRoute: AppTrabajosNuevoRoute,
   AppTrabajosIndexRoute: AppTrabajosIndexRoute,
   AppTrabajosCaseIdEditarRoute: AppTrabajosCaseIdEditarRoute,
+  AppTrabajosCaseIdImprimirRoute: AppTrabajosCaseIdImprimirRoute,
 }
 
 const AppTrabajosRouteWithChildren = AppTrabajosRoute._addFileChildren(

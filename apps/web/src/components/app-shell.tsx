@@ -44,7 +44,7 @@ export function AppShell({
     <div className="flex min-h-svh bg-background text-foreground">
       {/* Sidebar PC */}
       <aside
-        className="hidden w-60 shrink-0 flex-col border-r border-border bg-card lg:flex"
+        className="hidden w-60 shrink-0 flex-col border-r border-border bg-card lg:flex print:hidden"
         data-testid="sidebar"
       >
         <div className="px-5 py-4 text-lg font-semibold">Dentalware</div>
@@ -72,20 +72,20 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Header móvil */}
-        <header className="flex items-center justify-between border-b border-border px-4 py-3 lg:hidden">
+        <header className="flex items-center justify-between border-b border-border px-4 py-3 lg:hidden print:hidden">
           <span className="font-semibold">Dentalware</span>
           <Button variant="ghost" size="icon" onClick={logout} aria-label="Cerrar sesión">
             <LogOut className="size-4" />
           </Button>
         </header>
 
-        <main className="flex-1 p-4 pb-24 lg:p-8 lg:pb-8">
-          <div className="mx-auto w-full max-w-[1200px]">{children}</div>
+        <main className="flex-1 p-4 pb-24 lg:p-8 lg:pb-8 print:p-0">
+          <div className="mx-auto w-full max-w-[1200px] print:max-w-none">{children}</div>
         </main>
 
         {/* Barra inferior móvil */}
         <nav
-          className="fixed inset-x-0 bottom-0 flex justify-around border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
+          className="fixed inset-x-0 bottom-0 flex justify-around border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden print:hidden"
           data-testid="bottom-nav"
         >
           {items.map((i) => (

@@ -156,3 +156,24 @@
     @apply font-sans;
   }
 }
+
+/* Orden de trabajo imprimible (FIC-1, Tarea 14, #71). La navegación y el resto del `AppShell`
+ * se ocultan con la variante `print:` de Tailwind directamente en `app-shell.tsx` (sidebar,
+ * cabecera móvil y barra inferior con `print:hidden`; `main` y su contenedor con `print:p-0` /
+ * `print:max-w-none`): son utilidades por elemento y no necesitan selector aquí. Lo que queda
+ * para este bloque global es lo que ninguna clase de Tailwind cubre por sí sola: forzar fondo
+ * y tinta claros al imprimir aunque quien imprime tenga el modo oscuro activado (`.dark`), y
+ * quitar la sombra/anillo de las tarjetas, que en papel se ve como un borde gris difuso. El
+ * corte dentro de un bloque se evita con la utilidad `break-inside-avoid` de Tailwind
+ * directamente en `print-order.tsx`, sin duplicarla aquí. */
+@media print {
+  :root,
+  .dark {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}
