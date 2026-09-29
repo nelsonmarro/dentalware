@@ -1348,6 +1348,26 @@ describe('/api/trabajos', () => {
         .set({ status: 'en_proceso', promisedDate: '2026-12-01', dueDate: '2026-09-01' })
         .where(eq(ctx.schema.cases.id, activoNoAtrasadoId))
 
+      // Los demás estados activos, vencidos: también cuentan. Los estados se escriben a mano a
+      // propósito y NO se derivan de `ACTIVE_FOR_DATES_STATUSES`: si el test los tomara de la
+      // constante, quitar uno de la lista compartida lo quitaría también del test y nadie lo
+      // notaría (hallazgo de la re-revisión de la ola del PR 2: sin estos casos, quitar
+      // `en_espera` de la lista dejaba 66/66 en verde). `nuevo` no tiene fecha comprometida
+      // (se fija al aceptar), así que cuenta por la deseada: cubre la otra rama del `coalesce`.
+      const activosVencidos: { status: 'nuevo' | 'en_espera' | 'en_prueba'; id: string }[] = []
+      for (const status of ['nuevo', 'en_espera', 'en_prueba'] as const) {
+        const id = await createOne(recepcion, { patientRef: `Vencido ${status}` })
+        await ctx.db
+          .update(ctx.schema.cases)
+          .set(
+            status === 'nuevo'
+              ? { status, promisedDate: null, dueDate: '2026-09-10' }
+              : { status, promisedDate: '2026-09-10', dueDate: '2026-12-01' },
+          )
+          .where(eq(ctx.schema.cases.id, id))
+        activosVencidos.push({ status, id })
+      }
+
       // Cerrados con promised_date vencida: fuera de "atrasados" pase lo que pase con la fecha.
       const terminadoId = await createOne(recepcion, { patientRef: 'Terminado vencido' })
       await ctx.db
@@ -1376,15 +1396,18 @@ describe('/api/trabajos', () => {
       const ids = lista.map((c) => c.id)
 
       expect(ids).toContain(activoAtrasadoId)
+      for (const { status, id } of activosVencidos) {
+        expect(ids, `un trabajo ${status} vencido debe estar en atrasados`).toContain(id)
+      }
       expect(ids).not.toContain(activoNoAtrasadoId)
       expect(ids).not.toContain(terminadoId)
       expect(ids).not.toContain(entregadoId)
       expect(ids).not.toContain(canceladoId)
-      expect(total).toBe(1)
+      expect(total).toBe(4)
 
       const resumenRes = await resumenApp.request('/api/trabajos/resumen', req(admin, 'GET'))
       const { resumen } = (await resumenRes.json()) as { resumen: Record<string, number> }
-      expect(resumen.atrasados).toBe(1)
+      expect(resumen.atrasados).toBe(4)
     })
   })
 })
