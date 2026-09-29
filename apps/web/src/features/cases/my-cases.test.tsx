@@ -55,18 +55,30 @@ function caseRow(overrides: Partial<CaseListRow> = {}): CaseListRow {
 }
 
 describe('MyCases', () => {
-  it('lista los trabajos del técnico ordenados por fecha comprometida', async () => {
+  // M-5 (fix wave PR 2, #68): esta fila cubre la versión mínima de INI-2 — código, paciente,
+  // fase y fecha de entrega, los cuatro juntos en la misma fila. El orden real de la lista
+  // (¿por qué "26-00002" va antes que "26-00001"?) lo decide la API (`orderFor` en repo.ts) y
+  // se prueba ahí; el test de abajo ("pide solo los trabajos activos…") ya fija que el
+  // componente pide `orden: 'entrega'`, así que un test que solo repitiera el orden del mock
+  // no habría probado nada — antes lo hacía y se llamaba "ordenados por fecha comprometida".
+  it('cada fila pinta código, paciente, fase y fecha de entrega (INI-2)', async () => {
     fetchCases.mockResolvedValue({
       cases: [
-        caseRow({ id: 'c2', code: '26-00002', promisedDate: '2026-09-18' }),
-        caseRow({ id: 'c1', code: '26-00001', promisedDate: '2026-09-25' }),
+        caseRow({
+          patientRef: 'Juan Pérez',
+          promisedDate: '2026-09-20',
+          stage: { name: 'Cerámica', color: '#0F766E' },
+        }),
       ],
       total: null,
     })
     renderWithProviders(<MyCases technicianId="tec-1" />)
 
-    const filas = await screen.findAllByRole('link', { name: /26-000/ })
-    expect(filas[0]).toHaveTextContent('26-00002')
+    const fila = await screen.findByRole('link', { name: /26-00001/ })
+    expect(fila).toHaveTextContent('26-00001')
+    expect(fila).toHaveTextContent('Juan Pérez')
+    expect(fila).toHaveTextContent('Cerámica')
+    expect(fila).toHaveTextContent('20/09/2026')
   })
 
   // M-1 (ronda de fixes 1, T12): con `total: null` (como llega realmente para el rol técnico,
