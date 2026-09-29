@@ -165,8 +165,16 @@
  * y tinta claros al imprimir aunque quien imprime tenga el modo oscuro activado (`.dark`), y
  * quitar la sombra/anillo de las tarjetas, que en papel se ve como un borde gris difuso. El
  * corte dentro de un bloque se evita con la utilidad `break-inside-avoid` de Tailwind
- * directamente en `print-order.tsx`, sin duplicarla aquí. */
+ * directamente en `print-order.tsx`, sin duplicarla aquí.
+ *
+ * `@page { margin }`: sin esto el encabezado queda a ras del borde físico de la hoja en A5
+ * (verificado con `page.pdf()` de Playwright, Tarea 14 — el margen "Predeterminado" del
+ * diálogo de impresión de Chrome habría disimulado el problema en pantalla, pero un PDF
+ * generado sin diálogo, o una impresora sin área no imprimible generosa, lo habría recortado). */
 @media print {
+  @page {
+    margin: 12mm;
+  }
   :root,
   .dark {
     --background: oklch(1 0 0);
