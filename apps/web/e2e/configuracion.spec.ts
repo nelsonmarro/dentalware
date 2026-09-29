@@ -19,6 +19,11 @@ test.describe('Configuración', () => {
     await dialog.getByLabel('WhatsApp').fill('+593991234567')
     await dialog.getByRole('button', { name: 'Guardar' }).click()
     await expect(page.getByText('Clínica creada')).toBeVisible()
+    // Se busca por nombre, como haría recepción: la tabla pagina de 25 en 25 y ordena por
+    // nombre, así que con los datos que acumulan los demás tests en la misma BD (sobre todo en
+    // `main`, donde corren también iphone y los barridos `@extendida`) la clínica nueva puede
+    // caer en la página 2 y no verse aunque se haya creado bien.
+    await page.getByLabel('Buscar clínica').fill(name)
     await expect(page.getByRole('link', { name })).toBeVisible()
   })
 
