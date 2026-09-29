@@ -3,6 +3,7 @@ import type {
   CaseActionInput,
   CaseInput,
   CaseListQuery,
+  CaseSummary,
   ImportReport,
   RemakeInput,
   StageChangeInput,
@@ -30,6 +31,12 @@ export async function fetchCases(query: CaseListQueryInput) {
 }
 export type CaseListResult = Awaited<ReturnType<typeof fetchCases>>
 export type CaseListRow = CaseListResult['cases'][number]
+
+/** `GET /api/trabajos/resumen` (Tarea 11): un contador por vista rápida, sin dinero — todos
+ * los roles con sesión lo pueden pedir (panel de inicio, INI-1). */
+export async function fetchSummary(): Promise<CaseSummary> {
+  return (await (await throwIfNotOk(await trabajos.resumen.$get())).json()).resumen
+}
 
 export async function fetchCase(id: string) {
   return await (await throwIfNotOk(await trabajos[':id'].$get({ param: { id } }))).json()

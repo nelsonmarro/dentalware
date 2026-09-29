@@ -3,17 +3,11 @@ import { Plus, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Controller, useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form'
 import type { z } from 'zod'
+import { Combobox } from '@/components/combobox'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import type { Product } from '@/features/products/api'
 import { formatMoney } from '@/features/products/pricing-unit-label'
 import { useMediaQuery } from '@/lib/use-media-query'
@@ -245,26 +239,16 @@ function CaseItemRow({
         <FieldLabel className="text-xs lg:sr-only" htmlFor={`item-${index}-producto`}>
           Producto
         </FieldLabel>
-        <Select
-          name={`items.${index}.productId`}
+        <Combobox
+          id={`item-${index}-producto`}
+          aria-label="Producto"
+          className="w-full"
           value={item?.productId ?? ''}
-          onValueChange={onProductChange}
-        >
-          <SelectTrigger
-            id={`item-${index}-producto`}
-            aria-label="Producto"
-            className="h-11 w-full"
-          >
-            <SelectValue placeholder="Elegir producto" />
-          </SelectTrigger>
-          <SelectContent>
-            {products.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.code} — {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onChange={onProductChange}
+          items={products.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` }))}
+          placeholder="Elegir producto"
+          searchPlaceholder="Buscar por código o nombre"
+        />
       </Field>
       <Controller
         name={`items.${index}.quantity`}

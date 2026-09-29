@@ -1,7 +1,10 @@
-import type { CaseInput, CaseListQuery } from '@dentalware/shared'
+import type { CaseInput, CaseListQuery, CaseSummary, CaseView } from '@dentalware/shared'
 import {
+  ACTIVE_FOR_DATES_STATUSES,
   CASE_PAGE_SIZE,
+  CASE_VIEWS,
   canRemake,
+  EN_CURSO_STATUSES,
   formatCaseCode,
   fromCents,
   isEditableStatus,
@@ -10,7 +13,7 @@ import {
   sumCents,
   toCents,
 } from '@dentalware/shared'
-import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import type { Db, Tx } from '../../db/index.ts'
 import { users } from '../../db/schema/auth.ts'
 import { clinics } from '../clinics/schema.ts'
@@ -118,7 +121,6 @@ async function addEventWith(db: Db | Tx, e: NewCaseEvent): Promise<void> {
   })
 }
 
-const ACTIVE_FOR_DATES = ['nuevo', 'en_proceso', 'en_espera', 'en_prueba'] as const
 const effectiveDate = sql<string | null>`coalesce(${cases.promisedDate}, ${cases.dueDate})`
 
 const ORDER_COLUMNS = {
@@ -127,6 +129,60 @@ const ORDER_COLUMNS = {
   clinica: () => clinics.name,
   estado: () => cases.status,
 } as const
+
+/**
+ * Condición SQL de cada vista rápida, en un `Record<CaseView, …>` exhaustivo (T10, #68): una
+ * vista nueva en `CASE_VIEWS` no compila aquí sin su condición. Única definición de "qué cae
+ * en cada vista": la usa `listCasesWith` para filtrar la lista y la Tarea 11 la reutiliza en
+ * `count(*) filter (where …)` para el resumen (INI-1 exige que cada contador coincida con el
+ * total de su lista; dos definiciones podrían divergir en silencio).
+ */
+function viewCondition(view: CaseView, today: string): SQL | undefined {
+  const conditionByView: Record<CaseView, SQL | undefined> = {
+    nuevos: eq(cases.status, 'nuevo'),
+    en_curso: inArray(cases.status, [...EN_CURSO_STATUSES]),
+    vencen_hoy: and(
+      inArray(cases.status, [...ACTIVE_FOR_DATES_STATUSES]),
+      sql`${effectiveDate} = ${today}::date`,
+    ),
+    atrasados: and(
+      inArray(cases.status, [...ACTIVE_FOR_DATES_STATUSES]),
+      sql`${effectiveDate} < ${today}::date`,
+    ),
+    en_prueba: eq(cases.status, 'en_prueba'),
+    listos: inArray(cases.status, ['terminado', 'enviado']),
+    todos: undefined,
+  }
+  return conditionByView[view]
+}
+
+/**
+ * Un contador por vista, un solo viaje a la BD (T11, #68): reutiliza `viewCondition` (misma
+ * condición que filtra `listCasesWith`) agregada con `count(*) filter (where …)`; `todos`
+ * (`viewCondition` devuelve `undefined`) cuenta sin filtro. Ninguna condición se reescribe aquí.
+ */
+async function summaryWith(db: Db | Tx, today: string): Promise<CaseSummary> {
+  const selection = Object.fromEntries(
+    CASE_VIEWS.map((view) => {
+      const cond = viewCondition(view, today)
+      return [
+        view,
+        cond
+          ? sql<number>`count(*) filter (where ${cond})`.mapWith(Number)
+          : sql<number>`count(*)`.mapWith(Number),
+      ]
+    }),
+  )
+  const [row] = await db.select(selection).from(cases)
+  // Un agregado sin `GROUP BY` devuelve siempre exactamente una fila, aunque no haya ningún
+  // trabajo (los `count` valen 0), así que `row` no puede faltar. Se comprueba de todos modos
+  // en vez de descartar el `| undefined` con el cast: si alguien añade un `GROUP BY`, esto
+  // falla en voz alta en lugar de devolver `undefined` como resumen.
+  if (!row) throw new Error('El resumen de trabajos no devolvió ninguna fila')
+  // `Object.fromEntries` pierde el literal de las claves; salen de `CASE_VIEWS`, la misma lista
+  // de la que se deriva `CaseView`, así que no pueden faltar ni sobrar.
+  return row as CaseSummary
+}
 
 /** Traduce `orden` a columnas SQL; urgentes primero y código desc como desempate siempre. */
 function orderFor(orden: CaseListQuery['orden']) {
@@ -143,20 +199,8 @@ function orderFor(orden: CaseListQuery['orden']) {
 
 async function listCasesWith(db: Db | Tx, q: CaseListQuery, today: string) {
   const conds = []
-  if (q.vista === 'nuevos') conds.push(eq(cases.status, 'nuevo'))
-  if (q.vista === 'en_curso')
-    conds.push(inArray(cases.status, ['en_proceso', 'en_espera', 'en_prueba']))
-  if (q.vista === 'vencen_hoy') {
-    conds.push(
-      and(inArray(cases.status, [...ACTIVE_FOR_DATES]), sql`${effectiveDate} = ${today}::date`)!,
-    )
-  }
-  if (q.vista === 'atrasados') {
-    conds.push(
-      and(inArray(cases.status, [...ACTIVE_FOR_DATES]), sql`${effectiveDate} < ${today}::date`)!,
-    )
-  }
-  if (q.vista === 'listos') conds.push(inArray(cases.status, ['terminado', 'enviado']))
+  const vista = viewCondition(q.vista, today)
+  if (vista) conds.push(vista)
   if (q.estado) conds.push(eq(cases.status, q.estado))
   if (q.clinicId) conds.push(eq(cases.clinicId, q.clinicId))
   if (q.doctorId) conds.push(eq(cases.doctorId, q.doctorId))
@@ -289,6 +333,8 @@ export function createCasesRepo(db: Db | Tx) {
       }),
 
     list: (q, today) => listCasesWith(db, q, today),
+
+    summary: (today) => summaryWith(db, today),
 
     async events(caseId) {
       const rows = await db.query.caseEvents.findMany({

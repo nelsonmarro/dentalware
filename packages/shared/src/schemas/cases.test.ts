@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { z } from 'zod'
 import {
   assignTechnicianSchema,
+  CASE_VIEWS,
   caseActionSchema,
   caseInputSchema,
   caseItemSchema,
@@ -97,6 +98,20 @@ describe('caseInputSchema', () => {
       items: [{ productId, quantity: 1, unitPrice: '' }],
     })
     expect(r.items[0]!.unitPrice).toBeNull()
+  })
+})
+
+describe('CASE_VIEWS', () => {
+  it('incluye la vista en prueba entre atrasados y listos', () => {
+    expect(CASE_VIEWS).toEqual([
+      'nuevos',
+      'en_curso',
+      'vencen_hoy',
+      'atrasados',
+      'en_prueba',
+      'listos',
+      'todos',
+    ])
   })
 })
 

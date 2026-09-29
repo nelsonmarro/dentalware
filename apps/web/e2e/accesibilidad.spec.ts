@@ -3,9 +3,11 @@ import {
   createClinicWithDoctor,
   createProduct,
   expectTouchTargets,
+  login,
   loginAsAdmin,
   TOUCH_CONTROLS,
   TOUCH_SWITCHES,
+  uniqueSuffix,
 } from './helpers'
 
 /** Crea un trabajo mínimo por API (sesión admin ya iniciada en `page`). */
@@ -106,6 +108,11 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     const product = await createProduct(page)
 
     await page.goto('/trabajos/nuevo')
+    // Esperar a la página antes de medir: `goto` resuelve al cargar el documento, no al pintar
+    // la pantalla, y en móvil la barra lateral está oculta. Sin esta espera el barrido medía
+    // cero controles y pasaba en vacío (lo destapó `expectTouchTargets` al exigir medir algo).
+    await expect(page.getByRole('heading', { name: 'Nuevo trabajo' })).toBeVisible()
+    await expect(page.getByRole('combobox', { name: 'Clínica' })).toBeVisible()
     await expectTouchTargets(page, TOUCH_CONTROLS)
 
     await page.getByRole('combobox', { name: 'Clínica' }).click()
@@ -134,6 +141,11 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     })
 
     await page.goto(`/trabajos/${created.id}`)
+    // Esperar a la página antes de medir: `goto` resuelve al cargar el documento, no al pintar
+    // la pantalla, y en móvil la barra lateral está oculta. Sin esta espera el barrido medía
+    // cero controles y pasaba en vacío (lo destapó `expectTouchTargets` al exigir medir algo).
+    await expect(page.getByRole('heading', { name: created.code, level: 1 })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Detalle' })).toBeVisible()
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
 
@@ -160,6 +172,10 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       await advanceStage(page, created.id)
 
       await page.goto(`/trabajos/${created.id}`)
+      // Esperar a la página antes de medir: `goto` resuelve al cargar el documento, no al pintar
+      // la pantalla, y en móvil la barra lateral está oculta. Sin esta espera el barrido medía
+      // cero controles y pasaba en vacío (lo destapó `expectTouchTargets` al exigir medir algo).
+      await expect(page.getByRole('button', { name: 'Retroceder fase' })).toBeVisible()
       await expectTouchTargets(page, TOUCH_CONTROLS)
 
       await page.getByRole('button', { name: 'Retroceder fase' }).click()
@@ -261,6 +277,67 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       await page.getByRole('tab', { name: 'Precios especiales' }).click()
       await expect(page.getByLabel('Buscar producto')).toBeVisible()
       await expectTouchTargets(page, TOUCH_CONTROLS)
+    },
+  )
+
+  // I-1 (ronda de fixes 1, T12): el criterio de INI-1 ("sin scroll horizontal a 390 px") no
+  // tenía test y el inicio no estaba en este barrido. `scrollWidth <= clientWidth` se mide
+  // sobre `document.documentElement` (no sobre un contenedor interno como en
+  // `trabajos.spec.ts:98,126`/`configuracion.spec.ts:84`): las tarjetas del panel de inicio son
+  // un grid de página, no una tabla con su propio scroll interno.
+  test(
+    'inicio: tarjetas de resumen y "Mis trabajos"',
+    { tag: '@extendida' },
+    async ({ page, browser }) => {
+      await page.goto('/')
+      await expect(page.getByRole('heading', { name: 'Inicio' })).toBeVisible()
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true)
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+
+      // "Mis trabajos" solo existe para técnico (INI-2): un trabajo aceptado y asignado, igual
+      // que el E2E de CIC-5 en trabajos.spec.ts, para que el barrido cubra también sus filas.
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const trabajo = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      await runCaseAction(page, trabajo.id, 'aceptar')
+
+      const suffix = uniqueSuffix()
+      const email = `tecnico-a11y-${suffix}@t.local`
+      const password = 'Tecnico1234'
+      const createdUser = await page.request.post('/api/users', {
+        data: { name: `Técnico A11y ${suffix}`, email, password, role: 'tecnico' },
+      })
+      expect(createdUser.ok()).toBe(true)
+      const { user: tecnico } = (await createdUser.json()) as { user: { id: string } }
+      const assignRes = await page.request.put(`/api/trabajos/${trabajo.id}/tecnico`, {
+        data: { tecnicoId: tecnico.id },
+      })
+      expect(assignRes.ok()).toBe(true)
+
+      const tecnicoContext = await browser.newContext()
+      const tecnicoPage = await tecnicoContext.newPage()
+      await login(tecnicoPage, { email, password })
+
+      await expect(tecnicoPage.getByRole('heading', { name: 'Mis trabajos' })).toBeVisible()
+      // La fila tiene que estar antes de medir: con la lista vacía el barrido no mediría
+      // ninguna fila de "Mis trabajos" y el criterio quedaría sin probar.
+      await expect(tecnicoPage.getByRole('link', { name: new RegExp(trabajo.code) })).toBeVisible()
+      expect(
+        await tecnicoPage.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true)
+      await expectTouchTargets(tecnicoPage, TOUCH_CONTROLS)
+
+      await tecnicoContext.close()
     },
   )
 })

@@ -9,8 +9,8 @@ import {
 } from '@tanstack/react-table'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { normalize } from '@/lib/normalize'
 import { useGrid } from '../context'
-import { normalize } from '../lib/normalize'
 import type { GridFeature } from '../types'
 import { ColumnFilter } from './filtering-column-filter'
 

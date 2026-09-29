@@ -29,10 +29,14 @@ export const CASE_VIEWS = [
   'en_curso',
   'vencen_hoy',
   'atrasados',
+  'en_prueba',
   'listos',
   'todos',
 ] as const
 export type CaseView = (typeof CASE_VIEWS)[number]
+/** Un contador por vista rápida (`CASE_VIEWS`), para `GET /api/trabajos/resumen` (T11, #68).
+ * Sin dinero: técnico y mensajero lo ven igual que admin y recepción, sin enmascarado. */
+export type CaseSummary = Record<CaseView, number>
 export const CASE_PAGE_SIZE = 50
 
 const ISO_DATE_FORMAT = 'Fecha inválida (AAAA-MM-DD)'

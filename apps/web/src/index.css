@@ -42,6 +42,7 @@
   --color-background: var(--background);
   --color-articulating-red: var(--articulating-red);
   --color-wax-amber: var(--wax-amber);
+  --color-wax-amber-ink: var(--wax-amber-ink);
   --color-ok-green: var(--ok-green);
   --color-teal-lab-soft: var(--teal-lab-soft);
   --radius-sm: calc(var(--radius) * 0.6);
@@ -88,6 +89,13 @@
   --sidebar-ring: oklch(0.708 0 0);
   --articulating-red: #d6453d;
   --wax-amber: #d99a16;
+  /* I-3 (ronda de fixes 1, T12): `--wax-amber` es un acento (borde/fondo), no un color de
+     texto — como texto sobre su propio fondo al 10 % (`bg-[color:var(--wax-amber)]/10`,
+     "Vence hoy" en `my-cases.tsx`, "En espera"/"Para aceptar falta" en `case-header.tsx`) da
+     2,25:1, muy por debajo de AA (4,5:1). `--wax-amber-ink` es la tinta oscura para ese texto;
+     el fondo y el borde de esos avisos siguen en `--wax-amber`. Verificado en
+     `theme-tokens.test.ts` sobre el fondo real (amber al 10 % compuesto sobre `--card`). */
+  --wax-amber-ink: #7a5900;
   --ok-green: #2f8f5b;
   --teal-lab-soft: #d9efec;
 }
@@ -111,6 +119,12 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+  /* I-3 (ronda de fixes 1, T12): la tinta clara de `:root` (#7a5900) da 2,39:1 sobre el fondo
+     real de la insignia en modo oscuro (`--wax-amber` al 10 % sobre `--card` oscuro,
+     rgb(23,23,23)) — falla peor que el propio `--wax-amber` sin tocar. Verificado a mano en
+     Chrome DevTools (`getImageData` sobre un `<canvas>`, sin depender de que `contrastRatio`
+     interprete oklch): #f5c66b da 9,66:1 sobre ese mismo fondo. */
+  --wax-amber-ink: #f5c66b;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

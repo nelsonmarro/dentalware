@@ -157,6 +157,61 @@ describe('CaseForm', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
+  // M-6 (revisión Tarea 13): tras enviar vacío, `handleClinicChange` usaba `setValue` sin
+  // `shouldValidate` — el disparador de Clínica seguía anunciándose `aria-invalid="true"` con
+  // una clínica ya elegida, hasta el siguiente intento de envío (un lector de pantalla seguía
+  // diciendo "no válido" con el campo ya bien).
+  it('al elegir una clínica tras enviar vacío, el disparador deja de anunciarse inválido', async () => {
+    const onSubmit = vi.fn()
+    const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={onSubmit} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Guardar' }))
+    expect(await screen.findByRole('combobox', { name: 'Clínica' })).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    )
+
+    await pickOption(user, 'Clínica', 'Clínica Uno')
+
+    expect(screen.getByRole('combobox', { name: 'Clínica' })).toHaveAttribute(
+      'aria-invalid',
+      'false',
+    )
+  })
+
+  // Permanente (ruling M-6): hoy nada probaba que cambiar de clínica reinicia el doctor — y es
+  // justo lo que el combobox nuevo podría haber roto sin que ningún test lo notara.
+  it('cambiar de clínica reinicia el doctor elegido', async () => {
+    const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    await pickOption(user, 'Clínica', 'Clínica Uno')
+    await pickOption(user, 'Doctor', 'Dr. Pérez')
+    expect(screen.getByRole('combobox', { name: 'Doctor' })).toHaveTextContent('Dr. Pérez')
+
+    await pickOption(user, 'Clínica', 'Clínica Dos')
+
+    expect(screen.getByRole('combobox', { name: 'Doctor' })).toHaveTextContent('Elegir doctor')
+  })
+
+  // Hallazgo propio durante la verificación de M-6 (no es uno de los 8 puntos de la ronda,
+  // pero es un efecto colateral directo de su fix): forzar `shouldValidate` también en el
+  // `setValue` de `doctorId` hacía aparecer "Identificador inválido" apenas se elegía una
+  // clínica, sin que la persona hubiera intentado enviar el formulario ni una vez. `doctorId`
+  // no lleva `shouldValidate`: el `reValidateMode: 'onChange'` por defecto de react-hook-form
+  // ya lo revalida solo una vez que hubo un envío fallido de por medio (ver el test de arriba,
+  // "al elegir una clínica tras enviar vacío…", para ese caso).
+  it('elegir clínica sin haber intentado enviar no muestra un error prematuro en Doctor', async () => {
+    const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    await pickOption(user, 'Clínica', 'Clínica Uno')
+
+    expect(screen.queryByText('Identificador inválido')).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Doctor' })).toHaveAttribute(
+      'aria-invalid',
+      'false',
+    )
+  })
+
   it('elegir clínica habilita el doctor; el producto con precio especial rellena el precio y el total', async () => {
     const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
 

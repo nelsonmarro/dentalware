@@ -104,7 +104,7 @@ export function CaseHeader({
         </div>
 
         {c.status === 'en_espera' && (
-          <p className="rounded-lg border border-[color:var(--wax-amber)]/40 bg-[color:var(--wax-amber)]/10 px-3 py-2 text-sm text-[color:var(--wax-amber)]">
+          <p className="rounded-lg border border-[color:var(--wax-amber)]/40 bg-[color:var(--wax-amber)]/10 px-3 py-2 text-sm text-[color:var(--wax-amber-ink)]">
             {/* Sin el evento `hold` todavía cargado no se inventa una fecha con `updatedAt`
              * (puede ser otra modificación posterior): se dice solo el motivo. */}
             {lastHold ? `En espera desde ${formatTimestampDate(lastHold.createdAt)}` : 'En espera'}
@@ -113,7 +113,7 @@ export function CaseHeader({
         )}
 
         {missing.length > 0 && (
-          <p className="rounded-lg border border-[color:var(--wax-amber)]/40 bg-[color:var(--wax-amber)]/10 px-3 py-2 text-sm text-[color:var(--wax-amber)]">
+          <p className="rounded-lg border border-[color:var(--wax-amber)]/40 bg-[color:var(--wax-amber)]/10 px-3 py-2 text-sm text-[color:var(--wax-amber-ink)]">
             Para aceptar falta: {missing.join(', ')}
           </p>
         )}

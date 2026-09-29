@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { setMatchMedia } from '@/test/match-media'
 import { renderWithProviders } from '@/test/render'
+import { fetchProducts, type Product } from './api'
 import { ClinicPricesTable } from './clinic-prices-table'
 
 const { PRODUCTS, PRICES } = vi.hoisted(() => ({
@@ -103,6 +104,22 @@ describe('ClinicPricesTable', () => {
     await user.click(screen.getByRole('button', { name: 'Ordenar por Producto' }))
     const first = screen.getAllByRole('row')[1]
     expect(first).toHaveTextContent('Prótesis híbrida')
+  })
+
+  it('pagina de 25 en 25', async () => {
+    setMatchMedia(true)
+    const many = Array.from({ length: 26 }, (_, i) => ({
+      ...PRODUCTS[0]!,
+      id: `p${i}`,
+      code: `P${String(i).padStart(2, '0')}`,
+      name: `Producto ${String(i).padStart(2, '0')}`,
+    })) as unknown as Product[]
+    vi.mocked(fetchProducts).mockResolvedValueOnce(many)
+
+    renderWithProviders(<ClinicPricesTable clinicId="clinic-1" />)
+
+    await screen.findByRole('navigation', { name: 'Paginación' })
+    expect(screen.getByText('Página 1 de 2')).toBeInTheDocument()
   })
 
   it('un borrador sin guardar no cruza a otra clínica cuando `clinicId` cambia', async () => {

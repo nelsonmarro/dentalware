@@ -91,6 +91,20 @@ function servicioConTecnicos(
   })
 }
 
+/** Servicio listo para probar `summary()`: sin `hasDocument` ni fases/técnicos relevantes,
+ * reloj fijo en `today`. */
+function servicioParaResumen(seed: CaseDetail[], today: string) {
+  const { repo } = fakeCasesRepo(seed)
+  return createCasesService({
+    cases: repo,
+    attachments: { hasDocument: async () => false },
+    stages: fakeStagesQuery(),
+    users: fakeUsersQuery(),
+    uow: fakeUow(repo),
+    clock: fixedClock(today),
+  })
+}
+
 describe('createCasesService', () => {
   it('la lista oculta el total a técnico y mensajero y lo muestra a admin', async () => {
     const { service } = build()
@@ -698,5 +712,36 @@ describe('repetición', () => {
     )
     expect(rows.size).toBe(rowsAntes)
     expect(events.length).toBe(eventsAntes)
+  })
+})
+
+// T11 (#68): resumen del día por vista. La garantía de que cada contador coincide con el
+// `total` de su lista real es el test de integración contra Postgres (`cases.test.ts`); estos
+// prueban la orquestación (el servicio delega en `cases.summary(today)`).
+describe('resumen del día', () => {
+  it('cuenta cada vista con la misma definición que la lista', async () => {
+    const service = servicioParaResumen(
+      [
+        completo({ id: '1', status: 'nuevo', dueDate: null }),
+        completo({ id: '2', status: 'en_proceso', promisedDate: '2026-09-18', dueDate: null }),
+        completo({ id: '3', status: 'en_proceso', promisedDate: '2026-09-10', dueDate: null }),
+        completo({ id: '4', status: 'en_prueba', dueDate: null }),
+        completo({ id: '5', status: 'terminado', dueDate: null }),
+        completo({ id: '6', status: 'cancelado', dueDate: null }),
+      ],
+      '2026-09-18',
+    )
+    const r = await service.summary()
+    expect(r).toMatchObject({ nuevos: 1, vencen_hoy: 1, atrasados: 1, en_prueba: 1, listos: 1 })
+  })
+
+  it('los cancelados no cuentan en ninguna vista salvo todos', async () => {
+    const service = servicioParaResumen(
+      [completo({ id: '6', status: 'cancelado', dueDate: null })],
+      '2026-09-18',
+    )
+    const r = await service.summary()
+    expect(r.en_curso).toBe(0)
+    expect(r.todos).toBe(1)
   })
 })

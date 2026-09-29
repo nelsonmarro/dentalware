@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { CASE_VIEWS } from '@dentalware/shared'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
@@ -283,6 +284,65 @@ describe('/api/trabajos', () => {
     const idsEnCurso = body.cases.map((c) => c.id)
     expect(idsEnCurso).toContain(enProcesoId)
     expect(idsEnCurso).not.toContain(canceladoId)
+  })
+
+  // T10 (#68): vista rápida de trabajos en prueba en boca.
+  it('vista=en_prueba lista solo los trabajos en estado en_prueba', async () => {
+    const enPruebaId = await createOne(recepcion, { patientRef: 'En prueba' })
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'en_prueba' })
+      .where(eq(ctx.schema.cases.id, enPruebaId))
+
+    const enProcesoId = await createOne(recepcion, { patientRef: 'En proceso' })
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'en_proceso' })
+      .where(eq(ctx.schema.cases.id, enProcesoId))
+
+    const res = await app.request('/api/trabajos?vista=en_prueba', req(recepcion, 'GET'))
+    const body = (await res.json()) as { cases: { id: string }[] }
+    const idsEnPrueba = body.cases.map((c) => c.id)
+    expect(idsEnPrueba).toContain(enPruebaId)
+    expect(idsEnPrueba).not.toContain(enProcesoId)
+  })
+
+  // I-2 (ronda de fixes 1, T12, #68/#69): `tecnicoId` (repo.ts) no tenía ningún test propio —
+  // "Mis trabajos" del panel de inicio depende de que un técnico vea solo lo suyo (INI-2), no
+  // lo de todo el laboratorio. Comentar `if (q.tecnicoId) conds.push(…)` en `repo.ts` deja esta
+  // prueba en rojo mientras el resto de la suite sigue en verde (reproducido en la ronda de
+  // fixes 1, ver `task-12-report.md`).
+  it('tecnicoId filtra solo los trabajos asignados a ese técnico', async () => {
+    const otroTecnicoId = await createUser(ctx.auth, ctx.db, {
+      email: 'tec2@t.local',
+      password: 'Tecnico123!',
+      name: 'Beto Técnico',
+      role: 'tecnico',
+    })
+
+    const deAna = await createOne(recepcion, { patientRef: 'De Ana' })
+    const deBeto = await createOne(recepcion, { patientRef: 'De Beto' })
+    const sinAsignar = await createOne(recepcion, { patientRef: 'Sin asignar' })
+
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'en_proceso', assignedTechnicianId: tecnicoId })
+      .where(eq(ctx.schema.cases.id, deAna))
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'en_proceso', assignedTechnicianId: otroTecnicoId })
+      .where(eq(ctx.schema.cases.id, deBeto))
+    await ctx.db
+      .update(ctx.schema.cases)
+      .set({ status: 'en_proceso' })
+      .where(eq(ctx.schema.cases.id, sinAsignar))
+
+    const res = await app.request(
+      `/api/trabajos?tecnicoId=${tecnicoId}&vista=en_curso`,
+      req(recepcion, 'GET'),
+    )
+    const body = (await res.json()) as { cases: { id: string }[] }
+    expect(body.cases.map((c) => c.id)).toEqual([deAna])
   })
 
   async function ids(qs: string) {
@@ -1157,6 +1217,197 @@ describe('/api/trabajos', () => {
       ).json()) as { case: { prescription: string | null }; missing: string[] }
       expect(fichaHijo.case.prescription).toBeNull()
       expect(fichaHijo.missing).toContain('Prescripción (texto o documento)')
+    })
+  })
+
+  // T11 (#68): resumen del día por vista. `app` (el de todo el archivo) usa el reloj real del
+  // sistema, así que "hoy" no es determinista para `vencen_hoy`/`atrasados`: esta app propia
+  // con un reloj fijo (mismo patrón que `clock` en `createApp`, ver `app.ts`) es la que deja
+  // fijar qué trabajo vence hoy y cuál está atrasado.
+  describe('GET /api/trabajos/resumen', () => {
+    const HOY = '2026-09-20'
+    let resumenApp: ReturnType<typeof createApp>
+
+    beforeAll(() => {
+      resumenApp = createApp({
+        auth: ctx.auth,
+        db: ctx.db,
+        webOrigin: ctx.config.WEB_ORIGIN,
+        storage: ctx.storage,
+        clock: { today: () => HOY, now: () => new Date(`${HOY}T12:00:00Z`) },
+      })
+    })
+
+    // Ruling C1 (T11): si `/resumen` se declarara después de `/:id`, el segmento literal
+    // "resumen" caería en el parámetro `:id` (que valida uuid) y respondería 422, no 200.
+    it('responde 200 (no cae en /:id ni da 422 de uuid)', async () => {
+      const r = await resumenApp.request('/api/trabajos/resumen', req(admin, 'GET'))
+      expect(r.status).toBe(200)
+    })
+
+    // `requireAuth` a secas (no `requireRole`, mismo guardián que `/:id` y `/eventos`):
+    // "sin sesión" es 401 aquí, no el 403 uniforme de las rutas con `requireRole`.
+    it('401 sin sesión', async () => {
+      const r = await resumenApp.request('/api/trabajos/resumen', req('', 'GET'))
+      expect(r.status).toBe(401)
+    })
+
+    it('un técnico también lo ve: el resumen no lleva dinero', async () => {
+      const r = await resumenApp.request('/api/trabajos/resumen', req(tecnico, 'GET'))
+      expect(r.status).toBe(200)
+    })
+
+    // Criterio de aceptación de INI-1: cada contador de `resumen` coincide con el `total` que
+    // devuelve `GET /api/trabajos?vista=<v>` para esa misma vista, para las 7 vistas — sin
+    // números escritos a mano. Distribución no trivial (deliberada): al menos un trabajo por
+    // vista salvo `atrasados`/`vencen_hoy`, que comparten sus dos `en_proceso` con `en_curso`.
+    it('cada contador coincide con el total de la lista de su misma vista', async () => {
+      await createOne(recepcion, { patientRef: 'Nuevo' })
+
+      const venceHoyId = await createOne(recepcion, { patientRef: 'Vence hoy' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_proceso', promisedDate: HOY })
+        .where(eq(ctx.schema.cases.id, venceHoyId))
+
+      const atrasadoId = await createOne(recepcion, { patientRef: 'Atrasado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_proceso', promisedDate: '2026-09-10' })
+        .where(eq(ctx.schema.cases.id, atrasadoId))
+
+      const enEsperaId = await createOne(recepcion, { patientRef: 'En espera' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_espera' })
+        .where(eq(ctx.schema.cases.id, enEsperaId))
+
+      const enPruebaId = await createOne(recepcion, { patientRef: 'En prueba' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_prueba' })
+        .where(eq(ctx.schema.cases.id, enPruebaId))
+
+      const terminadoId = await createOne(recepcion, { patientRef: 'Terminado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'terminado' })
+        .where(eq(ctx.schema.cases.id, terminadoId))
+
+      const enviadoId = await createOne(recepcion, { patientRef: 'Enviado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'enviado' })
+        .where(eq(ctx.schema.cases.id, enviadoId))
+
+      const entregadoId = await createOne(recepcion, { patientRef: 'Entregado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'entregado' })
+        .where(eq(ctx.schema.cases.id, entregadoId))
+
+      const canceladoId = await createOne(recepcion, { patientRef: 'Cancelado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'cancelado' })
+        .where(eq(ctx.schema.cases.id, canceladoId))
+
+      const resumenRes = await resumenApp.request('/api/trabajos/resumen', req(admin, 'GET'))
+      expect(resumenRes.status).toBe(200)
+      const { resumen } = (await resumenRes.json()) as { resumen: Record<string, number> }
+
+      for (const vista of CASE_VIEWS) {
+        const listaRes = await resumenApp.request(`/api/trabajos?vista=${vista}`, req(admin, 'GET'))
+        const { total } = (await listaRes.json()) as { total: number }
+        expect(resumen[vista]).toBe(total)
+      }
+      // Sanity: si todo diera 0 (p. ej. porque `/resumen` cayó en `/:id` y ambas listas
+      // fallaran igual de silenciosas), la comparación de arriba pasaría igual. `todos` debe
+      // ver los 9 trabajos creados en este test.
+      expect(resumen.todos).toBe(9)
+    })
+
+    // I-1 (fix wave PR 2, #68): el test de arriba compara el contador con la lista, y ambos
+    // salen de la misma `viewCondition` — prueba que coinciden, no que la definición sea
+    // correcta. Este test fija la definición con reloj fijo (`HOY`): "atrasados" es un trabajo
+    // **activo** cuya fecha efectiva (promised_date si existe, si no due_date) quedó antes de
+    // hoy. Un trabajo cerrado (terminado/entregado/cancelado) nunca es atrasado aunque su fecha
+    // esté vencida, y cuando hay `promised_date` esta manda sobre `due_date` aunque diverjan.
+    it('atrasados: solo trabajos activos, por fecha efectiva (promised_date manda sobre due_date)', async () => {
+      // Activo, promised_date pasada y due_date futura: la promesa manda → atrasado.
+      const activoAtrasadoId = await createOne(recepcion, { patientRef: 'Activo atrasado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_proceso', promisedDate: '2026-09-10', dueDate: '2026-12-01' })
+        .where(eq(ctx.schema.cases.id, activoAtrasadoId))
+
+      // Activo, promised_date futura y due_date pasada: la promesa manda → no atrasado.
+      const activoNoAtrasadoId = await createOne(recepcion, { patientRef: 'Activo no atrasado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_proceso', promisedDate: '2026-12-01', dueDate: '2026-09-01' })
+        .where(eq(ctx.schema.cases.id, activoNoAtrasadoId))
+
+      // Los demás estados activos, vencidos: también cuentan. Los estados se escriben a mano a
+      // propósito y NO se derivan de `ACTIVE_FOR_DATES_STATUSES`: si el test los tomara de la
+      // constante, quitar uno de la lista compartida lo quitaría también del test y nadie lo
+      // notaría (hallazgo de la re-revisión de la ola del PR 2: sin estos casos, quitar
+      // `en_espera` de la lista dejaba 66/66 en verde). `nuevo` no tiene fecha comprometida
+      // (se fija al aceptar), así que cuenta por la deseada: cubre la otra rama del `coalesce`.
+      const activosVencidos: { status: 'nuevo' | 'en_espera' | 'en_prueba'; id: string }[] = []
+      for (const status of ['nuevo', 'en_espera', 'en_prueba'] as const) {
+        const id = await createOne(recepcion, { patientRef: `Vencido ${status}` })
+        await ctx.db
+          .update(ctx.schema.cases)
+          .set(
+            status === 'nuevo'
+              ? { status, promisedDate: null, dueDate: '2026-09-10' }
+              : { status, promisedDate: '2026-09-10', dueDate: '2026-12-01' },
+          )
+          .where(eq(ctx.schema.cases.id, id))
+        activosVencidos.push({ status, id })
+      }
+
+      // Cerrados con promised_date vencida: fuera de "atrasados" pase lo que pase con la fecha.
+      const terminadoId = await createOne(recepcion, { patientRef: 'Terminado vencido' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'terminado', promisedDate: '2026-09-01' })
+        .where(eq(ctx.schema.cases.id, terminadoId))
+
+      const entregadoId = await createOne(recepcion, { patientRef: 'Entregado vencido' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'entregado', promisedDate: '2026-09-01' })
+        .where(eq(ctx.schema.cases.id, entregadoId))
+
+      const canceladoId = await createOne(recepcion, { patientRef: 'Cancelado vencido' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'cancelado', promisedDate: '2026-09-01' })
+        .where(eq(ctx.schema.cases.id, canceladoId))
+
+      const listaRes = await resumenApp.request('/api/trabajos?vista=atrasados', req(admin, 'GET'))
+      expect(listaRes.status).toBe(200)
+      const { cases: lista, total } = (await listaRes.json()) as {
+        cases: { id: string }[]
+        total: number
+      }
+      const ids = lista.map((c) => c.id)
+
+      expect(ids).toContain(activoAtrasadoId)
+      for (const { status, id } of activosVencidos) {
+        expect(ids, `un trabajo ${status} vencido debe estar en atrasados`).toContain(id)
+      }
+      expect(ids).not.toContain(activoNoAtrasadoId)
+      expect(ids).not.toContain(terminadoId)
+      expect(ids).not.toContain(entregadoId)
+      expect(ids).not.toContain(canceladoId)
+      expect(total).toBe(4)
+
+      const resumenRes = await resumenApp.request('/api/trabajos/resumen', req(admin, 'GET'))
+      const { resumen } = (await resumenRes.json()) as { resumen: Record<string, number> }
+      expect(resumen.atrasados).toBe(4)
     })
   })
 })

@@ -4,6 +4,7 @@ import type {
   CaseListQuery,
   CasePriority,
   CaseStatus,
+  CaseSummary,
   PricingUnit,
   RemakeInput,
   StageRef,
@@ -94,6 +95,13 @@ export interface CasesRepository {
   update(id: string, input: CaseInput, actorId: string): Promise<boolean>
   byId(id: string): Promise<CaseDetail | undefined>
   list(q: CaseListQuery, today: string): Promise<CaseListPage>
+  /**
+   * Un contador por vista (`CASE_VIEWS`), en un solo viaje a la BD (T11, #68): misma condición
+   * por vista que usa `list` (`viewCondition` en `repo.ts`, única definición de "qué cae en cada
+   * vista"), agregada con `count(*) filter (where …)`. No lleva dinero: no necesita enmascarado
+   * por rol, a diferencia de `list`.
+   */
+  summary(today: string): Promise<CaseSummary>
   events(caseId: string): Promise<CaseEventRow[]>
   addEvent(e: NewCaseEvent): Promise<void>
   /** Aplica los campos que cambia una acción de estado (ver `CaseTransitionPatch`). */

@@ -391,4 +391,46 @@ test.describe('Trabajos', () => {
       await expect(page.getByText('Nuevo', { exact: true })).toBeVisible()
     },
   )
+
+  test(
+    'el técnico ve en "Mis trabajos" el trabajo aceptado que le asignaron',
+    { tag: '@clave' },
+    async ({ page, browser }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const trabajo = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+
+      const suffix = uniqueSuffix()
+      const email = `tecnico-inicio-e2e-${suffix}@t.local`
+      const password = 'Tecnico1234'
+      const createdUser = await page.request.post('/api/users', {
+        data: { name: `Técnico Inicio E2E ${suffix}`, email, password, role: 'tecnico' },
+      })
+      expect(createdUser.ok()).toBe(true)
+      const { user: tecnico } = (await createdUser.json()) as { user: { id: string } }
+
+      // Aceptado y con técnico asignado: "Mis trabajos" pide `vista=en_curso` (ruling PR 2,
+      // T12), que deja fuera un trabajo todavía "nuevo".
+      await page.goto(`/trabajos/${trabajo.id}`)
+      await page.getByRole('button', { name: 'Aceptar' }).click()
+      await expect(page.getByText('En proceso', { exact: true })).toBeVisible()
+      await page.getByLabel('Técnico responsable').selectOption(tecnico.id)
+      await expect(page.getByLabel('Técnico responsable')).toHaveValue(tecnico.id)
+
+      const tecnicoContext = await browser.newContext()
+      const tecnicoPage = await tecnicoContext.newPage()
+      await login(tecnicoPage, { email, password })
+
+      await expect(tecnicoPage.getByRole('heading', { name: 'Mis trabajos' })).toBeVisible()
+      await tecnicoPage.getByRole('link', { name: new RegExp(trabajo.code) }).click()
+      await expect(tecnicoPage).toHaveURL(`/trabajos/${trabajo.id}`)
+      await expect(tecnicoPage.getByText(trabajo.code)).toBeVisible()
+
+      await tecnicoContext.close()
+    },
+  )
 })
