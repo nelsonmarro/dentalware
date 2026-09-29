@@ -1,0 +1,18 @@
+# Configuración de GitGuardian (formato v2: sin `version: 2`, ggshield lo lee como v1 obsoleto).
+#
+# Se excluyen SOLO los archivos de pruebas. Los tests de la API y los E2E crean usuarios
+# efímeros en la BD de test (`dentalware_test`) con contraseñas escritas en el propio test
+# (p. ej. `Tecnico123!`, `Tecnico1234`); no son secretos, no sirven fuera de esa BD y se
+# repiten en cada test nuevo que necesita un usuario, así que GitGuardian los marcaba como
+# «Generic Password» en cada PR que añadía uno (decidido por Nelson el 2026-09-28, PR #99).
+#
+# Todo lo demás se sigue escaneando: código de producción, configuración, scripts, docs y
+# cualquier `.env*`. Un secreto real nunca va en un test: se lee de `.env` vía `config.ts`
+# (docs/conventions.md §4 y §8), así que excluir los tests no abre un hueco para secretos.
+version: 2
+
+secret:
+  ignored_paths:
+    - '**/*.test.ts'
+    - '**/*.test.tsx'
+    - 'apps/web/e2e/**'
