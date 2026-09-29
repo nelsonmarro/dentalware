@@ -7,6 +7,7 @@ import {
   canPerform,
   CASE_WRITE_ROLES,
   firstStage,
+  hidesPrices,
   isLastStage,
   missingForAccept,
   nextStage,
@@ -38,8 +39,6 @@ import type {
   UnitOfWork,
   UsersQuery,
 } from './ports.ts'
-
-const hidesPrices = (role: UserRole) => role === 'tecnico' || role === 'mensajero'
 
 type Priced = {
   total: string | null
