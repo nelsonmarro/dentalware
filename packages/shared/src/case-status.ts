@@ -173,6 +173,36 @@ export function canAssignTechnician(status: CaseStatus): boolean {
   return !(ASSIGN_TECHNICIAN_BLOCKED_STATUSES as readonly CaseStatus[]).includes(status)
 }
 
+/** Estados en los que la fecha de entrega está "activa": un trabajo cerrado (`terminado` en
+ * adelante) ya no puede vencer ni estar atrasado. Fuente única para las vistas rápidas
+ * `vencen_hoy`/`atrasados` de la API (`cases/repo.ts`, `cases/fakes.ts`) y para el semáforo de
+ * fecha de la web (`dueBadge` en `case-views.ts`) — antes era la misma lista escrita a mano en
+ * los tres sitios (M-2, ola de fixes del PR 2 de la Iteración 3). */
+export const ACTIVE_FOR_DATES_STATUSES = [
+  'nuevo',
+  'en_proceso',
+  'en_espera',
+  'en_prueba',
+] as const satisfies readonly CaseStatus[]
+
+export function isActiveForDates(status: CaseStatus): boolean {
+  return (ACTIVE_FOR_DATES_STATUSES as readonly CaseStatus[]).includes(status)
+}
+
+/** Estados que caen en la vista rápida `en_curso` (`CASE_VIEWS`): el trabajo ya se aceptó y
+ * todavía no llega a un estado terminal de producción. Fuente única para `viewCondition`
+ * (`cases/repo.ts`) y `matchesView` (`cases/fakes.ts`) — misma lista, antes escrita a mano en
+ * ambos (M-2, ola de fixes del PR 2 de la Iteración 3). */
+export const EN_CURSO_STATUSES = [
+  'en_proceso',
+  'en_espera',
+  'en_prueba',
+] as const satisfies readonly CaseStatus[]
+
+export function isEnCurso(status: CaseStatus): boolean {
+  return (EN_CURSO_STATUSES as readonly CaseStatus[]).includes(status)
+}
+
 /** Motivo (en español) de por qué no se puede cambiar de fase en cada estado que no sea
  * `en_proceso`: única fuente para el 409 del servicio (`CaseStateError`) y para el aviso de
  * solo lectura en la ficha de la web — antes eran dos `Record` con las mismas claves y texto

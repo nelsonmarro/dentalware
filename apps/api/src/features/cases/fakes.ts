@@ -3,7 +3,9 @@ import {
   caseInputSchema,
   canRemake,
   fromCents,
+  isActiveForDates,
   isEditableStatus,
+  isEnCurso,
   remakeDueDate,
   sumCents,
   toCents,
@@ -150,10 +152,6 @@ export function caseInputFixture(over: Partial<CaseInput> = {}): CaseInput {
   })
 }
 
-/** Mismas cuatro estados "vivos" que `ACTIVE_FOR_DATES` en `repo.ts`: solo un trabajo en uno de
- * ellos puede caer en `vencen_hoy`/`atrasados` (un trabajo cerrado no "vence"). */
-const FAKE_ACTIVE_FOR_DATES = ['nuevo', 'en_proceso', 'en_espera', 'en_prueba']
-
 /**
  * Aproximación en memoria de `viewCondition` (`repo.ts`, T10): el fake no ejecuta SQL, así que
  * no puede reutilizar esa función directamente. Es una sola definición dentro de `fakes.ts`
@@ -161,16 +159,18 @@ const FAKE_ACTIVE_FOR_DATES = ['nuevo', 'en_proceso', 'en_espera', 'en_prueba']
  * segunda copia de "qué es atrasado" dentro de este archivo (la lección cara del PR 1). La
  * garantía de que coincide con `viewCondition` la da el test de integración contra Postgres
  * (`cases.test.ts`), no este fake: los tests de servicio con fakes prueban la orquestación.
+ * `isActiveForDates`/`isEnCurso` vienen de `shared` (M-2, ola de fixes del PR 2): antes eran
+ * listas escritas a mano aquí y en `repo.ts`, que podían divergir en silencio.
  */
 function matchesView(view: CaseView | undefined, today: string, r: CaseDetail): boolean {
   if (!view || view === 'todos') return true
   const effectiveDate = r.promisedDate ?? r.dueDate
-  const activeForDates = FAKE_ACTIVE_FOR_DATES.includes(r.status)
+  const activeForDates = isActiveForDates(r.status)
   switch (view) {
     case 'nuevos':
       return r.status === 'nuevo'
     case 'en_curso':
-      return r.status === 'en_proceso' || r.status === 'en_espera' || r.status === 'en_prueba'
+      return isEnCurso(r.status)
     case 'vencen_hoy':
       return activeForDates && effectiveDate === today
     case 'atrasados':

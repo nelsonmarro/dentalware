@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACTIONS_REQUIRING_REASON,
+  ACTIVE_FOR_DATES_STATUSES,
   applyAction,
   ASSIGN_TECHNICIAN_ROLES,
   availableActions,
@@ -14,7 +15,10 @@ import {
   CASE_TRANSITIONS,
   CASE_WRITE_ROLES,
   EDITABLE_CASE_STATUSES,
+  EN_CURSO_STATUSES,
+  isActiveForDates,
   isEditableStatus,
+  isEnCurso,
   REMAKE_ROLES,
   REMAKEABLE_STATUSES,
   STAGE_CHANGE_BLOCKED_REASON,
@@ -175,6 +179,32 @@ describe('STAGE_CHANGE_BLOCKED_REASON', () => {
     for (const s of estadosBloqueados) {
       expect(typeof STAGE_CHANGE_BLOCKED_REASON[s]).toBe('string')
       expect(STAGE_CHANGE_BLOCKED_REASON[s]!.length).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('ACTIVE_FOR_DATES_STATUSES / isActiveForDates', () => {
+  it('define nuevo, en_proceso, en_espera y en_prueba como los únicos estados con fecha activa (M-2)', () => {
+    expect(ACTIVE_FOR_DATES_STATUSES).toEqual(['nuevo', 'en_proceso', 'en_espera', 'en_prueba'])
+  })
+
+  it('responde true solo para esos cuatro estados', () => {
+    for (const s of CASE_STATUSES) {
+      expect(isActiveForDates(s)).toBe(
+        s === 'nuevo' || s === 'en_proceso' || s === 'en_espera' || s === 'en_prueba',
+      )
+    }
+  })
+})
+
+describe('EN_CURSO_STATUSES / isEnCurso', () => {
+  it('define en_proceso, en_espera y en_prueba como los únicos estados "en curso" (vista rápida)', () => {
+    expect(EN_CURSO_STATUSES).toEqual(['en_proceso', 'en_espera', 'en_prueba'])
+  })
+
+  it('responde true solo para esos tres estados', () => {
+    for (const s of CASE_STATUSES) {
+      expect(isEnCurso(s)).toBe(s === 'en_proceso' || s === 'en_espera' || s === 'en_prueba')
     }
   })
 })

@@ -1,8 +1,10 @@
 import type { CaseInput, CaseListQuery, CaseSummary, CaseView } from '@dentalware/shared'
 import {
+  ACTIVE_FOR_DATES_STATUSES,
   CASE_PAGE_SIZE,
   CASE_VIEWS,
   canRemake,
+  EN_CURSO_STATUSES,
   formatCaseCode,
   fromCents,
   isEditableStatus,
@@ -119,7 +121,6 @@ async function addEventWith(db: Db | Tx, e: NewCaseEvent): Promise<void> {
   })
 }
 
-const ACTIVE_FOR_DATES = ['nuevo', 'en_proceso', 'en_espera', 'en_prueba'] as const
 const effectiveDate = sql<string | null>`coalesce(${cases.promisedDate}, ${cases.dueDate})`
 
 const ORDER_COLUMNS = {
@@ -139,13 +140,13 @@ const ORDER_COLUMNS = {
 function viewCondition(view: CaseView, today: string): SQL | undefined {
   const conditionByView: Record<CaseView, SQL | undefined> = {
     nuevos: eq(cases.status, 'nuevo'),
-    en_curso: inArray(cases.status, ['en_proceso', 'en_espera', 'en_prueba']),
+    en_curso: inArray(cases.status, [...EN_CURSO_STATUSES]),
     vencen_hoy: and(
-      inArray(cases.status, [...ACTIVE_FOR_DATES]),
+      inArray(cases.status, [...ACTIVE_FOR_DATES_STATUSES]),
       sql`${effectiveDate} = ${today}::date`,
     ),
     atrasados: and(
-      inArray(cases.status, [...ACTIVE_FOR_DATES]),
+      inArray(cases.status, [...ACTIVE_FOR_DATES_STATUSES]),
       sql`${effectiveDate} < ${today}::date`,
     ),
     en_prueba: eq(cases.status, 'en_prueba'),

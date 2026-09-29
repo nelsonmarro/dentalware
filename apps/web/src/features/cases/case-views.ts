@@ -1,5 +1,5 @@
 import type { CaseListQuery, CaseStatus, CaseView } from '@dentalware/shared'
-import { caseListQuerySchema } from '@dentalware/shared'
+import { caseListQuerySchema, isActiveForDates } from '@dentalware/shared'
 
 export const CASE_VIEW_LABEL: Record<CaseView, string> = {
   nuevos: 'Nuevos',
@@ -10,9 +10,6 @@ export const CASE_VIEW_LABEL: Record<CaseView, string> = {
   listos: 'Listos',
   todos: 'Todos',
 }
-
-/** Estados con fecha activa: los mismos que `ACTIVE_FOR_DATES` en la API (repo.ts). */
-const ACTIVE_FOR_DATES: readonly CaseStatus[] = ['nuevo', 'en_proceso', 'en_espera', 'en_prueba']
 
 /** Estados en los que la ficha muestra la fase de producción (M-3, ola de fixes del PR 1,
  * lote B): `finalizar`/`cancelar` no limpian `currentStageId` en la API (ruling: no se toca
@@ -34,7 +31,7 @@ export function dueBadge(
   today: string,
   status: CaseStatus,
 ): 'hoy' | 'atrasado' | null {
-  if (!date || !ACTIVE_FOR_DATES.includes(status)) return null
+  if (!date || !isActiveForDates(status)) return null
   if (date === today) return 'hoy'
   if (date < today) return 'atrasado'
   return null
