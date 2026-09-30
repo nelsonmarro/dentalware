@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { loginAsAdmin } from './helpers'
+import { ADMIN, loginAsAdmin } from './helpers'
 
 test('redirige a /login sin sesión', { tag: '@esencial' }, async ({ page }) => {
   await page.goto('/')
@@ -42,3 +42,19 @@ test('cierra sesión', { tag: '@esencial' }, async ({ page }) => {
   await page.getByRole('button', { name: 'Cerrar sesión' }).first().click()
   await expect(page).toHaveURL(/\/login/)
 })
+
+test(
+  'sin sesión, entrar a /trabajos manda al login y, tras entrar, vuelve a /trabajos',
+  { tag: '@clave' },
+  async ({ page }) => {
+    await page.goto('/trabajos')
+    await expect(page).toHaveURL(/\/login\?redirect=/)
+
+    await page.getByLabel('Correo').fill(ADMIN.email)
+    await page.getByLabel('Contraseña').fill(ADMIN.password)
+    await page.getByRole('button', { name: 'Ingresar' }).click()
+
+    await expect(page).toHaveURL(/\/trabajos(\?|$)/)
+    await expect(page.getByRole('heading', { name: 'Trabajos' })).toBeVisible()
+  },
+)
