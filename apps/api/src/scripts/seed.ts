@@ -9,7 +9,7 @@ import { users } from '../db/schema/index.ts'
 import { isMainModule } from '../lib/is-main-module.ts'
 import { seedCatalogs } from './seed-data.ts'
 
-export type EnsureAdminResult = 'creado' | 'ya existía' | 'corregido'
+export type EnsureAdminResult = 'creado' | 'ya existía' | 'corregido' | 'bloqueado'
 
 /**
  * Crear el admin (Better Auth, `signUpEmail`) y asignarle el rol (Drizzle, `update`) son dos
@@ -17,6 +17,9 @@ export type EnsureAdminResult = 'creado' | 'ya existía' | 'corregido'
  * no envuelve a los dos. Si el segundo paso fallara, quedaría un usuario con `ADMIN_EMAIL` y un
  * rol distinto de `admin`. `ensureAdmin` es idempotente sobre el rol: si el admin ya existe con
  * otro rol, lo corrige en vez de darlo por bueno para siempre (issue #21).
+ *
+ * Un bloqueo, en cambio, lo decidió una persona a propósito: el seed no lo deshace, solo avisa
+ * (`'bloqueado'`) para que quien lo corre sepa por qué el admin no puede entrar.
  */
 export async function ensureAdmin(
   db: Db,
@@ -24,14 +27,15 @@ export async function ensureAdmin(
   admin: { email: string; password: string; name: string },
 ): Promise<EnsureAdminResult> {
   const [existing] = await db
-    .select({ id: users.id, role: users.role })
+    .select({ id: users.id, role: users.role, banned: users.banned })
     .from(users)
     .where(eq(users.email, admin.email))
 
   if (existing) {
-    if (existing.role === 'admin') return 'ya existía'
-    await db.update(users).set({ role: 'admin' }).where(eq(users.id, existing.id))
-    return 'corregido'
+    const wrongRole = existing.role !== 'admin'
+    if (wrongRole) await db.update(users).set({ role: 'admin' }).where(eq(users.id, existing.id))
+    if (existing.banned) return 'bloqueado'
+    return wrongRole ? 'corregido' : 'ya existía'
   }
 
   const created = await auth.api.signUpEmail({
@@ -45,6 +49,8 @@ const ENSURE_ADMIN_MESSAGES: Record<EnsureAdminResult, (email: string) => string
   creado: (email) => `Admin creado: ${email}`,
   'ya existía': (email) => `Admin ya existe: ${email}`,
   corregido: (email) => `Admin ${email} existía con otro rol: corregido a admin`,
+  bloqueado: (email) =>
+    `Aviso: el admin ${email} está bloqueado y no puede iniciar sesión; el seed no lo desbloquea`,
 }
 
 async function main() {
@@ -59,7 +65,8 @@ async function main() {
       password: config.ADMIN_PASSWORD,
       name: config.ADMIN_NAME,
     })
-    console.log(ENSURE_ADMIN_MESSAGES[result](config.ADMIN_EMAIL))
+    const report = result === 'bloqueado' ? console.warn : console.log
+    report(ENSURE_ADMIN_MESSAGES[result](config.ADMIN_EMAIL))
 
     await seedCatalogs(db)
     console.log('Catálogos iniciales listos')

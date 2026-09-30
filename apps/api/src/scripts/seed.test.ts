@@ -58,4 +58,34 @@ describe('ensureAdmin', () => {
     expect(result).toBe('corregido')
     expect(await roleOf(admin.email)).toBe('admin')
   })
+
+  it('avisa sin desbanear si el admin está bloqueado (M-2, ronda de fixes 1)', async () => {
+    // Un bloqueo lo decidió una persona a propósito: el seed (vía de recuperación manual) debe
+    // avisar, no deshacerlo en silencio.
+    await ensureAdmin(ctx.db, ctx.auth, admin)
+    await ctx.db.update(users).set({ banned: true }).where(eq(users.email, admin.email))
+
+    const result = await ensureAdmin(ctx.db, ctx.auth, admin)
+
+    expect(result).toBe('bloqueado')
+    const [row] = await ctx.db
+      .select({ banned: users.banned })
+      .from(users)
+      .where(eq(users.email, admin.email))
+    expect(row?.banned).toBe(true)
+  })
+  it('bloqueado y con otro rol: corrige el rol pero sigue sin desbanear', async () => {
+    await ensureAdmin(ctx.db, ctx.auth, admin)
+    await ctx.db
+      .update(users)
+      .set({ banned: true, role: 'tecnico' })
+      .where(eq(users.email, admin.email))
+
+    expect(await ensureAdmin(ctx.db, ctx.auth, admin)).toBe('bloqueado')
+    const [row] = await ctx.db
+      .select({ banned: users.banned, role: users.role })
+      .from(users)
+      .where(eq(users.email, admin.email))
+    expect(row).toEqual({ banned: true, role: 'admin' })
+  })
 })
