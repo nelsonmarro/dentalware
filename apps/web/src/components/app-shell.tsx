@@ -48,7 +48,7 @@ export function AppShell({
         data-testid="sidebar"
       >
         <div className="px-5 py-4 text-lg font-semibold">Dentalware</div>
-        <nav className="flex flex-1 flex-col gap-1 px-3">
+        <nav aria-label="Principal" className="flex flex-1 flex-col gap-1 px-3">
           {items.map((i) => (
             <Link
               key={i.to}
@@ -62,10 +62,11 @@ export function AppShell({
             </Link>
           ))}
         </nav>
-        <div className="flex items-center justify-between border-t border-border px-4 py-3 text-sm">
-          <span className="truncate">{user.name}</span>
-          <Button variant="ghost" size="icon" onClick={logout} aria-label="Cerrar sesión">
+        <div className="flex flex-col gap-2 border-t border-border px-3 py-3 text-sm">
+          <span className="truncate px-1 text-muted-foreground">{user.name}</span>
+          <Button variant="outline" className="w-full justify-start gap-2" onClick={logout}>
             <LogOut className="size-4" />
+            Cerrar sesión
           </Button>
         </div>
       </aside>
@@ -83,8 +84,13 @@ export function AppShell({
           <div className="mx-auto w-full max-w-[1200px] print:max-w-none">{children}</div>
         </main>
 
-        {/* Barra inferior móvil */}
+        {/* Barra inferior móvil. Nombre distinto de la barra lateral («Principal»): aunque solo
+            una se muestra a la vez según el viewport, las dos quedan en el DOM (el `hidden` de
+            Tailwind es CSS, no desmontaje) y jsdom no aplica media queries, así que ambos
+            `<nav>` son accesibles a la vez en pruebas — y un lector de pantalla que recorra el
+            documento entero (o un test) las vería igual si compartieran nombre. */}
         <nav
+          aria-label="Principal móvil"
           className="fixed inset-x-0 bottom-0 flex justify-around border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden print:hidden"
           data-testid="bottom-nav"
         >
