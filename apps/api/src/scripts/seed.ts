@@ -50,7 +50,8 @@ const ENSURE_ADMIN_MESSAGES: Record<EnsureAdminResult, (email: string) => string
   'ya existía': (email) => `Admin ya existe: ${email}`,
   corregido: (email) => `Admin ${email} existía con otro rol: corregido a admin`,
   bloqueado: (email) =>
-    `Aviso: el admin ${email} está bloqueado y no puede iniciar sesión; el seed no lo desbloquea`,
+    `Aviso: el admin ${email} está bloqueado y no puede iniciar sesión. El seed no lo ` +
+    'desbloquea: hazlo con otro admin en Configuración › Usuarios › Desbloquear.',
 }
 
 async function main() {
