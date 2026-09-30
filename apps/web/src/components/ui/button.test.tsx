@@ -35,4 +35,9 @@ describe('Button', () => {
     render(<Button size="icon-lg" aria-label="Eliminar" />)
     expect(screen.getByRole('button', { name: 'Eliminar' })).toHaveClass('size-12')
   })
+
+  it('desactiva la transición cuando el usuario pide menos movimiento', () => {
+    render(<Button>Ir</Button>)
+    expect(screen.getByRole('button', { name: 'Ir' })).toHaveClass('motion-reduce:transition-none')
+  })
 })
