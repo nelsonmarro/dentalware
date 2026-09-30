@@ -1,6 +1,7 @@
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, redirect, useNavigate, useRouter } from '@tanstack/react-router'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { getSessionStatus, INVALID_ROLE_MESSAGE } from '@/features/auth/session'
+import { getSessionStatus, INVALID_ROLE_MESSAGE, signOut } from '@/features/auth/session'
 import { LoginForm } from '@/features/auth/login-form'
 
 export const Route = createFileRoute('/login')({
@@ -18,6 +19,14 @@ export const Route = createFileRoute('/login')({
 function LoginPage() {
   const { invalidRole } = Route.useRouteContext()
   const navigate = useNavigate()
+  const router = useRouter()
+  // Con un rol no válido la sesión sigue abierta: sin cerrarla, nadie podría entrar con otro
+  // usuario desde este navegador. Tras cerrar, `invalidate` repite el `beforeLoad` y el aviso
+  // desaparece (issue #21, M-4).
+  const handleSignOut = async () => {
+    await signOut()
+    await router.invalidate()
+  }
   return (
     <div className="flex min-h-svh items-center justify-center bg-background p-4">
       <Card className="w-full max-w-[400px] border-l-4 border-l-primary">
@@ -27,9 +36,14 @@ function LoginPage() {
         </CardHeader>
         <CardContent>
           {invalidRole && (
-            <p role="alert" className="mb-4 text-sm text-destructive">
-              {INVALID_ROLE_MESSAGE}
-            </p>
+            <div className="mb-4 flex flex-col gap-3">
+              <p role="alert" className="text-sm text-destructive">
+                {INVALID_ROLE_MESSAGE}
+              </p>
+              <Button type="button" variant="outline" className="w-full" onClick={handleSignOut}>
+                Cerrar sesión
+              </Button>
+            </div>
           )}
           <LoginForm onSuccess={() => navigate({ to: '/' })} />
         </CardContent>
