@@ -1,3 +1,4 @@
+import { waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { renderWithProviders } from '@/test/render'
@@ -10,8 +11,8 @@ describe('LoginForm', () => {
 
     await user.click(getByRole('button', { name: 'Ingresar' }))
 
-    const email = await getByLabelText('Correo')
-    expect(email).toHaveAttribute('aria-invalid', 'true')
+    const email = getByLabelText('Correo')
+    await waitFor(() => expect(email).toHaveAttribute('aria-invalid', 'true'))
     const describedBy = email.getAttribute('aria-describedby')
     expect(describedBy).toBeTruthy()
     expect(document.getElementById(describedBy!)).toHaveTextContent('Correo inválido')

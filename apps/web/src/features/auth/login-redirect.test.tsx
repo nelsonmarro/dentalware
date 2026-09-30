@@ -101,4 +101,28 @@ describe('redirección tras iniciar sesión (issue #20)', () => {
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/trabajos'))
   })
+
+  it('con sesión ya iniciada, un destino externo en ?redirect= entra a Inicio', async () => {
+    vi.mocked(authClient.getSession).mockResolvedValue(withRole('admin'))
+
+    const router = renderApp('/login?redirect=%2F%2Fmalo.example%2Fx')
+
+    await waitFor(() => expect(router.state.location.href).toBe('/'))
+  })
+
+  it('el viaje de ida y vuelta conserva la búsqueda y el hash del destino', async () => {
+    vi.mocked(authClient.getSession).mockResolvedValue(anonymous)
+    vi.mocked(authClient.signIn.email).mockImplementation(async () => {
+      vi.mocked(authClient.getSession).mockResolvedValue(withRole('admin'))
+      return { data: { user: { id: 'u1' } }, error: null } as SignInResult
+    })
+
+    const router = renderApp('/trabajos?vista=atrasados&pagina=2#x')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    await fillAndSubmitLogin()
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/trabajos'))
+    expect(router.state.location.search).toMatchObject({ vista: 'atrasados', pagina: 2 })
+    expect(router.state.location.hash).toBe('x')
+  })
 })
