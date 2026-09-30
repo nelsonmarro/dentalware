@@ -1,5 +1,4 @@
 import { serve } from '@hono/node-server'
-import { fileURLToPath } from 'node:url'
 import { createApp } from './app.ts'
 import { createAuth } from './auth.ts'
 import { loadConfig } from './config.ts'
@@ -21,12 +20,14 @@ async function main() {
   })
 }
 
-// Solo ejecuta `main` cuando el archivo corre como script (`tsx src/main.ts` / `node dist/main.js`).
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  try {
-    await main()
-  } catch (error) {
-    reportStartupError(error)
-    process.exit(1)
-  }
+// `main.ts` es siempre el punto de entrada del proceso (`tsx src/main.ts` / `node dist/main.js`):
+// nada más lo importa, así que no necesita (ni debe llevar) una guarda de "solo como script" —
+// esa guarda, mal comparada, dejaba salir el proceso con código 0 sin arrancar si se invocaba
+// por un symlink (issue #21, ronda de fixes 1, M-3). Lo que sí hacía falta probar
+// (`reportStartupError`) ya vive en `lib/startup.ts`, sin depender de esta guarda.
+try {
+  await main()
+} catch (error) {
+  reportStartupError(error)
+  process.exit(1)
 }

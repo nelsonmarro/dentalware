@@ -1,5 +1,4 @@
 import { eq } from 'drizzle-orm'
-import { fileURLToPath } from 'node:url'
 import type { Auth } from '../auth.ts'
 import { createAuth } from '../auth.ts'
 import { loadConfig } from '../config.ts'
@@ -7,6 +6,7 @@ import type { Db } from '../db/index.ts'
 import { createDb } from '../db/index.ts'
 import { runMigrations } from '../db/migrate.ts'
 import { users } from '../db/schema/index.ts'
+import { isMainModule } from '../lib/is-main-module.ts'
 import { seedCatalogs } from './seed-data.ts'
 
 export type EnsureAdminResult = 'creado' | 'ya existía' | 'corregido'
@@ -70,6 +70,8 @@ async function main() {
 
 // Solo ejecuta `main` cuando el archivo corre como script (`tsx src/scripts/seed.ts`), no
 // cuando `seed.test.ts` importa `ensureAdmin` (mismo patrón que `reset-test-db.ts`).
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+// `isMainModule` resuelve symlinks: sin eso, arrancar por uno dejaba el proceso salir con
+// código 0 sin sembrar nada (issue #21, ronda de fixes 1, M-3).
+if (isMainModule(import.meta.url)) {
   await main()
 }
