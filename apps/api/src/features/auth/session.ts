@@ -21,11 +21,6 @@ export const sessionMiddleware = (auth: Auth) =>
     await next()
   })
 
-export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
-  if (!c.var.user) throw new HTTPException(401, { message: 'No autenticado' })
-  await next()
-})
-
 /**
  * El rol viaja como `string` desde Better Auth: una fila manipulada o una migración a medias
  * podría entregar un valor que no es uno de `USER_ROLES`. Se valida aquí, en la frontera, en
@@ -37,6 +32,17 @@ function validRoleOf(user: SessionUser | null): UserRole | null {
   const role = userRoleSchema.safeParse(user.role)
   return role.success ? role.data : null
 }
+
+export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
+  if (!c.var.user) throw new HTTPException(401, { message: 'No autenticado' })
+  // Sin sesión sigue siendo 401 (rutas de solo lectura, `docs/conventions.md` §4); con sesión
+  // pero un rol que no es uno de `USER_ROLES`, 403: "un rol desconocido es un error explícito,
+  // nunca un permiso" vale en toda ruta protegida, no solo donde se llama `ctxFrom` (M-1, ronda
+  // de fixes 1, #21) — si no, `/api/trabajos/resumen`, los catálogos, la descarga de adjuntos y
+  // `/api/me` dejaban leer con un rol inválido.
+  if (!validRoleOf(c.var.user)) throw new HTTPException(403, { message: 'Sin permiso' })
+  await next()
+})
 
 export const requireRole = (...roles: UserRole[]) =>
   createMiddleware<AppEnv>(async (c, next) => {
