@@ -33,10 +33,14 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void | Promise<void>
           type="email"
           autoComplete="email"
           className="h-11"
+          aria-invalid={form.formState.errors.email ? 'true' : undefined}
+          aria-describedby={form.formState.errors.email ? 'email-error' : undefined}
           {...form.register('email')}
         />
         {form.formState.errors.email && (
-          <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
+          <p id="email-error" className="text-sm text-destructive">
+            {form.formState.errors.email.message}
+          </p>
         )}
       </div>
       <div className="flex flex-col gap-1.5">
@@ -46,10 +50,14 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void | Promise<void>
           type="password"
           autoComplete="current-password"
           className="h-11"
+          aria-invalid={form.formState.errors.password ? 'true' : undefined}
+          aria-describedby={form.formState.errors.password ? 'password-error' : undefined}
           {...form.register('password')}
         />
         {form.formState.errors.password && (
-          <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
+          <p id="password-error" className="text-sm text-destructive">
+            {form.formState.errors.password.message}
+          </p>
         )}
       </div>
       {serverError && (
