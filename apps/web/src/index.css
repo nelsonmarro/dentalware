@@ -184,17 +184,4 @@
     background: #fff !important;
     color: #000 !important;
   }
-  /* K-3 (ronda de fixes 1, Tarea 14, #71): TanStack Router/Query Devtools solo montan en
-   * `vite dev` (`import.meta.env.DEV`, `__root.tsx`/`main.tsx`), pero ahí tapaban la firma en
-   * cada PDF de la orden — no aceptan `className` en su componente React, así que no hay un
-   * `print:hidden` de Tailwind que ponerles en el sitio de montaje; se ocultan por clase CSS
-   * estable de la librería en vez de eso. `.TanStackRouterDevtools` es el `<footer>` que envuelve
-   * botón y panel del router; `.tsqd-parent-container` es el contenedor raíz de React Query
-   * Devtools (confirmado inspeccionando el DOM real de `vite dev`, no documentado por ninguna
-   * de las dos librerías). En producción ninguna de las dos clases existe: esta regla es un
-   * no-op fuera de desarrollo. */
-  .TanStackRouterDevtools,
-  .tsqd-parent-container {
-    display: none !important;
-  }
 }

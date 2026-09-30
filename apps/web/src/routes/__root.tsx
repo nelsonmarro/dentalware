@@ -10,7 +10,12 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     <>
       <Outlet />
       <Toaster position="top-center" richColors />
-      {import.meta.env.DEV && <TanStackRouterDevtools position="bottom-right" />}
+      {/* `print:hidden`: fuera de la orden impresa (ver el mismo comentario en `main.tsx`). */}
+      {import.meta.env.DEV && (
+        <div className="print:hidden">
+          <TanStackRouterDevtools position="bottom-right" />
+        </div>
+      )}
     </>
   ),
 })

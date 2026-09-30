@@ -12,6 +12,12 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 COPY packages/shared packages/shared
 COPY apps/api apps/api
 COPY apps/web apps/web
+# URL pública con la que se imprime el QR de la orden de trabajo (`apps/web/src/lib/public-url.ts`).
+# Vite la incrusta al compilar, así que tiene que llegar como argumento de build: la pasa
+# docker-compose desde PUBLIC_URL. Sin ella, el QR usaría el origen desde el que se abrió la app
+# (p. ej. la IP del VPS), y ese papel circula semanas por el laboratorio.
+ARG VITE_PUBLIC_URL
+ENV VITE_PUBLIC_URL=$VITE_PUBLIC_URL
 RUN pnpm --filter @dentalware/web... build
 
 FROM caddy:2-alpine
