@@ -31,6 +31,14 @@ const configSchema = z.object({
 export type Config = z.infer<typeof configSchema>
 
 /**
+ * Clase propia (no `Error` a secas) para que `main.ts` pueda distinguir "la configuración es
+ * inválida" (mensaje en español, sin traza) de cualquier otro fallo de arranque (Postgres
+ * caído, host inexistente, contraseña incorrecta: esos se imprimen completos, con `cause`,
+ * issue #21 ronda de fixes 1).
+ */
+export class ConfigError extends Error {}
+
+/**
  * Carga `.env.test` cuando `NODE_ENV=test` y `.env` en caso contrario (no sobrescribe
  * variables ya definidas; tolera que el archivo no exista) y valida. Playwright arranca
  * la API con `NODE_ENV=test`, así que los E2E usan la BD de `.env.test`
@@ -48,7 +56,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = configSchema.safeParse(env)
   if (!parsed.success) {
     const detalle = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('\n')
-    throw new Error(`Configuración inválida:\n${detalle}`)
+    throw new ConfigError(`Configuración inválida:\n${detalle}`)
   }
   return parsed.data
 }
