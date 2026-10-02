@@ -1,7 +1,7 @@
 import type { UserRole } from '@dentalware/shared'
-import { isEditableStatus } from '@dentalware/shared'
+import { hidesPrices, isEditableStatus } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
-import { Pencil } from 'lucide-react'
+import { Pencil, Printer } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -39,7 +39,7 @@ export function CaseHeader({
    * (los tests de este componente no cargan `/eventos`). */
   events?: CaseEvent[]
 }) {
-  const hidePrices = role === 'tecnico' || role === 'mensajero'
+  const hidePrices = hidesPrices(role)
   const canEdit = (role === 'admin' || role === 'recepcion') && isEditableStatus(c.status)
   const patient = [
     c.patientRef,
@@ -79,13 +79,20 @@ export function CaseHeader({
               </Link>
             )}
           </div>
-          {canEdit && (
+          <div className="flex gap-2">
             <Button asChild variant="outline" className="h-11">
-              <Link to="/trabajos/$caseId/editar" params={{ caseId: c.id }}>
-                <Pencil /> Editar
+              <Link to="/trabajos/$caseId/imprimir" params={{ caseId: c.id }}>
+                <Printer /> Imprimir
               </Link>
             </Button>
-          )}
+            {canEdit && (
+              <Button asChild variant="outline" className="h-11">
+                <Link to="/trabajos/$caseId/editar" params={{ caseId: c.id }}>
+                  <Pencil /> Editar
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

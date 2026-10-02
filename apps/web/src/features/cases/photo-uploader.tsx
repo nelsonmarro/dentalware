@@ -1,44 +1,20 @@
 import { Camera, Paperclip } from 'lucide-react'
-import { useRef, useState } from 'react'
-import { toast } from 'sonner'
+import { useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { ApiError } from '@/lib/api-error'
-import { compressImage } from '@/lib/image-compress'
-import { useUploadAttachment } from './use-attachments'
+import { usePhotoUpload } from './use-photo-upload'
 
 /**
  * Dos botones abren el mismo tipo de selector con distinto `capture`: "Añadir foto"
  * pide la cámara trasera en móvil (`capture="environment"`), "Subir archivo" abre el
  * selector normal (galería/archivos). El atributo no se puede alternar en un único
- * `<input>` según qué botón se pulsó, así que son dos inputs ocultos.
+ * `<input>` según qué botón se pulsó, así que son dos inputs ocultos. La lógica de subida
+ * (compresión + mutación en serie) vive en `usePhotoUpload` (Tarea 15, FIC-3 #73): la
+ * comparte `QuickCase`, que solo necesita el botón de cámara.
  */
 export function PhotoUploader({ caseId, onUploaded }: { caseId: string; onUploaded?: () => void }) {
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const upload = useUploadAttachment(caseId)
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
-
-  async function handleFiles(fileList: FileList | null) {
-    if (!fileList || fileList.length === 0) return
-    const files = [...fileList]
-    for (const [index, file] of files.entries()) {
-      setProgress({ done: index, total: files.length })
-      try {
-        const compressed = await compressImage(file)
-        const form = new FormData()
-        form.append('file', compressed, file.name)
-        await upload.mutateAsync(form)
-      } catch (err) {
-        toast.error(
-          err instanceof ApiError
-            ? `${file.name}: ${err.message}`
-            : `No se pudo subir "${file.name}"`,
-        )
-      }
-    }
-    setProgress(null)
-    onUploaded?.()
-  }
+  const { handleFiles, progress } = usePhotoUpload(caseId, onUploaded)
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -63,10 +39,17 @@ export function PhotoUploader({ caseId, onUploaded }: { caseId: string; onUpload
           {progress.done + 1} de {progress.total}…
         </span>
       )}
+      {/* `aria-hidden` + `tabIndex={-1}` (Tarea 15, hallazgo del barrido táctil de #72/#73):
+          el botón visible de arriba es el objetivo táctil real; este input solo existe para
+          que `.click()` abra el selector nativo, nunca para que alguien lo toque o lo alcance
+          con teclado directamente — mismo criterio que el `<select>` nativo oculto de Radix
+          (`TOUCH_CONTROLS` en `e2e/helpers.ts`), que por eso también se excluye del barrido. */}
       <input
         ref={cameraInputRef}
         type="file"
         aria-label="Añadir foto"
+        aria-hidden="true"
+        tabIndex={-1}
         accept="image/*,application/pdf"
         capture="environment"
         multiple
@@ -80,6 +63,8 @@ export function PhotoUploader({ caseId, onUploaded }: { caseId: string; onUpload
         ref={fileInputRef}
         type="file"
         aria-label="Subir archivo"
+        aria-hidden="true"
+        tabIndex={-1}
         accept="image/*,application/pdf"
         multiple
         className="sr-only"

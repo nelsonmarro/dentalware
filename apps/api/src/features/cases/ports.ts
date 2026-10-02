@@ -94,6 +94,9 @@ export interface CasesRepository {
   /** false si no existe; lanza CaseStateError si el estado no es editable; CaseInputError por producto. */
   update(id: string, input: CaseInput, actorId: string): Promise<boolean>
   byId(id: string): Promise<CaseDetail | undefined>
+  /** Mismo detalle que `byId`, resuelto por código (`AA-NNNNN`) en vez de id (Tarea 15,
+   * FIC-2 #72): la ficha corta del QR entra por código, no por uuid. */
+  byCode(code: string): Promise<CaseDetail | undefined>
   list(q: CaseListQuery, today: string): Promise<CaseListPage>
   /**
    * Un contador por vista (`CASE_VIEWS`), en un solo viaje a la BD (T11, #68): misma condición

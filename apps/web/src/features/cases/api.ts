@@ -43,6 +43,12 @@ export async function fetchCase(id: string) {
 }
 export type CaseDetail = Awaited<ReturnType<typeof fetchCase>>['case']
 
+/** `GET /api/trabajos/codigo/:code` (Tarea 15, FIC-2 #72): ficha corta del QR, misma forma
+ * `{ case, missing }` que `fetchCase` pero resuelta por código en vez de id. */
+export async function fetchCaseByCode(code: string) {
+  return await (await throwIfNotOk(await trabajos.codigo[':code'].$get({ param: { code } }))).json()
+}
+
 export async function createCase(input: CaseInput) {
   return (await (await throwIfNotOk(await trabajos.$post({ json: input }))).json()).case
 }

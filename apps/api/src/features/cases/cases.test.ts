@@ -1410,4 +1410,87 @@ describe('/api/trabajos', () => {
       expect(resumen.atrasados).toBe(4)
     })
   })
+
+  // Tarea 15 (FIC-2 #72, FIC-3 #73): ficha corta del QR, entra por código en vez de uuid.
+  describe('GET /api/trabajos/codigo/:code', () => {
+    it('devuelve el trabajo con la misma forma que GET /api/trabajos/:id', async () => {
+      const id = await createOne(recepcion)
+      const porId = (await (
+        await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))
+      ).json()) as {
+        case: { code: string }
+      }
+      const porCodigo = await app.request(
+        `/api/trabajos/codigo/${porId.case.code}`,
+        req(admin, 'GET'),
+      )
+      expect(porCodigo.status).toBe(200)
+      const body = (await porCodigo.json()) as { case: { id: string; code: string } }
+      expect(body.case.id).toBe(id)
+      expect(body.case.code).toBe(porId.case.code)
+    })
+
+    it('entre varios trabajos devuelve el del código pedido, no otro', async () => {
+      // Hallazgo I-2 de la revisión de la Tarea 15: con un solo trabajo en la BD, un `where`
+      // ignorado en el repo devolvía "el primero" y el test seguía verde. Escanear un QR no
+      // puede abrir el trabajo de otro paciente.
+      await createOne(recepcion)
+      const segundo = await createOne(recepcion)
+      await createOne(recepcion)
+      const { case: buscado } = (await (
+        await app.request(`/api/trabajos/${segundo}`, req(admin, 'GET'))
+      ).json()) as { case: { code: string } }
+
+      const r = await app.request(`/api/trabajos/codigo/${buscado.code}`, req(admin, 'GET'))
+
+      expect(r.status).toBe(200)
+      expect(((await r.json()) as { case: { id: string } }).case.id).toBe(segundo)
+    })
+
+    it('404 con un código inexistente (formato válido)', async () => {
+      const r = await app.request('/api/trabajos/codigo/26-99999', req(admin, 'GET'))
+      expect(r.status).toBe(404)
+      expect(await r.json()).toMatchObject({ message: 'No encontrado' })
+    })
+
+    it('422 con un código de formato inválido', async () => {
+      const r = await app.request('/api/trabajos/codigo/no-es-un-codigo', req(admin, 'GET'))
+      expect(r.status).toBe(422)
+    })
+
+    // Decisión del brief de la Tarea 15 (desviación documentada frente al plan, que decía 403):
+    // `requireAuth` a secas, igual que `/:id` y `/resumen` — 401 sin sesión, no el 403 uniforme
+    // de las rutas con `requireRole`.
+    it('401 sin sesión', async () => {
+      const id = await createOne(recepcion)
+      const porId = (await (
+        await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))
+      ).json()) as {
+        case: { code: string }
+      }
+      const r = await app.request(`/api/trabajos/codigo/${porId.case.code}`, req('', 'GET'))
+      expect(r.status).toBe(401)
+    })
+
+    it('un técnico no ve precios ni notas internas: total, precios de líneas y notas nulos', async () => {
+      const id = await createOne(recepcion, { internalNotes: 'Nota interna confidencial' })
+      const porId = (await (
+        await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))
+      ).json()) as {
+        case: { code: string }
+      }
+      const r = await app.request(`/api/trabajos/codigo/${porId.case.code}`, req(tecnico, 'GET'))
+      expect(r.status).toBe(200)
+      const body = (await r.json()) as {
+        case: {
+          total: string | null
+          internalNotes: string | null
+          items: { unitPrice: string | null }[]
+        }
+      }
+      expect(body.case.total).toBeNull()
+      expect(body.case.internalNotes).toBeNull()
+      expect(body.case.items.every((i) => i.unitPrice === null)).toBe(true)
+    })
+  })
 })

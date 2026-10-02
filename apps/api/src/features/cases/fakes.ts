@@ -211,6 +211,7 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
       return true
     },
     byId: async (id) => rows.get(id),
+    byCode: async (code) => [...rows.values()].find((r) => r.code === code),
     list: async (q, today) => {
       lastListQuery = q
       const filtered = [...rows.values()].filter((r) => matchesView(q.vista, today, r))

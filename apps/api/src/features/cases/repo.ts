@@ -332,6 +332,26 @@ export function createCasesRepo(db: Db | Tx) {
         },
       }),
 
+    // Mismo `with` que `byId` (Tarea 15, FIC-2 #72): la ficha corta del QR necesita el detalle
+    // completo, solo cambia la condición de búsqueda (código en vez de id).
+    byCode: (code) =>
+      db.query.cases.findFirst({
+        where: { code },
+        with: {
+          clinic: { columns: { id: true, name: true } },
+          doctor: { columns: { id: true, name: true } },
+          technician: { columns: { id: true, name: true } },
+          stage: { columns: { id: true, name: true, color: true } },
+          parentCase: { columns: { code: true } },
+          items: {
+            orderBy: { sort: 'asc' },
+            with: {
+              product: { columns: { id: true, code: true, name: true, pricingUnit: true } },
+            },
+          },
+        },
+      }),
+
     list: (q, today) => listCasesWith(db, q, today),
 
     summary: (today) => summaryWith(db, today),

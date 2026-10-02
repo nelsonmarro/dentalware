@@ -30,7 +30,12 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
-      <ReactQueryDevtools initialIsOpen={false} />
+      {/* Envuelto en `print:hidden`: los botones flotantes de las devtools salían en cada PDF de
+       * la orden imprimible, encima de la firma (K-3/N-1, Tarea 14). Un `display: none` en el
+       * ancestro oculta también a los hijos con `position: fixed`. */}
+      <div className="print:hidden">
+        <ReactQueryDevtools initialIsOpen={false} />
+      </div>
     </QueryClientProvider>
   </StrictMode>,
 )

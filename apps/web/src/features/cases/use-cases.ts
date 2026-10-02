@@ -16,6 +16,7 @@ import {
   createCase,
   createRemake,
   fetchCase,
+  fetchCaseByCode,
   fetchCases,
   fetchEvents,
   fetchTechnicians,
@@ -34,6 +35,13 @@ export function useCases(query: CaseListQueryInput) {
 
 export function useCase(id: string) {
   return useQuery({ queryKey: queryKeys.case(id), queryFn: () => fetchCase(id) })
+}
+
+/** `GET /api/trabajos/codigo/:code` (Tarea 15, FIC-2 #72): ficha corta del QR. Bajo el prefijo
+ * `['trabajos']` (ver `queryKeys.caseByCode`), así que avanzar fase o subir una foto desde la
+ * misma pantalla la refresca igual que `useCase`. */
+export function useCaseByCode(code: string) {
+  return useQuery({ queryKey: queryKeys.caseByCode(code), queryFn: () => fetchCaseByCode(code) })
 }
 
 function useInvalidateCases() {

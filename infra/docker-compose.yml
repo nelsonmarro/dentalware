@@ -3,7 +3,12 @@ name: dentalware
 
 services:
   caddy:
-    build: { context: .., dockerfile: infra/web.Dockerfile }
+    build:
+      context: ..
+      dockerfile: infra/web.Dockerfile
+      # El QR de la orden imprimible codifica esta URL (Vite la incrusta en build).
+      args:
+        VITE_PUBLIC_URL: ${PUBLIC_URL}
     restart: unless-stopped
     ports:
       - '80:80'

@@ -22,11 +22,13 @@ import { Route as AppConfiguracionFasesRouteImport } from './routes/_app/configu
 import { Route as AppConfiguracionLaboratorioRouteImport } from './routes/_app/configuracion/laboratorio'
 import { Route as AppConfiguracionProductosRouteImport } from './routes/_app/configuracion/productos'
 import { Route as AppConfiguracionUsuariosRouteImport } from './routes/_app/configuracion/usuarios'
+import { Route as AppTCodeRouteImport } from './routes/_app/t.$code'
 import { Route as AppTrabajosIndexRouteImport } from './routes/_app/trabajos/index'
 import { Route as AppTrabajosCaseIdRouteImport } from './routes/_app/trabajos/$caseId'
 import { Route as AppTrabajosNuevoRouteImport } from './routes/_app/trabajos/nuevo'
 import { Route as AppConfiguracionClinicasClinicIdRouteImport } from './routes/_app/configuracion/clinicas.$clinicId'
 import { Route as AppTrabajosCaseIdEditarRouteImport } from './routes/_app/trabajos/$caseId_.editar'
+import { Route as AppTrabajosCaseIdImprimirRouteImport } from './routes/_app/trabajos/$caseId_.imprimir'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -96,6 +98,11 @@ const AppConfiguracionUsuariosRoute =
     path: '/usuarios',
     getParentRoute: () => AppConfiguracionRoute,
   } as any)
+const AppTCodeRoute = AppTCodeRouteImport.update({
+  id: '/t/$code',
+  path: '/t/$code',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTrabajosIndexRoute = AppTrabajosIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -122,6 +129,12 @@ const AppTrabajosCaseIdEditarRoute = AppTrabajosCaseIdEditarRouteImport.update({
   path: '/$caseId/editar',
   getParentRoute: () => AppTrabajosRoute,
 } as any)
+const AppTrabajosCaseIdImprimirRoute =
+  AppTrabajosCaseIdImprimirRouteImport.update({
+    id: '/$caseId_/imprimir',
+    path: '/$caseId/imprimir',
+    getParentRoute: () => AppTrabajosRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -135,12 +148,14 @@ export interface FileRoutesByFullPath {
   '/configuracion/laboratorio': typeof AppConfiguracionLaboratorioRoute
   '/configuracion/productos': typeof AppConfiguracionProductosRoute
   '/configuracion/usuarios': typeof AppConfiguracionUsuariosRoute
+  '/t/$code': typeof AppTCodeRoute
   '/trabajos/$caseId': typeof AppTrabajosCaseIdRoute
   '/trabajos/nuevo': typeof AppTrabajosNuevoRoute
   '/configuracion/': typeof AppConfiguracionIndexRoute
   '/trabajos/': typeof AppTrabajosIndexRoute
   '/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
   '/trabajos/$caseId/editar': typeof AppTrabajosCaseIdEditarRoute
+  '/trabajos/$caseId/imprimir': typeof AppTrabajosCaseIdImprimirRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -152,12 +167,14 @@ export interface FileRoutesByTo {
   '/configuracion/laboratorio': typeof AppConfiguracionLaboratorioRoute
   '/configuracion/productos': typeof AppConfiguracionProductosRoute
   '/configuracion/usuarios': typeof AppConfiguracionUsuariosRoute
+  '/t/$code': typeof AppTCodeRoute
   '/trabajos/$caseId': typeof AppTrabajosCaseIdRoute
   '/trabajos/nuevo': typeof AppTrabajosNuevoRoute
   '/configuracion': typeof AppConfiguracionIndexRoute
   '/trabajos': typeof AppTrabajosIndexRoute
   '/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
   '/trabajos/$caseId/editar': typeof AppTrabajosCaseIdEditarRoute
+  '/trabajos/$caseId/imprimir': typeof AppTrabajosCaseIdImprimirRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -173,12 +190,14 @@ export interface FileRoutesById {
   '/_app/configuracion/laboratorio': typeof AppConfiguracionLaboratorioRoute
   '/_app/configuracion/productos': typeof AppConfiguracionProductosRoute
   '/_app/configuracion/usuarios': typeof AppConfiguracionUsuariosRoute
+  '/_app/t/$code': typeof AppTCodeRoute
   '/_app/trabajos/$caseId': typeof AppTrabajosCaseIdRoute
   '/_app/trabajos/nuevo': typeof AppTrabajosNuevoRoute
   '/_app/configuracion/': typeof AppConfiguracionIndexRoute
   '/_app/trabajos/': typeof AppTrabajosIndexRoute
   '/_app/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
   '/_app/trabajos/$caseId_/editar': typeof AppTrabajosCaseIdEditarRoute
+  '/_app/trabajos/$caseId_/imprimir': typeof AppTrabajosCaseIdImprimirRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -194,12 +213,14 @@ export interface FileRouteTypes {
     | '/configuracion/laboratorio'
     | '/configuracion/productos'
     | '/configuracion/usuarios'
+    | '/t/$code'
     | '/trabajos/$caseId'
     | '/trabajos/nuevo'
     | '/configuracion/'
     | '/trabajos/'
     | '/configuracion/clinicas/$clinicId'
     | '/trabajos/$caseId/editar'
+    | '/trabajos/$caseId/imprimir'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -211,12 +232,14 @@ export interface FileRouteTypes {
     | '/configuracion/laboratorio'
     | '/configuracion/productos'
     | '/configuracion/usuarios'
+    | '/t/$code'
     | '/trabajos/$caseId'
     | '/trabajos/nuevo'
     | '/configuracion'
     | '/trabajos'
     | '/configuracion/clinicas/$clinicId'
     | '/trabajos/$caseId/editar'
+    | '/trabajos/$caseId/imprimir'
   id:
     | '__root__'
     | '/_app'
@@ -231,12 +254,14 @@ export interface FileRouteTypes {
     | '/_app/configuracion/laboratorio'
     | '/_app/configuracion/productos'
     | '/_app/configuracion/usuarios'
+    | '/_app/t/$code'
     | '/_app/trabajos/$caseId'
     | '/_app/trabajos/nuevo'
     | '/_app/configuracion/'
     | '/_app/trabajos/'
     | '/_app/configuracion/clinicas/$clinicId'
     | '/_app/trabajos/$caseId_/editar'
+    | '/_app/trabajos/$caseId_/imprimir'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -337,6 +362,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppConfiguracionUsuariosRouteImport
       parentRoute: typeof AppConfiguracionRoute
     }
+    '/_app/t/$code': {
+      id: '/_app/t/$code'
+      path: '/t/$code'
+      fullPath: '/t/$code'
+      preLoaderRoute: typeof AppTCodeRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/trabajos/': {
       id: '/_app/trabajos/'
       path: '/'
@@ -370,6 +402,13 @@ declare module '@tanstack/react-router' {
       path: '/$caseId/editar'
       fullPath: '/trabajos/$caseId/editar'
       preLoaderRoute: typeof AppTrabajosCaseIdEditarRouteImport
+      parentRoute: typeof AppTrabajosRoute
+    }
+    '/_app/trabajos/$caseId_/imprimir': {
+      id: '/_app/trabajos/$caseId_/imprimir'
+      path: '/$caseId/imprimir'
+      fullPath: '/trabajos/$caseId/imprimir'
+      preLoaderRoute: typeof AppTrabajosCaseIdImprimirRouteImport
       parentRoute: typeof AppTrabajosRoute
     }
   }
@@ -416,6 +455,7 @@ interface AppTrabajosRouteChildren {
   AppTrabajosNuevoRoute: typeof AppTrabajosNuevoRoute
   AppTrabajosIndexRoute: typeof AppTrabajosIndexRoute
   AppTrabajosCaseIdEditarRoute: typeof AppTrabajosCaseIdEditarRoute
+  AppTrabajosCaseIdImprimirRoute: typeof AppTrabajosCaseIdImprimirRoute
 }
 
 const AppTrabajosRouteChildren: AppTrabajosRouteChildren = {
@@ -423,6 +463,7 @@ const AppTrabajosRouteChildren: AppTrabajosRouteChildren = {
   AppTrabajosNuevoRoute: AppTrabajosNuevoRoute,
   AppTrabajosIndexRoute: AppTrabajosIndexRoute,
   AppTrabajosCaseIdEditarRoute: AppTrabajosCaseIdEditarRoute,
+  AppTrabajosCaseIdImprimirRoute: AppTrabajosCaseIdImprimirRoute,
 }
 
 const AppTrabajosRouteWithChildren = AppTrabajosRoute._addFileChildren(
@@ -435,6 +476,7 @@ interface AppRouteChildren {
   AppEntregasRoute: typeof AppEntregasRoute
   AppTrabajosRoute: typeof AppTrabajosRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
+  AppTCodeRoute: typeof AppTCodeRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -443,6 +485,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppEntregasRoute: AppEntregasRoute,
   AppTrabajosRoute: AppTrabajosRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
+  AppTCodeRoute: AppTCodeRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

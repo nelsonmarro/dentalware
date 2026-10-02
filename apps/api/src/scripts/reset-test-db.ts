@@ -1,8 +1,8 @@
-import { fileURLToPath } from 'node:url'
 import { loadConfig } from '../config.ts'
 import { createDb } from '../db/index.ts'
 import { runMigrations } from '../db/migrate.ts'
 import { truncateAll } from '../db/reset.ts'
+import { isMainModule } from '../lib/is-main-module.ts'
 
 /**
  * Los E2E (Playwright) y los tests unitarios comparten `dentalware_test`: si un test
@@ -36,7 +36,8 @@ async function main() {
 }
 
 // Solo ejecuta `main` cuando el archivo corre como script (`tsx src/scripts/reset-test-db.ts`),
-// no cuando `reset-test-db.test.ts` importa `assertTestEnv`.
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+// no cuando `reset-test-db.test.ts` importa `assertTestEnv`. `isMainModule` resuelve symlinks
+// (issue #21, ronda de fixes 1, M-3).
+if (isMainModule(import.meta.url)) {
   await main()
 }

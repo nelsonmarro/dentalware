@@ -7,6 +7,7 @@ import {
   canPerform,
   CASE_WRITE_ROLES,
   firstStage,
+  hidesPrices,
   isLastStage,
   missingForAccept,
   nextStage,
@@ -38,8 +39,6 @@ import type {
   UnitOfWork,
   UsersQuery,
 } from './ports.ts'
-
-const hidesPrices = (role: UserRole) => role === 'tecnico' || role === 'mensajero'
 
 type Priced = {
   total: string | null
@@ -133,6 +132,16 @@ export function createCasesService(deps: {
     if (!found) throw new CaseNotFoundError()
     return found
   }
+  /** Forma y enmascarado de `detail`/`detailByCode` (Tarea 15, FIC-2 #72): ambos llegan a un
+   * `CaseDetail` ya resuelto (por id o por código) y comparten esta única función, así que
+   * `detailByCode` no duplica `stripPrices` ni el cálculo de `missing`. */
+  const toDetail = async (found: CaseDetail, ctx: RequestContext) => {
+    const hasDoc = await deps.attachments.hasDocument(found.id)
+    return {
+      case: hidesPrices(ctx.role) ? stripPrices(found) : found,
+      missing: readiness(found, hasDoc),
+    }
+  }
   return {
     async list(q: CaseListQuery, ctx: RequestContext) {
       const page = await deps.cases.list(q, deps.clock.today())
@@ -152,12 +161,14 @@ export function createCasesService(deps: {
       return deps.cases.summary(deps.clock.today())
     },
     async detail(id: string, ctx: RequestContext) {
-      const found = await mustGet(id)
-      const hasDoc = await deps.attachments.hasDocument(id)
-      return {
-        case: hidesPrices(ctx.role) ? stripPrices(found) : found,
-        missing: readiness(found, hasDoc),
-      }
+      return toDetail(await mustGet(id), ctx)
+    },
+    /** `GET /api/trabajos/codigo/:code` (Tarea 15, FIC-2 #72): ficha corta del QR, resuelta por
+     * código en vez de id. Misma forma y enmascarado que `detail` (`toDetail`, arriba). */
+    async detailByCode(code: string, ctx: RequestContext) {
+      const found = await deps.cases.byCode(code)
+      if (!found) throw new CaseNotFoundError()
+      return toDetail(found, ctx)
     },
     async create(input: CaseInput, ctx: RequestContext) {
       const { id } = await deps.uow.run(({ cases }) => cases.create(input, ctx.userId))

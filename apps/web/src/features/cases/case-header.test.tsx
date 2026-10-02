@@ -172,6 +172,14 @@ describe('CaseHeader', () => {
     expect(link).toHaveAttribute('href', '/trabajos/caso-padre')
   })
 
+  it('muestra el enlace Imprimir para cualquier rol, incluso sin poder editar', async () => {
+    renderWithRouter(
+      <CaseHeader case={baseCase({ status: 'entregado' })} missing={[]} role="tecnico" />,
+    )
+    const link = await screen.findByRole('link', { name: /Imprimir/ })
+    expect(link).toHaveAttribute('href', '/trabajos/caso-1/imprimir')
+  })
+
   it('un trabajo que no es repetición no muestra el enlace', async () => {
     renderWithRouter(<CaseHeader case={baseCase()} missing={[]} role="admin" />)
     await screen.findByText('26-00001')

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { loadConfig } from './config.ts'
+import { ConfigError, loadConfig } from './config.ts'
 
 describe('loadConfig', () => {
   it('lanza un error en español cuando el entorno está vacío', () => {
@@ -12,6 +12,22 @@ describe('loadConfig', () => {
       expect(message).toContain('Configuración inválida')
       expect(message).not.toMatch(/Invalid|Too small|expected/)
     }
+  })
+
+  it('lanza específicamente un ConfigError, no un Error genérico (issue #21, ronda de fixes 1)', () => {
+    // `main.ts` distingue "error de configuración" (mensaje limpio) de cualquier otro fallo de
+    // arranque (traza completa, con `cause`): necesita una clase propia para diferenciarlos,
+    // no `instanceof Error` (todo lo es). `toThrow(ConfigError)` no basta como RED: si
+    // `ConfigError` no existiera, la importación resolvería a `undefined` y
+    // `toThrow(undefined)` pasa igual (solo exige que lance algo) — falso verde.
+    expect(typeof ConfigError).toBe('function')
+    let caught: unknown
+    try {
+      loadConfig({})
+    } catch (err) {
+      caught = err
+    }
+    expect(caught).toBeInstanceOf(ConfigError)
   })
 
   it('aplica los valores por defecto con un entorno mínimo válido', () => {

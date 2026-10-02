@@ -28,7 +28,10 @@ test.describe('Configuración', () => {
   })
 
   test('crea un producto y rechaza el código duplicado', { tag: '@clave' }, async ({ page }) => {
-    const code = `E2E${Date.now().toString().slice(-5)}`
+    // `.slice(-17)`: `uniqueSuffix()` puede llegar a 19 caracteres (ms + '-' + hasta 5 dígitos
+    // de azar) y `code` tiene un máximo de 20 (`productSchema`, shared) — con el prefijo "E2E"
+    // sobran 17.
+    const code = `E2E${uniqueSuffix().slice(-17)}`
     await page.goto('/configuracion/productos')
     await page.getByRole('button', { name: 'Nuevo producto' }).first().click()
     // Acotado al diálogo: la cabecera de la tabla de productos (DataGrid) trae un botón "Ordenar
@@ -100,7 +103,7 @@ test.describe('Configuración', () => {
   )
 
   test('un técnico no ve Configuración', { tag: '@esencial' }, async ({ page, browser }) => {
-    const email = `tecnico-e2e-${Date.now()}@t.local`
+    const email = `tecnico-e2e-${uniqueSuffix()}@t.local`
     const password = 'Tecnico1234'
     const created = await page.request.post('/api/users', {
       data: { name: 'Técnico E2E', email, password, role: 'tecnico' },

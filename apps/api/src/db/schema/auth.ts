@@ -1,24 +1,29 @@
-import { defineRelationsPart } from 'drizzle-orm'
-import { pgTable, text, timestamp, boolean, index, uniqueIndex } from 'drizzle-orm/pg-core'
+import { USER_ROLES } from '@dentalware/shared'
+import { defineRelationsPart, inArray } from 'drizzle-orm'
+import { pgTable, text, timestamp, boolean, index, uniqueIndex, check } from 'drizzle-orm/pg-core'
 
-export const users = pgTable('users', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  emailVerified: boolean('email_verified').default(false).notNull(),
-  image: text('image'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
-    .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-  role: text('role', { enum: ['admin', 'recepcion', 'tecnico', 'mensajero'] })
-    .default('tecnico')
-    .notNull(),
-  banned: boolean('banned').default(false),
-  banReason: text('ban_reason'),
-  banExpires: timestamp('ban_expires'),
-})
+export const users = pgTable(
+  'users',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    email: text('email').notNull().unique(),
+    emailVerified: boolean('email_verified').default(false).notNull(),
+    image: text('image'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+    role: text('role', { enum: USER_ROLES }).default('tecnico').notNull(),
+    banned: boolean('banned').default(false),
+    banReason: text('ban_reason'),
+    banExpires: timestamp('ban_expires'),
+  },
+  // El `enum` de arriba solo tipa TypeScript: Postgres acepta cualquier texto en la columna
+  // salvo este CHECK. Misma lista (`USER_ROLES` de shared) en las dos partes (issue #21).
+  (table) => [check('users_role_check', inArray(table.role, USER_ROLES))],
+)
 
 export const sessions = pgTable(
   'sessions',

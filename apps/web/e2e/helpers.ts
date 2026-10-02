@@ -52,9 +52,14 @@ export async function createClinicWithDoctor(page: Page) {
   return { clinic, doctor }
 }
 
-/** Crea un producto único "por pieza" por API, en la primera categoría existente. */
+/** Crea un producto único "por pieza" por API, en la primera categoría existente.
+ * `uniqueSuffix()`, no `Date.now()` solo: mismo motivo que `uniqueSuffix` arriba (escritorio
+ * y android corren en paralelo contra la misma BD). `code.slice(-17)` toma la cola de
+ * `uniqueSuffix()` (el azar, no el milisegundo) para que "E2E" + el sufijo no pase el máximo
+ * de 20 caracteres de `productSchema` (shared) sin perder la parte que de verdad evita el
+ * choque. */
 export async function createProduct(page: Page) {
-  const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`
+  const suffix = uniqueSuffix()
 
   const categoriesRes = await page.request.get('/api/config/productos/categorias')
   expect(categoriesRes.ok()).toBe(true)
@@ -62,7 +67,7 @@ export async function createProduct(page: Page) {
 
   const productRes = await page.request.post('/api/config/productos', {
     data: {
-      code: `E2E${suffix}`.slice(0, 20),
+      code: `E2E${suffix.slice(-17)}`,
       name: `Producto E2E ${suffix}`,
       categoryId: categories[0]!.id,
       pricingUnit: 'por_pieza',
@@ -159,8 +164,31 @@ export async function expectTouchTargets(
  * nativo del formulario; nadie puede tocarlo ni llegar a él con el teclado, así que no es un
  * objetivo táctil. Apareció cuando el barrido de «nuevo trabajo» empezó a medir la página de
  * verdad (antes medía en vacío, ver `expectTouchTargets`).
+ *
+ * `input:not(...):not([aria-hidden=true])` (Tarea 15, FIC-3 #73): `PhotoUploader`/`QuickCase`
+ * disparan el selector nativo de archivos con `.click()` sobre un `<input type="file">`
+ * visualmente oculto (`sr-only`); el botón visible de al lado es el objetivo táctil real. Mismo
+ * criterio que el `<select>` de arriba (`aria-hidden` + `tabIndex={-1}` en el propio input):
+ * nadie lo toca ni llega a él con teclado, así que tampoco es un objetivo táctil. Apareció al
+ * barrer `/t/:code` (la ficha corta del QR), la primera pantalla que monta ese input sin
+ * esconderlo detrás de una pestaña sin abrir.
  */
 export const TOUCH_CONTROLS =
-  'button:not([role=switch]):not([data-testid=odontogram] [role=group] button), a[href]:not([data-target-size=inline]), [role=tab], [role=combobox], select:not([aria-hidden=true]), input:not([type=hidden]):not([type=checkbox]):not([type=radio])'
+  'button:not([role=switch]):not([data-testid=odontogram] [role=group] button), a[href]:not([data-target-size=inline]), [role=tab], [role=combobox], select:not([aria-hidden=true]), input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([aria-hidden=true])'
 /** Los switches miden menos por diseño (patrón interruptor): alto ≥ 24, ancho ≥ 44. */
 export const TOUCH_SWITCHES = '[role=switch]'
+
+/**
+ * Guarda de consola (#34: «sin errores de consola»). Registra los `pageerror` (excepciones sin
+ * capturar) y los `console.error` de `page` y devuelve la lista para comprobarla al final del
+ * test con `expect(errors).toEqual([])`. Úsala en `beforeEach`/`afterEach` del spec; las
+ * páginas de contextos nuevos (`browser.newContext()`) se registran aparte.
+ */
+export function trackConsoleErrors(page: Page): string[] {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`))
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(`console.error: ${message.text()}`)
+  })
+  return errors
+}

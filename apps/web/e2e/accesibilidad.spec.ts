@@ -26,7 +26,7 @@ async function createCase(
     data: {
       clinicId: opts.clinicId,
       doctorId: opts.doctorId,
-      patientRef: `Paciente E2E ${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      patientRef: `Paciente E2E ${uniqueSuffix()}`,
       receivedAt: new Date().toISOString().slice(0, 10),
       dueDate: opts.dueDate ?? null,
       prescription: opts.prescription ?? null,
@@ -185,6 +185,64 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // Tarea 18 (#34): los dos diálogos de la barra de acciones que ningún barrido medía todavía
+  // (el resto de la ficha ya lo mide "ficha de un trabajo: pestañas" arriba) — el de motivo
+  // obligatorio ("Pausar"/"Cancelar", mismo componente `CaseActionDialog`, se mide con uno) y
+  // el `ConfirmDialog` de "Finalizar" (ruling de la Tarea 8: las tres acciones que estampan una
+  // fecha irreversible lo usan; "Finalizar" es la única disponible sin pasar antes por
+  // "Marcar enviado"/"Marcar entregado", que exigirían un trabajo ya terminado).
+  test(
+    'ficha de un trabajo en proceso: diálogo de motivo ("Pausar") y confirmación de "Finalizar"',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      await runCaseAction(page, created.id, 'aceptar')
+
+      await page.goto(`/trabajos/${created.id}`)
+      await expect(page.getByRole('button', { name: 'Pausar' })).toBeVisible()
+
+      await page.getByRole('button', { name: 'Pausar' }).click()
+      const motivoDialog = page.getByRole('dialog')
+      await expect(motivoDialog).toBeVisible()
+      await expectTouchTargets(motivoDialog, TOUCH_CONTROLS)
+      await motivoDialog.getByRole('button', { name: 'Volver' }).click()
+      await expect(motivoDialog).not.toBeVisible()
+
+      await page.getByRole('button', { name: 'Finalizar' }).click()
+      const confirmDialog = page.getByRole('alertdialog')
+      await expect(confirmDialog).toBeVisible()
+      await expectTouchTargets(confirmDialog, TOUCH_CONTROLS)
+    },
+  )
+
+  // Tarea 15 (FIC-2 #72 / FIC-3 #73): ficha corta del QR, pantalla nueva de esta iteración —
+  // toda pantalla nueva entra en este barrido (docs/conventions.md §7). Espera al `h1` con el
+  // código (propio de esta pantalla) antes de medir, mismo criterio que el resto del archivo.
+  test(
+    'ficha corta del QR (/t/:code): botones grandes del puesto',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      await runCaseAction(page, created.id, 'aceptar')
+
+      await page.goto(`/t/${created.code}`)
+      await expect(page.getByRole('heading', { level: 1, name: created.code })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+    },
+  )
+
   test(
     'ficha de un trabajo entregado: diálogo "Repetir"',
     { tag: '@extendida' },
@@ -338,6 +396,29 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       await expectTouchTargets(tecnicoPage, TOUCH_CONTROLS)
 
       await tecnicoContext.close()
+    },
+  )
+
+  // M-5 (ronda de fixes 1, Tarea 14, #71): la orden imprimible es pantalla nueva y no estaba en
+  // el barrido. Solo mide los controles en pantalla ("Volver al trabajo", "Imprimir"): el resto
+  // de la orden es contenido para papel, sin objetivos táctiles que probar.
+  test(
+    'orden de trabajo imprimible: "Volver al trabajo" e "Imprimir"',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const trabajo = await createCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+
+      await page.goto(`/trabajos/${trabajo.id}/imprimir`)
+      // Esperar a la página antes de medir: `goto` resuelve al cargar el documento, no al pintar
+      // la pantalla. Sin esta espera el barrido medía cero controles y pasaba en vacío.
+      await expect(page.getByRole('button', { name: 'Imprimir' })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
     },
   )
 })

@@ -1,3 +1,4 @@
+import { hidesPrices } from '@dentalware/shared'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
@@ -42,7 +43,7 @@ function CasePage() {
     )
   }
 
-  const hidePrices = user.role === 'tecnico' || user.role === 'mensajero'
+  const hidePrices = hidesPrices(user.role)
 
   return (
     <div className="flex flex-col gap-6">

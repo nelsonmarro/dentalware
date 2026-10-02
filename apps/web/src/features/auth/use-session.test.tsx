@@ -40,4 +40,16 @@ describe('useSession', () => {
     expect(result.current.user).toBeNull()
     expect(result.current.isPending).toBe(true)
   })
+
+  it('expone user null si el rol de la sesión no es uno de los roles del dominio', () => {
+    vi.mocked(authClient.useSession).mockReturnValue({
+      data: { user: { id: 'u1', name: 'Ana', email: 'ana@labo.test', role: 'superadmin' } },
+      error: null,
+      isPending: false,
+    } as never as ReturnType<typeof authClient.useSession>)
+
+    const { result } = renderHook(() => useSession())
+
+    expect(result.current.user).toBeNull()
+  })
 })
