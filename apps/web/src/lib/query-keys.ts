@@ -19,6 +19,10 @@ export const queryKeys = {
   // `use-summary.ts` tenga que invalidarlo aparte.
   summary: ['trabajos', 'resumen'] as const,
   case: (id: string) => ['trabajos', id] as const,
+  // Bajo el prefijo `trabajos` (Tarea 15, FIC-2 #72): la ficha corta del QR necesita
+  // refrescarse cuando se avanza la fase o se sube una foto, igual que el detalle por id;
+  // `useInvalidateCases` (invalida `['trabajos']`) ya la alcanza sin tocarla aparte.
+  caseByCode: (code: string) => ['trabajos', 'codigo', code] as const,
   // Bajo el prefijo `users`, no `trabajos` (M-7, ola de fixes del PR 1, lote B): son los
   // técnicos activos (`GET /api/trabajos/tecnicos`, dato de la feature `users`, no de
   // `cases`) que llenan el `<select>` de `TechnicianSelect`. Con el prefijo viejo, una alta/
