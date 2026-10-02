@@ -24,7 +24,7 @@ async function createCase(
     data: {
       clinicId: opts.clinicId,
       doctorId: opts.doctorId,
-      patientRef: `Paciente E2E ${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      patientRef: `Paciente E2E ${uniqueSuffix()}`,
       receivedAt: new Date().toISOString().slice(0, 10),
       dueDate: opts.dueDate ?? null,
       prescription: opts.prescription ?? null,
@@ -206,7 +206,7 @@ test.describe('Trabajos', () => {
       teeth: [21],
     })
 
-    const email = `tecnico-e2e-${Date.now()}@t.local`
+    const email = `tecnico-e2e-${uniqueSuffix()}@t.local`
     const password = 'Tecnico1234'
     const createdUser = await page.request.post('/api/users', {
       data: { name: 'Técnico E2E', email, password, role: 'tecnico' },
@@ -238,7 +238,7 @@ test.describe('Trabajos', () => {
   test('importa dos trabajos desde CSV', { tag: '@clave' }, async ({ page }) => {
     const { clinic, doctor } = await createClinicWithDoctor(page)
     const product = await createProduct(page)
-    const suffix = Date.now()
+    const suffix = uniqueSuffix()
 
     const header = [
       'clinica',
@@ -351,7 +351,7 @@ test.describe('Trabajos', () => {
         productId: product.id,
       })
 
-      const email = `tecnico-e2e-${Date.now()}@t.local`
+      const email = `tecnico-e2e-${uniqueSuffix()}@t.local`
       const createdUser = await page.request.post('/api/users', {
         data: { name: 'Técnico Repetición E2E', email, password: 'Tecnico1234', role: 'tecnico' },
       })
@@ -391,6 +391,122 @@ test.describe('Trabajos', () => {
       await expect(page.getByText('Nuevo', { exact: true })).toBeVisible()
     },
   )
+
+  test('pausa un trabajo con motivo y lo reanuda', { tag: '@clave' }, async ({ page }) => {
+    const { clinic, doctor } = await createClinicWithDoctor(page)
+    const product = await createProduct(page)
+    const trabajo = await createCompleteCase(page, {
+      clinicId: clinic.id,
+      doctorId: doctor.id,
+      productId: product.id,
+    })
+    await page.goto(`/trabajos/${trabajo.id}`)
+    await page.getByRole('button', { name: 'Aceptar' }).click()
+    await expect(page.getByText('En proceso', { exact: true })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Pausar' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+
+    // `pausar` está en `ACTIONS_REQUIRING_REASON` (shared): sin motivo, `caseActionSchema`
+    // rechaza y el diálogo no se cierra ni dispara la mutación.
+    await dialog.getByRole('button', { name: 'Confirmar' }).click()
+    await expect(dialog.getByText('Escribe el motivo')).toBeVisible()
+    await expect(page.getByText('En proceso', { exact: true })).toBeVisible()
+
+    const motivo = `Falta antagonista E2E ${uniqueSuffix()}`
+    await dialog.getByLabel('Motivo').fill(motivo)
+    await dialog.getByRole('button', { name: 'Confirmar' }).click()
+    await expect(page.getByText('En espera', { exact: true })).toBeVisible()
+    // El motivo queda visible en la ficha (CaseHeader: "En espera desde …: <motivo>").
+    await expect(page.getByText(motivo)).toBeVisible()
+
+    // `getByRole('listitem')`, no `getByText` a secas: el chip de estado en `CaseHeader`
+    // también dice "En espera" mientras el trabajo siga en ese estado, y coincidiría con el
+    // evento del historial en modo estricto.
+    await page.getByRole('tab', { name: /^Historial/ }).click()
+    await expect(page.getByRole('listitem').filter({ hasText: 'En espera' })).toBeVisible()
+
+    await page.getByRole('tab', { name: 'Detalle' }).click()
+    await page.getByRole('button', { name: 'Reanudar' }).click()
+    await expect(page.getByText('En proceso', { exact: true })).toBeVisible()
+
+    await page.getByRole('tab', { name: /^Historial/ }).click()
+    await expect(page.getByRole('listitem').filter({ hasText: 'Reanudado' })).toBeVisible()
+  })
+
+  test('envía a prueba y recibe la prueba de vuelta', { tag: '@clave' }, async ({ page }) => {
+    const { clinic, doctor } = await createClinicWithDoctor(page)
+    const product = await createProduct(page)
+    const trabajo = await createCompleteCase(page, {
+      clinicId: clinic.id,
+      doctorId: doctor.id,
+      productId: product.id,
+    })
+    await page.goto(`/trabajos/${trabajo.id}`)
+    await page.getByRole('button', { name: 'Aceptar' }).click()
+    await expect(page.getByText('En proceso', { exact: true })).toBeVisible()
+
+    // `enviar_prueba`/`recibir_prueba` no piden motivo ni confirmación (`CONFIRM_DESCRIPTIONS`
+    // y `ACTIONS_REQUIRING_REASON` en `case-actions.tsx`): se envían al primer clic.
+    await page.getByRole('button', { name: 'Enviar a prueba' }).click()
+    await expect(page.getByText('En prueba', { exact: true })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Recibir de prueba' }).click()
+    await expect(page.getByText('En proceso', { exact: true })).toBeVisible()
+
+    await page.getByRole('tab', { name: /^Historial/ }).click()
+    await expect(page.getByText('Prueba enviada', { exact: true })).toBeVisible()
+    await expect(page.getByText('Prueba recibida', { exact: true })).toBeVisible()
+  })
+
+  test('cancela un trabajo con motivo', { tag: '@clave' }, async ({ page }) => {
+    const { clinic, doctor } = await createClinicWithDoctor(page)
+    const product = await createProduct(page)
+    const trabajo = await createCase(page, {
+      clinicId: clinic.id,
+      doctorId: doctor.id,
+      productId: product.id,
+    })
+    await page.goto(`/trabajos/${trabajo.id}`)
+
+    // `cancelar` está en `ACTIONS_REQUIRING_REASON`: el motivo obligatorio es la confirmación
+    // de esta acción (conventions §5: la reversibilidad manda la fricción, no un "¿estás
+    // seguro?" aparte); no hay `ConfirmDialog` adicional (`CONFIRM_DESCRIPTIONS.cancelar` es
+    // `null` en `case-actions.tsx`).
+    await page.getByRole('button', { name: 'Cancelar trabajo' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: 'Confirmar' }).click()
+    await expect(dialog.getByText('Escribe el motivo')).toBeVisible()
+
+    const motivo = `Clínica desistió E2E ${uniqueSuffix()}`
+    await dialog.getByLabel('Motivo').fill(motivo)
+    await dialog.getByRole('button', { name: 'Confirmar' }).click()
+    await expect(page.getByText('Cancelado', { exact: true })).toBeVisible()
+
+    // `availableActions('cancelado')` es vacío (`CASE_TRANSITIONS`, shared): ningún botón de
+    // ciclo de vida queda disponible.
+    for (const label of [
+      'Aceptar',
+      'Pausar',
+      'Reanudar',
+      'Enviar a prueba',
+      'Recibir de prueba',
+      'Finalizar',
+      'Marcar enviado',
+      'Marcar entregado',
+      'Cancelar trabajo',
+    ]) {
+      await expect(page.getByRole('button', { name: label })).not.toBeVisible()
+    }
+
+    // `getByRole('listitem')`: el chip de estado también dice "Cancelado" y coincidiría en
+    // modo estricto con el evento del historial.
+    await page.getByRole('tab', { name: /^Historial/ }).click()
+    await expect(page.getByRole('listitem').filter({ hasText: 'Cancelado' })).toBeVisible()
+    await expect(page.getByText(motivo)).toBeVisible()
+  })
 
   test(
     'el técnico ve en "Mis trabajos" el trabajo aceptado que le asignaron',

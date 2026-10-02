@@ -26,7 +26,7 @@ async function createCase(
     data: {
       clinicId: opts.clinicId,
       doctorId: opts.doctorId,
-      patientRef: `Paciente E2E ${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      patientRef: `Paciente E2E ${uniqueSuffix()}`,
       receivedAt: new Date().toISOString().slice(0, 10),
       dueDate: opts.dueDate ?? null,
       prescription: opts.prescription ?? null,
@@ -182,6 +182,42 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       const backDialog = page.getByRole('dialog')
       await expect(backDialog).toBeVisible()
       await expectTouchTargets(backDialog, TOUCH_CONTROLS)
+    },
+  )
+
+  // Tarea 18 (#34): los dos diálogos de la barra de acciones que ningún barrido medía todavía
+  // (el resto de la ficha ya lo mide "ficha de un trabajo: pestañas" arriba) — el de motivo
+  // obligatorio ("Pausar"/"Cancelar", mismo componente `CaseActionDialog`, se mide con uno) y
+  // el `ConfirmDialog` de "Finalizar" (ruling de la Tarea 8: las tres acciones que estampan una
+  // fecha irreversible lo usan; "Finalizar" es la única disponible sin pasar antes por
+  // "Marcar enviado"/"Marcar entregado", que exigirían un trabajo ya terminado).
+  test(
+    'ficha de un trabajo en proceso: diálogo de motivo ("Pausar") y confirmación de "Finalizar"',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      await runCaseAction(page, created.id, 'aceptar')
+
+      await page.goto(`/trabajos/${created.id}`)
+      await expect(page.getByRole('button', { name: 'Pausar' })).toBeVisible()
+
+      await page.getByRole('button', { name: 'Pausar' }).click()
+      const motivoDialog = page.getByRole('dialog')
+      await expect(motivoDialog).toBeVisible()
+      await expectTouchTargets(motivoDialog, TOUCH_CONTROLS)
+      await motivoDialog.getByRole('button', { name: 'Volver' }).click()
+      await expect(motivoDialog).not.toBeVisible()
+
+      await page.getByRole('button', { name: 'Finalizar' }).click()
+      const confirmDialog = page.getByRole('alertdialog')
+      await expect(confirmDialog).toBeVisible()
+      await expectTouchTargets(confirmDialog, TOUCH_CONTROLS)
     },
   )
 
