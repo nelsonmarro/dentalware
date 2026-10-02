@@ -52,9 +52,14 @@ export async function createClinicWithDoctor(page: Page) {
   return { clinic, doctor }
 }
 
-/** Crea un producto único "por pieza" por API, en la primera categoría existente. */
+/** Crea un producto único "por pieza" por API, en la primera categoría existente.
+ * `uniqueSuffix()`, no `Date.now()` solo: mismo motivo que `uniqueSuffix` arriba (escritorio
+ * y android corren en paralelo contra la misma BD). `code.slice(-17)` toma la cola de
+ * `uniqueSuffix()` (el azar, no el milisegundo) para que "E2E" + el sufijo no pase el máximo
+ * de 20 caracteres de `productSchema` (shared) sin perder la parte que de verdad evita el
+ * choque. */
 export async function createProduct(page: Page) {
-  const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`
+  const suffix = uniqueSuffix()
 
   const categoriesRes = await page.request.get('/api/config/productos/categorias')
   expect(categoriesRes.ok()).toBe(true)
@@ -62,7 +67,7 @@ export async function createProduct(page: Page) {
 
   const productRes = await page.request.post('/api/config/productos', {
     data: {
-      code: `E2E${suffix}`.slice(0, 20),
+      code: `E2E${suffix.slice(-17)}`,
       name: `Producto E2E ${suffix}`,
       categoryId: categories[0]!.id,
       pricingUnit: 'por_pieza',
