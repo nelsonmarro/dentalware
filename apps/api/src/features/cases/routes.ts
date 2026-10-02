@@ -5,6 +5,7 @@ import {
   CASE_WRITE_ROLES,
   REMAKE_ROLES,
   caseActionSchema,
+  caseCodeParamSchema,
   caseInputSchema,
   caseListQuerySchema,
   commentSchema,
@@ -74,6 +75,27 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
     // valida uuid, y respondería 422 en vez de 200. Solo `requireAuth`: el resumen no lleva
     // dinero, así que un técnico también lo ve (ver `service.summary`).
     .get('/resumen', requireAuth, async (c) => c.json({ resumen: await service.summary() }, 200))
+    // Declarada antes de `/:id` por la misma razón que "tecnicos"/"resumen" arriba (Tarea 15,
+    // FIC-2 #72): el segmento literal "codigo" no debe caer en el parámetro `:id`. Solo
+    // `requireAuth` (401 sin sesión, no el 403 uniforme de `requireRole`): decisión del brief de
+    // la Tarea 15, que corrige al plan original (decía 403) para seguir la regla 401/403 vigente
+    // en el resto de rutas de solo lectura (`/:id`, `/resumen`).
+    .get('/codigo/:code', requireAuth, validate('param', caseCodeParamSchema), async (c) => {
+      try {
+        const { case: found, missing } = await service.detailByCode(
+          c.req.valid('param').code,
+          ctxFrom(c),
+        )
+        return c.json({ case: found, missing }, 200)
+      } catch (e) {
+        // `{ message: 'No encontrado' }` (conventions.md §4), no "El trabajo no existe" de
+        // `CaseNotFoundError` (grandfathered en `/:id`, decisión de la Tarea 15): la ficha
+        // corta del QR es la entrada de un técnico escaneando un papel, el mensaje genérico
+        // es más claro ahí que el texto pensado para la ficha completa.
+        if (e instanceof CaseNotFoundError) return c.json({ message: 'No encontrado' }, 404)
+        toHttp(e)
+      }
+    })
     .get('/:id', requireAuth, validate('param', idParamSchema), async (c) => {
       try {
         const { case: found, missing } = await service.detail(c.req.valid('param').id, ctxFrom(c))

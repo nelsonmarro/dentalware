@@ -143,6 +143,27 @@ describe('createCasesService', () => {
     await expect(service.detail('nope', admin)).rejects.toBeInstanceOf(CaseNotFoundError)
   })
 
+  // Tarea 15 (FIC-2 #72): `GET /api/trabajos/codigo/:code` resuelve el trabajo por código y
+  // aplica el mismo enmascarado por rol que `detail` (ruling: nada de duplicar `stripPrices`).
+  it('detailByCode resuelve el trabajo por su código y oculta precios al técnico', async () => {
+    const { service } = build()
+    const r = await service.detailByCode('26-00001', tecnico)
+    expect(r.case.id).toBe('c1')
+    expect(r.case.total).toBeNull()
+    expect(r.case.items[0]!.unitPrice).toBeNull()
+  })
+
+  it('detailByCode no oculta precios a admin', async () => {
+    const { service } = build()
+    const r = await service.detailByCode('26-00001', admin)
+    expect(r.case.total).toBe('90.00')
+  })
+
+  it('detailByCode lanza CaseNotFoundError con un código inexistente', async () => {
+    const { service } = build()
+    await expect(service.detailByCode('26-99999', admin)).rejects.toBeInstanceOf(CaseNotFoundError)
+  })
+
   it('crear devuelve el detalle recién creado y registra el evento created', async () => {
     const { service, events } = build([])
     const c = await service.create(caseInputFixture(), admin)
