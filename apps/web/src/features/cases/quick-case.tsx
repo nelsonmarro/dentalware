@@ -107,10 +107,14 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
             {progress.done + 1} de {progress.total}…
           </span>
         )}
+        {/* `aria-hidden` + `tabIndex={-1}`: el botón de arriba es el objetivo táctil real (ver
+            el mismo criterio en `photo-uploader.tsx`, Tarea 15). */}
         <input
           ref={photoInputRef}
           type="file"
           aria-label="Añadir foto"
+          aria-hidden="true"
+          tabIndex={-1}
           accept="image/*"
           capture="environment"
           multiple
@@ -121,10 +125,13 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
           }}
         />
       </div>
+      {/* `flex h-11 items-center justify-center` (no solo texto subrayado): objetivo táctil de
+          44 px como el resto de la pantalla — con guantes, también este enlace debe ser fácil
+          de tocar, no solo las dos acciones principales. */}
       <Link
         to="/trabajos/$caseId"
         params={{ caseId: c.id }}
-        className="text-center text-sm underline underline-offset-4"
+        className="flex h-11 items-center justify-center text-sm underline underline-offset-4"
       >
         Ver ficha completa
       </Link>

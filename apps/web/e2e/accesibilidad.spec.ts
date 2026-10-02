@@ -185,6 +185,28 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // Tarea 15 (FIC-2 #72 / FIC-3 #73): ficha corta del QR, pantalla nueva de esta iteración —
+  // toda pantalla nueva entra en este barrido (docs/conventions.md §7). Espera al `h1` con el
+  // código (propio de esta pantalla) antes de medir, mismo criterio que el resto del archivo.
+  test(
+    'ficha corta del QR (/t/:code): botones grandes del puesto',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      await runCaseAction(page, created.id, 'aceptar')
+
+      await page.goto(`/t/${created.code}`)
+      await expect(page.getByRole('heading', { level: 1, name: created.code })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+    },
+  )
+
   test(
     'ficha de un trabajo entregado: diálogo "Repetir"',
     { tag: '@extendida' },

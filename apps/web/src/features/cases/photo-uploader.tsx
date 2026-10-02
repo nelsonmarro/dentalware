@@ -39,10 +39,17 @@ export function PhotoUploader({ caseId, onUploaded }: { caseId: string; onUpload
           {progress.done + 1} de {progress.total}…
         </span>
       )}
+      {/* `aria-hidden` + `tabIndex={-1}` (Tarea 15, hallazgo del barrido táctil de #72/#73):
+          el botón visible de arriba es el objetivo táctil real; este input solo existe para
+          que `.click()` abra el selector nativo, nunca para que alguien lo toque o lo alcance
+          con teclado directamente — mismo criterio que el `<select>` nativo oculto de Radix
+          (`TOUCH_CONTROLS` en `e2e/helpers.ts`), que por eso también se excluye del barrido. */}
       <input
         ref={cameraInputRef}
         type="file"
         aria-label="Añadir foto"
+        aria-hidden="true"
+        tabIndex={-1}
         accept="image/*,application/pdf"
         capture="environment"
         multiple
@@ -56,6 +63,8 @@ export function PhotoUploader({ caseId, onUploaded }: { caseId: string; onUpload
         ref={fileInputRef}
         type="file"
         aria-label="Subir archivo"
+        aria-hidden="true"
+        tabIndex={-1}
         accept="image/*,application/pdf"
         multiple
         className="sr-only"

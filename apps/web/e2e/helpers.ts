@@ -159,8 +159,16 @@ export async function expectTouchTargets(
  * nativo del formulario; nadie puede tocarlo ni llegar a él con el teclado, así que no es un
  * objetivo táctil. Apareció cuando el barrido de «nuevo trabajo» empezó a medir la página de
  * verdad (antes medía en vacío, ver `expectTouchTargets`).
+ *
+ * `input:not(...):not([aria-hidden=true])` (Tarea 15, FIC-3 #73): `PhotoUploader`/`QuickCase`
+ * disparan el selector nativo de archivos con `.click()` sobre un `<input type="file">`
+ * visualmente oculto (`sr-only`); el botón visible de al lado es el objetivo táctil real. Mismo
+ * criterio que el `<select>` de arriba (`aria-hidden` + `tabIndex={-1}` en el propio input):
+ * nadie lo toca ni llega a él con teclado, así que tampoco es un objetivo táctil. Apareció al
+ * barrer `/t/:code` (la ficha corta del QR), la primera pantalla que monta ese input sin
+ * esconderlo detrás de una pestaña sin abrir.
  */
 export const TOUCH_CONTROLS =
-  'button:not([role=switch]):not([data-testid=odontogram] [role=group] button), a[href]:not([data-target-size=inline]), [role=tab], [role=combobox], select:not([aria-hidden=true]), input:not([type=hidden]):not([type=checkbox]):not([type=radio])'
+  'button:not([role=switch]):not([data-testid=odontogram] [role=group] button), a[href]:not([data-target-size=inline]), [role=tab], [role=combobox], select:not([aria-hidden=true]), input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([aria-hidden=true])'
 /** Los switches miden menos por diseño (patrón interruptor): alto ≥ 24, ancho ≥ 44. */
 export const TOUCH_SWITCHES = '[role=switch]'
