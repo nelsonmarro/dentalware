@@ -1430,6 +1430,23 @@ describe('/api/trabajos', () => {
       expect(body.case.code).toBe(porId.case.code)
     })
 
+    it('entre varios trabajos devuelve el del código pedido, no otro', async () => {
+      // Hallazgo I-2 de la revisión de la Tarea 15: con un solo trabajo en la BD, un `where`
+      // ignorado en el repo devolvía "el primero" y el test seguía verde. Escanear un QR no
+      // puede abrir el trabajo de otro paciente.
+      await createOne(recepcion)
+      const segundo = await createOne(recepcion)
+      await createOne(recepcion)
+      const { case: buscado } = (await (
+        await app.request(`/api/trabajos/${segundo}`, req(admin, 'GET'))
+      ).json()) as { case: { code: string } }
+
+      const r = await app.request(`/api/trabajos/codigo/${buscado.code}`, req(admin, 'GET'))
+
+      expect(r.status).toBe(200)
+      expect(((await r.json()) as { case: { id: string } }).case.id).toBe(segundo)
+    })
+
     it('404 con un código inexistente (formato válido)', async () => {
       const r = await app.request('/api/trabajos/codigo/26-99999', req(admin, 'GET'))
       expect(r.status).toBe(404)
