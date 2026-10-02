@@ -45,7 +45,12 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
   // Código inexistente (404) o mal formado (422): mismo mensaje claro, nunca el error crudo
   // de la API ni el errorComponent del router (decisión de la Tarea 15).
   if (q.isError || !q.data) {
-    return <EmptyState title="No encontrado" />
+    return (
+      <EmptyState
+        title="No encontrado"
+        description="Revisa el código impreso en la orden o búscalo en la lista de trabajos."
+      />
+    )
   }
 
   const c = q.data.case
@@ -63,6 +68,16 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
   // `StageControl`), lo que deja indexar `STAGE_CHANGE_BLOCKED_REASON` sin un cast.
   const blockedReason =
     roleCanControl && !canChangeStage(c.status) ? STAGE_CHANGE_BLOCKED_REASON[c.status] : null
+  // Mismos avisos que `StageControl` (M-1 de la revisión de la Tarea 15): sin ellos, una fase
+  // desactivada o un fallo al cargar las fases dejaban "Avanzar fase" deshabilitado sin motivo.
+  const current = activeStages.find((s) => s.id === c.currentStageId)
+  const stagesProblem = !canControl
+    ? null
+    : stages.isError
+      ? 'No se pudieron cargar las fases. Recarga la página.'
+      : stages.isSuccess && (!current || !current.active)
+        ? 'La fase en la que estaba este trabajo ya no está activa. Pide a administración que la reactive en Configuración → Fases.'
+        : null
 
   return (
     <div className="flex flex-col gap-5">
@@ -79,6 +94,7 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
         </p>
       )}
       {blockedReason && <p className="text-sm text-muted-foreground">{blockedReason}</p>}
+      {stagesProblem && <p className="text-sm text-muted-foreground">{stagesProblem}</p>}
       {canControl && last && (
         <p className="text-sm text-muted-foreground">
           Es la última fase: usa la ficha completa para finalizar el trabajo.

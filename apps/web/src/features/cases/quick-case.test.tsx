@@ -24,7 +24,8 @@ vi.mock('./api', async (importOriginal) => ({
   changeStage,
   fetchCaseByCode,
 }))
-vi.mock('./attachments-api', () => ({ uploadAttachment: vi.fn() }))
+const { uploadAttachment } = vi.hoisted(() => ({ uploadAttachment: vi.fn() }))
+vi.mock('./attachments-api', () => ({ uploadAttachment }))
 vi.mock('@/features/stages/api', () => ({ fetchStages: vi.fn() }))
 
 import { fetchStages } from '@/features/stages/api'
@@ -32,6 +33,7 @@ import { fetchStages } from '@/features/stages/api'
 beforeEach(() => {
   changeStage.mockReset()
   fetchCaseByCode.mockReset()
+  uploadAttachment.mockReset()
   vi.mocked(fetchStages).mockReset()
   changeStage.mockResolvedValue({ id: 'c1', currentStageId: 'f2' })
 })
@@ -221,5 +223,56 @@ describe('QuickCase', () => {
 
     const link = await screen.findByRole('link', { name: 'Ver ficha completa' })
     expect(link).toHaveAttribute('href', '/trabajos/c1')
+  })
+
+  it('«Añadir foto» sube la imagen al trabajo del código escaneado', async () => {
+    // Hallazgo I-1 de la revisión de la Tarea 15: sin este test, desconectar el input o
+    // subir a un id vacío pasaba desapercibido.
+    fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+    uploadAttachment.mockResolvedValue({ attachment: { id: 'a1' } })
+    const user = userEvent.setup()
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    await screen.findByRole('heading', { level: 1, name: '26-00123' })
+
+    const file = new File(['contenido'], 'foto.png', { type: 'image/png' })
+    await user.upload(screen.getByLabelText('Añadir foto'), file)
+
+    await waitFor(() => expect(uploadAttachment).toHaveBeenCalledWith('c1', expect.any(FormData)))
+  })
+
+  it('si las fases no cargan lo dice, en vez de dejar el botón deshabilitado sin motivo', async () => {
+    fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
+    vi.mocked(fetchStages).mockRejectedValue(new ApiError('Fallo', 500))
+
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+    expect(
+      await screen.findByText('No se pudieron cargar las fases. Recarga la página.'),
+    ).toBeInTheDocument()
+  })
+
+  it('si la fase actual está desactivada explica cómo seguir', async () => {
+    fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
+    vi.mocked(fetchStages).mockResolvedValue([
+      stage({ id: 'f1', name: 'Modelado', sort: 0, active: false }),
+      stage({ id: 'f2', name: 'Fresado', sort: 1 }),
+    ])
+
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+    expect(
+      await screen.findByText(/La fase en la que estaba este trabajo ya no está activa/),
+    ).toBeInTheDocument()
+  })
+
+  it('«No encontrado» orienta a revisar el código impreso', async () => {
+    fetchCaseByCode.mockRejectedValue(new ApiError('No encontrado', 404))
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+
+    renderWithProviders(<QuickCase code="26-99999" role="tecnico" />)
+
+    expect(await screen.findByText('No encontrado')).toBeInTheDocument()
+    expect(screen.getByText(/Revisa el código impreso en la orden/)).toBeInTheDocument()
   })
 })
