@@ -4,6 +4,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { routeTree } from '@/routeTree.gen'
+import type * as CasesApiModule from '@/features/cases/api'
+import type { CaseDetail } from '@/features/cases/api'
 import { authClient } from './auth-client'
 
 vi.mock('./auth-client', () => ({
@@ -13,6 +15,17 @@ vi.mock('./auth-client', () => ({
     signOut: vi.fn(),
   },
 }))
+
+// Solo para la ficha corta del QR (Tarea 15, FIC-2 #72): `/t/:code` monta `QuickCase`, que
+// fetchea con `useCaseByCode`/`useStages` en cuanto `_app` deja pasar la sesión. Sin este mock
+// el test dispararía una petición de red real; no se comprueba su contenido, solo que el
+// router vuelve a `/t/:code` (el contenido ya lo prueba `quick-case.test.tsx`).
+const { fetchCaseByCode } = vi.hoisted(() => ({ fetchCaseByCode: vi.fn() }))
+vi.mock('@/features/cases/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof CasesApiModule>()),
+  fetchCaseByCode,
+}))
+vi.mock('@/features/stages/api', () => ({ fetchStages: vi.fn().mockResolvedValue([]) }))
 
 type GetSessionResult = Awaited<ReturnType<typeof authClient.getSession>>
 type SignInResult = Awaited<ReturnType<typeof authClient.signIn.email>>
@@ -49,10 +62,27 @@ async function fillAndSubmitLogin() {
   await user.click(screen.getByRole('button', { name: 'Ingresar' }))
 }
 
+function casoMinimo(): CaseDetail {
+  return {
+    id: 'c1',
+    code: '26-00123',
+    patientRef: 'Juan Pérez',
+    status: 'nuevo',
+    currentStageId: null,
+    stage: null,
+    total: null,
+    items: [],
+    clinic: { id: 'clinica-1', name: 'Clínica Uno' },
+    doctor: { id: 'doctor-1', name: 'Dr. Gómez' },
+  } as unknown as CaseDetail
+}
+
 describe('redirección tras iniciar sesión (issue #20)', () => {
   beforeEach(() => {
     vi.mocked(authClient.getSession).mockReset()
     vi.mocked(authClient.signIn.email).mockReset()
+    fetchCaseByCode.mockReset()
+    fetchCaseByCode.mockResolvedValue({ case: casoMinimo(), missing: [] })
   })
 
   it('tras entrar vuelve al destino interno pedido', async () => {
@@ -124,5 +154,23 @@ describe('redirección tras iniciar sesión (issue #20)', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/trabajos'))
     expect(router.state.location.search).toMatchObject({ vista: 'atrasados', pagina: 2 })
     expect(router.state.location.hash).toBe('x')
+  })
+
+  // FIC-2 (#72, Tarea 15): la ficha corta del QR es solo otro destino interno de `?redirect=`,
+  // sin tocar `login.tsx` (ruling C3 del brief) — mismo mecanismo que ya prueban los casos de
+  // arriba, ejercitado con `/t/:code` para fijar el criterio de aceptación de la historia.
+  it('sin sesión, /t/:code pide login y vuelve a la ficha corta tras entrar', async () => {
+    vi.mocked(authClient.getSession).mockResolvedValue(anonymous)
+    vi.mocked(authClient.signIn.email).mockImplementation(async () => {
+      vi.mocked(authClient.getSession).mockResolvedValue(withRole('tecnico'))
+      return { data: { user: { id: 'u1' } }, error: null } as SignInResult
+    })
+
+    const router = renderApp('/t/26-00123')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    await fillAndSubmitLogin()
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/t/26-00123'))
+    expect(await screen.findByRole('heading', { level: 1, name: '26-00123' })).toBeInTheDocument()
   })
 })

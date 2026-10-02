@@ -22,6 +22,7 @@ import { Route as AppConfiguracionFasesRouteImport } from './routes/_app/configu
 import { Route as AppConfiguracionLaboratorioRouteImport } from './routes/_app/configuracion/laboratorio'
 import { Route as AppConfiguracionProductosRouteImport } from './routes/_app/configuracion/productos'
 import { Route as AppConfiguracionUsuariosRouteImport } from './routes/_app/configuracion/usuarios'
+import { Route as AppTCodeRouteImport } from './routes/_app/t.$code'
 import { Route as AppTrabajosIndexRouteImport } from './routes/_app/trabajos/index'
 import { Route as AppTrabajosCaseIdRouteImport } from './routes/_app/trabajos/$caseId'
 import { Route as AppTrabajosNuevoRouteImport } from './routes/_app/trabajos/nuevo'
@@ -97,6 +98,11 @@ const AppConfiguracionUsuariosRoute =
     path: '/usuarios',
     getParentRoute: () => AppConfiguracionRoute,
   } as any)
+const AppTCodeRoute = AppTCodeRouteImport.update({
+  id: '/t/$code',
+  path: '/t/$code',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTrabajosIndexRoute = AppTrabajosIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -142,6 +148,7 @@ export interface FileRoutesByFullPath {
   '/configuracion/laboratorio': typeof AppConfiguracionLaboratorioRoute
   '/configuracion/productos': typeof AppConfiguracionProductosRoute
   '/configuracion/usuarios': typeof AppConfiguracionUsuariosRoute
+  '/t/$code': typeof AppTCodeRoute
   '/trabajos/$caseId': typeof AppTrabajosCaseIdRoute
   '/trabajos/nuevo': typeof AppTrabajosNuevoRoute
   '/configuracion/': typeof AppConfiguracionIndexRoute
@@ -160,6 +167,7 @@ export interface FileRoutesByTo {
   '/configuracion/laboratorio': typeof AppConfiguracionLaboratorioRoute
   '/configuracion/productos': typeof AppConfiguracionProductosRoute
   '/configuracion/usuarios': typeof AppConfiguracionUsuariosRoute
+  '/t/$code': typeof AppTCodeRoute
   '/trabajos/$caseId': typeof AppTrabajosCaseIdRoute
   '/trabajos/nuevo': typeof AppTrabajosNuevoRoute
   '/configuracion': typeof AppConfiguracionIndexRoute
@@ -182,6 +190,7 @@ export interface FileRoutesById {
   '/_app/configuracion/laboratorio': typeof AppConfiguracionLaboratorioRoute
   '/_app/configuracion/productos': typeof AppConfiguracionProductosRoute
   '/_app/configuracion/usuarios': typeof AppConfiguracionUsuariosRoute
+  '/_app/t/$code': typeof AppTCodeRoute
   '/_app/trabajos/$caseId': typeof AppTrabajosCaseIdRoute
   '/_app/trabajos/nuevo': typeof AppTrabajosNuevoRoute
   '/_app/configuracion/': typeof AppConfiguracionIndexRoute
@@ -204,6 +213,7 @@ export interface FileRouteTypes {
     | '/configuracion/laboratorio'
     | '/configuracion/productos'
     | '/configuracion/usuarios'
+    | '/t/$code'
     | '/trabajos/$caseId'
     | '/trabajos/nuevo'
     | '/configuracion/'
@@ -222,6 +232,7 @@ export interface FileRouteTypes {
     | '/configuracion/laboratorio'
     | '/configuracion/productos'
     | '/configuracion/usuarios'
+    | '/t/$code'
     | '/trabajos/$caseId'
     | '/trabajos/nuevo'
     | '/configuracion'
@@ -243,6 +254,7 @@ export interface FileRouteTypes {
     | '/_app/configuracion/laboratorio'
     | '/_app/configuracion/productos'
     | '/_app/configuracion/usuarios'
+    | '/_app/t/$code'
     | '/_app/trabajos/$caseId'
     | '/_app/trabajos/nuevo'
     | '/_app/configuracion/'
@@ -349,6 +361,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/configuracion/usuarios'
       preLoaderRoute: typeof AppConfiguracionUsuariosRouteImport
       parentRoute: typeof AppConfiguracionRoute
+    }
+    '/_app/t/$code': {
+      id: '/_app/t/$code'
+      path: '/t/$code'
+      fullPath: '/t/$code'
+      preLoaderRoute: typeof AppTCodeRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/trabajos/': {
       id: '/_app/trabajos/'
@@ -457,6 +476,7 @@ interface AppRouteChildren {
   AppEntregasRoute: typeof AppEntregasRoute
   AppTrabajosRoute: typeof AppTrabajosRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
+  AppTCodeRoute: typeof AppTCodeRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -465,6 +485,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppEntregasRoute: AppEntregasRoute,
   AppTrabajosRoute: AppTrabajosRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
+  AppTCodeRoute: AppTCodeRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
