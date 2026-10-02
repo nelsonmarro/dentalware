@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { CASE_CODE_REGEX } from '../case-code.ts'
 import { ACTIONS_REQUIRING_REASON, CASE_ACTIONS, CASE_STATUSES } from '../case-status.ts'
 import { fdiTeethSchema } from '../fdi.ts'
 import { priceString, textoOpcional, uuid } from './config.ts'
@@ -156,6 +157,13 @@ export const caseListQuerySchema = z.object({
   pagina: z.coerce.number().int().min(1).default(1),
 })
 export type CaseListQuery = z.infer<typeof caseListQuerySchema>
+
+/** Parámetro de `GET /api/trabajos/codigo/:code` (Tarea 15, FIC-2 #72): deriva de
+ * `CASE_CODE_REGEX` (`case-code.ts`), no reescribe el formato `AA-NNNNN`. */
+export const caseCodeParamSchema = z.object({
+  code: z.string().regex(CASE_CODE_REGEX, { error: 'Código inválido' }),
+})
+export type CaseCodeParam = z.infer<typeof caseCodeParamSchema>
 
 export const commentSchema = z.object({
   text: z

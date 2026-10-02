@@ -4,6 +4,7 @@ import {
   assignTechnicianSchema,
   CASE_VIEWS,
   caseActionSchema,
+  caseCodeParamSchema,
   caseInputSchema,
   caseItemSchema,
   caseListQuerySchema,
@@ -235,5 +236,22 @@ describe('remakeSchema', () => {
         cobroPct: ' 50 ',
       }).data?.cobroPct,
     ).toBe(50)
+  })
+})
+
+// Tarea 15 (FIC-2 #72): parámetro de `GET /api/trabajos/codigo/:code`, derivado de
+// `CASE_CODE_REGEX` (no se reescribe la regex aquí).
+describe('caseCodeParamSchema', () => {
+  it('acepta un código con el formato AA-NNNNN', () => {
+    const r = caseCodeParamSchema.safeParse({ code: '26-00123' })
+    expect(r.success).toBe(true)
+    expect(r.data?.code).toBe('26-00123')
+  })
+
+  it('rechaza un código con formato inválido', () => {
+    for (const invalido of ['26-123', 'AA-00123', '2026-00123', '26-00123x', '']) {
+      const r = caseCodeParamSchema.safeParse({ code: invalido })
+      expect(r.success).toBe(false)
+    }
   })
 })
