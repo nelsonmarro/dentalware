@@ -6,6 +6,8 @@ import { QuickCase } from '@/features/cases/quick-case'
  * `beforeLoad` de sesión de `_app.tsx` (que ya escribe `?redirect=<location.href>`) y volver
  * aquí tras el login (T17, `login.tsx`, sin tocar). Sin lógica propia: solo lee el código de
  * la URL y el rol de la sesión y los pasa a `QuickCase` (features/).
+ * Ojo: el QR de la orden impresa (`features/cases/print-order.tsx`) codifica esta URL; si se
+ * renombra la ruta, cambia también allí (órdenes ya impresas dejarían de abrir).
  */
 export const Route = createFileRoute('/_app/t/$code')({
   component: QuickCasePage,

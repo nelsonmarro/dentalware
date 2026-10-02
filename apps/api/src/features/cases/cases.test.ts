@@ -1472,8 +1472,8 @@ describe('/api/trabajos', () => {
       expect(r.status).toBe(401)
     })
 
-    it('un técnico no ve precios: total y precios de líneas nulos', async () => {
-      const id = await createOne(recepcion)
+    it('un técnico no ve precios ni notas internas: total, precios de líneas y notas nulos', async () => {
+      const id = await createOne(recepcion, { internalNotes: 'Nota interna confidencial' })
       const porId = (await (
         await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))
       ).json()) as {
@@ -1482,9 +1482,14 @@ describe('/api/trabajos', () => {
       const r = await app.request(`/api/trabajos/codigo/${porId.case.code}`, req(tecnico, 'GET'))
       expect(r.status).toBe(200)
       const body = (await r.json()) as {
-        case: { total: string | null; items: { unitPrice: string | null }[] }
+        case: {
+          total: string | null
+          internalNotes: string | null
+          items: { unitPrice: string | null }[]
+        }
       }
       expect(body.case.total).toBeNull()
+      expect(body.case.internalNotes).toBeNull()
       expect(body.case.items.every((i) => i.unitPrice === null)).toBe(true)
     })
   })

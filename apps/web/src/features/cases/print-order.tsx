@@ -117,6 +117,8 @@ export function PrintOrder({
   hidePrices: boolean
   publicUrl: string
 }) {
+  // `/t/<código>` es la ruta de la ficha corta (`routes/_app/t.$code.tsx`, FIC-2): si se
+  // renombra allí, cambia aquí también — el QR impreso apunta a esa URL.
   const url = `${publicUrl}/t/${c.code}`
   const markedTeeth = new Set(c.items.flatMap((item) => item.teeth))
   const patient = [
