@@ -177,3 +177,18 @@ export const TOUCH_CONTROLS =
   'button:not([role=switch]):not([data-testid=odontogram] [role=group] button), a[href]:not([data-target-size=inline]), [role=tab], [role=combobox], select:not([aria-hidden=true]), input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([aria-hidden=true])'
 /** Los switches miden menos por diseño (patrón interruptor): alto ≥ 24, ancho ≥ 44. */
 export const TOUCH_SWITCHES = '[role=switch]'
+
+/**
+ * Guarda de consola (#34: «sin errores de consola»). Registra los `pageerror` (excepciones sin
+ * capturar) y los `console.error` de `page` y devuelve la lista para comprobarla al final del
+ * test con `expect(errors).toEqual([])`. Úsala en `beforeEach`/`afterEach` del spec; las
+ * páginas de contextos nuevos (`browser.newContext()`) se registran aparte.
+ */
+export function trackConsoleErrors(page: Page): string[] {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`))
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(`console.error: ${message.text()}`)
+  })
+  return errors
+}

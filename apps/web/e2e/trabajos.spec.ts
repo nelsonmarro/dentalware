@@ -1,6 +1,13 @@
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
-import { createClinicWithDoctor, createProduct, login, loginAsAdmin, uniqueSuffix } from './helpers'
+import {
+  createClinicWithDoctor,
+  createProduct,
+  login,
+  loginAsAdmin,
+  trackConsoleErrors,
+  uniqueSuffix,
+} from './helpers'
 
 const FOTO_PATH = path.join(import.meta.dirname, 'fixtures', 'foto.png')
 
@@ -64,8 +71,15 @@ async function createCompleteCase(
 }
 
 test.describe('Trabajos', () => {
+  let consoleErrors: string[] = []
   test.beforeEach(async ({ page }) => {
+    consoleErrors = trackConsoleErrors(page)
     await loginAsAdmin(page)
+  })
+
+  // #34: ningún flujo de la iteración deja errores de consola ni excepciones sin capturar.
+  test.afterEach(() => {
+    expect(consoleErrors).toEqual([])
   })
 
   test(
@@ -509,7 +523,7 @@ test.describe('Trabajos', () => {
   })
 
   test(
-    'el técnico ve en "Mis trabajos" el trabajo aceptado que le asignaron',
+    'el técnico ve en "Mis trabajos" el trabajo que le asignaron y avanza su fase desde el QR',
     { tag: '@clave' },
     async ({ page, browser }) => {
       const { clinic, doctor } = await createClinicWithDoctor(page)
@@ -539,12 +553,23 @@ test.describe('Trabajos', () => {
 
       const tecnicoContext = await browser.newContext()
       const tecnicoPage = await tecnicoContext.newPage()
+      const tecnicoErrors = trackConsoleErrors(tecnicoPage)
       await login(tecnicoPage, { email, password })
 
       await expect(tecnicoPage.getByRole('heading', { name: 'Mis trabajos' })).toBeVisible()
       await tecnicoPage.getByRole('link', { name: new RegExp(trabajo.code) }).click()
       await expect(tecnicoPage).toHaveURL(`/trabajos/${trabajo.id}`)
       await expect(tecnicoPage.getByText(trabajo.code)).toBeVisible()
+
+      // FIC-2/FIC-3 son historias del técnico: con su sesión real (no un rol simulado) abre la
+      // ficha corta del QR y avanza la fase desde el puesto (hallazgo I-2 de la revisión final
+      // del PR 3). Primera fase del seed: "Recepción" → "Modelo".
+      await tecnicoPage.goto(`/t/${trabajo.code}`)
+      await expect(tecnicoPage.getByRole('heading', { level: 1, name: trabajo.code })).toBeVisible()
+      await tecnicoPage.getByRole('button', { name: 'Avanzar fase' }).click()
+      await expect(tecnicoPage.getByText('Fase actualizada')).toBeVisible()
+      await expect(tecnicoPage.getByText('Modelo', { exact: true })).toBeVisible()
+      expect(tecnicoErrors).toEqual([])
 
       await tecnicoContext.close()
     },

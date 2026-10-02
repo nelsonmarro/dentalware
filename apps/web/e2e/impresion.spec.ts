@@ -1,7 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
-import { createClinicWithDoctor, createProduct, loginAsAdmin, uniqueSuffix } from './helpers'
+import {
+  createClinicWithDoctor,
+  createProduct,
+  loginAsAdmin,
+  trackConsoleErrors,
+  uniqueSuffix,
+} from './helpers'
 
 /**
  * FIC-1 (#71): el objetivo de impresión (ruling de la ronda de fixes 1 de la Tarea 14) es que
@@ -14,8 +20,15 @@ import { createClinicWithDoctor, createProduct, loginAsAdmin, uniqueSuffix } fro
  * `iphone` (WebKit) no lo soporta.
  */
 test.describe('Orden de trabajo imprimible', () => {
+  let consoleErrors: string[] = []
   test.beforeEach(async ({ page }) => {
+    consoleErrors = trackConsoleErrors(page)
     await loginAsAdmin(page)
+  })
+
+  // #34: ningún flujo de la iteración deja errores de consola ni excepciones sin capturar.
+  test.afterEach(() => {
+    expect(consoleErrors).toEqual([])
   })
 
   test(

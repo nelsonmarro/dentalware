@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
-import { ADMIN, createClinicWithDoctor, createProduct, loginAsAdmin, uniqueSuffix } from './helpers'
+import {
+  ADMIN,
+  createClinicWithDoctor,
+  createProduct,
+  loginAsAdmin,
+  trackConsoleErrors,
+  uniqueSuffix,
+} from './helpers'
 
 /**
  * Trabajo aceptado y en producción (`en_proceso`, primera fase activa de `seed-data.ts`:
@@ -36,6 +43,16 @@ async function createAcceptedCase(
 }
 
 test.describe('Ficha corta del QR (/t/:code, FIC-2 #72 / FIC-3 #73)', () => {
+  let consoleErrors: string[] = []
+  test.beforeEach(async ({ page }) => {
+    consoleErrors = trackConsoleErrors(page)
+  })
+
+  // #34: ningún flujo de la iteración deja errores de consola ni excepciones sin capturar.
+  test.afterEach(() => {
+    expect(consoleErrors).toEqual([])
+  })
+
   test(
     'abre un trabajo por su código corto y avanza la fase',
     { tag: '@clave' },
