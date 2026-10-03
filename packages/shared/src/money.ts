@@ -21,3 +21,8 @@ export function lineTotalCents(unitCents: number, quantity: number, discountPct:
 export function sumCents(list: readonly number[]): number {
   return list.reduce((a, b) => a + b, 0)
 }
+
+/** `pct` % de un monto en centavos (pct entero 0–100), redondeo half-up, todo en enteros. */
+export function percentOfCents(cents: number, pct: number): number {
+  return Math.floor((cents * pct + 50) / 100)
+}

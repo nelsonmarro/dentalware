@@ -11,7 +11,11 @@ beforeEach(() => {
   createRemake.mockClear()
 })
 
-function caso(overrides: Partial<CaseDetail> = {}): CaseDetail {
+// `total` admite `null`: el tipo inferido de la API dice `string`, pero `stripPrices` lo
+// devuelve `null` a técnico y mensajero, y el diálogo tiene que soportarlo.
+function caso(
+  overrides: Partial<Omit<CaseDetail, 'total'>> & { total?: string | null } = {},
+): CaseDetail {
   return {
     id: 'c1',
     code: '26-00001',
@@ -95,10 +99,97 @@ describe('RemakeDialog', () => {
       expect(createRemake).toHaveBeenCalledWith('c1', {
         motivo: 'Fractura en cerámica al probar',
         responsabilidad: 'laboratorio',
-        cobroPct: 100,
+        cobroPct: 0,
       }),
     )
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith(created))
+  })
+
+  it('propone el porcentaje según la responsabilidad: laboratorio 0, clínica 100, compartida 50', async () => {
+    const { user } = renderWithProviders(<RemakeDialog case={caso({ status: 'entregado' })} />)
+    await user.click(await screen.findByRole('button', { name: 'Repetir' }))
+    const pct = screen.getByLabelText('Porcentaje a cobrar a la clínica')
+    expect(pct).toHaveValue(0)
+    await user.selectOptions(screen.getByLabelText('Responsabilidad'), 'clinica')
+    expect(pct).toHaveValue(100)
+    await user.selectOptions(screen.getByLabelText('Responsabilidad'), 'compartida')
+    expect(pct).toHaveValue(50)
+    await user.selectOptions(screen.getByLabelText('Responsabilidad'), 'laboratorio')
+    expect(pct).toHaveValue(0)
+  })
+
+  it('respeta el porcentaje escrito a mano aunque después cambie la responsabilidad', async () => {
+    createRemake.mockResolvedValue(caso({ id: 'c2', status: 'nuevo' }))
+    const { user } = renderWithProviders(<RemakeDialog case={caso({ status: 'entregado' })} />)
+    await user.click(await screen.findByRole('button', { name: 'Repetir' }))
+    await user.type(screen.getByLabelText('Motivo'), 'Color equivocado')
+    const pct = screen.getByLabelText('Porcentaje a cobrar a la clínica')
+    await user.clear(pct)
+    await user.type(pct, '30')
+    await user.selectOptions(screen.getByLabelText('Responsabilidad'), 'clinica')
+    expect(pct).toHaveValue(30)
+    await user.click(screen.getByRole('button', { name: 'Crear repetición' }))
+    await waitFor(() =>
+      expect(createRemake).toHaveBeenCalledWith('c1', {
+        motivo: 'Color equivocado',
+        responsabilidad: 'clinica',
+        cobroPct: 30,
+      }),
+    )
+  })
+
+  it('al cerrar y volver a abrir, el porcentaje vuelve a seguir la responsabilidad', async () => {
+    const { user } = renderWithProviders(<RemakeDialog case={caso({ status: 'entregado' })} />)
+    await user.click(await screen.findByRole('button', { name: 'Repetir' }))
+    const pct = screen.getByLabelText('Porcentaje a cobrar a la clínica')
+    await user.clear(pct)
+    await user.type(pct, '30')
+    await user.click(screen.getByRole('button', { name: 'Volver' }))
+    await user.click(screen.getByRole('button', { name: 'Repetir' }))
+    expect(screen.getByLabelText('Porcentaje a cobrar a la clínica')).toHaveValue(0)
+    await user.selectOptions(screen.getByLabelText('Responsabilidad'), 'compartida')
+    expect(screen.getByLabelText('Porcentaje a cobrar a la clínica')).toHaveValue(50)
+  })
+
+  it('muestra el símbolo de porcentaje junto al campo', async () => {
+    const { user } = renderWithProviders(<RemakeDialog case={caso({ status: 'entregado' })} />)
+    await user.click(await screen.findByRole('button', { name: 'Repetir' }))
+    expect(screen.getByText('%')).toBeInTheDocument()
+  })
+
+  it('dice cuánto se cobrará a la clínica sobre el total del trabajo', async () => {
+    const { user } = renderWithProviders(
+      <RemakeDialog case={caso({ status: 'entregado', total: '80.00' })} />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Repetir' }))
+    const pct = screen.getByLabelText('Porcentaje a cobrar a la clínica')
+    expect(pct).toHaveAccessibleDescription('Se cobrarán $ 0.00 de $ 80.00')
+    await user.selectOptions(screen.getByLabelText('Responsabilidad'), 'compartida')
+    expect(pct).toHaveAccessibleDescription('Se cobrarán $ 40.00 de $ 80.00')
+    await user.clear(pct)
+    await user.type(pct, '33')
+    expect(pct).toHaveAccessibleDescription('Se cobrarán $ 26.40 de $ 80.00')
+  })
+
+  it('no muestra el importe con un porcentaje inválido', async () => {
+    const { user } = renderWithProviders(
+      <RemakeDialog case={caso({ status: 'entregado', total: '80.00' })} />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Repetir' }))
+    const pct = screen.getByLabelText('Porcentaje a cobrar a la clínica')
+    await user.clear(pct)
+    await user.type(pct, '150')
+    expect(screen.queryByText(/Se cobrarán/)).not.toBeInTheDocument()
+  })
+
+  it('sin precios del trabajo (total oculto por rol) no muestra ningún importe', async () => {
+    const { user } = renderWithProviders(
+      <RemakeDialog case={caso({ status: 'entregado', total: null })} />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Repetir' }))
+    expect(screen.getByLabelText('Porcentaje a cobrar a la clínica')).toHaveValue(0)
+    expect(screen.queryByText(/Se cobrarán/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/\$/)).not.toBeInTheDocument()
   })
 
   it('no ofrece repetir un trabajo que no se puede repetir', () => {

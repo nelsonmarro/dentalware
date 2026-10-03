@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { remakeDueDate } from './case-remake.ts'
+import { REMAKE_CHARGE_PCT_BY_RESPONSIBILITY, remakeDueDate } from './case-remake.ts'
 
 describe('remakeDueDate', () => {
   it('copia la fecha deseada del padre si todavía no pasó respecto a la recepción del hijo', () => {
@@ -16,5 +16,19 @@ describe('remakeDueDate', () => {
 
   it('devuelve null si el padre no tenía fecha deseada', () => {
     expect(remakeDueDate(null, '2026-09-23')).toBeNull()
+  })
+})
+
+describe('REMAKE_CHARGE_PCT_BY_RESPONSIBILITY', () => {
+  it('sugiere no cobrar nada si la responsabilidad es del laboratorio', () => {
+    expect(REMAKE_CHARGE_PCT_BY_RESPONSIBILITY.laboratorio).toBe(0)
+  })
+
+  it('sugiere cobrar todo si la responsabilidad es de la clínica', () => {
+    expect(REMAKE_CHARGE_PCT_BY_RESPONSIBILITY.clinica).toBe(100)
+  })
+
+  it('sugiere cobrar la mitad si la responsabilidad es compartida', () => {
+    expect(REMAKE_CHARGE_PCT_BY_RESPONSIBILITY.compartida).toBe(50)
   })
 })

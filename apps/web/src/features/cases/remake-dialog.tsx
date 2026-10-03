@@ -1,19 +1,24 @@
 import {
   canRemake,
+  fromCents,
+  percentOfCents,
+  REMAKE_CHARGE_PCT_BY_RESPONSIBILITY,
   REMAKE_RESPONSIBILITIES,
   remakeSchema,
+  toCents,
   type RemakeInput,
   type RemakeResponsibility,
 } from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import type { z } from 'zod'
 import { FormDialog } from '@/components/form-dialog'
 import { Button } from '@/components/ui/button'
-import { Field, FieldError, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { formatMoney } from '@/features/products/pricing-unit-label'
 import type { CaseDetail } from './api'
 import { useCreateRemake } from './use-cases'
 
@@ -25,6 +30,23 @@ const REMAKE_RESPONSIBILITY_LABEL: Record<RemakeResponsibility, string> = {
 
 type RemakeFormValues = z.input<typeof remakeSchema>
 
+const DEFAULT_RESPONSIBILITY: RemakeResponsibility = 'laboratorio'
+const DEFAULT_VALUES: RemakeFormValues = {
+  motivo: '',
+  responsabilidad: DEFAULT_RESPONSIBILITY,
+  cobroPct: REMAKE_CHARGE_PCT_BY_RESPONSIBILITY[DEFAULT_RESPONSIBILITY],
+}
+
+/** «Se cobrarán $ X de $ Y» con el porcentaje del campo, o `null` si no hay total (técnico y
+ * mensajero lo reciben enmascarado por la API) o el porcentaje todavía no es válido. */
+function chargeHint(total: string | null, pct: RemakeFormValues['cobroPct']): string | null {
+  if (total === null) return null
+  const parsed = remakeSchema.shape.cobroPct.safeParse(pct)
+  if (!parsed.success) return null
+  const totalCents = toCents(total)
+  return `Se cobrarán ${formatMoney(fromCents(percentOfCents(totalCents, parsed.data)))} de ${formatMoney(fromCents(totalCents))}`
+}
+
 /**
  * Diálogo "Repetir trabajo" (CIC-4): motivo, responsabilidad y porcentaje a cobrar a la
  * clínica (`remakeSchema`). Solo se ofrece desde los estados de `REMAKEABLE_STATUSES`
@@ -32,6 +54,12 @@ type RemakeFormValues = z.input<typeof remakeSchema>
  * monta este diálogo navegue a su ficha (ruling de la Tarea 9: el hijo puede nacer incompleto
  * si el padre ya venció su fecha de entrega, así que hay que llevar al usuario ahí, no
  * dejarlo en el padre sin señal de qué pasó).
+ *
+ * El porcentaje sigue a la responsabilidad (`REMAKE_CHARGE_PCT_BY_RESPONSIBILITY`, shared;
+ * UX3-06) hasta que alguien lo escribe a mano: desde ahí se respeta lo escrito aunque cambie la
+ * responsabilidad, y vuelve a seguirla al cerrar y reabrir el diálogo. Sin botón «usar
+ * sugerido»: el campo es un número de dos o tres cifras y reescribirlo cuesta menos que un
+ * control más en el diálogo.
  */
 export function RemakeDialog({
   case: c,
@@ -41,22 +69,38 @@ export function RemakeDialog({
   onCreated?: (created: CaseDetail) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [pctEdited, setPctEdited] = useState(false)
   const create = useCreateRemake(c.id)
-  const { register, handleSubmit, reset, formState } = useForm<
+  const { register, handleSubmit, reset, formState, setValue, control } = useForm<
     RemakeFormValues,
     unknown,
     RemakeInput
   >({
     resolver: zodResolver(remakeSchema),
-    defaultValues: { motivo: '', responsabilidad: 'laboratorio', cobroPct: 100 },
+    defaultValues: DEFAULT_VALUES,
   })
+  const pct = useWatch({ control, name: 'cobroPct' })
 
   if (!canRemake(c.status)) return null
 
+  const hint = chargeHint(c.total, pct)
+
   function handleOpenChange(next: boolean) {
-    if (!next) reset({ motivo: '', responsabilidad: 'laboratorio', cobroPct: 100 })
+    if (!next) {
+      reset(DEFAULT_VALUES)
+      setPctEdited(false)
+    }
     setOpen(next)
   }
+
+  const responsabilidad = register('responsabilidad', {
+    onChange: (e: React.ChangeEvent<HTMLSelectElement>) => {
+      if (pctEdited) return
+      const r = e.target.value as RemakeResponsibility
+      setValue('cobroPct', REMAKE_CHARGE_PCT_BY_RESPONSIBILITY[r], { shouldValidate: true })
+    },
+  })
+  const cobroPct = register('cobroPct', { onChange: () => setPctEdited(true) })
 
   function submit(data: RemakeInput) {
     create.mutate(data, {
@@ -107,7 +151,7 @@ export function RemakeDialog({
           <Field data-invalid={!!formState.errors.responsabilidad}>
             <FieldLabel htmlFor="remake-responsabilidad">Responsabilidad</FieldLabel>
             <select
-              {...register('responsabilidad')}
+              {...responsabilidad}
               id="remake-responsabilidad"
               aria-invalid={!!formState.errors.responsabilidad}
               className="h-11 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -124,15 +168,30 @@ export function RemakeDialog({
           </Field>
           <Field data-invalid={!!formState.errors.cobroPct}>
             <FieldLabel htmlFor="remake-cobro">Porcentaje a cobrar a la clínica</FieldLabel>
-            <Input
-              {...register('cobroPct')}
-              id="remake-cobro"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={100}
-              aria-invalid={!!formState.errors.cobroPct}
-            />
+            <div className="relative">
+              <Input
+                {...cobroPct}
+                id="remake-cobro"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={100}
+                aria-invalid={!!formState.errors.cobroPct}
+                aria-describedby={hint ? 'remake-cobro-ayuda' : undefined}
+                className="pr-9 font-mono"
+              />
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 right-3 flex items-center font-mono text-sm text-muted-foreground"
+              >
+                %
+              </span>
+            </div>
+            {hint && (
+              <FieldDescription id="remake-cobro-ayuda" className="font-mono">
+                {hint}
+              </FieldDescription>
+            )}
             {formState.errors.cobroPct && <FieldError errors={[formState.errors.cobroPct]} />}
           </Field>
         </form>
