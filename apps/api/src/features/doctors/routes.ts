@@ -3,6 +3,7 @@ import {
   activeQuerySchema,
   doctorSchema,
   idParamSchema,
+  SETTINGS_ROLES,
 } from '@dentalware/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
@@ -35,14 +36,14 @@ export const doctorsRoutes = (db: Db) =>
         200,
       )
     })
-    .post('/', requireRole('admin'), validate('json', doctorSchema), async (c) => {
+    .post('/', requireRole(...SETTINGS_ROLES), validate('json', doctorSchema), async (c) => {
       const input = c.req.valid('json')
       await assertClinic(db, input.clinicId)
       return c.json({ doctor: await createDoctor(db, input) }, 201)
     })
     .put(
       '/:id',
-      requireRole('admin'),
+      requireRole(...SETTINGS_ROLES),
       validate('param', idParamSchema),
       validate('json', doctorSchema),
       async (c) => {
@@ -55,7 +56,7 @@ export const doctorsRoutes = (db: Db) =>
     )
     .patch(
       '/:id/activo',
-      requireRole('admin'),
+      requireRole(...SETTINGS_ROLES),
       validate('param', idParamSchema),
       validate('json', activeBodySchema),
       async (c) => {

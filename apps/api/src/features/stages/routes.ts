@@ -1,4 +1,10 @@
-import { activeBodySchema, activeQuerySchema, idParamSchema, stageSchema } from '@dentalware/shared'
+import {
+  activeBodySchema,
+  activeQuerySchema,
+  idParamSchema,
+  stageSchema,
+  SETTINGS_ROLES,
+} from '@dentalware/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
@@ -19,7 +25,7 @@ export const stagesRoutes = (db: Db) =>
     .get('/', requireAuth, validate('query', activeQuerySchema), async (c) =>
       c.json({ stages: await listStages(db, c.req.valid('query').incluirInactivos) }, 200),
     )
-    .put('/orden', requireRole('admin'), validate('json', orderBody), async (c) => {
+    .put('/orden', requireRole(...SETTINGS_ROLES), validate('json', orderBody), async (c) => {
       const ids = c.req.valid('json').ids
       const all = await listStages(db, true)
       const allIds = new Set(all.map((s) => s.id))
@@ -30,12 +36,12 @@ export const stagesRoutes = (db: Db) =>
       if (!sameSet) throw new HTTPException(422, { message: 'Debe reordenar todas las fases' })
       return c.json({ stages: await reorderStages(db, ids) }, 200)
     })
-    .post('/', requireRole('admin'), validate('json', stageSchema), async (c) =>
+    .post('/', requireRole(...SETTINGS_ROLES), validate('json', stageSchema), async (c) =>
       c.json({ stage: await createStage(db, c.req.valid('json')) }, 201),
     )
     .put(
       '/:id',
-      requireRole('admin'),
+      requireRole(...SETTINGS_ROLES),
       validate('param', idParamSchema),
       validate('json', stageSchema),
       async (c) => {
@@ -46,7 +52,7 @@ export const stagesRoutes = (db: Db) =>
     )
     .patch(
       '/:id/activo',
-      requireRole('admin'),
+      requireRole(...SETTINGS_ROLES),
       validate('param', idParamSchema),
       validate('json', activeBodySchema),
       async (c) => {

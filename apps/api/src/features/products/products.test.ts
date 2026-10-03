@@ -68,6 +68,28 @@ describe('/api/config/productos', () => {
     ).toBe(403)
   })
 
+  it('recepción lee el catálogo de productos pero no lo modifica (403, SETTINGS_ROLES)', async () => {
+    await createUser(ctx.auth, ctx.db, {
+      email: 'rec@t.local',
+      password: 'Recep12345!',
+      name: 'Rec',
+      role: 'recepcion',
+    })
+    const recepcion = await loginAs(app, 'rec@t.local', 'Recep12345!')
+    expect((await app.request('/api/config/productos', req(recepcion, 'GET'))).status).toBe(200)
+    expect(
+      (await app.request('/api/config/productos', req(recepcion, 'POST', zirconio()))).status,
+    ).toBe(403)
+    expect(
+      (
+        await app.request(
+          '/api/config/productos/categorias',
+          req(recepcion, 'POST', { name: 'Removible', sort: 2 }),
+        )
+      ).status,
+    ).toBe(403)
+  })
+
   it('crea producto con categoría, rechaza código duplicado y lista con categoría', async () => {
     const r = await app.request('/api/config/productos', req(admin, 'POST', zirconio()))
     expect(r.status).toBe(201)

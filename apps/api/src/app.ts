@@ -1,3 +1,4 @@
+import { USER_ADMIN_ROLES } from '@dentalware/shared'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
@@ -96,7 +97,7 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
   app.all('/api/auth/admin/*', (c) => c.json({ message: 'No encontrado' }, 404))
 
   // Solo un admin autenticado puede crear usuarios.
-  app.use('/api/auth/sign-up/*', requireRole('admin'))
+  app.use('/api/auth/sign-up/*', requireRole(...USER_ADMIN_ROLES))
   app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw))
 
   // Ruta de prueba para el guard de roles (se reutiliza en la Iteración 1 para /api/admin/*).
