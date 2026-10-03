@@ -37,8 +37,8 @@ export type SignInResult = { ok: true } | { ok: false; reason: SignInFailureReas
 /**
  * Mensaje por motivo de fallo del login (ronda de fixes 1, UX3-10): `Record` exhaustivo para
  * que un motivo nuevo en `SignInFailureReason` no compile aquí hasta que alguien le ponga
- * texto — mismo criterio que `ACTION_EMPHASIS`/`CASE_STATUS_LABEL` en `shared`. `LoginForm` es el
- * único consumidor.
+ * texto — mismo criterio que `ACTION_EMPHASIS` (`features/cases/action-emphasis.ts`) y
+ * `CASE_STATUS_LABEL` (`shared`). `LoginForm` es el único consumidor.
  */
 export const SIGN_IN_FAILURE_MESSAGE: Record<SignInFailureReason, string> = {
   credentials: 'Correo o contraseña incorrectos',
