@@ -1,8 +1,5 @@
 import {
   canChangeStage,
-  isLastStage,
-  nextStage,
-  previousStage,
   STAGE_CHANGE_BLOCKED_REASON,
   STAGE_CHANGE_ROLES,
   stageChangeSchema,
@@ -20,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 import type { Stage } from '@/features/stages/api'
 import type { CaseDetail } from './api'
 import { isStageVisible } from './case-views'
+import { stageNavigation } from './stage-navigation'
 import { useChangeStage } from './use-cases'
 
 /** Solo estos roles cambian de fase (I-5 + M-5 + M-9, ola de fixes del PR 1: `STAGE_CHANGE_ROLES`
@@ -134,18 +132,16 @@ export function StageControl({
   // M-3: `finalizar`/`cancelar` no limpian `currentStageId`, así que un trabajo ya cerrado
   // sigue trayendo fase. Fuera de los estados de producción la tarjeta es ruido.
   if (!c.currentStageId || !isStageVisible(c.status)) return null
-  const stagesLoading = stages.length === 0 && !stagesError
   // El nombre se resuelve contra la lista completa (`useStages(true)` trae también las
   // inactivas): si el laboratorio desactivó la fase con el trabajo dentro, el técnico
   // necesita ver cuál era, no un "desconocida" que no le dice nada.
-  const current = stages.find((s) => s.id === c.currentStageId)
-  const currentInactive = !!current && !current.active
+  const nav = stageNavigation(stages, c.currentStageId, stagesError)
+  const stagesLoading = nav.loading
+  const { current, currentInactive, previous } = nav
   const canControl = canControlStage(role) && canChangeStage(c.status)
-  const next = canControl ? nextStage(stages, c.currentStageId) : undefined
-  const last = canControl && isLastStage(stages, c.currentStageId)
-  const previous = previousStage(stages, c.currentStageId)
-  // `previousStage` devuelve la referencia de shared (sin nombre): el nombre sale de la lista.
-  const previousName = stages.find((s) => s.id === previous?.id)?.name
+  const next = canControl ? nav.next : undefined
+  const last = canControl && nav.last
+  const previousName = previous?.name
 
   return (
     <section aria-labelledby="fase-produccion" className="flex flex-col gap-3">
@@ -184,6 +180,10 @@ export function StageControl({
            * (UX3-05) y en móvil, apilado, queda arriba. */}
           {!last && (
             <Button
+              // Primario solo con la fase siguiente conocida (M-1/M-2): cargando, con error o
+              // con la fase desactivada queda deshabilitado y en secundario, para no competir
+              // con «Finalizar».
+              variant={next ? 'default' : 'outline'}
               className="w-full sm:w-auto"
               disabled={!next || changeStage.isPending}
               onClick={() => changeStage.mutate({ direccion: 'avanzar', motivo: null })}

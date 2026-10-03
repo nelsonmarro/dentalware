@@ -160,6 +160,53 @@ describe('ProductionPanel', () => {
     )
   })
 
+  // M-1/M-2 (revisión de la Tarea 4): sin fase siguiente conocida «Avanzar fase» sigue montado
+  // (deshabilitado) pero no como primario; el único primario es «Finalizar».
+  it('si las fases no se pudieron cargar el único primario es «Finalizar»', async () => {
+    renderWithProviders(
+      <ProductionPanel
+        case={caso({ currentStageId: 'f1' })}
+        missing={[]}
+        role="admin"
+        stages={[]}
+        stagesError
+      />,
+    )
+    const panel = await screen.findByRole('region', { name: 'Producción' })
+    expect(primarios(panel)).toEqual(['Finalizar'])
+  })
+
+  it('si la fase actual fue desactivada el único primario es «Finalizar»', async () => {
+    renderWithProviders(
+      <ProductionPanel
+        case={caso({ currentStageId: 'f2' })}
+        missing={[]}
+        role="tecnico"
+        stages={[
+          fases[0]!,
+          stage({ id: 'f2', name: 'Fresado', sort: 1, active: false }),
+          fases[2]!,
+        ]}
+      />,
+    )
+    const panel = await screen.findByRole('region', { name: 'Producción' })
+    expect(primarios(panel)).toEqual(['Finalizar'])
+    expect(within(panel).getByRole('button', { name: 'Avanzar fase' })).toBeDisabled()
+  })
+
+  it('mientras las fases cargan no hay ningún primario', async () => {
+    renderWithProviders(
+      <ProductionPanel
+        case={caso({ currentStageId: 'f1' })}
+        missing={[]}
+        role="admin"
+        stages={[]}
+      />,
+    )
+    const panel = await screen.findByRole('region', { name: 'Producción' })
+    expect(primarios(panel)).toEqual([])
+  })
+
   it('reúne la fase, el técnico responsable y las acciones de estado', async () => {
     renderWithProviders(
       <ProductionPanel

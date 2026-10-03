@@ -1,4 +1,4 @@
-import { canChangeStage, nextStage, type UserRole } from '@dentalware/shared'
+import { canChangeStage, type UserRole } from '@dentalware/shared'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Stage } from '@/features/stages/api'
 import { cn } from '@/lib/utils'
@@ -6,6 +6,7 @@ import type { CaseDetail } from './api'
 import { CaseActions } from './case-actions'
 import { isStageVisible } from './case-views'
 import { StageControl } from './stage-control'
+import { stageNavigation } from './stage-navigation'
 import { TechnicianSelect } from './technician-select'
 
 /**
@@ -35,13 +36,13 @@ export function ProductionPanel({
   onRemakeCreated?: (created: CaseDetail) => void
 }) {
   const showStage = !!c.currentStageId && isStageVisible(c.status)
-  const stagesLoading = stages.length === 0 && !stagesError
+  const nav = stageNavigation(stages, c.currentStageId, stagesError)
   // Con las fases todavía en vuelo se asume que hay siguiente: «Finalizar» no se adelanta como
-  // primario para luego cederle el sitio a «Avanzar fase» cuando lleguen.
+  // primario para luego cederle el sitio a «Avanzar fase» cuando lleguen. Con error o con la
+  // fase actual desactivada no hay siguiente conocida: «Avanzar fase» queda deshabilitado en
+  // secundario y el primario es «Finalizar» (`stageNavigation`, misma fuente que `StageControl`).
   const hasNextStage =
-    showStage &&
-    canChangeStage(c.status) &&
-    (stagesLoading || nextStage(stages, c.currentStageId) !== undefined)
+    showStage && canChangeStage(c.status) && (nav.loading || nav.next !== undefined)
 
   return (
     <Card role="region" aria-labelledby="produccion-titulo">
