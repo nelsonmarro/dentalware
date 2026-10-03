@@ -23,4 +23,21 @@ describe('AppShell', () => {
     const { getByRole } = within(sidebar!)
     expect(getByRole('button', { name: 'Cerrar sesión' })).toHaveTextContent('Cerrar sesión')
   })
+
+  it.each([
+    { role: 'admin' as const, cuentas: true, configuracion: true },
+    { role: 'recepcion' as const, cuentas: true, configuracion: false },
+    { role: 'tecnico' as const, cuentas: false, configuracion: false },
+    { role: 'mensajero' as const, cuentas: false, configuracion: false },
+  ])(
+    'con rol $role muestra Cuentas: $cuentas y Configuración: $configuracion',
+    async ({ role, cuentas, configuracion }) => {
+      renderWithRouter(<AppShell user={{ name: 'Ana', role }}>contenido</AppShell>)
+      const nav = await screen.findByRole('navigation', { name: 'Principal' })
+      expect(within(nav).queryByRole('link', { name: /Cuentas/ }) !== null).toBe(cuentas)
+      expect(within(nav).queryByRole('link', { name: /Configuración/ }) !== null).toBe(
+        configuracion,
+      )
+    },
+  )
 })

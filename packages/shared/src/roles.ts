@@ -18,3 +18,16 @@ export function hidesPrices(role: UserRole): boolean {
 export function hasRole(roles: readonly UserRole[], role: UserRole): boolean {
   return roles.includes(role)
 }
+
+/** Quién administra usuarios: `GET/POST /api/users` (`users/routes.ts`). */
+export const USER_ADMIN_ROLES: readonly UserRole[] = ['admin']
+
+/** Quién entra a `/configuracion` (catálogos, fases, usuarios, datos del laboratorio). */
+export const SETTINGS_ROLES: readonly UserRole[] = ['admin']
+
+/** Quién filtra la lista de trabajos por técnico: el filtro lee `GET /api/users`, así que sigue
+ * a `USER_ADMIN_ROLES` (si recepción ganara acceso a usuarios, ganaría el filtro). */
+export const TECHNICIAN_FILTER_ROLES: readonly UserRole[] = USER_ADMIN_ROLES
+
+/** Quién ve «Cuentas» (saldos y cobros por clínica): nunca técnico ni mensajero, que no ven dinero. */
+export const ACCOUNTS_ROLES: readonly UserRole[] = ['admin', 'recepcion']

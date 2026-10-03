@@ -1,4 +1,4 @@
-import { createUserSchema, updateUserSchema } from '@dentalware/shared'
+import { createUserSchema, updateUserSchema, USER_ADMIN_ROLES } from '@dentalware/shared'
 import { APIError } from 'better-auth/api'
 import { asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -42,7 +42,7 @@ function translate(err: unknown): never {
 
 export const usersRoutes = (db: Db, auth: Auth) =>
   new Hono<AppEnv>()
-    .use(requireRole('admin'))
+    .use(requireRole(...USER_ADMIN_ROLES))
     .get('/', async (c) =>
       c.json({ users: await db.select(publicUser).from(users).orderBy(asc(users.name)) }, 200),
     )
