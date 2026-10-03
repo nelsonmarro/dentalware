@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream'
 import type { IdGenerator } from '../../lib/ids.ts'
-import type { Storage } from '../../lib/storage.ts'
+import { assertStorageKey, type Storage } from '../../lib/storage.ts'
 import type {
   AttachmentRecord,
   AttachmentsRepository,
@@ -10,22 +10,27 @@ import type {
   NewAttachment,
 } from './ports.ts'
 
-/** Almacenamiento en memoria: suficiente para probar el flujo sin disco. */
+/** Almacenamiento en memoria: suficiente para probar el flujo sin disco. Cumple el mismo
+ * contrato que los drivers reales (`fakes.test.ts`, #103), claves inválidas incluidas. */
 export function memoryStorage(): Storage {
   const files = new Map<string, Uint8Array>()
   return {
     async put(key, data) {
-      files.set(key, data)
+      assertStorageKey(key)
+      files.set(key, Uint8Array.from(data))
     },
     async open(key) {
+      assertStorageKey(key)
       const data = files.get(key)
       if (!data) throw new Error(`No existe en el storage: ${key}`)
       return Readable.from(Buffer.from(data))
     },
     async remove(key) {
+      assertStorageKey(key)
       files.delete(key)
     },
     async exists(key) {
+      assertStorageKey(key)
       return files.has(key)
     },
   }

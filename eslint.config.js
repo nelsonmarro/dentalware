@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
 import eslintConfigPrettier from 'eslint-config-prettier/flat'
 
-// Fronteras hexagonales (ADR 21, docs/architecture.md §2 y §3.5): un servicio o puerto
+// Fronteras hexagonales (ADR 21, docs/architecture.md §2 y §4): un servicio o puerto
 // nunca importa un adaptador; entre features solo se comparten puertos (`ports.ts`,
 // `*.ports.ts`) y errores de dominio (`errors.ts`); el repo puede unir tablas de otra
 // feature (ADR 24) pero nunca su repo, rutas ni servicio.
@@ -40,6 +40,8 @@ const noAdapters = (files, extra = []) => ({
             group: [
               '../../lib/images.ts',
               '../../lib/storage.ts',
+              '../../lib/local-storage.ts',
+              '../../lib/create-storage.ts',
               '../../lib/ids.ts',
               '../../lib/clock.ts',
             ],
@@ -81,7 +83,7 @@ const noAdapters = (files, extra = []) => ({
 })
 
 // Restricciones de imports en apps/web fuera de features/auth y del cliente HTTP
-// (docs/architecture.md §3.3): Better Auth es un adaptador confinado a features/auth,
+// (docs/architecture.md §3): Better Auth es un adaptador confinado a features/auth,
 // y de la API tipada solo se importan tipos.
 const webAdapterPatterns = [
   {
@@ -95,7 +97,7 @@ const webAdapterPatterns = [
   },
 ]
 
-// Fronteras del DataGrid (docs/architecture.md §3.5, spec 2026-09-12 §2.1): es transversal
+// Fronteras del DataGrid (docs/architecture.md §4, spec 2026-09-12 §2.1): es transversal
 // (components/), así que no depende de una feature de la app, de una ruta ni del cliente HTTP;
 // su núcleo (use-data-grid.ts, data-grid.tsx, context.ts, define-columns.ts, types.ts, parts/*)
 // no conoce ninguna `features/*` propia del DataGrid, y cada módulo de `features/*` no importa
@@ -279,7 +281,7 @@ export default defineConfig([
     },
   },
 
-  // --- components/data-grid: aislamiento núcleo/features (docs/architecture.md §3.5) ---
+  // --- components/data-grid: aislamiento núcleo/features (docs/architecture.md §4) ---
   // Bloque general primero (menos específico): cualquier archivo de data-grid, index.ts y los
   // tests incluidos, no depende de una feature de la app, de una ruta ni de @/lib/api. Los dos
   // bloques siguientes son más específicos y repiten esta restricción junto a la propia (el
@@ -312,7 +314,7 @@ export default defineConfig([
             {
               group: ['./features/*', '../features/*', '**/data-grid/features/*'],
               message:
-                'El núcleo del DataGrid no importa features: solo conoce el contrato GridFeature y el contexto (docs/architecture.md §3.5).',
+                'El núcleo del DataGrid no importa features: solo conoce el contrato GridFeature y el contexto (docs/architecture.md §4).',
             },
           ],
         },

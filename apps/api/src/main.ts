@@ -5,14 +5,14 @@ import { loadConfig } from './config.ts'
 import { createDb } from './db/index.ts'
 import { runMigrations } from './db/migrate.ts'
 import { reportStartupError } from './lib/startup.ts'
-import { LocalStorage } from './lib/storage.ts'
+import { createStorage } from './lib/create-storage.ts'
 
 async function main() {
   const config = loadConfig()
   const { db } = createDb(config.DATABASE_URL)
   await runMigrations(db)
   const auth = createAuth(db, config)
-  const storage = new LocalStorage(config.UPLOAD_DIR)
+  const storage = createStorage(config)
   const app = createApp({ auth, db, webOrigin: config.WEB_ORIGIN, storage })
 
   serve({ fetch: app.fetch, port: config.PORT }, (info) => {

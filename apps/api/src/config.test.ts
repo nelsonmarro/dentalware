@@ -43,6 +43,21 @@ describe('loadConfig', () => {
     expect(config.PORT).toBe(3000)
     expect(config.NODE_ENV).toBe('development')
     expect(config.ADMIN_NAME).toBe('Administrador')
+    expect(config.STORAGE_DRIVER).toBe('local')
+  })
+
+  it('rechaza un STORAGE_DRIVER desconocido con un mensaje en español (#103)', () => {
+    expect(() =>
+      loadConfig({
+        DATABASE_URL: 'postgres://dentalware:dentalware@localhost:5433/dentalware',
+        BETTER_AUTH_SECRET: 'a'.repeat(32),
+        BETTER_AUTH_URL: 'http://localhost:3000',
+        WEB_ORIGIN: 'http://localhost:5173',
+        ADMIN_EMAIL: 'admin@lab.local',
+        ADMIN_PASSWORD: 'Admin12345!',
+        STORAGE_DRIVER: 'ftp',
+      }),
+    ).toThrow('STORAGE_DRIVER debe ser')
   })
 })
 
