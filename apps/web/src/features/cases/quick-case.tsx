@@ -1,7 +1,5 @@
 import {
   canChangeStage,
-  isLastStage,
-  nextStage,
   STAGE_CHANGE_BLOCKED_REASON,
   STAGE_CHANGE_ROLES,
   toIsoDate,
@@ -20,6 +18,7 @@ import { dueBadge, isStageVisible } from './case-views'
 import { formatDate } from './date-format'
 import { StatusChip } from './status-chip'
 import { useAttachments } from './use-attachments'
+import { stageNavigation } from './stage-navigation'
 import { useCaseByCode, useChangeStage } from './use-cases'
 import { usePhotoUpload } from './use-photo-upload'
 
@@ -34,7 +33,7 @@ function canControlStage(role: UserRole): boolean {
  * técnico al escanear el QR de la orden impresa (ruta `/t/:code`, montada dentro de `_app`
  * para heredar la sesión y el `?redirect=` de vuelta tras el login — ver `routes/_app/t.$code`).
  * Móvil primero: código, paciente, fase actual y dos acciones grandes para el puesto de
- * trabajo (con guantes, sin gestos finos): "Avanzar fase" y "Añadir foto". Retroceder fase y
+ * trabajo (con guantes, sin gestos finos): «Avanzar a {fase siguiente}» y «Añadir foto». Retroceder fase y
  * finalizar no son parte de FIC-3: solo la ficha completa los ofrece.
  *
  * Nunca precios: el enmascarado lo garantiza `GET /api/trabajos/codigo/:code` (mismo servicio
@@ -62,6 +61,12 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
       <EmptyState
         title="No encontrado"
         description="Revisa el código impreso en la orden o búscalo en la lista de trabajos."
+        action={
+          // UX3-27: la salida que el texto sugiere, con el objetivo táctil de 44 px del `Button`.
+          <Button variant="outline" asChild>
+            <Link to="/trabajos">Ir a trabajos</Link>
+          </Button>
+        }
       />
     )
   }
@@ -72,14 +77,16 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
   // un terminado con la fecha pasada no está «atrasado» en ningún sitio.
   const dueDate = c.promisedDate ?? c.dueDate
   const badge = dueBadge(dueDate, toIsoDate(new Date()), c.status)
-  const activeStages = stages.data ?? []
+  // Misma fuente que la ficha completa (`stageNavigation`): qué fase sigue, si es la última y
+  // si la actual está desactivada.
+  const nav = stageNavigation(stages.data ?? [], c.currentStageId, stages.isError)
   // Misma clasificación que `StageControl` (sin inventar una lista nueva): si el rol no puede
   // cambiar de fase, el botón simplemente no aparece (ni motivo: es el mismo criterio que usa
   // la ficha completa para mensajero); si el rol sí puede pero el estado no, aparece el motivo.
   const roleCanControl = canControlStage(role)
   const canControl = roleCanControl && canChangeStage(c.status)
-  const next = canControl ? nextStage(activeStages, c.currentStageId) : undefined
-  const last = canControl && isLastStage(activeStages, c.currentStageId)
+  const next = canControl ? nav.next : undefined
+  const last = canControl && nav.last
   // `canChangeStage` repetido aquí (en vez de reusar una variable) a propósito: es un
   // predicado de tipo (`status is 'en_proceso'`) y solo estrecha `c.status` a
   // `Exclude<CaseStatus, 'en_proceso'>` dentro de esta misma condición (mismo patrón que
@@ -88,12 +95,11 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
     roleCanControl && !canChangeStage(c.status) ? STAGE_CHANGE_BLOCKED_REASON[c.status] : null
   // Mismos avisos que `StageControl` (M-1 de la revisión de la Tarea 15): sin ellos, una fase
   // desactivada o un fallo al cargar las fases dejaban "Avanzar fase" deshabilitado sin motivo.
-  const current = activeStages.find((s) => s.id === c.currentStageId)
   const stagesProblem = !canControl
     ? null
     : stages.isError
       ? 'No se pudieron cargar las fases. Recarga la página.'
-      : stages.isSuccess && (!current || !current.active)
+      : stages.isSuccess && (!nav.current || nav.currentInactive)
         ? 'La fase en la que estaba este trabajo ya no está activa. Pide a administración que la reactive en Configuración → Fases.'
         : null
 
@@ -134,7 +140,9 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
             disabled={!next || changeStage.isPending}
             onClick={() => changeStage.mutate({ direccion: 'avanzar', motivo: null })}
           >
-            Avanzar fase
+            {/* UX3-27: el destino en el rótulo; sin fase siguiente conocida (cargando, error,
+                fase desactivada) no se inventa y el botón queda deshabilitado. */}
+            {next ? `Avanzar a ${next.name}` : 'Avanzar fase'}
           </Button>
         )}
         <Button

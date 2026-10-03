@@ -245,6 +245,17 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // UX3-27: «No encontrado» ganó la salida «Ir a trabajos»; con guantes también debe medir 44 px.
+  test(
+    'ficha corta del QR (/t/:code): código que no existe',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      await page.goto('/t/26-99999')
+      await expect(page.getByRole('link', { name: 'Ir a trabajos' })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+    },
+  )
+
   test(
     'ficha de un trabajo entregado: diálogo "Repetir"',
     { tag: '@extendida' },

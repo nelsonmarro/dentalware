@@ -613,7 +613,7 @@ test.describe('Trabajos', () => {
       // del PR 3). Primera fase del seed: "Recepción" → "Modelo".
       await tecnicoPage.goto(`/t/${trabajo.code}`)
       await expect(tecnicoPage.getByRole('heading', { level: 1, name: trabajo.code })).toBeVisible()
-      await tecnicoPage.getByRole('button', { name: 'Avanzar fase' }).click()
+      await tecnicoPage.getByRole('button', { name: 'Avanzar a Modelo' }).click()
       await expect(toasts(tecnicoPage).getByText('Fase: Modelo')).toBeVisible()
       await expect(tecnicoPage.getByText('Modelo', { exact: true })).toBeVisible()
       expect(tecnicoErrors).toEqual([])

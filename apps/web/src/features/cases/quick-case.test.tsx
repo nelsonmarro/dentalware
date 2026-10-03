@@ -147,7 +147,7 @@ describe('QuickCase', () => {
     renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
 
     await screen.findByText('Modelado')
-    await user.click(screen.getByRole('button', { name: 'Avanzar fase' }))
+    await user.click(screen.getByRole('button', { name: 'Avanzar a Fresado' }))
 
     await waitFor(() =>
       expect(changeStage).toHaveBeenCalledWith('c1', { direccion: 'avanzar', motivo: null }),
@@ -168,7 +168,7 @@ describe('QuickCase', () => {
     expect(
       await screen.findByText('El trabajo está en espera: reanúdalo para poder cambiar de fase.'),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Avanzar fase' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Avanzar/ })).not.toBeInTheDocument()
   })
 
   it('un mensajero no ve el botón de avanzar fase (sin motivo: es por rol, no por estado)', async () => {
@@ -178,7 +178,7 @@ describe('QuickCase', () => {
     renderWithProviders(<QuickCase code="26-00123" role="mensajero" />)
 
     await screen.findByText('Modelado')
-    expect(screen.queryByRole('button', { name: 'Avanzar fase' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Avanzar/ })).not.toBeInTheDocument()
   })
 
   // UX3-23: `finalizar`/`cancelar` no limpian `currentStageId`, así que un trabajo terminado
@@ -318,13 +318,15 @@ describe('QuickCase', () => {
     expect(screen.queryByText('450.00')).not.toBeInTheDocument()
   })
 
-  it('tiene los botones "Avanzar fase" y "Añadir foto"', async () => {
+  // UX3-27: el botón dice a qué fase lleva; un toque accidental solo se deshace desde la
+  // ficha completa y con motivo.
+  it('tiene los botones «Avanzar a {fase siguiente}» y «Añadir foto»', async () => {
     fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
     renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
 
-    expect(await screen.findByRole('button', { name: 'Avanzar fase' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Avanzar a Fresado' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Añadir foto' })).toBeInTheDocument()
     expect(screen.getByLabelText('Añadir foto')).toHaveAttribute('capture', 'environment')
   })
@@ -397,6 +399,8 @@ describe('QuickCase', () => {
     expect(
       await screen.findByText('No se pudieron cargar las fases. Recarga la página.'),
     ).toBeInTheDocument()
+    // Sin la lista de fases no se sabe cuál sigue: el botón no inventa un destino.
+    expect(screen.getByRole('button', { name: 'Avanzar fase' })).toBeDisabled()
   })
 
   it('si la fase actual está desactivada explica cómo seguir', async () => {
@@ -435,6 +439,17 @@ describe('QuickCase', () => {
 
     expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
     expect(screen.queryByText('No encontrado')).not.toBeInTheDocument()
+  })
+
+  // UX3-27: el texto sugería buscar en la lista, pero no había cómo llegar a ella.
+  it('«No encontrado» ofrece ir a la lista de trabajos', async () => {
+    fetchCaseByCode.mockRejectedValue(new ApiError('No encontrado', 404))
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+
+    renderWithProviders(<QuickCase code="26-99999" role="tecnico" />)
+
+    const link = await screen.findByRole('link', { name: 'Ir a trabajos' })
+    expect(link).toHaveAttribute('href', '/trabajos')
   })
 
   it('«No encontrado» orienta a revisar el código impreso', async () => {

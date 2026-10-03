@@ -18,6 +18,12 @@ describe('stageNavigation', () => {
     expect(nav.last).toBe(false)
   })
 
+  // UX3-27: la ficha corta rotula «Avanzar a {fase siguiente}»; la siguiente es la fase completa
+  // (con nombre), no solo la referencia de `nextStage`.
+  it('la fase siguiente trae su nombre', () => {
+    expect(stageNavigation(fases, 'f1').next?.name).toBe('F2')
+  })
+
   it('en la última fase no hay siguiente y es la última', () => {
     const nav = stageNavigation(fases, 'f3')
     expect(nav.next).toBeUndefined()

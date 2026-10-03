@@ -18,7 +18,9 @@ export function stageNavigation<S extends StageRef>(
     loading: stages.length === 0 && !stagesError,
     current,
     currentInactive: !!current && !current.active,
-    next: nextStage(stages, currentStageId),
+    // Resuelta contra `stages` (como `previous`): `nextStage` devuelve un `StageRef` sin
+    // nombre, y la ficha corta rotula «Avanzar a {fase siguiente}» (UX3-27).
+    next: stages.find((s) => s.id === nextStage(stages, currentStageId)?.id),
     previous: stages.find((s) => s.id === previousStage(stages, currentStageId)?.id),
     last: isLastStage(stages, currentStageId),
   }
