@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { ApiError } from '@/lib/api-error'
 import { compressImage } from '@/lib/image-compress'
+import { isPhoto } from './attachment-kind'
 import { useUploadAttachment } from './use-attachments'
 
 /**
@@ -20,7 +21,8 @@ export function usePhotoUpload(caseId: string, onUploaded?: () => void) {
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return
     const files = [...fileList]
-    let uploaded = 0
+    let photos = 0
+    let documents = 0
     for (const [index, file] of files.entries()) {
       setProgress({ done: index, total: files.length })
       try {
@@ -28,7 +30,8 @@ export function usePhotoUpload(caseId: string, onUploaded?: () => void) {
         const form = new FormData()
         form.append('file', compressed, file.name)
         await upload.mutateAsync(form)
-        uploaded += 1
+        if (isPhoto({ mime: file.type })) photos += 1
+        else documents += 1
       } catch (err) {
         toast.error(
           err instanceof ApiError
@@ -38,11 +41,22 @@ export function usePhotoUpload(caseId: string, onUploaded?: () => void) {
       }
     }
     setProgress(null)
-    if (uploaded > 0) {
-      toast.success(uploaded === 1 ? 'Foto añadida' : `${uploaded} fotos añadidas`)
-    }
+    const message = uploadedMessage(photos, documents)
+    if (message) toast.success(message)
     onUploaded?.()
   }
 
   return { handleFiles, progress }
+}
+
+/** Aviso de éxito según lo que entró (M-1 de la revisión de la Tarea 5): desde la ficha
+ * completa también se suben PDF, y «Foto añadida» de un documento era falso. Misma regla de
+ * foto que el resto de la web (`isPhoto`, por MIME). `null` si no entró nada. */
+function uploadedMessage(photos: number, documents: number): string | null {
+  const total = photos + documents
+  if (total === 0) return null
+  if (documents === 0) return photos === 1 ? 'Foto añadida' : `${photos} fotos añadidas`
+  if (photos === 0)
+    return documents === 1 ? 'Documento añadido' : `${documents} documentos añadidos`
+  return `${total} archivos añadidos`
 }
