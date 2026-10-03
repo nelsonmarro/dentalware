@@ -26,12 +26,14 @@ export function CasesFilters({
   value,
   onChange,
   clinics,
+  clinicsLoading = false,
   doctors,
   technicians,
 }: {
   value: CaseListQueryInput
   onChange: (patch: Partial<CaseListQueryInput>) => void
   clinics: Clinic[]
+  clinicsLoading?: boolean
   doctors: Doctor[]
   technicians?: User[]
 }) {
@@ -68,6 +70,23 @@ export function CasesFilters({
     })
   }
 
+  // Un `?clinicId=` que no está en la lista (clínica inactiva, o la lista aún cargando) no deja
+  // el disparador en «Elegir clínica» con el filtro activo: se rotula con lo que pasa.
+  const clinicUnresolved =
+    value.clinicId !== undefined && !clinics.some((c) => c.id === value.clinicId)
+  const clinicItems = [
+    { value: ALL, label: 'Todas' },
+    ...clinics.map((c) => ({ value: c.id, label: c.name })),
+    ...(clinicUnresolved && value.clinicId
+      ? [
+          {
+            value: value.clinicId,
+            label: clinicsLoading ? 'Cargando clínicas…' : 'Clínica no disponible',
+          },
+        ]
+      : []),
+  ]
+
   const fields = (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div className="flex flex-col gap-1.5">
@@ -78,10 +97,7 @@ export function CasesFilters({
           className="w-full"
           value={value.clinicId ?? ALL}
           onChange={(v) => onChange({ clinicId: v === ALL ? undefined : v, doctorId: undefined })}
-          items={[
-            { value: ALL, label: 'Todas' },
-            ...clinics.map((c) => ({ value: c.id, label: c.name })),
-          ]}
+          items={clinicItems}
           placeholder="Elegir clínica"
           searchPlaceholder="Buscar clínica"
         />

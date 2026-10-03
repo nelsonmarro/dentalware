@@ -98,6 +98,7 @@ function TrabajosPage() {
         value={search}
         onChange={updateSearch}
         clinics={clinics.data ?? []}
+        clinicsLoading={clinics.isPending}
         doctors={doctors.data ?? []}
         technicians={technicians}
       />

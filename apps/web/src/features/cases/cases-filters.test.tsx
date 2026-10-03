@@ -60,4 +60,39 @@ describe('CasesFilters', () => {
     await user.click(screen.getByRole('option', { name: 'Todas' }))
     expect(onChange).toHaveBeenCalledWith({ clinicId: undefined, doctorId: undefined })
   })
+
+  // Revisión de la Tarea 8: un `?clinicId=` que no está en la lista (clínica inactiva, o la
+  // lista todavía cargando) dejaba el disparador en «Elegir clínica» con el filtro activo.
+  it('con una clínica filtrada que no está en la lista dice «Clínica no disponible»', () => {
+    setMatchMedia(true)
+    render(
+      <CasesFilters
+        value={{ clinicId: 'c-inactiva' }}
+        onChange={vi.fn()}
+        clinics={clinics}
+        doctors={[]}
+      />,
+    )
+
+    expect(screen.getByRole('combobox', { name: 'Clínica' })).toHaveTextContent(
+      'Clínica no disponible',
+    )
+  })
+
+  it('mientras cargan las clínicas, la clínica filtrada dice «Cargando clínicas…»', () => {
+    setMatchMedia(true)
+    render(
+      <CasesFilters
+        value={{ clinicId: 'c1' }}
+        onChange={vi.fn()}
+        clinics={[]}
+        clinicsLoading
+        doctors={[]}
+      />,
+    )
+
+    expect(screen.getByRole('combobox', { name: 'Clínica' })).toHaveTextContent(
+      'Cargando clínicas…',
+    )
+  })
 })
