@@ -363,6 +363,47 @@ describe('PrintOrder', () => {
     expect(await screen.findByText('Corona provisional (sin catálogo)')).toBeInTheDocument()
   })
 
+  // UX3-07: el papel que acompaña al trabajo avisa la urgencia con texto y borde negro, no solo
+  // con color (en papel, «Gráficos de fondo» viene apagado por defecto en Chrome).
+  it('marca «URGENTE» con texto y borde junto al código cuando el trabajo es urgente (UX3-07)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto({ priority: 'urgente' })}
+        settings={settings()}
+        copy="laboratorio"
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    const marca = await screen.findByText('URGENTE')
+    expect(marca.className).toMatch(/border-2/)
+    expect(marca.className).toMatch(/border-foreground/)
+  })
+
+  it('no marca urgencia en un trabajo normal (UX3-07)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings()}
+        copy="laboratorio"
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    await screen.findByRole('heading', { name: /Orden de trabajo 26-00123/ })
+    expect(screen.queryByText(/urgente/i)).not.toBeInTheDocument()
+  })
+
+  it('la fecha de entrega va en negrita (UX3-07)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto({ promisedDate: '2026-02-20' })}
+        settings={settings()}
+        copy="laboratorio"
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    expect((await screen.findByText('20/02/2026')).className).toMatch(/font-bold/)
+  })
+
   // M-7: "Fecha entrega" es la comprometida (`promisedDate`) si existe; si no, la deseada
   // (`dueDate`); si tampoco hay deseada, una línea en blanco para escribirla a mano.
   it('«Fecha entrega» muestra la fecha comprometida cuando existe (M-7)', async () => {

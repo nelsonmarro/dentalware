@@ -89,7 +89,7 @@ function DeliveryDate({
       </span>
     )
   }
-  return <>{formatDate(date)}</>
+  return <span className="font-bold">{formatDate(date)}</span>
 }
 
 /** Orden de trabajo imprimible (FIC-1, #71): reproduce los bloques y el orden de la hoja en
@@ -164,9 +164,18 @@ export function PrintOrder({
           >
             {PRINT_COPY_LABEL[copy]}
           </p>
-          <h2 className="font-mono text-xl font-semibold print:text-sm">
-            Orden de trabajo {c.code}
-          </h2>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {/* UX3-07: la urgencia en texto y con borde negro de 2 px — nunca solo color, y en
+             * papel el fondo no se imprime por defecto. */}
+            {c.priority === 'urgente' && (
+              <span className="rounded border-2 border-foreground px-2 py-0.5 text-sm font-bold tracking-widest print:text-[10px]">
+                URGENTE
+              </span>
+            )}
+            <h2 className="font-mono text-xl font-semibold print:text-sm">
+              Orden de trabajo {c.code}
+            </h2>
+          </div>
           <QrCode value={url} size={96} />
         </div>
       </header>

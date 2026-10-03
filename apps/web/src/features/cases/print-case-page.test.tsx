@@ -44,7 +44,7 @@ function renderWithProviders(ui: ReactElement) {
   return render(<RouterProvider router={router} />)
 }
 
-function stubCaseAndSettings() {
+function stubCaseAndSettings(priority: 'normal' | 'urgente' = 'normal') {
   fetchCase.mockResolvedValue({
     case: {
       id: 'caso-1',
@@ -58,7 +58,7 @@ function stubCaseAndSettings() {
       status: 'nuevo',
       currentStageId: null,
       assignedTechnicianId: null,
-      priority: 'normal',
+      priority,
       receivedAt: '2026-01-01',
       dueDate: '2026-01-10',
       promisedDate: '2026-01-12',
@@ -174,5 +174,15 @@ describe('PrintCasePage', () => {
     await user.click(await screen.findByRole('tab', { name: 'Clínica' }))
     expect(rotulos()).toEqual(['Copia clínica'])
     expect(screen.getByText('$ 147.00')).toBeInTheDocument()
+  })
+
+  it('un trabajo urgente lleva «URGENTE» en cada copia (UX3-07)', async () => {
+    stubCaseAndSettings('urgente')
+    renderWithProviders(<PrintCasePage caseId="caso-1" role="recepcion" />)
+
+    await screen.findByRole('tab', { name: 'Ambas', selected: true })
+    const [laboratorio, clinica] = screen.getAllByRole('article')
+    expect(within(laboratorio!).getByText('URGENTE')).toBeInTheDocument()
+    expect(within(clinica!).getByText('URGENTE')).toBeInTheDocument()
   })
 })
