@@ -75,7 +75,13 @@ export function PrintCasePage({ caseId, role }: { caseId: string; role: UserRole
       <Fragment key={copy}>
         {index > 0 && <hr className="border-dashed print:hidden" aria-hidden />}
         <div className={index < list.length - 1 ? 'print:break-after-page' : undefined}>
-          <PrintOrder case={data} settings={lab} copy={copy} publicUrl={getPublicUrl()} />
+          <PrintOrder
+            case={data}
+            settings={lab}
+            copy={copy}
+            publicUrl={getPublicUrl()}
+            primary={index === 0}
+          />
         </div>
       </Fragment>
     ))

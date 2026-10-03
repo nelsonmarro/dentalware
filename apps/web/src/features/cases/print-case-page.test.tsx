@@ -149,6 +149,8 @@ describe('PrintCasePage', () => {
 
     expect(await screen.findByRole('tab', { name: 'Ambas', selected: true })).toBeInTheDocument()
     expect(rotulos()).toEqual(['Copia laboratorio', 'Copia clínica'])
+    // Un solo `h1` en la página aunque haya dos hojas (convenciones §5, accesibilidad).
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     // Un solo total: el de la copia clínica.
     expect(screen.getAllByText('$ 147.00')).toHaveLength(1)
     const [laboratorio, clinica] = screen.getAllByRole('article')

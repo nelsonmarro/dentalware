@@ -120,12 +120,17 @@ export function PrintOrder({
   settings,
   copy,
   publicUrl,
+  primary = true,
 }: {
   case: CaseDetail
   settings: LabSettings
   copy: PrintCopy
   publicUrl: string
+  /** Solo la primera hoja de la página lleva el `h1` (un `h1` por página, aunque se impriman
+   * dos copias); las siguientes rotulan el laboratorio con `h2`. */
+  primary?: boolean
 }) {
+  const LabTitle = primary ? 'h1' : 'h2'
   const showPrices = printCopyShowsPrices(copy)
   // `/t/<código>` es la ruta de la ficha corta (`routes/_app/t.$code.tsx`, FIC-2): si se
   // renombra allí, cambia aquí también — el QR impreso apunta a esa URL.
@@ -152,7 +157,7 @@ export function PrintOrder({
             />
           )}
           <div className="flex flex-col gap-1 print:gap-0">
-            <h1 className="text-2xl font-semibold print:text-base">{settings.name}</h1>
+            <LabTitle className="text-2xl font-semibold print:text-base">{settings.name}</LabTitle>
             {settings.address && (
               <p className="text-sm print:text-print-body">{settings.address}</p>
             )}
