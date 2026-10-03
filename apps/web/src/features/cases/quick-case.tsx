@@ -10,8 +10,10 @@ import { Link } from '@tanstack/react-router'
 import { Camera } from 'lucide-react'
 import { useRef } from 'react'
 import { EmptyState } from '@/components/empty-state'
+import { LoadError } from '@/components/load-error'
 import { Button } from '@/components/ui/button'
 import { useStages } from '@/features/stages/use-stages'
+import { isNotFoundError } from '@/lib/api-error'
 import { StatusChip } from './status-chip'
 import { useCaseByCode, useChangeStage } from './use-cases'
 import { usePhotoUpload } from './use-photo-upload'
@@ -42,9 +44,14 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
   const { handleFiles, progress } = usePhotoUpload(caseId ?? '')
 
   if (q.isPending) return <p className="text-sm text-muted-foreground">Cargando…</p>
-  // Código inexistente (404) o mal formado (422): mismo mensaje claro, nunca el error crudo
-  // de la API ni el errorComponent del router (decisión de la Tarea 15).
-  if (q.isError || !q.data) {
+  if (q.isError) {
+    // Código inexistente (404) o mal formado (422): mismo mensaje claro, nunca el error crudo
+    // de la API ni el errorComponent del router (decisión de la Tarea 15). Cualquier otro
+    // error (sin red, el servidor caído) no es "no encontrado": es "no se pudo cargar"
+    // (UX3-02), y se puede reintentar.
+    if (!isNotFoundError(q.error, [422])) {
+      return <LoadError onRetry={() => void q.refetch()} />
+    }
     return (
       <EmptyState
         title="No encontrado"
@@ -52,6 +59,7 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
       />
     )
   }
+  if (!q.data) return null
 
   const c = q.data.case
   const activeStages = stages.data ?? []

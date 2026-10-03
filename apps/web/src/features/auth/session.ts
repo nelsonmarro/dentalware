@@ -31,13 +31,26 @@ export async function getSession(): Promise<SessionUser | null> {
   return result.status === 'ok' ? result.user : null
 }
 
-export async function signIn(values: {
-  email: string
-  password: string
-}): Promise<{ ok: true } | { ok: false }> {
-  const { error } = await authClient.signIn.email(values)
-  if (error) return { ok: false }
-  return { ok: true }
+export type SignInResult = { ok: true } | { ok: false; reason: 'credentials' | 'network' }
+
+/**
+ * UX3-10/UX3-02: distingue credenciales incorrectas (401, el único caso en el que el usuario
+ * puede corregir algo) de un fallo de red o del servidor (todo lo demás: sin conexión, 429,
+ * 500…), que se muestra con un mensaje distinto en `LoginForm`.
+ *
+ * `authClient.signIn.email` solo devuelve `{ error }` cuando la petición llegó al servidor; un
+ * fallo real de red (sin conexión) hace que la promesa se **rechace** en vez de resolver con un
+ * error — sin este `try/catch` esa excepción quedaba sin capturar (`Uncaught (in promise)` en
+ * la consola, UX3-02) porque nadie en `onSubmit` la esperaba con `catch`.
+ */
+export async function signIn(values: { email: string; password: string }): Promise<SignInResult> {
+  try {
+    const { error } = await authClient.signIn.email(values)
+    if (error) return { ok: false, reason: error.status === 401 ? 'credentials' : 'network' }
+    return { ok: true }
+  } catch {
+    return { ok: false, reason: 'network' }
+  }
 }
 
 export async function signOut(): Promise<void> {

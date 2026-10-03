@@ -18,7 +18,14 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void | Promise<void>
     setServerError(null)
     const result = await signIn(values)
     if (!result.ok) {
-      setServerError('Correo o contraseña incorrectos')
+      // UX3-10: un 401 es "corrige lo que escribiste"; cualquier otra cosa (sin red, el
+      // servidor caído, un 500…) es un problema distinto y no insinúa que la contraseña esté
+      // mal, así que lleva su propio mensaje.
+      setServerError(
+        result.reason === 'credentials'
+          ? 'Correo o contraseña incorrectos'
+          : 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.',
+      )
       return
     }
     await onSuccess()

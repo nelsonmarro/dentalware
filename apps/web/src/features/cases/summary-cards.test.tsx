@@ -44,6 +44,16 @@ const SUMMARY: CaseSummary = {
 }
 
 describe('SummaryCards', () => {
+  // UX3-02: antes, un fallo de red dejaba las tarjetas en "—" para siempre (un estado de carga
+  // permanente, no un error que se pueda reintentar).
+  it('un fallo de red ofrece reintentar, en vez de dejar los contadores en "—" para siempre', async () => {
+    fetchSummary.mockRejectedValue(new TypeError('Failed to fetch'))
+    renderWithProviders(<SummaryCards />)
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.queryByText('—')).not.toBeInTheDocument()
+  })
+
   it('muestra un contador por vista y enlaza a su lista', async () => {
     fetchSummary.mockResolvedValue(SUMMARY)
     renderWithProviders(<SummaryCards />)

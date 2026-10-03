@@ -1,5 +1,6 @@
 import { toIsoDate } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
+import { LoadError } from '@/components/load-error'
 import { dueBadge } from './case-views'
 import { formatDate } from './date-format'
 import { STATUS_COLOR, STATUS_LABEL } from './status-chip'
@@ -31,6 +32,10 @@ export function MyCases({ technicianId }: { technicianId: string }) {
       <h2 className="font-heading text-lg font-medium">Mis trabajos</h2>
       {cases.isPending ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
+      ) : cases.isError ? (
+        // UX3-02: sin esta rama, un fallo de red se leía como "no tienes trabajos
+        // asignados" — un dato falso, no un error que se pueda reintentar.
+        <LoadError onRetry={() => void cases.refetch()} />
       ) : rows.length === 0 ? (
         <p className="rounded-xl bg-card p-4 text-sm text-muted-foreground ring-1 ring-foreground/10">
           No tienes trabajos asignados.

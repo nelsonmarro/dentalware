@@ -134,6 +134,16 @@ describe('MyCases', () => {
     expect(fila).not.toHaveTextContent('En proceso')
   })
 
+  // UX3-02: un fallo de red no debe leerse como "no tienes trabajos asignados" — eso es un
+  // dato falso; aquí la petición ni se resolvió.
+  it('un fallo de red no muestra el vacío: ofrece reintentar', async () => {
+    fetchCases.mockRejectedValue(new TypeError('Failed to fetch'))
+    renderWithProviders(<MyCases technicianId="tec-1" />)
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.queryByText('No tienes trabajos asignados.')).not.toBeInTheDocument()
+  })
+
   it('sin trabajos asignados muestra un vacío con texto propio', async () => {
     fetchCases.mockResolvedValue({ cases: [], total: null })
     renderWithProviders(<MyCases technicianId="tec-1" />)

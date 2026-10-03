@@ -82,15 +82,15 @@ describe('getSessionStatus', () => {
 })
 
 describe('signIn', () => {
-  it('devuelve ok false cuando better-auth responde error', async () => {
+  it('devuelve ok false con motivo "credentials" cuando better-auth responde 401', async () => {
     vi.mocked(authClient.signIn.email).mockResolvedValue({
       data: null,
-      error: { message: 'Credenciales inválidas' },
+      error: { status: 401, message: 'Credenciales inválidas' },
     } as Awaited<ReturnType<typeof authClient.signIn.email>>)
 
     const result = await signIn({ email: 'ana@labo.test', password: 'incorrecta' })
 
-    expect(result).toEqual({ ok: false })
+    expect(result).toEqual({ ok: false, reason: 'credentials' })
   })
 
   it('devuelve ok true cuando better-auth responde sin error', async () => {
@@ -102,6 +102,31 @@ describe('signIn', () => {
     const result = await signIn({ email: 'ana@labo.test', password: 'correcta' })
 
     expect(result).toEqual({ ok: true })
+  })
+
+  // UX3-10: un 500 o un 429 no son "correo o contraseña incorrectos" — son un fallo del
+  // servidor, así que se agrupan con la red (reason 'network') en vez de insinuar que la
+  // contraseña está mal.
+  it('devuelve ok false con motivo "network" cuando better-auth responde un error que no es 401', async () => {
+    vi.mocked(authClient.signIn.email).mockResolvedValue({
+      data: null,
+      error: { status: 500, message: 'Internal server error' },
+    } as Awaited<ReturnType<typeof authClient.signIn.email>>)
+
+    const result = await signIn({ email: 'ana@labo.test', password: 'correcta' })
+
+    expect(result).toEqual({ ok: false, reason: 'network' })
+  })
+
+  // UX3-02: sin red, `authClient.signIn.email` rechaza la promesa en vez de resolver con
+  // `{ error }` (evidencia en vivo: "Uncaught (in promise)" en la consola). `signIn` debe
+  // capturarlo y devolver un resultado normal, nunca dejar la excepción sin atrapar.
+  it('devuelve ok false con motivo "network" cuando la petición falla por red (sin capturar la excepción)', async () => {
+    vi.mocked(authClient.signIn.email).mockRejectedValue(new TypeError('Failed to fetch'))
+
+    const result = await signIn({ email: 'ana@labo.test', password: 'correcta' })
+
+    expect(result).toEqual({ ok: false, reason: 'network' })
   })
 })
 

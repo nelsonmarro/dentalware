@@ -2,6 +2,7 @@ import { hidesPrices } from '@dentalware/shared'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
+import { LoadError } from '@/components/load-error'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CaseActions } from '@/features/cases/case-actions'
 import { CaseDetailTab } from '@/features/cases/case-detail-tab'
@@ -12,6 +13,7 @@ import { PhotosTab } from '@/features/cases/photos-tab'
 import { useAttachments } from '@/features/cases/use-attachments'
 import { useAddComment, useCase, useEvents } from '@/features/cases/use-cases'
 import { useStages } from '@/features/stages/use-stages'
+import { isNotFoundError } from '@/lib/api-error'
 
 export const Route = createFileRoute('/_app/trabajos/$caseId')({
   component: CasePage,
@@ -30,7 +32,12 @@ function CasePage() {
   const stages = useStages(true)
 
   if (q.isPending) return <p className="text-sm text-muted-foreground">Cargando…</p>
-  if (q.isError || !q.data) {
+  if (q.isError) {
+    // UX3-02: solo un 404 real es "el trabajo no existe"; un fallo de red o del servidor se
+    // puede reintentar y no debe mandar a la lista como si el trabajo nunca hubiera existido.
+    if (!isNotFoundError(q.error)) {
+      return <LoadError onRetry={() => void q.refetch()} />
+    }
     return (
       <EmptyState
         title="El trabajo no existe"
@@ -42,6 +49,7 @@ function CasePage() {
       />
     )
   }
+  if (!q.data) return null
 
   const hidePrices = hidesPrices(user.role)
 

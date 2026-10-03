@@ -1,6 +1,7 @@
 import type { CaseView } from '@dentalware/shared'
 import { CASE_VIEWS } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
+import { LoadError } from '@/components/load-error'
 import { CASE_VIEW_LABEL } from './case-views'
 import { STATUS_COLOR } from './status-chip'
 import { useSummary } from './use-summary'
@@ -27,6 +28,12 @@ const SUMMARY_VIEWS = CASE_VIEWS.filter((v): v is Exclude<CaseView, 'todos'> => 
 
 export function SummaryCards() {
   const summary = useSummary()
+
+  // UX3-02: antes de este cambio, un fallo de red dejaba las seis tarjetas en "—" con
+  // `aria-label` "cargando" para siempre — un estado de carga permanente, no un error.
+  if (summary.isError) {
+    return <LoadError onRetry={() => void summary.refetch()} />
+  }
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

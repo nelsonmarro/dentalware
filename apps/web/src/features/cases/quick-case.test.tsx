@@ -266,6 +266,28 @@ describe('QuickCase', () => {
     ).toBeInTheDocument()
   })
 
+  // UX3-02: un fallo de red o del servidor no es "no encontrado" — ese texto sugiere que el
+  // código no existe, cuando en realidad la petición ni llegó a resolverse.
+  it('un fallo de red no muestra "No encontrado": ofrece reintentar', async () => {
+    fetchCaseByCode.mockRejectedValue(new TypeError('Failed to fetch'))
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.queryByText('No encontrado')).not.toBeInTheDocument()
+  })
+
+  it('un error 500 del servidor tampoco muestra "No encontrado"', async () => {
+    fetchCaseByCode.mockRejectedValue(new ApiError('Error interno', 500))
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.queryByText('No encontrado')).not.toBeInTheDocument()
+  })
+
   it('«No encontrado» orienta a revisar el código impreso', async () => {
     fetchCaseByCode.mockRejectedValue(new ApiError('No encontrado', 404))
     vi.mocked(fetchStages).mockResolvedValue(fases)
