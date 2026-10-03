@@ -5,7 +5,6 @@ import {
   canAssignTechnician,
   canChangeStage,
   canPerform,
-  CASE_ACTION_LABEL,
   CASE_WRITE_ROLES,
   firstStage,
   hidesPrices,
@@ -16,6 +15,7 @@ import {
   previousStage,
   REMAKE_ROLES,
   STAGE_CHANGE_BLOCKED_REASON,
+  STAGE_MOVE_BLOCKED_REASON,
   STAGE_CHANGE_ROLES,
   toIsoDate,
   type AssignTechnicianInput,
@@ -290,16 +290,12 @@ export function createCasesService(deps: {
             : previousStage(activeStages, found.currentStageId)
         if (!target) {
           if (!stagePositionKnown(activeStages, found.currentStageId)) {
-            throw new CaseStateError(
-              'No se puede cambiar de fase: no se pudo determinar la fase actual del trabajo. Puede que esté desactivada.',
-            )
+            throw new CaseStateError(STAGE_MOVE_BLOCKED_REASON.desconocida)
           }
           if (input.direccion === 'avanzar' && isLastStage(activeStages, found.currentStageId)) {
-            throw new CaseStateError(
-              `No se puede avanzar: el trabajo ya está en la última fase. Usa "${CASE_ACTION_LABEL.finalizar}" para terminarlo.`,
-            )
+            throw new CaseStateError(STAGE_MOVE_BLOCKED_REASON.ultima)
           }
-          throw new CaseStateError('No se puede retroceder: el trabajo ya está en la primera fase.')
+          throw new CaseStateError(STAGE_MOVE_BLOCKED_REASON.primera)
         }
         await cases.applyTransition(id, { status: found.status, currentStageId: target.id })
         await cases.addEvent({

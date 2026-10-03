@@ -293,3 +293,15 @@ export const STAGE_CHANGE_BLOCKED_REASON: Record<Exclude<CaseStatus, 'en_proceso
   entregado: 'El trabajo ya fue entregado.',
   cancelado: 'El trabajo está cancelado.',
 }
+
+/** Motivos de los 409 al mover la fase **dentro** de `en_proceso` (CIC-2): ya en la última al
+ * avanzar, ya en la primera al retroceder, o la fase actual fuera de las activas (desactivada o
+ * nula) — así no se le dice «última fase» a un trabajo cuya posición no se conoce. Única fuente
+ * para el `CaseStateError` del servicio, junto a `STAGE_CHANGE_BLOCKED_REASON` (que cubre el
+ * bloqueo por estado). */
+export const STAGE_MOVE_BLOCKED_REASON = {
+  ultima: `No se puede avanzar: el trabajo ya está en la última fase. Usa "${CASE_ACTION_LABEL.finalizar}" para terminarlo.`,
+  primera: 'No se puede retroceder: el trabajo ya está en la primera fase.',
+  desconocida:
+    'No se puede cambiar de fase: no se pudo determinar la fase actual del trabajo. Puede que esté desactivada.',
+} as const satisfies Record<'ultima' | 'primera' | 'desconocida', string>

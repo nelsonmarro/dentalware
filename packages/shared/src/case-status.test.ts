@@ -31,6 +31,7 @@ import {
   REMAKE_ROLES,
   REMAKEABLE_STATUSES,
   STAGE_CHANGE_BLOCKED_REASON,
+  STAGE_MOVE_BLOCKED_REASON,
   STAGE_CHANGE_ROLES,
 } from './case-status.ts'
 
@@ -282,6 +283,18 @@ describe('STAGE_CHANGE_BLOCKED_REASON', () => {
       expect(typeof STAGE_CHANGE_BLOCKED_REASON[s]).toBe('string')
       expect(STAGE_CHANGE_BLOCKED_REASON[s]!.length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('STAGE_MOVE_BLOCKED_REASON', () => {
+  it('fija el texto de los 409 de fase: última, primera y fase actual indeterminada', () => {
+    expect(STAGE_MOVE_BLOCKED_REASON).toEqual({
+      ultima:
+        'No se puede avanzar: el trabajo ya está en la última fase. Usa "Finalizar" para terminarlo.',
+      primera: 'No se puede retroceder: el trabajo ya está en la primera fase.',
+      desconocida:
+        'No se puede cambiar de fase: no se pudo determinar la fase actual del trabajo. Puede que esté desactivada.',
+    })
   })
 })
 
