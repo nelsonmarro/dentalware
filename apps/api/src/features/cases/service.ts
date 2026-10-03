@@ -5,6 +5,8 @@ import {
   canAssignTechnician,
   canChangeStage,
   canPerform,
+  CASE_ACTION_LABEL,
+  CASE_STATUS_LABEL,
   CASE_WRITE_ROLES,
   firstStage,
   hidesPrices,
@@ -294,7 +296,7 @@ export function createCasesService(deps: {
           }
           if (input.direccion === 'avanzar' && isLastStage(activeStages, found.currentStageId)) {
             throw new CaseStateError(
-              'El trabajo ya está en la última fase: usa "finalizar" para terminarlo',
+              `El trabajo ya está en la última fase: usa "${CASE_ACTION_LABEL.finalizar}" para terminarlo`,
             )
           }
           throw new CaseStateError('El trabajo ya está en la primera fase')
@@ -330,7 +332,7 @@ export function createCasesService(deps: {
         if (!found) throw new CaseNotFoundError()
         if (!canAssignTechnician(found.status)) {
           throw new CaseStateError(
-            `No se puede reasignar el técnico de un trabajo en estado "${found.status}"`,
+            `No se puede reasignar el técnico: el trabajo está en estado "${CASE_STATUS_LABEL[found.status]}".`,
           )
         }
         if (input.tecnicoId) {

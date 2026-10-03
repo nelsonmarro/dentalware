@@ -1,10 +1,10 @@
-import { toIsoDate } from '@dentalware/shared'
+import { CASE_STATUS_LABEL, toIsoDate } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { LoadError } from '@/components/load-error'
 import { AlertChip } from './alert-chip'
 import { dueBadge } from './case-views'
 import { formatDate } from './date-format'
-import { STATUS_COLOR, STATUS_LABEL } from './status-chip'
+import { STATUS_COLOR } from './status-chip'
 import { useCases } from './use-cases'
 
 /**
@@ -61,12 +61,12 @@ export function MyCases({ technicianId }: { technicianId: string }) {
                   </div>
                   <p className="text-sm">{r.patientRef}</p>
                   <p className="text-sm text-muted-foreground">
-                    {r.stage ? r.stage.name : STATUS_LABEL[r.status]}
+                    {r.stage ? r.stage.name : CASE_STATUS_LABEL[r.status]}
                     {/* I-3: en_espera/en_prueba conservan su fase, así que el borde de color
                         (`STATUS_COLOR` de arriba) no basta para distinguirlos de en_proceso
                         (conventions.md §5, nunca solo color) — se repite el rótulo del estado
-                        con texto. Si no hay fase, `STATUS_LABEL` ya salió arriba: no se repite. */}
-                    {r.stage && r.status !== 'en_proceso' && ` · ${STATUS_LABEL[r.status]}`} ·{' '}
+                        con texto. Si no hay fase, `CASE_STATUS_LABEL` ya salió arriba: no se repite. */}
+                    {r.stage && r.status !== 'en_proceso' && ` · ${CASE_STATUS_LABEL[r.status]}`} ·{' '}
                     {formatDate(date)}
                   </p>
                 </Link>

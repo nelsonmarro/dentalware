@@ -1,10 +1,12 @@
 import {
+  CASE_STATUS_LABEL,
   CASE_VIEWS,
   caseInputSchema,
   canRemake,
   fromCents,
   isActiveForDates,
   isEditableStatus,
+  notEditableMessage,
   isEnCurso,
   remakeDueDate,
   sumCents,
@@ -204,8 +206,7 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
     async update(id, input, actorId) {
       const cur = rows.get(id)
       if (!cur) return false
-      if (!isEditableStatus(cur.status))
-        throw new CaseStateError(`No se puede editar un trabajo en estado "${cur.status}"`)
+      if (!isEditableStatus(cur.status)) throw new CaseStateError(notEditableMessage(cur.status))
       rows.set(id, { ...cur, ...caseFields(input) })
       await repo.addEvent({ caseId: id, type: 'edited', actorId })
       return true
@@ -289,7 +290,9 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
       const parent = rows.get(parentId)
       if (!parent) throw new CaseNotFoundError()
       if (!canRemake(parent.status)) {
-        throw new CaseStateError(`No se puede repetir un trabajo en estado "${parent.status}"`)
+        throw new CaseStateError(
+          `No se puede repetir: el trabajo está en estado "${CASE_STATUS_LABEL[parent.status]}".`,
+        )
       }
       seq += 1
       const id = `c${seq}`

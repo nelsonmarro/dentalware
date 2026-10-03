@@ -239,6 +239,10 @@ describe('/api/trabajos', () => {
       .where(eq(ctx.schema.cases.id, id))
     const conflict = await app.request(`/api/trabajos/${id}`, req(recepcion, 'PUT', caseInput()))
     expect(conflict.status).toBe(409)
+    // UX3-03: el mensaje llega tal cual al toast; con el rótulo del estado, no la clave.
+    expect(await conflict.json()).toEqual({
+      message: 'No se puede editar: el trabajo está en estado "Terminado".',
+    })
   })
 
   it('listado por vista y búsqueda; total de fila null para mensajero', async () => {
@@ -549,6 +553,10 @@ describe('/api/trabajos', () => {
         req(admin, 'POST', { accion: 'finalizar' }),
       )
       expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({
+        message:
+          'No se puede "Finalizar": el trabajo está en estado "Nuevo". Recarga la ficha para ver su estado actual.',
+      })
     })
 
     it('responde 403 sin sesión y con rol técnico', async () => {
@@ -779,6 +787,9 @@ describe('/api/trabajos', () => {
         req(admin, 'PUT', { direccion: 'avanzar' }),
       )
       expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({
+        message: 'El trabajo ya está en la última fase: usa "Finalizar" para terminarlo',
+      })
     })
 
     it('responde 409 en un trabajo en espera', async () => {
@@ -1149,6 +1160,9 @@ describe('/api/trabajos', () => {
       const id = await createOne(recepcion)
       const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
       expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({
+        message: 'No se puede repetir: el trabajo está en estado "Nuevo".',
+      })
     })
 
     it('responde 404 si el trabajo no existe', async () => {

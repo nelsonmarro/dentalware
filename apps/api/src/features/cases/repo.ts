@@ -2,12 +2,14 @@ import type { CaseInput, CaseListQuery, CaseSummary, CaseView } from '@dentalwar
 import {
   ACTIVE_FOR_DATES_STATUSES,
   CASE_PAGE_SIZE,
+  CASE_STATUS_LABEL,
   CASE_VIEWS,
   canRemake,
   EN_CURSO_STATUSES,
   formatCaseCode,
   fromCents,
   isEditableStatus,
+  notEditableMessage,
   lineTotalCents,
   remakeDueDate,
   sumCents,
@@ -284,7 +286,7 @@ export function createCasesRepo(db: Db | Tx) {
         .for('update')
       if (!current) return false
       if (!isEditableStatus(current.status)) {
-        throw new CaseStateError(`No se puede editar un trabajo en estado "${current.status}"`)
+        throw new CaseStateError(notEditableMessage(current.status))
       }
       const before = await db
         .select({ productId: caseItems.productId, unitPrice: caseItems.unitPrice })
@@ -418,7 +420,9 @@ export function createCasesRepo(db: Db | Tx) {
       const [parent] = await db.select().from(cases).where(eq(cases.id, parentId)).for('update')
       if (!parent) throw new CaseNotFoundError()
       if (!canRemake(parent.status)) {
-        throw new CaseStateError(`No se puede repetir un trabajo en estado "${parent.status}"`)
+        throw new CaseStateError(
+          `No se puede repetir: el trabajo está en estado "${CASE_STATUS_LABEL[parent.status]}".`,
+        )
       }
       const parentItems = await db
         .select()

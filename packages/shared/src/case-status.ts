@@ -73,12 +73,46 @@ export const ACTIONS_REQUIRING_REASON: readonly CaseAction[] = CASE_ACTIONS.filt
   (a) => REASON_REQUIRED_FOR_ACTION[a],
 )
 
+/** Rótulo de cada estado tal como lo ve el laboratorio (chip de la web, historial y mensajes
+ * de error de la API). Fuente única (UX3-03): antes vivía solo en la web y la API interpolaba
+ * la clave (`en_proceso`) en sus 409. `Record` exhaustivo: un estado nuevo no compila sin rótulo. */
+export const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
+  nuevo: 'Nuevo',
+  en_proceso: 'En proceso',
+  en_espera: 'En espera',
+  en_prueba: 'En prueba',
+  terminado: 'Terminado',
+  enviado: 'Enviado',
+  entregado: 'Entregado',
+  cancelado: 'Cancelado',
+}
+
+/** Rótulo de cada acción: imperativo, el texto del botón que la dispara (no el estado destino).
+ * Fuente única para la barra de acciones de la web y los 409 de la API (UX3-03). */
+export const CASE_ACTION_LABEL: Record<CaseAction, string> = {
+  aceptar: 'Aceptar',
+  pausar: 'Pausar',
+  reanudar: 'Reanudar',
+  enviar_prueba: 'Enviar a prueba',
+  recibir_prueba: 'Recibir de prueba',
+  finalizar: 'Finalizar',
+  marcar_enviado: 'Marcar enviado',
+  marcar_entregado: 'Marcar entregado',
+  cancelar: 'Cancelar trabajo',
+}
+
 export type ApplyResult = { ok: true; status: CaseStatus } | { ok: false; reason: string }
 
+/** El motivo de rechazo llega tal cual al toast de la web (409): nombra la acción y el estado
+ * con sus rótulos, nunca con las claves, y dice qué hacer — un 409 aquí casi siempre significa
+ * que otra persona movió el trabajo mientras esta tenía la ficha abierta. */
 export function applyAction(status: CaseStatus, action: CaseAction): ApplyResult {
   const t = CASE_TRANSITIONS[action]
   if (!t.from.includes(status)) {
-    return { ok: false, reason: `No se puede "${action}" un trabajo en estado "${status}"` }
+    return {
+      ok: false,
+      reason: `No se puede "${CASE_ACTION_LABEL[action]}": el trabajo está en estado "${CASE_STATUS_LABEL[status]}". Recarga la ficha para ver su estado actual.`,
+    }
   }
   return { ok: true, status: t.to }
 }
@@ -100,6 +134,12 @@ export const EDITABLE_CASE_STATUSES = [
 
 export function isEditableStatus(status: CaseStatus): boolean {
   return (EDITABLE_CASE_STATUSES as readonly CaseStatus[]).includes(status)
+}
+
+/** Por qué no se puede editar un trabajo en `status`: único texto para el 409 de la API al
+ * guardar y para el aviso de la web al abrir «Editar» (UX3-03: con el rótulo, no la clave). */
+export function notEditableMessage(status: CaseStatus): string {
+  return `No se puede editar: el trabajo está en estado "${CASE_STATUS_LABEL[status]}".`
 }
 
 /** Estados desde los que se puede repetir un trabajo (CIC-4): cualquier punto en el que ya se

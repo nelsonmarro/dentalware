@@ -9,8 +9,10 @@ import {
   canChangeStage,
   canPerform,
   canRemake,
+  CASE_ACTION_LABEL,
   CASE_ACTION_ROLES,
   CASE_ACTIONS,
+  CASE_STATUS_LABEL,
   CASE_STATUSES,
   CASE_TRANSITIONS,
   CASE_WRITE_ROLES,
@@ -18,6 +20,7 @@ import {
   EN_CURSO_STATUSES,
   isActiveForDates,
   isEditableStatus,
+  notEditableMessage,
   isEnCurso,
   REMAKE_ROLES,
   REMAKEABLE_STATUSES,
@@ -104,13 +107,70 @@ describe('applyAction — camino feliz', () => {
 })
 
 describe('applyAction — transiciones inválidas', () => {
-  it('rechaza con motivo legible', () => {
+  // UX3-03: el 409 llega tal cual al toast; con las claves internas («marcar_entregado»,
+  // «en_proceso») recepción leía jerga del código. Literales, no derivados de los rótulos.
+  it('rechaza con los rótulos de la acción y del estado, no con las claves', () => {
     expect(applyAction('nuevo', 'finalizar')).toEqual({
       ok: false,
-      reason: 'No se puede "finalizar" un trabajo en estado "nuevo"',
+      reason:
+        'No se puede "Finalizar": el trabajo está en estado "Nuevo". Recarga la ficha para ver su estado actual.',
+    })
+    expect(applyAction('en_proceso', 'marcar_entregado')).toEqual({
+      ok: false,
+      reason:
+        'No se puede "Marcar entregado": el trabajo está en estado "En proceso". Recarga la ficha para ver su estado actual.',
     })
     expect(applyAction('entregado', 'aceptar').ok).toBe(false)
     expect(applyAction('cancelado', 'reanudar').ok).toBe(false)
+  })
+})
+
+describe('applyAction — ningún motivo de rechazo lleva una clave interna', () => {
+  it('ninguna combinación inválida de estado y acción deja un guion bajo en el texto', () => {
+    for (const s of CASE_STATUSES) {
+      for (const a of CASE_ACTIONS) {
+        const result = applyAction(s, a)
+        if (!result.ok) expect(result.reason).not.toMatch(/_/)
+      }
+    }
+  })
+})
+
+describe('notEditableMessage', () => {
+  // Lo usan el 409 de la API al guardar y el aviso de la web al abrir «Editar»: un solo texto.
+  it('nombra el estado con su rótulo', () => {
+    expect(notEditableMessage('en_espera')).toBe(
+      'No se puede editar: el trabajo está en estado "En espera".',
+    )
+  })
+})
+
+describe('rótulos de estado y de acción', () => {
+  it('nombra cada estado como lo ve recepción', () => {
+    expect(CASE_STATUS_LABEL).toEqual({
+      nuevo: 'Nuevo',
+      en_proceso: 'En proceso',
+      en_espera: 'En espera',
+      en_prueba: 'En prueba',
+      terminado: 'Terminado',
+      enviado: 'Enviado',
+      entregado: 'Entregado',
+      cancelado: 'Cancelado',
+    })
+  })
+
+  it('nombra cada acción como el botón que la dispara', () => {
+    expect(CASE_ACTION_LABEL).toEqual({
+      aceptar: 'Aceptar',
+      pausar: 'Pausar',
+      reanudar: 'Reanudar',
+      enviar_prueba: 'Enviar a prueba',
+      recibir_prueba: 'Recibir de prueba',
+      finalizar: 'Finalizar',
+      marcar_enviado: 'Marcar enviado',
+      marcar_entregado: 'Marcar entregado',
+      cancelar: 'Cancelar trabajo',
+    })
   })
 })
 

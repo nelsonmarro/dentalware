@@ -1,5 +1,6 @@
 import {
   ASSIGN_TECHNICIAN_ROLES,
+  CASE_STATUS_LABEL,
   type CaseEventType,
   type CaseStatus,
   type UserRole,
@@ -26,7 +27,6 @@ import {
 } from 'lucide-react'
 import type { Stage } from '@/features/stages/api'
 import type { CaseDetail, CaseEvent } from './api'
-import { STATUS_LABEL } from './status-chip'
 import { useTechnicians } from './use-cases'
 
 export const EVENT_LABEL: Record<CaseEventType, string> = {
@@ -110,7 +110,7 @@ function EventDetail({
 }) {
   switch (e.type) {
     case 'status_changed': {
-      const label = e.toValue ? (STATUS_LABEL[e.toValue as CaseStatus] ?? e.toValue) : null
+      const label = e.toValue ? (CASE_STATUS_LABEL[e.toValue as CaseStatus] ?? e.toValue) : null
       if (!label) return null
       return <p className="text-sm text-muted-foreground">Nuevo estado: {label}</p>
     }

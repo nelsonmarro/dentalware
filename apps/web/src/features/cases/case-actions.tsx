@@ -1,24 +1,16 @@
 import type { CaseAction, UserRole } from '@dentalware/shared'
-import { ACTIONS_REQUIRING_REASON, availableActions, canPerform } from '@dentalware/shared'
+import {
+  ACTIONS_REQUIRING_REASON,
+  availableActions,
+  canPerform,
+  CASE_ACTION_LABEL,
+} from '@dentalware/shared'
 import { useState } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import type { CaseDetail } from './api'
 import { CaseActionDialog } from './case-action-dialog'
 import { useCaseAction } from './use-cases'
-
-/** Rótulo del botón por acción; imperativo, no el nombre del estado destino. */
-const ACTION_LABELS: Record<CaseAction, string> = {
-  aceptar: 'Aceptar',
-  pausar: 'Pausar',
-  reanudar: 'Reanudar',
-  enviar_prueba: 'Enviar a prueba',
-  recibir_prueba: 'Recibir de prueba',
-  finalizar: 'Finalizar',
-  marcar_enviado: 'Marcar enviado',
-  marcar_entregado: 'Marcar entregado',
-  cancelar: 'Cancelar trabajo',
-}
 
 /** Qué confirma cada acción antes de enviarse, o `null` si se envía al primer clic. El
  * criterio es la **reversibilidad, no la frecuencia**: las tres que llevan texto van a un
@@ -94,7 +86,7 @@ export function CaseActions({
             disabled={disabled || action.isPending}
             onClick={() => run(a)}
           >
-            {ACTION_LABELS[a]}
+            {CASE_ACTION_LABEL[a]}
           </Button>
         )
       })}
@@ -105,7 +97,7 @@ export function CaseActions({
             if (!open) setDialogAction(null)
           }}
           action={dialogAction}
-          title={ACTION_LABELS[dialogAction]}
+          title={CASE_ACTION_LABEL[dialogAction]}
           pending={action.isPending}
           onConfirm={(input) => {
             action.mutate(input, { onSuccess: () => setDialogAction(null) })
@@ -118,9 +110,9 @@ export function CaseActions({
           onOpenChange={(open) => {
             if (!open) setConfirm(null)
           }}
-          title={ACTION_LABELS[confirm.action]}
+          title={CASE_ACTION_LABEL[confirm.action]}
           description={confirm.description}
-          confirmLabel={ACTION_LABELS[confirm.action]}
+          confirmLabel={CASE_ACTION_LABEL[confirm.action]}
           pending={action.isPending}
           onConfirm={() => {
             action.mutate(

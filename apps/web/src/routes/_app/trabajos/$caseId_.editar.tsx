@@ -1,4 +1,4 @@
-import { isEditableStatus } from '@dentalware/shared'
+import { isEditableStatus, notEditableMessage } from '@dentalware/shared'
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
@@ -30,7 +30,7 @@ function EditCasePage() {
 
   useEffect(() => {
     if (detail.data && !editable) {
-      toast.error(`No se puede editar un trabajo en estado "${detail.data.case.status}"`)
+      toast.error(notEditableMessage(detail.data.case.status))
       void navigate({ to: '/trabajos/$caseId', params: { caseId } })
     }
   }, [detail.data, editable, caseId, navigate])

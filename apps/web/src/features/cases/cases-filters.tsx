@@ -1,5 +1,5 @@
 import type { CaseStatus } from '@dentalware/shared'
-import { CASE_STATUSES } from '@dentalware/shared'
+import { CASE_STATUS_LABEL, CASE_STATUSES } from '@dentalware/shared'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,7 +16,6 @@ import type { Doctor } from '@/features/doctors/api'
 import type { User } from '@/features/users/api'
 import { useMediaQuery } from '@/lib/use-media-query'
 import type { CaseListQueryInput } from './api'
-import { STATUS_LABEL } from './status-chip'
 
 // Tailwind `lg` empieza en 1024px; los filtros se pliegan por debajo de ese ancho.
 const DESKTOP_QUERY = '(min-width: 1024px)'
@@ -124,7 +123,7 @@ export function CasesFilters({
             <SelectItem value={ALL}>Todos</SelectItem>
             {CASE_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
-                {STATUS_LABEL[s]}
+                {CASE_STATUS_LABEL[s]}
               </SelectItem>
             ))}
           </SelectContent>
