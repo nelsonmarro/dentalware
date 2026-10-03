@@ -2,7 +2,7 @@ import sharp from 'sharp'
 import type { ImageProcessor } from '../features/attachments/ports.ts'
 
 // Reexportado por compatibilidad (attachments/routes.ts y tests existentes); la política
-// vive en upload-policy.ts, que no importa `sharp` (docs/architecture.md §3.5 I-1).
+// vive en upload-policy.ts, que no importa `sharp` (docs/architecture.md §4).
 export { ALLOWED_MIME, MAX_UPLOAD_BYTES, isImage } from './upload-policy.ts'
 
 /** Rota según EXIF, limita a 1600px (sin agrandar) y recodifica a JPEG sin metadatos. */

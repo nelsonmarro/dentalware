@@ -16,7 +16,7 @@ export type Named = { id: string; name: string }
 export type CaseDetail = typeof cases.$inferSelect & {
   // `clinic`/`doctor` van con `optional: false` en `relations.ts` (FK NOT NULL en
   // `cases`): Drizzle Relations v2 los tipa como presentes, no `| null` (ver
-  // docs/architecture.md §3.6). `technician`/`stage` sí son opcionales de verdad.
+  // docs/architecture.md §3). `technician`/`stage` sí son opcionales de verdad.
   clinic: Named
   doctor: Named
   technician: Named | null
