@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { signIn } from '@/features/auth/session'
+import { SIGN_IN_FAILURE_MESSAGE, signIn } from '@/features/auth/session'
 
 export function LoginForm({ onSuccess }: { onSuccess: () => void | Promise<void> }) {
   const [serverError, setServerError] = useState<string | null>(null)
@@ -18,14 +18,10 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void | Promise<void>
     setServerError(null)
     const result = await signIn(values)
     if (!result.ok) {
-      // UX3-10: un 401 es "corrige lo que escribiste"; cualquier otra cosa (sin red, el
-      // servidor caído, un 500…) es un problema distinto y no insinúa que la contraseña esté
-      // mal, así que lleva su propio mensaje.
-      setServerError(
-        result.reason === 'credentials'
-          ? 'Correo o contraseña incorrectos'
-          : 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.',
-      )
+      // UX3-10: cada motivo de fallo (credenciales, bloqueado, demasiados intentos, red o
+      // servidor) tiene su propio mensaje — `SIGN_IN_FAILURE_MESSAGE` en `session.ts` es el
+      // `Record` exhaustivo, no una lista escrita a mano aquí.
+      setServerError(SIGN_IN_FAILURE_MESSAGE[result.reason])
       return
     }
     await onSuccess()
