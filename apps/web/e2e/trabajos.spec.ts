@@ -5,6 +5,7 @@ import {
   createProduct,
   login,
   loginAsAdmin,
+  toasts,
   trackConsoleErrors,
   uniqueSuffix,
 } from './helpers'
@@ -439,14 +440,16 @@ test.describe('Trabajos', () => {
     // también dice "En espera" mientras el trabajo siga en ese estado, y coincidiría con el
     // evento del historial en modo estricto.
     await page.getByRole('tab', { name: /^Historial/ }).click()
-    await expect(page.getByRole('listitem').filter({ hasText: 'En espera' })).toBeVisible()
+    // Dentro del panel: el toast «Trabajo en espera» (UX3-11) también es un `listitem`.
+    const historial = page.getByRole('tabpanel', { name: /^Historial/ })
+    await expect(historial.getByRole('listitem').filter({ hasText: 'En espera' })).toBeVisible()
 
     await page.getByRole('tab', { name: 'Detalle' }).click()
     await page.getByRole('button', { name: 'Reanudar' }).click()
     await expect(page.getByText('En proceso', { exact: true })).toBeVisible()
 
     await page.getByRole('tab', { name: /^Historial/ }).click()
-    await expect(page.getByRole('listitem').filter({ hasText: 'Reanudado' })).toBeVisible()
+    await expect(historial.getByRole('listitem').filter({ hasText: 'Reanudado' })).toBeVisible()
   })
 
   test('envía a prueba y recibe la prueba de vuelta', { tag: '@clave' }, async ({ page }) => {
@@ -518,7 +521,12 @@ test.describe('Trabajos', () => {
     // `getByRole('listitem')`: el chip de estado también dice "Cancelado" y coincidiría en
     // modo estricto con el evento del historial.
     await page.getByRole('tab', { name: /^Historial/ }).click()
-    await expect(page.getByRole('listitem').filter({ hasText: 'Cancelado' })).toBeVisible()
+    await expect(
+      page
+        .getByRole('tabpanel', { name: /^Historial/ })
+        .getByRole('listitem')
+        .filter({ hasText: 'Cancelado' }),
+    ).toBeVisible()
     await expect(page.getByText(motivo)).toBeVisible()
   })
 
@@ -567,7 +575,7 @@ test.describe('Trabajos', () => {
       await tecnicoPage.goto(`/t/${trabajo.code}`)
       await expect(tecnicoPage.getByRole('heading', { level: 1, name: trabajo.code })).toBeVisible()
       await tecnicoPage.getByRole('button', { name: 'Avanzar fase' }).click()
-      await expect(tecnicoPage.getByText('Fase: Modelo')).toBeVisible()
+      await expect(toasts(tecnicoPage).getByText('Fase: Modelo')).toBeVisible()
       await expect(tecnicoPage.getByText('Modelo', { exact: true })).toBeVisible()
       expect(tecnicoErrors).toEqual([])
 

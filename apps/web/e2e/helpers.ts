@@ -33,6 +33,13 @@ export function uniqueSuffix(): string {
   return `${Date.now()}-${Math.floor(Math.random() * 100_000)}`
 }
 
+/** Región de avisos (toasts de sonner, `<section aria-label="Notifications …">`). Desde UX3-11
+ * los toasts nombran lo que pasó («Fase: Modelo», «Trabajo en espera»), así que su texto puede
+ * repetir el de la página: se busca dentro de esta región y nunca en toda la página. */
+export function toasts(page: Page): Locator {
+  return page.getByRole('region', { name: /^Notifications/ })
+}
+
 /** Crea una clínica y un doctor únicos por API (sesión admin ya iniciada en `page`). */
 export async function createClinicWithDoctor(page: Page) {
   const suffix = uniqueSuffix()

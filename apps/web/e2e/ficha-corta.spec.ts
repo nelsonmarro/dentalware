@@ -4,6 +4,7 @@ import {
   createClinicWithDoctor,
   createProduct,
   loginAsAdmin,
+  toasts,
   trackConsoleErrors,
   uniqueSuffix,
 } from './helpers'
@@ -73,7 +74,7 @@ test.describe('Ficha corta del QR (/t/:code, FIC-2 #72 / FIC-3 #73)', () => {
       // fase" la mueve a la siguiente, "Modelo" (mismo criterio que `trabajos.spec.ts`).
       await page.getByRole('button', { name: 'Avanzar fase' }).click()
       // UX3-11: el toast nombra la fase nueva; `exact` para no chocar con «Fase: Modelo».
-      await expect(page.getByText('Fase: Modelo')).toBeVisible()
+      await expect(toasts(page).getByText('Fase: Modelo')).toBeVisible()
       await expect(page.getByText('Modelo', { exact: true })).toBeVisible()
     },
   )
