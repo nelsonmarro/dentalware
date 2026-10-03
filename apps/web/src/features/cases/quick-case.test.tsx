@@ -230,6 +230,19 @@ describe('QuickCase', () => {
       expect(await screen.findByText('Entrega: 01/03/2999')).toBeInTheDocument()
     })
 
+    // M-2 (revisión de la Tarea 5): «Entrega: —» no se lee; se dice con palabras.
+    it('sin ninguna fecha dice «Entrega: sin fecha»', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ dueDate: null, promisedDate: null }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      expect(await screen.findByText('Entrega: sin fecha')).toBeInTheDocument()
+    })
+
     it('un trabajo urgente lo dice con texto', async () => {
       fetchCaseByCode.mockResolvedValue({
         case: caso({ priority: 'urgente', promisedDate: '2999-03-04' }),

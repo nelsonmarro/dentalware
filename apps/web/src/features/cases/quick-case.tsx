@@ -114,7 +114,11 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
         <StatusChip status={c.status} />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-base font-medium">{`Entrega: ${formatDate(dueDate)}`}</span>
+        {/* M-2: sin fecha, con palabras; el «—» de `formatDate` no se lee en voz alta ni de un
+            vistazo. */}
+        <span className="text-base font-medium">
+          {`Entrega: ${dueDate ? formatDate(dueDate) : 'sin fecha'}`}
+        </span>
         {c.priority === 'urgente' && <AlertChip tone="destructive">Urgente</AlertChip>}
         {badge === 'atrasado' && <AlertChip tone="destructive">Atrasado</AlertChip>}
         {badge === 'hoy' && <AlertChip tone="amber">Vence hoy</AlertChip>}
