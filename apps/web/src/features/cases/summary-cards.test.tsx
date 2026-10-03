@@ -90,4 +90,12 @@ describe('SummaryCards', () => {
     // el rótulo, y `justify-between` deja el número abajo en todas.
     expect(card.lastElementChild).toHaveTextContent(/^5$/)
   })
+
+  it('con ninguno en prueba, «En curso» no dice «de ellos 0 en prueba»', async () => {
+    fetchSummary.mockResolvedValue({ ...SUMMARY, en_prueba: 0 })
+    renderWithProviders(<SummaryCards />)
+
+    const card = await screen.findByRole('link', { name: 'En curso 5' })
+    expect(card).not.toHaveTextContent(/en prueba/)
+  })
 })

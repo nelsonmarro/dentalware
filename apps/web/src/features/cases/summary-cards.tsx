@@ -41,8 +41,9 @@ export function SummaryCards() {
         const count = summary.data?.[vista]
         // "En curso" ya incluye los trabajos "en prueba" (ruling PR 2, T12: `viewCondition` en
         // `repo.ts`); la nota dice cuántos (UX3-17) para que recepción no los cuente dos veces.
+        // Con cero no hay nada que aclarar: «de ellos 0 en prueba» solo es ruido.
         const note =
-          vista === 'en_curso' && summary.data
+          vista === 'en_curso' && summary.data && summary.data.en_prueba > 0
             ? `de ellos ${summary.data.en_prueba} en prueba`
             : undefined
         return (
