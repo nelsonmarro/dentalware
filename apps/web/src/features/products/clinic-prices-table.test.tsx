@@ -47,6 +47,16 @@ vi.mock('./api', () => ({
 }))
 
 describe('ClinicPricesTable', () => {
+  // Ronda de fixes 1 (UX3-02, punto 3): un fallo de red al cargar productos o precios se
+  // mostraba como "Cargando…" sin fin, nunca como un error que se pueda reintentar.
+  it('un fallo al cargar productos ofrece reintentar', async () => {
+    setMatchMedia(true)
+    vi.mocked(fetchProducts).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    renderWithProviders(<ClinicPricesTable clinicId="clinic-1" />)
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+  })
+
   it('el buscador tiene una etiqueta visible asociada (UX1-09)', async () => {
     setMatchMedia(true)
     renderWithProviders(<ClinicPricesTable clinicId="clinic-1" />)

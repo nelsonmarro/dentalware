@@ -11,7 +11,7 @@ import type { Product } from '@/features/products/api'
 import { CategoriesList } from '@/features/products/categories-list'
 import { ProductForm } from '@/features/products/product-form'
 import { ProductsHeaderAction } from '@/features/products/products-header-action'
-import { ProductsTable } from '@/features/products/products-table'
+import { ProductsList } from '@/features/products/products-list'
 import {
   useCategories,
   useProducts,
@@ -71,16 +71,12 @@ function ProductsPage() {
             />
             <Label htmlFor="productos-inactivos">Mostrar inactivos</Label>
           </div>
-          {products.isPending ? (
-            <p className="text-sm text-muted-foreground">Cargando…</p>
-          ) : (
-            <ProductsTable
-              products={products.data ?? []}
-              onEdit={setEditing}
-              onToggle={(p, active) => toggle.mutate({ id: p.id, active })}
-              emptyAction={newProductButton}
-            />
-          )}
+          <ProductsList
+            products={products}
+            onEdit={setEditing}
+            onToggle={(p, active) => toggle.mutate({ id: p.id, active })}
+            emptyAction={newProductButton}
+          />
         </TabsContent>
         <TabsContent value="categorias" className="pt-4">
           <CategoriesList newRequestToken={newCategoryToken} />

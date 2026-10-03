@@ -10,6 +10,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { fetchClinics } from '@/features/clinics/api'
+import { fetchProducts } from '@/features/products/api'
 import { setMatchMedia } from '@/test/match-media'
 import type { CaseDetail } from './api'
 import { CaseForm } from './case-form'
@@ -145,6 +147,25 @@ async function fillMinimalCase(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('CaseForm', () => {
+  // Ronda de fixes 1 (UX3-02, punto 3): sin catálogo de clínicas o de productos el formulario
+  // es inutilizable (no hay con qué elegir); un fallo de red en cualquiera de los dos se
+  // presentaba como un formulario vacío, no como un error que se pueda reintentar.
+  it('un fallo al cargar clínicas muestra "Reintentar" en vez de un formulario sin catálogo', async () => {
+    vi.mocked(fetchClinics).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument()
+  })
+
+  it('un fallo al cargar productos también muestra "Reintentar"', async () => {
+    vi.mocked(fetchProducts).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument()
+  })
+
   it('enviar vacío muestra los errores obligatorios y no llama a onSubmit', async () => {
     const onSubmit = vi.fn()
     const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={onSubmit} />)

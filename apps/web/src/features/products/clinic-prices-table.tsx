@@ -7,6 +7,7 @@ import {
   sorting,
   useDataGrid,
 } from '@/components/data-grid'
+import { LoadError } from '@/components/load-error'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { Product } from './api'
@@ -177,6 +178,18 @@ export function ClinicPricesTable({ clinicId }: { clinicId: string }) {
   const contextValue: DraftsContextValue = { clinicId, byProduct, drafts, setValueFor }
   if (products.isPending || prices.isPending)
     return <p className="text-sm text-muted-foreground">Cargando…</p>
+  // UX3-02: sin esta rama, un fallo de red dejaba la tabla vacía ("No hay productos
+  // activos.") en vez de ofrecer reintentar.
+  if (products.isError || prices.isError) {
+    return (
+      <LoadError
+        onRetry={() => {
+          if (products.isError) void products.refetch()
+          if (prices.isError) void prices.refetch()
+        }}
+      />
+    )
+  }
   return (
     <DraftsContext.Provider value={contextValue}>
       <DataGrid.Root

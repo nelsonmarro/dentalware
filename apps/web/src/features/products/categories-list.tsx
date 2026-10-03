@@ -3,6 +3,7 @@ import { Pencil, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { ActiveBadge } from '@/components/active-badge'
 import { EmptyState } from '@/components/empty-state'
+import { LoadError } from '@/components/load-error'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import type { Category } from './api'
@@ -45,6 +46,10 @@ export function CategoriesList({ newRequestToken }: { newRequestToken?: number }
     <div className="flex flex-col gap-4">
       {categories.isPending ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
+      ) : categories.isError ? (
+        // UX3-02: sin esta rama, un fallo de red se leía como "aún no hay categorías" — un
+        // dato falso, no un error que se pueda reintentar.
+        <LoadError onRetry={() => void categories.refetch()} />
       ) : rows.length === 0 ? (
         <EmptyState
           title="Aún no hay categorías. Crea la primera con Nueva categoría."

@@ -3,6 +3,7 @@ import { screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { renderWithProviders } from '@/test/render'
 import { CategoriesList } from './categories-list'
+import { fetchCategories } from './api'
 
 const { CATEGORIES } = vi.hoisted(() => ({
   CATEGORIES: [{ id: 'c1', name: 'Prótesis fija', sort: 0, active: true }],
@@ -15,6 +16,16 @@ vi.mock('./api', () => ({
 }))
 
 describe('CategoriesList', () => {
+  // Ronda de fixes 1 (UX3-02, punto 3): un fallo de red se mostraba como "aún no hay
+  // categorías" (el vacío de verdad), confundiéndose con que el laboratorio no tiene ninguna.
+  it('un fallo de red ofrece reintentar, en vez de confundirse con "aún no hay categorías"', async () => {
+    vi.mocked(fetchCategories).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    renderWithProviders(<CategoriesList />)
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.queryByText(/Aún no hay categorías/)).not.toBeInTheDocument()
+  })
+
   it('no repite un botón "Nueva categoría" propio: la cabecera de la página es la única entrada (UX1-10)', async () => {
     renderWithProviders(<CategoriesList />)
 

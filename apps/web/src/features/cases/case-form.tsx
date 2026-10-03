@@ -10,6 +10,7 @@ import { Link } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import type { z } from 'zod'
+import { LoadError } from '@/components/load-error'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useClinics } from '@/features/clinics/use-clinics'
@@ -195,6 +196,24 @@ export function CaseForm({
 
   function submit(andNew: boolean) {
     return handleSubmit((data) => onSubmit(data, andNew))
+  }
+
+  // Ronda de fixes 1 (UX3-02, punto 3): sin el catálogo de clínicas o el de productos el
+  // formulario no se puede llenar — un fallo de red se mostraba como un formulario vacío
+  // (sin clínicas ni productos entre los que elegir), no como un error que se pueda
+  // reintentar. `doctors`/`clinicPrices` no bloquean: dependen de la clínica elegida y su
+  // fallo ya se explica dentro de `ClinicPatientFields`/`CaseItemsEditor` con datos vacíos
+  // (el combo de doctor, deshabilitado hasta elegir clínica, no finge que no hay ninguno).
+  if (clinics.isError || products.isError) {
+    return (
+      <LoadError
+        description="No se pudieron cargar los catálogos del formulario (clínicas o productos)."
+        onRetry={() => {
+          if (clinics.isError) void clinics.refetch()
+          if (products.isError) void products.refetch()
+        }}
+      />
+    )
   }
 
   return (

@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import type { User } from '@/features/users/api'
 import { UserForm } from '@/features/users/user-form'
-import { UsersTable } from '@/features/users/users-table'
+import { UsersList } from '@/features/users/users-list'
 import {
   useCreateUser,
   useSetUserBanned,
@@ -38,17 +38,13 @@ function UsersPage() {
         description="Quién puede entrar y con qué permisos."
         action={newButton}
       />
-      {users.isPending ? (
-        <p className="text-sm text-muted-foreground">Cargando…</p>
-      ) : (
-        <UsersTable
-          users={users.data ?? []}
-          currentUserId={currentUser.id}
-          onEdit={setEditing}
-          onToggleBanned={setBanTarget}
-          emptyAction={newButton}
-        />
-      )}
+      <UsersList
+        users={users}
+        currentUserId={currentUser.id}
+        onEdit={setEditing}
+        onToggleBanned={setBanTarget}
+        emptyAction={newButton}
+      />
       {editing !== null && (
         <UserForm
           key={editing === 'new' ? 'new' : editing.id}

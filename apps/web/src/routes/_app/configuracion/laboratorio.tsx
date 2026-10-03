@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { PageHeader } from '@/components/page-header'
-import { LabSettingsForm } from '@/features/config/lab-settings-form'
+import { LabSettingsContent } from '@/features/config/lab-settings-content'
 import { useLabSettings, useSaveLabSettings } from '@/features/config/use-lab-settings'
 
 export const Route = createFileRoute('/_app/configuracion/laboratorio')({
@@ -16,16 +16,11 @@ function LabSettingsPage() {
         title="Laboratorio"
         description="Datos que aparecen en las fichas impresas y en los avisos a las clínicas."
       />
-      {settings.isPending ? (
-        <p className="text-sm text-muted-foreground">Cargando…</p>
-      ) : (
-        <LabSettingsForm
-          key={settings.data?.id ?? 'new'}
-          initial={settings.data ?? null}
-          onSubmit={(v) => save.mutate(v)}
-          pending={save.isPending}
-        />
-      )}
+      <LabSettingsContent
+        settings={settings}
+        onSubmit={(v) => save.mutate(v)}
+        pending={save.isPending}
+      />
     </div>
   )
 }
