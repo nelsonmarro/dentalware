@@ -37,14 +37,21 @@ const DEFAULT_VALUES: RemakeFormValues = {
   cobroPct: REMAKE_CHARGE_PCT_BY_RESPONSIBILITY[DEFAULT_RESPONSIBILITY],
 }
 
-/** «Se cobrarán $ X de $ Y» con el porcentaje del campo, o `null` si no hay total (técnico y
- * mensajero lo reciben enmascarado por la API) o el porcentaje todavía no es válido. */
-function chargeHint(total: string | null, pct: RemakeFormValues['cobroPct']): string | null {
+/** Importes de la ayuda «Se cobrarán $ X de $ Y» con el porcentaje del campo, o `null` si no
+ * hay total (técnico y mensajero lo reciben enmascarado por la API) o el porcentaje todavía no
+ * es válido. */
+function chargeHint(
+  total: string | null,
+  pct: RemakeFormValues['cobroPct'],
+): { charge: string; total: string } | null {
   if (total === null) return null
   const parsed = remakeSchema.shape.cobroPct.safeParse(pct)
   if (!parsed.success) return null
   const totalCents = toCents(total)
-  return `Se cobrarán ${formatMoney(fromCents(percentOfCents(totalCents, parsed.data)))} de ${formatMoney(fromCents(totalCents))}`
+  return {
+    charge: formatMoney(fromCents(percentOfCents(totalCents, parsed.data))),
+    total: formatMoney(fromCents(totalCents)),
+  }
 }
 
 /**
@@ -188,8 +195,9 @@ export function RemakeDialog({
               </span>
             </div>
             {hint && (
-              <FieldDescription id="remake-cobro-ayuda" className="font-mono">
-                {hint}
+              <FieldDescription id="remake-cobro-ayuda">
+                Se cobrarán <span className="font-mono text-foreground">{hint.charge}</span> de{' '}
+                <span className="font-mono">{hint.total}</span>
               </FieldDescription>
             )}
             {formState.errors.cobroPct && <FieldError errors={[formState.errors.cobroPct]} />}
