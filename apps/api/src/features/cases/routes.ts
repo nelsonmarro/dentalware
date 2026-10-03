@@ -199,7 +199,12 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
             c.req.valid('json'),
             ctxFrom(c),
           )
-          return c.json({ case: { id: updated.id, currentStageId: updated.currentStageId } }, 200)
+          // `stage` (UX3-11): la web nombra la fase nueva en el toast sin buscarla en la lista.
+          const stage = updated.stage ? { id: updated.stage.id, name: updated.stage.name } : null
+          return c.json(
+            { case: { id: updated.id, currentStageId: updated.currentStageId, stage } },
+            200,
+          )
         } catch (e) {
           toHttp(e)
         }

@@ -770,8 +770,13 @@ describe('/api/trabajos', () => {
         req(admin, 'PUT', { direccion: 'avanzar' }),
       )
       expect(res.status).toBe(200)
-      const body = (await res.json()) as { case: { id: string; currentStageId: string } }
+      const body = (await res.json()) as {
+        case: { id: string; currentStageId: string; stage: { id: string; name: string } | null }
+      }
       expect(body.case.currentStageId).toBe(stage2)
+      // UX3-11: el toast dice a qué fase pasó («Fase: Cerámica»); la web no tiene que
+      // resolver el id contra la lista de fases para nombrarla.
+      expect(body.case.stage).toEqual({ id: stage2, name: 'Cerámica' })
 
       const eventos = (await (
         await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))

@@ -24,6 +24,7 @@ import {
   postComment,
   updateCase,
 } from './api'
+import { CASE_ACTION_DONE } from './case-action-done'
 
 export function useCases(query: CaseListQueryInput) {
   return useQuery({
@@ -88,9 +89,9 @@ export function useCaseAction(id: string) {
   const invalidate = useInvalidateCases()
   return useMutation({
     mutationFn: (input: CaseActionInput) => postCaseAction(id, input),
-    onSuccess: async () => {
+    onSuccess: async (_updated, input) => {
       await invalidate()
-      toast.success('Trabajo actualizado')
+      toast.success(CASE_ACTION_DONE[input.accion])
     },
     onError: toastApiError,
   })
@@ -109,9 +110,10 @@ export function useChangeStage(id: string) {
   const invalidate = useInvalidateCases()
   return useMutation({
     mutationFn: (input: StageChangeInput) => changeStage(id, input),
-    onSuccess: async () => {
+    onSuccess: async (updated) => {
       await invalidate()
-      toast.success('Fase actualizada')
+      // UX3-11: la fase nueva por su nombre (la respuesta la trae); sin fase, el genérico.
+      toast.success(updated.stage ? `Fase: ${updated.stage.name}` : 'Fase actualizada')
     },
     onError: toastApiError,
   })

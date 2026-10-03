@@ -567,7 +567,7 @@ test.describe('Trabajos', () => {
       await tecnicoPage.goto(`/t/${trabajo.code}`)
       await expect(tecnicoPage.getByRole('heading', { level: 1, name: trabajo.code })).toBeVisible()
       await tecnicoPage.getByRole('button', { name: 'Avanzar fase' }).click()
-      await expect(tecnicoPage.getByText('Fase actualizada')).toBeVisible()
+      await expect(tecnicoPage.getByText('Fase: Modelo')).toBeVisible()
       await expect(tecnicoPage.getByText('Modelo', { exact: true })).toBeVisible()
       expect(tecnicoErrors).toEqual([])
 
