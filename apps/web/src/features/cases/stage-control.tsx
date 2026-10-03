@@ -5,6 +5,7 @@ import {
   stageChangeSchema,
   type StageChangeInput,
   type UserRole,
+  hasRole,
 } from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useId, useState } from 'react'
@@ -24,7 +25,7 @@ import { useChangeStage } from './use-cases'
  * de shared, antes una lista a mano aquí y en `routes.ts`/`service.ts`; defensa en profundidad:
  * la web no confía solo en ocultar el botón). */
 function canControlStage(role: UserRole): boolean {
-  return (STAGE_CHANGE_ROLES as readonly UserRole[]).includes(role)
+  return hasRole(STAGE_CHANGE_ROLES, role)
 }
 
 type StageChangeFormValues = z.input<typeof stageChangeSchema>

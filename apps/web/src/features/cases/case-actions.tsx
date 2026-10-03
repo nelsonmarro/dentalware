@@ -6,6 +6,7 @@ import {
   CASE_ACTION_LABEL,
   REMAKE_ROLES,
   requiresReason,
+  hasRole,
 } from '@dentalware/shared'
 import { useState } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -113,7 +114,7 @@ export function CaseActions({
     .sort((x, y) => VARIANT_ORDER[x.variant] - VARIANT_ORDER[y.variant])
   // `RemakeDialog` no recibe `role`: este guardián es toda la defensa de la UI (I-3 de la
   // revisión de la Tarea 9; la API responde 403 de todos modos).
-  const showRemake = (REMAKE_ROLES as readonly UserRole[]).includes(role) && canRemake(c.status)
+  const showRemake = hasRole(REMAKE_ROLES, role) && canRemake(c.status)
 
   // Sin acciones ni «Repetir» no se monta nada: ni un contenedor vacío (UX3-25).
   if (actions.length === 0 && !showRemake) return null

@@ -1,4 +1,4 @@
-import { ATTACHMENT_KINDS, idParamSchema } from '@dentalware/shared'
+import { ATTACHMENT_KINDS, idParamSchema, ATTACHMENT_DELETE_ROLES } from '@dentalware/shared'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
@@ -124,7 +124,7 @@ export const attachmentsRoutes = (service: AttachmentsService) =>
     })
     .delete(
       '/:id',
-      requireRole('admin', 'recepcion'),
+      requireRole(...ATTACHMENT_DELETE_ROLES),
       validate('param', idParamSchema),
       async (c) => {
         try {

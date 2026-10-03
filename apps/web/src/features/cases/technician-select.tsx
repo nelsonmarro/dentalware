@@ -1,4 +1,9 @@
-import { ASSIGN_TECHNICIAN_ROLES, canAssignTechnician, type UserRole } from '@dentalware/shared'
+import {
+  ASSIGN_TECHNICIAN_ROLES,
+  canAssignTechnician,
+  type UserRole,
+  hasRole,
+} from '@dentalware/shared'
 import { Field, FieldLabel } from '@/components/ui/field'
 import type { CaseDetail } from './api'
 import { useAssignTechnician, useTechnicians } from './use-cases'
@@ -7,7 +12,7 @@ import { useAssignTechnician, useTechnicians } from './use-cases'
  * `ASSIGN_TECHNICIAN_ROLES` de shared, antes una lista a mano); técnico y mensajero ven el
  * nombre pero no el control. */
 function canAssign(role: UserRole): boolean {
-  return (ASSIGN_TECHNICIAN_ROLES as readonly UserRole[]).includes(role)
+  return hasRole(ASSIGN_TECHNICIAN_ROLES, role)
 }
 
 /**

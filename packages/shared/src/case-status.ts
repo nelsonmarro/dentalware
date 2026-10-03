@@ -1,4 +1,4 @@
-import type { UserRole } from './roles.ts'
+import { hasRole, type UserRole } from './roles.ts'
 
 export const CASE_STATUSES = [
   'nuevo',
@@ -195,6 +195,15 @@ export const CASE_ACTION_ROLES: readonly UserRole[] = [
 /** Roles que escriben sobre un trabajo por defecto: crear, editar, repetir, asignar técnico y
  * listar técnicos (mismo criterio que `canWrite` en `routes.ts`). */
 export const CASE_WRITE_ROLES = ['admin', 'recepcion'] as const satisfies readonly UserRole[]
+
+/** ¿Puede `role` crear y editar trabajos? (UX3-16: la web lo preguntaba con roles escritos a mano). */
+export function canWriteCases(role: UserRole): boolean {
+  return hasRole(CASE_WRITE_ROLES, role)
+}
+
+/** Roles que pueden eliminar un adjunto: mismos que `CASE_WRITE_ROLES`, nombrado aparte por la
+ * misma razón que `ASSIGN_TECHNICIAN_ROLES` (el técnico sube fotos pero no las borra). */
+export const ATTACHMENT_DELETE_ROLES: readonly UserRole[] = CASE_WRITE_ROLES
 
 /** Roles que pueden cambiar la fase de producción (CIC-2): a diferencia del resto de
  * escrituras (`CASE_WRITE_ROLES`), el técnico también puede. */

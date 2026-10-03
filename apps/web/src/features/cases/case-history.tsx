@@ -4,6 +4,7 @@ import {
   type CaseEventType,
   type CaseStatus,
   type UserRole,
+  hasRole,
 } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import {
@@ -176,7 +177,7 @@ export function CaseHistory({
   stages: Stage[]
   role: UserRole
 }) {
-  const canSeeTechnicians = (ASSIGN_TECHNICIAN_ROLES as readonly UserRole[]).includes(role)
+  const canSeeTechnicians = hasRole(ASSIGN_TECHNICIAN_ROLES, role)
   const technicians = useTechnicians(canSeeTechnicians)
 
   const stageName = (id: string | null): string | null => {

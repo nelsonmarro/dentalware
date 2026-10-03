@@ -1,4 +1,4 @@
-import { isEditableStatus, notEditableMessage } from '@dentalware/shared'
+import { isEditableStatus, notEditableMessage, canWriteCases } from '@dentalware/shared'
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
@@ -13,7 +13,7 @@ import { useCase, useUpdateCase } from '@/features/cases/use-cases'
 // independiente en `/trabajos/$caseId/editar`.
 export const Route = createFileRoute('/_app/trabajos/$caseId_/editar')({
   beforeLoad: ({ context, params }) => {
-    if (context.user.role !== 'admin' && context.user.role !== 'recepcion') {
+    if (!canWriteCases(context.user.role)) {
       throw redirect({ to: '/trabajos/$caseId', params: { caseId: params.caseId } })
     }
   },

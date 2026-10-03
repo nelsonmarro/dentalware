@@ -1,3 +1,4 @@
+import { ATTACHMENT_DELETE_ROLES, hasRole } from '@dentalware/shared'
 import type { UserRole } from '@dentalware/shared'
 import { FileText, Trash2 } from 'lucide-react'
 import { useState } from 'react'
@@ -21,7 +22,7 @@ import { useAttachments, useDeleteAttachment } from './use-attachments'
 export function PhotosTab({ caseId, role }: { caseId: string; role: UserRole }) {
   const attachments = useAttachments(caseId)
   const del = useDeleteAttachment(caseId)
-  const canDelete = role === 'admin' || role === 'recepcion'
+  const canDelete = hasRole(ATTACHMENT_DELETE_ROLES, role)
   const [preview, setPreview] = useState<Attachment | null>(null)
   const [toDelete, setToDelete] = useState<Attachment | null>(null)
 

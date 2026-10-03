@@ -1,5 +1,5 @@
 import type { UserRole } from '@dentalware/shared'
-import { hidesPrices, isEditableStatus } from '@dentalware/shared'
+import { hidesPrices, isEditableStatus, canWriteCases } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { Pencil, Printer } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -40,7 +40,7 @@ export function CaseHeader({
   events?: CaseEvent[]
 }) {
   const hidePrices = hidesPrices(role)
-  const canEdit = (role === 'admin' || role === 'recepcion') && isEditableStatus(c.status)
+  const canEdit = canWriteCases(role) && isEditableStatus(c.status)
   const patient = [
     c.patientRef,
     c.patientAge !== null ? `${c.patientAge} años` : null,

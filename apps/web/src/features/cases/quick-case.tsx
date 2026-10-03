@@ -4,6 +4,7 @@ import {
   STAGE_CHANGE_ROLES,
   toIsoDate,
   type UserRole,
+  hasRole,
 } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { Camera } from 'lucide-react'
@@ -26,7 +27,7 @@ import { usePhotoUpload } from './use-photo-upload'
 /** Mismo criterio de rol que `StageControl` (`STAGE_CHANGE_ROLES` de shared, I-5 + M-5 + M-9):
  * no se inventa una lista nueva aquí. */
 function canControlStage(role: UserRole): boolean {
-  return (STAGE_CHANGE_ROLES as readonly UserRole[]).includes(role)
+  return hasRole(STAGE_CHANGE_ROLES, role)
 }
 
 /**

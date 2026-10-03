@@ -3,6 +3,7 @@ import {
   CHECKLIST_LABEL,
   SHADE_SYSTEM_LABEL,
   type UserRole,
+  hidesPrices,
 } from '@dentalware/shared'
 import { Check, X } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -97,7 +98,7 @@ export function CaseDetailTab({
   hidePrices: boolean
   role: UserRole
 }) {
-  const canSeeInternal = role === 'admin' || role === 'recepcion'
+  const canSeeInternal = !hidesPrices(role)
   return (
     <div className="flex flex-col gap-6">
       <Card>

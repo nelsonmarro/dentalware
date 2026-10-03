@@ -12,3 +12,9 @@ export type UserRole = (typeof USER_ROLES)[number]
 export function hidesPrices(role: UserRole): boolean {
   return role === 'tecnico' || role === 'mensajero'
 }
+
+/** ¿Está `role` en `roles`? Evita repetir `(X as readonly UserRole[]).includes(role)` en cada
+ * llamador (las constantes de rol son tuplas `as const` y `includes` no acepta un `UserRole`). */
+export function hasRole(roles: readonly UserRole[], role: UserRole): boolean {
+  return roles.includes(role)
+}

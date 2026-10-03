@@ -17,6 +17,8 @@ import {
   CASE_STATUSES,
   CASE_TRANSITIONS,
   CASE_WRITE_ROLES,
+  ATTACHMENT_DELETE_ROLES,
+  canWriteCases,
   EDITABLE_CASE_STATUSES,
   EN_CURSO_STATUSES,
   isActiveForDates,
@@ -241,6 +243,19 @@ describe('roles por acción sobre el trabajo (I-5 + M-5 + M-9, fuente única en 
   it('ASSIGN_TECHNICIAN_ROLES y REMAKE_ROLES son admin y recepción (CIC-5/CIC-4)', () => {
     expect([...ASSIGN_TECHNICIAN_ROLES].sort()).toEqual(['admin', 'recepcion'])
     expect([...REMAKE_ROLES].sort()).toEqual(['admin', 'recepcion'])
+  })
+
+  it('ATTACHMENT_DELETE_ROLES es admin y recepción (UX3-16)', () => {
+    expect([...ATTACHMENT_DELETE_ROLES].sort()).toEqual(['admin', 'recepcion'])
+  })
+
+  it.each([
+    ['admin', true],
+    ['recepcion', true],
+    ['tecnico', false],
+    ['mensajero', false],
+  ] as const)('canWriteCases(%s) es %s (UX3-16)', (role, expected) => {
+    expect(canWriteCases(role)).toBe(expected)
   })
 })
 

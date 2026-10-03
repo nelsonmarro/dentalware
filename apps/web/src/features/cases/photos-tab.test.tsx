@@ -45,4 +45,17 @@ describe('PhotosTab', () => {
       '/api/adjuntos/orden',
     )
   })
+
+  // UX3-16: quién borra sale de `ATTACHMENT_DELETE_ROLES` (shared), no de una lista a mano.
+  it.each([
+    ['admin', true],
+    ['recepcion', true],
+    ['tecnico', false],
+    ['mensajero', false],
+  ] as const)('%s ve «Eliminar» en las fotos: %s', async (role, visible) => {
+    fetchAttachments.mockResolvedValue([adjunto('foto', 'photo', 'image/png')])
+    renderWithProviders(<PhotosTab caseId="c1" role={role} />)
+    await screen.findByRole('img', { name: 'foto.png' })
+    expect(Boolean(screen.queryByRole('button', { name: 'Eliminar foto.png' }))).toBe(visible)
+  })
 })

@@ -4,6 +4,7 @@ import {
   toIsoDate,
   type CaseInput,
   type UserRole,
+  hidesPrices,
 } from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
@@ -118,7 +119,7 @@ export function CaseForm({
   pending: boolean
   role: UserRole
 }) {
-  const canEditPrice = role === 'admin' || role === 'recepcion'
+  const canEditPrice = !hidesPrices(role)
   const isEdit = initial !== undefined
   // `initial` no cambia durante la vida del formulario (cada edición monta una instancia
   // nueva de la página), así que calcular los valores iniciales una sola vez es seguro.
