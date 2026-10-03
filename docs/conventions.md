@@ -98,6 +98,7 @@ Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabaj
   - Revisión final de la rama antes del PR.
 - **Historias primero** (`docs/superpowers/specs/2026-09-12-historias-de-usuario-mvp.md`): cada historia es un issue `historia` con su versión mínima y sus criterios, que son los primeros tests. Lo técnico va en issues `tarea`.
 - **PR** contra `main` con `Closes #N`. El tablero avanza En progreso → En revisión → Hecho.
+- **Ramas que ya no se usan se borran** (Nelson, 2026-10-03): al mergear un PR se borra su rama en remoto y en local (`gh pr merge --squash --delete-branch`; el repo además tiene activado el borrado automático de la rama al mergear) y su worktree si lo tenía; después `git fetch --prune` y comprobar con `git branch -a` que no queda nada. Una rama sin PR abierto ni trabajo pendiente se borra, previa comprobación de que su PR está mergeado o cerrado. Nunca se borra `main` ni una rama con trabajo sin mergear.
 - **Secretos**: solo en `.env` (gitignored) y `.env.test` con valores de prueba. GitGuardian escanea todo el repo. `.gitguardian.yaml` silencia solo, por valor, las contraseñas inventadas de los usuarios de test; un test nuevo reutiliza una de ellas o añade la suya en el mismo PR.
 
 ## 9. Definición de hecho
