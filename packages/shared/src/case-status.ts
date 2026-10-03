@@ -101,6 +101,13 @@ export const CASE_ACTION_LABEL: Record<CaseAction, string> = {
   cancelar: 'Cancelar trabajo',
 }
 
+/** Forma única de los 409 por estado (M-3, revisión de la Tarea 3): qué no se puede hacer, en
+ * qué estado está el trabajo (rótulo, nunca la clave) y la causa probable. No pide recargar: la
+ * web refresca la ficha sola ante un 409 (I-1). */
+function blockedByStatusMessage(what: string, status: CaseStatus): string {
+  return `No se puede ${what}: el trabajo está en estado "${CASE_STATUS_LABEL[status]}". Puede que otra persona lo haya cambiado.`
+}
+
 export type ApplyResult = { ok: true; status: CaseStatus } | { ok: false; reason: string }
 
 /** El motivo de rechazo llega tal cual al toast de la web (409): nombra la acción y el estado
@@ -112,7 +119,7 @@ export function applyAction(status: CaseStatus, action: CaseAction): ApplyResult
   if (!t.from.includes(status)) {
     return {
       ok: false,
-      reason: `No se puede "${CASE_ACTION_LABEL[action]}": el trabajo está en estado "${CASE_STATUS_LABEL[status]}". Puede que otra persona lo haya cambiado.`,
+      reason: blockedByStatusMessage(`"${CASE_ACTION_LABEL[action]}"`, status),
     }
   }
   return { ok: true, status: t.to }
@@ -140,7 +147,7 @@ export function isEditableStatus(status: CaseStatus): boolean {
 /** Por qué no se puede editar un trabajo en `status`: único texto para el 409 de la API al
  * guardar y para el aviso de la web al abrir «Editar» (UX3-03: con el rótulo, no la clave). */
 export function notEditableMessage(status: CaseStatus): string {
-  return `No se puede editar: el trabajo está en estado "${CASE_STATUS_LABEL[status]}".`
+  return blockedByStatusMessage('editar', status)
 }
 
 /** Estados desde los que se puede repetir un trabajo (CIC-4): cualquier punto en el que ya se
@@ -153,6 +160,11 @@ export const REMAKEABLE_STATUSES = [
 
 export function canRemake(status: CaseStatus): boolean {
   return (REMAKEABLE_STATUSES as readonly CaseStatus[]).includes(status)
+}
+
+/** 409 de repetir un trabajo en un estado de `canRemake` falso (repo y fakes de la API). */
+export function notRemakeableMessage(status: CaseStatus): string {
+  return blockedByStatusMessage('repetir', status)
 }
 
 /**
@@ -212,6 +224,11 @@ export const ASSIGN_TECHNICIAN_BLOCKED_STATUSES = [
 
 export function canAssignTechnician(status: CaseStatus): boolean {
   return !(ASSIGN_TECHNICIAN_BLOCKED_STATUSES as readonly CaseStatus[]).includes(status)
+}
+
+/** 409 de reasignar el técnico en un estado de `canAssignTechnician` falso. */
+export function notReassignableMessage(status: CaseStatus): string {
+  return blockedByStatusMessage('reasignar el técnico', status)
 }
 
 /** Estados en los que la fecha de entrega está "activa": un trabajo cerrado (`terminado` en

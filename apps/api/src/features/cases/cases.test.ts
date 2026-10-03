@@ -241,7 +241,8 @@ describe('/api/trabajos', () => {
     expect(conflict.status).toBe(409)
     // UX3-03: el mensaje llega tal cual al toast; con el rótulo del estado, no la clave.
     expect(await conflict.json()).toEqual({
-      message: 'No se puede editar: el trabajo está en estado "Terminado".',
+      message:
+        'No se puede editar: el trabajo está en estado "Terminado". Puede que otra persona lo haya cambiado.',
     })
   })
 
@@ -793,7 +794,8 @@ describe('/api/trabajos', () => {
       )
       expect(res.status).toBe(409)
       expect(await res.json()).toEqual({
-        message: 'El trabajo ya está en la última fase: usa "Finalizar" para terminarlo',
+        message:
+          'No se puede avanzar: el trabajo ya está en la última fase. Usa "Finalizar" para terminarlo.',
       })
     })
 
@@ -1166,7 +1168,8 @@ describe('/api/trabajos', () => {
       const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
       expect(res.status).toBe(409)
       expect(await res.json()).toEqual({
-        message: 'No se puede repetir: el trabajo está en estado "Nuevo".',
+        message:
+          'No se puede repetir: el trabajo está en estado "Nuevo". Puede que otra persona lo haya cambiado.',
       })
     })
 

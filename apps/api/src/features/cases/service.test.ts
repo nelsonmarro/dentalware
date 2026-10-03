@@ -390,7 +390,9 @@ describe('cambio de fase', () => {
     const service = servicioConFases(['f1'], { status: 'en_proceso', currentStageId: 'f1' })
     await expect(
       service.changeStage('1', { direccion: 'avanzar', motivo: null }, admin),
-    ).rejects.toThrow('El trabajo ya está en la última fase: usa "Finalizar" para terminarlo')
+    ).rejects.toThrow(
+      'No se puede avanzar: el trabajo ya está en la última fase. Usa "Finalizar" para terminarlo.',
+    )
   })
 
   it('un trabajo en espera o en prueba no cambia de fase', async () => {
@@ -486,7 +488,7 @@ describe('cambio de fase', () => {
     const service = servicioConFases(['f1', 'f2'], { status: 'en_proceso', currentStageId: 'f1' })
     await expect(
       service.changeStage('1', { direccion: 'retroceder', motivo: 'Se rompió' }, admin),
-    ).rejects.toThrow(CaseStateError)
+    ).rejects.toThrow('No se puede retroceder: el trabajo ya está en la primera fase.')
   })
 
   it('un trabajo inexistente lanza CaseNotFoundError', async () => {
@@ -549,7 +551,7 @@ describe('técnico responsable', () => {
   it('el 409 de reasignar nombra el estado con su rótulo', async () => {
     const service = servicioConTecnicos([{ id: 't1' }], { status: 'entregado' })
     await expect(service.assignTechnician('1', { tecnicoId: 't1' }, admin)).rejects.toThrow(
-      'No se puede reasignar el técnico: el trabajo está en estado "Entregado".',
+      'No se puede reasignar el técnico: el trabajo está en estado "Entregado". Puede que otra persona lo haya cambiado.',
     )
   })
 

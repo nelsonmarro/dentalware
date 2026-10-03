@@ -21,6 +21,8 @@ import {
   isActiveForDates,
   isEditableStatus,
   notEditableMessage,
+  notReassignableMessage,
+  notRemakeableMessage,
   isEnCurso,
   REMAKE_ROLES,
   REMAKEABLE_STATUSES,
@@ -136,11 +138,24 @@ describe('applyAction — ningún motivo de rechazo lleva una clave interna', ()
   })
 })
 
-describe('notEditableMessage', () => {
-  // Lo usan el 409 de la API al guardar y el aviso de la web al abrir «Editar»: un solo texto.
-  it('nombra el estado con su rótulo', () => {
+// M-3 (revisión de la Tarea 3): todos los 409 por estado tienen la misma forma — «No se puede
+// {qué}: el trabajo está en estado "{rótulo}".» más la causa probable. Literales a propósito.
+describe('mensajes de 409 por estado', () => {
+  it('editar', () => {
     expect(notEditableMessage('en_espera')).toBe(
-      'No se puede editar: el trabajo está en estado "En espera".',
+      'No se puede editar: el trabajo está en estado "En espera". Puede que otra persona lo haya cambiado.',
+    )
+  })
+
+  it('repetir', () => {
+    expect(notRemakeableMessage('en_proceso')).toBe(
+      'No se puede repetir: el trabajo está en estado "En proceso". Puede que otra persona lo haya cambiado.',
+    )
+  })
+
+  it('reasignar el técnico', () => {
+    expect(notReassignableMessage('entregado')).toBe(
+      'No se puede reasignar el técnico: el trabajo está en estado "Entregado". Puede que otra persona lo haya cambiado.',
     )
   })
 })

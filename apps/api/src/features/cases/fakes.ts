@@ -1,5 +1,4 @@
 import {
-  CASE_STATUS_LABEL,
   CASE_VIEWS,
   caseInputSchema,
   canRemake,
@@ -7,6 +6,7 @@ import {
   isActiveForDates,
   isEditableStatus,
   notEditableMessage,
+  notRemakeableMessage,
   isEnCurso,
   remakeDueDate,
   sumCents,
@@ -290,9 +290,7 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
       const parent = rows.get(parentId)
       if (!parent) throw new CaseNotFoundError()
       if (!canRemake(parent.status)) {
-        throw new CaseStateError(
-          `No se puede repetir: el trabajo está en estado "${CASE_STATUS_LABEL[parent.status]}".`,
-        )
+        throw new CaseStateError(notRemakeableMessage(parent.status))
       }
       seq += 1
       const id = `c${seq}`
