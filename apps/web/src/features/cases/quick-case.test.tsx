@@ -8,6 +8,7 @@ import {
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
+import { toIsoDate } from '@dentalware/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/lib/api-error'
 import type { Stage } from '@/features/stages/api'
@@ -195,6 +196,92 @@ describe('QuickCase', () => {
     renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
 
     expect(await screen.findByText('Modelado')).toBeInTheDocument()
+  })
+
+  // UX3-22: lo que el técnico necesita saber en el banco es para cuándo es y si urge; antes
+  // solo lo decía la ficha completa.
+  describe('entrega y urgencia', () => {
+    it('dice la fecha de entrega comprometida', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ dueDate: '2999-03-01', promisedDate: '2999-03-04' }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      expect(await screen.findByText('Entrega: 04/03/2999')).toBeInTheDocument()
+    })
+
+    it('sin fecha comprometida dice la deseada', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ dueDate: '2999-03-01', promisedDate: null }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      expect(await screen.findByText('Entrega: 01/03/2999')).toBeInTheDocument()
+    })
+
+    it('un trabajo urgente lo dice con texto', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ priority: 'urgente', promisedDate: '2999-03-04' }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      expect(await screen.findByText('Urgente')).toBeInTheDocument()
+    })
+
+    it('un trabajo normal a tiempo no muestra avisos', async () => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ promisedDate: '2999-03-04' }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      await screen.findByText('Entrega: 04/03/2999')
+      expect(screen.queryByText('Urgente')).not.toBeInTheDocument()
+      expect(screen.queryByText('Atrasado')).not.toBeInTheDocument()
+      expect(screen.queryByText('Vence hoy')).not.toBeInTheDocument()
+    })
+
+    it('con la entrega vencida dice «Atrasado»', async () => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ promisedDate: '2020-01-15' }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      expect(await screen.findByText('Atrasado')).toBeInTheDocument()
+    })
+
+    it('con la entrega hoy dice «Vence hoy»', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ promisedDate: toIsoDate(new Date()) }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      expect(await screen.findByText('Vence hoy')).toBeInTheDocument()
+    })
+
+    it('un trabajo terminado con la fecha pasada no se marca atrasado (misma regla que la lista)', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ status: 'terminado', promisedDate: '2020-01-15' }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      await screen.findByText('Entrega: 15/01/2020')
+      expect(screen.queryByText('Atrasado')).not.toBeInTheDocument()
+    })
   })
 
   it('un código inexistente muestra No encontrado', async () => {

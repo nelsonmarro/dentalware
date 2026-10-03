@@ -4,6 +4,7 @@ import {
   nextStage,
   STAGE_CHANGE_BLOCKED_REASON,
   STAGE_CHANGE_ROLES,
+  toIsoDate,
   type UserRole,
 } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
@@ -14,7 +15,9 @@ import { LoadError } from '@/components/load-error'
 import { Button } from '@/components/ui/button'
 import { useStages } from '@/features/stages/use-stages'
 import { isNotFoundError } from '@/lib/api-error'
-import { isStageVisible } from './case-views'
+import { AlertChip } from './alert-chip'
+import { dueBadge, isStageVisible } from './case-views'
+import { formatDate } from './date-format'
 import { StatusChip } from './status-chip'
 import { useCaseByCode, useChangeStage } from './use-cases'
 import { usePhotoUpload } from './use-photo-upload'
@@ -63,6 +66,10 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
   if (!q.data) return null
 
   const c = q.data.case
+  // UX3-22: la misma fecha y el mismo semáforo que la lista y «Mis trabajos» (`dueBadge`):
+  // un terminado con la fecha pasada no está «atrasado» en ningún sitio.
+  const dueDate = c.promisedDate ?? c.dueDate
+  const badge = dueBadge(dueDate, toIsoDate(new Date()), c.status)
   const activeStages = stages.data ?? []
   // Misma clasificación que `StageControl` (sin inventar una lista nueva): si el rol no puede
   // cambiar de fase, el botón simplemente no aparece (ni motivo: es el mismo criterio que usa
@@ -96,6 +103,12 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
           <p className="text-lg">{c.patientRef}</p>
         </div>
         <StatusChip status={c.status} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-base font-medium">{`Entrega: ${formatDate(dueDate)}`}</span>
+        {c.priority === 'urgente' && <AlertChip tone="destructive">Urgente</AlertChip>}
+        {badge === 'atrasado' && <AlertChip tone="destructive">Atrasado</AlertChip>}
+        {badge === 'hoy' && <AlertChip tone="amber">Vence hoy</AlertChip>}
       </div>
       {/* UX3-23: misma regla que la ficha completa (`case-header`, `stage-control`): fuera de
           producción la fase guardada ya no describe el trabajo (un terminado no está en
