@@ -2,207 +2,280 @@
 
 Fecha: 2026-10-03 · Revisor: Claude (frontend-design + chrome-devtools-mcp) · Issue: #101 · Rama: `fix/revision-ui-ux-it3`
 
-> **Estado: revisión parcial.** El recorrido en navegador de las pantallas **con sesión** (ficha y ciclo de vida, inicio, orden imprimible, ficha corta `/t/:code`, vistas por rol) **no se pudo hacer**. El permiso para leer las credenciales de admin de `apps/api/.env` se denegó dos veces (clasificador de permisos, «Credential Materialization»). Siguiendo el brief, no se buscó otro camino para tener una sesión: ni la BD de test con sus contraseñas públicas, ni cuentas nuevas. Tampoco se crearon datos «UX It3». Lo que sigue es (a) el recorrido real en Chrome DevTools de todo lo que no necesita sesión: login, errores, redirección desde el QR y login sin red, a 1280, 390 y 360; y (b) una revisión de código, archivo por archivo, de todas las pantallas nuevas de la Iteración 3, con las medidas que se pueden calcular sin navegador (contraste de tokens). Los hallazgos de (b) citan su causa en el código, pero su evidencia visual queda **pendiente** del recorrido con sesión. La tabla de pantallas indica qué falta.
+## Alcance y método
+
+Recorrido en Chrome DevTools a 1280×800, 390×844 y 360×740 con la BD de desarrollo y datos creados para la revisión, todos con «UX It3» en el nombre:
+
+- clínica «Clínica UX It3» y doctora «Dra. UX It3»;
+- usuarios «Técnico UX It3» y «Mensajero UX It3», creados desde Configuración → Usuarios con contraseñas de prueba de `.gitguardian.yaml`;
+- nueve trabajos, `26-00067` a `26-00075`, uno por estado: nuevo incompleto, nuevo urgente que vence hoy, en proceso (con dos líneas y técnico reasignado), en espera, en prueba, terminado, enviado, entregado y cancelado.
+
+La sesión de admin la abrió el coordinador. El técnico y el mensajero entraron en contextos de navegador aislados. Las medidas salen de `getBoundingClientRect`/`getComputedStyle` y los contrastes se calcularon con los valores reales de los tokens. La revisión de código, archivo por archivo, localiza la causa de cada hallazgo.
+
+**Límites del recorrido** (no se pudo hacer en vivo, y el informe lo dice en cada caso):
+
+- No se abrió el `ConfirmDialog` de «Finalizar»: el permiso del entorno denegó ese clic. El texto de los diálogos de confirmación sale del código (`case-actions.tsx:33-46`).
+- Tampoco se ejecutaron «Finalizar», «Marcar enviado» ni «Marcar entregado» desde la UI. Los estados se prepararon por la API de desarrollo con la sesión de admin.
+- La herramienta no emula el medio `print`: la impresión A4/A5 se juzgó en la vista de pantalla y en el código. La salida en papel ya la cubre el E2E de `74e27ae`.
+- No se creó un usuario de recepción: en las pantallas de la Iteración 3, recepción ve lo mismo que admin, porque `CASE_WRITE_ROLES` y los demás roles de `shared` los tratan igual.
 
 ## Resumen ejecutivo
 
-La Iteración 3 cumple bien el contrato de dominio en la UI. Las acciones de estado se derivan de `CASE_TRANSITIONS` con `Record` exhaustivos. La confirmación de una acción depende de si se puede deshacer. Las fases tienen una sola dueña de «Finalizar» y el técnico y el mensajero nunca reciben precios. La ficha corta del QR está pensada para usarla con guantes: botones de 56 px (`h-14`), enlace de 44 px y sin gestos finos. El login funciona en los tres viewports, sin scroll horizontal (`scrollWidth === clientWidth` en 1280, 390 y 360) y con consola limpia.
+La Iteración 3 cumple el contrato de dominio en la UI:
 
-Los problemas son de **claridad y de qué pasa cuando algo falla**, no de arquitectura:
+- Las acciones de estado se derivan de `CASE_TRANSITIONS` y nunca se escriben a mano.
+- La confirmación depende de si la acción se puede deshacer.
+- El técnico y el mensajero **no reciben precios ni notas internas**, ni en la ficha ni en la ficha corta (verificado en vivo con los dos roles).
+- La ficha corta del QR tiene botones de 56 px pensados para usar con guantes.
+- Con red, ninguna pantalla tiene scroll horizontal y ningún control de la ficha a 360 px mide menos de 44 px.
+- La consola queda limpia en todo el recorrido con red. Solo aparece el 404 de red esperado en `/t/26-99999`.
 
-1. **Los fallos de red se presentan como datos.** La ficha dice «El trabajo no existe», la ficha corta «No encontrado», «Mis trabajos» «No tienes trabajos asignados» y los contadores del inicio se quedan en «—» con `aria-label` «cargando» para siempre. El login sin red no muestra nada y deja un `Uncaught (in promise)` en la consola (verificado en vivo).
-2. **Los 409 del ciclo de vida muestran claves crudas** (`No se puede "marcar_enviado" un trabajo en estado "en_proceso"`).
-3. **La jerarquía de la barra de acciones es plana.** Todas las acciones van en teal primario, con «Cancelar trabajo» al mismo peso. Además, el ciclo de vida queda repartido en tres sitios: la barra sobre las pestañas, la fase y el técnico dentro de «Detalle», y «Repetir» como botón suelto.
-4. **El único hallazgo crítico medible** es el icono «Vence hoy» en `--wax-amber`, a **2,45:1** sobre blanco (mínimo 3:1 para gráficos). En móvil es la única señal visible, porque el `title` no aparece al tocar.
+Los problemas son de **claridad y de qué pasa cuando algo falla**:
 
-Ninguno exige rediseño: casi todos se corrigen en un solo componente o en un helper de `shared`.
+1. **Contraste e iconos sin texto**: el icono «Vence hoy» mide **2,45:1** (mínimo 3:1). En las tarjetas móviles, «Vence hoy» y «Urgente» son solo iconos, sin texto visible.
+2. **Fallos de red**: sin red, una navegación dentro de la app muestra la pantalla por defecto del router, en inglés: «Something went wrong! / Failed to fetch». El login sin red no dice nada. La ficha, la ficha corta y «Mis trabajos» convierten un error en «no existe», «no encontrado» o «no tienes trabajos».
+3. **Mensajes 409 con claves internas**: verificado contra la API, por ejemplo `No se puede "marcar_entregado" un trabajo en estado "en_proceso"`.
+4. **Jerarquía y lugar del ciclo de vida**: tres acciones en teal primario y otra más en la tarjeta de fase. En 390 px, «Avanzar fase» queda bajo el pliegue (y = 927 con un viewport de 844). El técnico, a mitad de producción, ve «Finalizar» como única acción visible.
+5. **Lo que lleva el papel y la ficha corta**: la orden impresa no marca la urgencia y, impresa por recepción, lleva precios a un papel que acompaña al trabajo hasta el banco. La ficha corta no dice ni la fecha de entrega ni la urgencia, y en un trabajo terminado muestra «Fase: Recepción».
+
+Ninguno exige rediseño: casi todos se corrigen en un componente o en un helper de `shared`.
 
 ## Pantallas × viewport
 
 | Pantalla | 1280×800 | 390×844 | 360×740 |
 |---|---|---|---|
-| Login (vacío, credenciales inválidas, sin red, redirección desde el QR) | UX3-10, UX3-19 · consola limpia, sin scroll | UX3-02 (sin red), UX3-19 | OK (sin scroll, controles de 44 px) |
-| Ficha — barra de acciones y diálogos (pausar, cancelar, finalizar, enviado, entregado) | **Pendiente (sin sesión)**; código: UX3-03, UX3-04, UX3-11, UX3-12 | Pendiente; código: UX3-04 | Pendiente |
-| Ficha — fase, técnico, «Repetir», historial | Pendiente; código: UX3-05, UX3-06, UX3-13, UX3-18 | Pendiente; código: UX3-05 | Pendiente |
-| Inicio — tarjetas de resumen y «Mis trabajos» | Pendiente; código: UX3-02, UX3-17 | Pendiente | Pendiente |
-| Orden imprimible (pantalla, A4 y A5, QR) | Pendiente; código: UX3-07, UX3-20 | — | — |
-| Ficha corta `/t/:code` (técnico, mensajero, «No encontrado») | — | Redirección al login verificada; ficha pendiente; código: UX3-02, UX3-08, UX3-09 | Pendiente |
-| Lista de trabajos (icono de vencimiento, filtro de clínica) | Pendiente; código y token: UX3-01, UX3-14 | Pendiente; código: UX3-01 | Pendiente |
+| Login (vacío, credenciales inválidas, sin red, desde el QR) | UX3-10, UX3-19 · OK | UX3-02, UX3-19 | OK |
+| Lista de trabajos (iconos de vencimiento y urgencia, filtro de clínica) | UX3-01, UX3-14 · sin scroll | UX3-01 · sin scroll | — |
+| Ficha: nuevo incompleto, nuevo, en proceso, en espera, en prueba, terminado, enviado, entregado, cancelado | UX3-04, UX3-05, UX3-18, UX3-25 | UX3-04, UX3-05 · sin scroll | OK: 0 controles < 44 px, sin scroll |
+| Ficha: diálogos «Pausar» y «Repetir», confirmación de «Finalizar» (solo código) | UX3-06, UX3-12 | — | — |
+| Ficha: fase, técnico e historial | UX3-11, UX3-13, UX3-24, UX3-26 | UX3-13 (como técnico) | — |
+| Inicio: admin, técnico y mensajero | UX3-17 | UX3-09, UX3-28 (técnico) | UX3-09 (mensajero) |
+| Orden imprimible (pantalla; impresión por código) | UX3-07, UX3-20, UX3-21 | — | — |
+| Ficha corta `/t/:code`: técnico, mensajero y «No encontrado» | — | UX3-08, UX3-22, UX3-27 | UX3-09, UX3-23 |
+| Sin red (login y navegación interna) | — | UX3-02 | — |
 
-«Pendiente» = no recorrida en navegador por falta de sesión. «Código» = hallazgo con la causa localizada en el código y la evidencia visual por confirmar.
+`—` = no recorrida a ese ancho porque repite un patrón ya verificado sin diferencias nuevas.
 
 ## Hallazgos
 
 ### Critical
 
-**UX3-01 — El icono «Vence hoy» de la lista no llega a 3:1 y en móvil es la única señal**
-Pantalla: Trabajos → lista (tabla y tarjetas) · Viewports: todos
-Evidencia: `--wax-amber` `#D99A16` da **2,45:1** sobre `--card` blanco y 2,25:1 sobre `--porcelain` (cálculo WCAG con los valores reales de `index.css:91`). Está por debajo del 3:1 de WCAG 1.4.11 para un gráfico necesario para entender el dato. La forma del icono distingue «hoy» (reloj) de «atrasado» (círculo con «!»), así que la información no depende solo del color. Pero el texto que la explica va en `title`/`aria-label`, que en táctil no se ve: en las tarjetas móviles (`renderCard`, `cases-table.tsx:227`, que reutiliza `DueCell`) quien mira solo tiene el icono, y con un contraste por debajo del mínimo. Es el hallazgo ya anotado «Icono ámbar», confirmado.
-Causa: `apps/web/src/features/cases/cases-table.tsx:51`, `className="text-[color:var(--wax-amber)]"`. `--wax-amber` es un acento, no una tinta (`docs/conventions.md` §5).
-Fix propuesto: pintar el icono con `text-[color:var(--wax-amber-ink)]` (`#7A5900`, **6,45:1** sobre blanco). En la variante de tarjeta, mostrar además el texto «Vence hoy»/«Atrasado» junto a la fecha: en móvil sobra ancho y el `title` no sirve. Test: ampliar `theme-tokens.test.ts` para que el color del icono de vencimiento cumpla 3:1 sobre `--card`, y un test de `cases-table` para que la tarjeta muestre el texto.
+**UX3-01 — El icono «Vence hoy» no llega a 3:1, y en móvil «Vence hoy» y «Urgente» no tienen texto visible**
+Pantalla: Trabajos → lista (tabla y tarjetas) · Viewports: 1280, 390 (`capturas/it3/lista-ux-it3-1280.png`, `capturas/it3/lista-tarjetas-390.png`)
+Evidencia: en el trabajo `26-00068` (urgente, vence hoy), `getComputedStyle` da para «Vence hoy» `rgb(217, 154, 22)` (`--wax-amber`): **2,45:1** sobre la tarjeta blanca, por debajo del 3:1 de WCAG 1.4.11. «Urgente» (`rgb(179, 38, 30)`, 6,5:1) cumple el contraste. Pero a 390 px las dos señales son **solo iconos de 16 px** junto al código y a la fecha. Su texto vive en `title` y `aria-label`, y `title` no aparece al tocar. En móvil, quien mira solo puede distinguir el estado por la forma del icono, y el ámbar además no se lee. Es el hallazgo ya anotado «Icono ámbar», confirmado.
+Causa: `apps/web/src/features/cases/cases-table.tsx:51` (`text-[color:var(--wax-amber)]`); `StatusIcon` (`:30-40`), que reutiliza `DueCell` en la tarjeta (`:227`).
+Fix propuesto: icono con `text-[color:var(--wax-amber-ink)]` (`#7A5900`, 6,45:1). En la variante de tarjeta, chips de texto «Urgente», «Vence hoy» y «Atrasado», como ya hace «Mis trabajos» (`my-cases.tsx:176-185`). Tests: `theme-tokens.test.ts` (3:1 del icono sobre `--card`) y `cases-table.test.tsx` (texto visible en la tarjeta).
 
 ### Important
 
-**UX3-02 — Los fallos de red se presentan como datos: «no existe», «no encontrado», «no tienes trabajos» o «cargando» eterno**
-Pantallas: ficha, ficha corta, inicio («Mis trabajos» y tarjetas) y login · Viewports: todos
+**UX3-02 — Los fallos de red se presentan como datos, o con la pantalla de error del router en inglés**
+Pantallas: toda la app con sesión, login, ficha, ficha corta e inicio · Viewports: todos
 Evidencia:
-- **Login sin red (verificado en vivo, 390×844, `emulate` Offline)**: al pulsar «Ingresar» no aparece ningún mensaje, el botón vuelve a «Ingresar» y la consola registra `net::ERR_INTERNET_DISCONNECTED` y `Uncaught (in promise)` (`capturas/it3/login-sin-red-390.png`).
-- Ficha (`routes/_app/trabajos/$caseId.tsx:33`): `q.isError || !q.data` → «El trabajo no existe» para cualquier error, también un 500 o un corte de red.
-- Ficha corta (`features/cases/quick-case.tsx:47`): cualquier error → «No encontrado. Revisa el código impreso…». El técnico o el mensajero con mala señal concluye que la etiqueta está mal impresa.
-- «Mis trabajos» (`features/cases/my-cases.tsx:150-159`): no mira `isError`. `rows = cases.data?.cases ?? []` cae en «No tienes trabajos asignados.», que es un dato falso para el técnico.
-- Tarjetas de resumen (`features/cases/summary-cards.tsx:86,100-102`): con error, `count` queda `undefined`. La tarjeta muestra «—» y anuncia «Nuevos, cargando» indefinidamente.
-Es el hallazgo ya anotado «Estados de error de red» (T12 M-5), confirmado y con el alcance precisado.
-Causa: ninguna de estas pantallas distingue el `404` (`ApiError.status`) de un error de red o de servidor. En el login, `signIn` (`features/auth/session.ts:38`) no captura el rechazo de `authClient.signIn.email` y `onSubmit` (`features/auth/login-form.tsx:17-22`) no tiene `try/catch`.
-Fix propuesto: un componente transversal `components/load-error.tsx` («No se pudo cargar. Revisa la conexión.» + botón «Reintentar» de 44 px que llama a `refetch`). Usar `EmptyState` «no existe / no encontrado» solo cuando `error instanceof ApiError && error.status === 404` (y 422 en `/t/:code`). En «Mis trabajos» y en las tarjetas, rama `isError` propia. En el login, `try/catch` en `signIn` → «No hay conexión con el servidor. Inténtalo de nuevo.». Tests: uno por pantalla con el mock de `api.ts` rechazando con `TypeError` (red) y con `ApiError(404)`.
+- **Navegación interna sin red (en vivo, técnico, 390)**: en el inicio, se corta la red y se toca un trabajo de «Mis trabajos». La app muestra «**Something went wrong! / Hide Error / Failed to fetch**», en inglés y sin salida (`capturas/it3/sin-red-error-router-390.png`).
+- **Login sin red (en vivo, 390)**: no aparece ningún mensaje y la consola registra `Uncaught (in promise)` (`capturas/it3/login-sin-red-390.png`).
+- En el código, con cualquier error: la ficha dice «El trabajo no existe» (`routes/_app/trabajos/$caseId.tsx:33`), la ficha corta «No encontrado» (`quick-case.tsx:47`), «Mis trabajos» «No tienes trabajos asignados» (no mira `isError`, `my-cases.tsx:150-159`), y las tarjetas del inicio se quedan en «—» con `aria-label` «cargando» (`summary-cards.tsx:86,100-102`).
+Hallazgo ya anotado (T12 M-5), confirmado y con más alcance.
+Causa: ninguna ruta declara `errorComponent` y el router no tiene `defaultErrorComponent` (`grep` sin resultados). El `beforeLoad` de `_app.tsx` llama a `getSession()`, que propaga el rechazo de `authClient.getSession` (`features/auth/session.ts:18`). Las pantallas no distinguen un 404 (`ApiError.status`) de un fallo de red. `signIn` (`session.ts:38`) y `onSubmit` (`login-form.tsx:17-22`) no capturan el rechazo.
+Fix propuesto:
+- `defaultErrorComponent` en español en el router: «No hay conexión con el servidor», con «Reintentar» de 44 px que llame a `router.invalidate()`.
+- Un componente `components/load-error.tsx` para las consultas.
+- «No existe» y «No encontrado» solo con `ApiError` 404 (y 422 en `/t/:code`).
+- Rama `isError` en «Mis trabajos» y en las tarjetas.
+- `try/catch` en `signIn`.
+Tests: por pantalla, con el mock de `api.ts` rechazando con `TypeError` y con `ApiError(404)`; test del `errorComponent`.
 
-**UX3-03 — Los 409 del ciclo de vida muestran claves internas en vez de texto para personas**
-Pantalla: ficha (toast de error de cualquier acción, cambio de fase o técnico) · Viewports: todos
-Evidencia (código): un 409 llega al usuario tal cual por `toastApiError` (`lib/api-error.ts:30`). Los textos son:
-- `No se puede "marcar_enviado" un trabajo en estado "en_proceso"` (`packages/shared/src/case-status.ts:81`);
-- `No se puede reasignar el técnico de un trabajo en estado "entregado"` (`apps/api/src/features/cases/service.ts:333`);
-- `El trabajo ya está en la última fase: usa "finalizar" para terminarlo` (`service.ts:297`).
-Un 409 aparece en el uso real cuando dos personas trabajan sobre el mismo trabajo (recepción con la ficha abierta mientras el mensajero lo marca enviado). Es el hallazgo ya anotado «409 con claves crudas» (PR 1, M-10), confirmado.
-Causa: `applyAction` y el servicio interpolan `CaseAction`/`CaseStatus` crudos. Los rótulos humanos viven solo en la web (`ACTION_LABELS` en `case-actions.tsx:11`, `STATUS_LABEL` en `status-chip.tsx`).
-Fix propuesto: mover a `shared` un `CASE_ACTION_LABEL: Record<CaseAction, string>` y un `CASE_STATUS_LABEL: Record<CaseStatus, string>` exhaustivos (la web los reutiliza) y redactar «No se puede marcar enviado: el trabajo está en proceso. Recarga la ficha para ver su estado actual.». Lo mismo en `service.ts:297` («…usa Finalizar…») y `:333`. Tests: unit en `shared` de `applyAction` y test de servicio con fakes que comprueben que el mensaje no contiene `_` ni comillas con claves.
+**UX3-03 — Los 409 del ciclo de vida muestran claves internas**
+Pantalla: ficha (toast de error) · Viewports: todos
+Evidencia (en vivo, contra la API con la sesión de admin): `POST /api/trabajos/{26-00069}/acciones {accion: 'marcar_entregado'}` responde **409** `{"message":"No se puede \"marcar_entregado\" un trabajo en estado \"en_proceso\""}`, y `toastApiError` lo muestra tal cual. El mismo patrón aparece en `service.ts:297` («usa "finalizar"») y `:333` (estado `"entregado"`). Un 409 es real cuando dos personas trabajan sobre el mismo trabajo. Hallazgo ya anotado (PR 1, M-10), confirmado.
+Causa: `packages/shared/src/case-status.ts:81` y `apps/api/src/features/cases/service.ts:297,333` interpolan las claves. Los rótulos solo existen en la web (`case-actions.tsx:11`, `status-chip.tsx`).
+Fix propuesto: `CASE_ACTION_LABEL` y `CASE_STATUS_LABEL` exhaustivos en `shared` (la web los reutiliza) y redactar «No se puede marcar entregado: el trabajo está en proceso. Recarga la ficha para ver su estado actual.». Tests: `applyAction` en `shared` y servicio con fakes (el mensaje no contiene `_`).
 
-**UX3-04 — Barra de acciones sin jerarquía: todo es primario y «Cancelar trabajo» pesa lo mismo que «Finalizar»**
-Pantalla: ficha · Viewports: 1280 (fila), 390/360 (pila a ancho completo)
-Evidencia (código): para admin o recepción en `en_proceso`, `availableActions` da Pausar, Enviar a prueba, Finalizar y Cancelar trabajo. Las tres primeras se pintan en teal primario y la cuarta en rojo sólido. En móvil son cuatro botones de 44 px apilados (~200 px con los huecos) antes de las pestañas. La dirección de diseño (§2) pide que «el color primario aparezca solo en la acción principal». Aquí no hay acción principal, y la destructiva compite al mismo nivel. En `en_prueba` pasa lo mismo con «Recibir de prueba» y «Cancelar trabajo».
-Causa: `apps/web/src/features/cases/case-actions.tsx:92`, `variant={a === 'cancelar' ? 'destructive' : 'default'}`.
-Fix propuesto: un `ACTION_EMPHASIS: Record<CaseAction, 'primary' | 'secondary' | 'destructive'>` exhaustivo (mismo patrón que `CONFIRM_DESCRIPTIONS`). Primario el avance natural del flujo (aceptar, reanudar, recibir_prueba, finalizar, marcar_enviado, marcar_entregado). `outline` para los desvíos (pausar, enviar_prueba). «Cancelar trabajo» como `ghost` en rojo, al final y separado (en móvil, debajo de un divisor). Test de componente: en `en_proceso` hay exactamente un botón primario.
+**UX3-04 — Barra de acciones sin jerarquía: varias acciones en primario**
+Pantalla: ficha · Viewports: 1280 (fila) y 390/360 (pila) (`capturas/it3/ficha-en-proceso-1280.png`, `capturas/it3/ficha-en-proceso-390.png`)
+Evidencia: en `26-00069` (en proceso, admin), «Pausar», «Enviar a prueba» y «Finalizar» van en teal primario (`rgb(15, 118, 110)`). Más abajo, «Avanzar fase» es otro primario y «Comentar» otro más en el historial. La dirección de diseño (§2) reserva el primario para la acción principal. «Cancelar trabajo» usa la variante destructiva suave (texto `#B3261E` sobre rojo al 10 %), **no** un rojo sólido: el informe parcial lo daba como sólido, y aquí se corrige. Aun así queda en la misma fila y con el mismo tamaño que «Finalizar». En 390 px las cuatro acciones ocupan una pila de 358×44 px entre y = 489 e y = 689.
+Causa: `apps/web/src/features/cases/case-actions.tsx:92`.
+Fix propuesto: `ACTION_EMPHASIS: Record<CaseAction, 'primary' | 'secondary' | 'destructive'>` exhaustivo. Primario para el avance natural (aceptar, reanudar, recibir_prueba, finalizar, marcar_enviado, marcar_entregado), `outline` para pausar y enviar_prueba, y «Cancelar trabajo» como `ghost` rojo, aparte y al final. Test: exactamente un primario por estado.
 
-**UX3-05 — El ciclo de vida queda repartido en tres sitios y «Avanzar fase» se esconde en una pestaña**
-Pantalla: ficha · Viewports: todos (peor en 390/360)
-Evidencia (código): las acciones de estado van sobre las pestañas (`routes/_app/trabajos/$caseId.tsx:56`). La tarjeta de fase, el selector de técnico y «Repetir» van **dentro** de la pestaña «Detalle» (`features/cases/case-detail-tab.tsx:119-131`). «Avanzar fase» es la acción más frecuente del técnico en la ficha completa, y no está si la pestaña activa es «Fotos» o «Historial». En la última fase, la tarjeta dice «usa "Finalizar" en las acciones de arriba» (`stage-control.tsx:436`) porque la acción vive en otro bloque. «Repetir» es un botón `outline` suelto y alineado a la derecha entre dos tarjetas, sin título que diga qué hace.
-Causa: composición de `CasePage` y `CaseDetailTab`.
-Fix propuesto: un panel «Producción» bajo la cabecera y antes de las pestañas, con la barra de estado, la fase actual con «Avanzar fase»/«Retroceder fase» y el técnico responsable. «Repetir» pasa a la barra de acciones como acción secundaria cuando `canRemake(status)`. La pestaña «Detalle» queda solo para el contenido del trabajo. Test: E2E que avance la fase con la pestaña «Historial» activa.
+**UX3-05 — El ciclo de vida está repartido y «Avanzar fase» queda bajo el pliegue, detrás de «Finalizar»**
+Pantalla: ficha · Viewports: 390 (medido) y todos
+Evidencia:
+- **Admin a 390**: las pestañas empiezan en y = 713 y «Avanzar fase» en **y = 927**, con un viewport de 844 px. Para avanzar la fase hay que desplazarse por debajo de las cuatro acciones de estado.
+- **Técnico** en el mismo trabajo, en la fase «Modelo», que no es la última: la única acción sobre las pestañas es **«Finalizar»**, en primario, y «Avanzar fase» queda dentro de «Detalle».
+- En las pestañas «Fotos» o «Historial» no hay forma de avanzar.
+- En terminado, «Repetir» aparece como un botón `outline` suelto, alineado a la derecha entre dos tarjetas (`capturas/it3/ficha-terminado-1280.png`).
+Causa: `routes/_app/trabajos/$caseId.tsx:56` (acciones sobre las pestañas) y `features/cases/case-detail-tab.tsx:119-131` (fase, técnico y «Repetir» dentro de «Detalle»).
+Fix propuesto: un panel «Producción» bajo la cabecera y antes de las pestañas. Lleva la fase actual con «Avanzar fase» (primario mientras haya fase siguiente) y «Retroceder fase», el técnico responsable y la barra de estado. «Finalizar» queda como primario solo en la última fase y en secundario antes de ella. «Repetir» pasa a la barra como secundaria. Test: E2E que avance la fase con «Historial» activo; test de componente sobre el énfasis de «Finalizar» según la fase.
 
-**UX3-06 — «Repetir trabajo» propone cobrar el 100 % a la clínica aunque la responsabilidad por omisión sea del laboratorio**
-Pantalla: ficha → diálogo «Repetir trabajo» · Viewports: todos
-Evidencia (código): `defaultValues: { responsabilidad: 'laboratorio', cobroPct: 100 }` (`features/cases/remake-dialog.tsx:263`). Quien solo escribe el motivo y pulsa «Crear repetición» registra una repetición por culpa del laboratorio que se cobra entera a la clínica. `cases.remake_charge_pct` es la política de cobro que leerá el saldo de la Iteración 5 (`docs/architecture.md` §4), así que el valor por omisión acaba en una cuenta.
-Causa: los dos campos son independientes y no hay ayuda que los relacione.
-Fix propuesto: derivar el porcentaje de la responsabilidad mientras no se edite a mano (laboratorio → 0, clínica → 100, compartida → 50), con una línea de ayuda bajo el campo («Se cobrará $X a la clínica» para admin y recepción). Test de componente: al elegir «Laboratorio», `cobroPct` = 0.
+**UX3-06 — «Repetir trabajo» propone cobrar el 100 % con la responsabilidad del laboratorio**
+Pantalla: ficha → «Repetir» · Viewport: 1280 (`capturas/it3/dialogo-repetir-1280.png`)
+Evidencia (en vivo): el diálogo abre con «Responsabilidad: Laboratorio» y «Porcentaje a cobrar a la clínica: 100», sin `%` ni ayuda. Quien solo escribe el motivo registra una repetición por culpa del laboratorio que se cobra entera a la clínica. `remake_charge_pct` es la política de cobro que leerá el saldo de la Iteración 5 (`docs/architecture.md` §4).
+Causa: `apps/web/src/features/cases/remake-dialog.tsx:263`.
+Fix propuesto: derivar el porcentaje de la responsabilidad mientras no se edite (laboratorio → 0, clínica → 100, compartida → 50), sufijo «%» y una línea de ayuda «Se cobrará $X a la clínica» (admin y recepción). Test de componente.
 
-**UX3-07 — La orden impresa no dice que el trabajo es urgente**
-Pantalla: orden imprimible (A4 y A5) · Viewport: impresión
-Evidencia (código): `PrintOrder` (`features/cases/print-order.tsx`) no lee `c.priority` (`grep priority` sin resultados). El papel que acompaña al trabajo en el banco no avisa de la urgencia, y el técnico solo se entera si escanea el QR o abre la lista.
-Fix propuesto: junto a «Orden de trabajo {código}» (`print-order.tsx:154-156`), una marca «URGENTE» con texto y borde negro de 2 px (sin depender del color, que en blanco y negro se pierde). Si hay espacio en A5, también la fecha de entrega en negrita en la cabecera. Test: `print-order.test.tsx` con `priority: 'urgente'`.
+**UX3-07 — La orden impresa no marca la urgencia**
+Pantalla: orden imprimible · Viewport: 1280 (`capturas/it3/orden-imprimible-urgente-1280.png`)
+Evidencia (en vivo): la orden de `26-00068`, **urgente**, no lo menciona en ninguna parte: código, QR, paciente, líneas, observaciones y firmas, sin la palabra «Urgente». El papel que acompaña al trabajo hasta el banco no avisa.
+Causa: `features/cases/print-order.tsx` no lee `c.priority`.
+Fix propuesto: una marca «URGENTE» con texto y borde negro de 2 px junto a «Orden de trabajo {código}» (`print-order.tsx:154-156`) y la fecha de entrega en negrita en la cabecera. Test en `print-order.test.tsx`.
 
-**UX3-08 — En la ficha corta, subir una foto no confirma que quedó subida**
-Pantalla: `/t/:code` · Viewports: 390/360
-Evidencia (código): `useUploadAttachment` (`features/cases/use-attachments.ts:18-21`) solo invalida consultas, y `usePhotoUpload` (`use-photo-upload.ts:213`) borra el progreso al terminar. Solo hay un toast **cuando falla**. La ficha corta no muestra fotos ni contador, así que tras «1 de 1…» la pantalla queda igual que antes. Con guantes, el técnico no sabe si la foto entró y tiende a repetirla.
-Fix propuesto: al terminar el bucle, `toast.success('Foto añadida')` (o «N fotos añadidas») y un contador «Fotos: N» en `QuickCase` (`useAttachments(caseId)`). Test de `use-photo-upload` con el mock de `attachments-api.ts`.
+**UX3-08 — La ficha corta no confirma la foto subida**
+Pantalla: `/t/:code` (técnico) · Viewport: 390
+Evidencia (en vivo): con «Añadir foto» en `26-00069` la foto se subió (`GET /api/adjuntos/trabajo/…` → 1 adjunto). En pantalla, durante seis segundos de muestreo, no apareció ningún toast ni contador, y la ficha corta quedó idéntica. Con guantes, el técnico no sabe si la foto entró.
+Causa: `use-attachments.ts:18-21` (sin toast de éxito) y `use-photo-upload.ts:213`. `QuickCase` no muestra fotos.
+Fix propuesto: `toast.success('Foto añadida')` (o «N fotos añadidas») al terminar el bucle y un «Fotos: N» en `QuickCase`. Test de `use-photo-upload`.
 
-**UX3-09 — El mensajero no tiene nada propio que hacer en la ficha corta ni en el inicio**
-Pantallas: `/t/:code`, inicio · Viewports: 390/360
-Evidencia (código): para el mensajero, `QuickCase` muestra código, paciente, estado, «Añadir foto» (sin condición de rol, `quick-case.tsx:113`) y «Ver ficha completa». `CASE_TRANSITIONS` le permite «Marcar enviado» y «Marcar entregado» (`packages/shared/src/case-status.ts:44,49`), pero la ficha corta no ofrece ninguna de las dos. Justo cuando escanea el QR en la entrega, tiene que pasar a la ficha completa. En el inicio ve las mismas seis tarjetas que recepción («Nuevos», «En prueba»…), ninguna pensada para él. Confirma el hallazgo ya anotado «mensajero y "Añadir foto"»: el código lo muestra; si debe verlo es decisión de producto.
-Fix propuesto: decidir con producto antes de la Iteración 4 (Entregas). Propuesta: en `/t/:code`, para quien pueda (`canPerform(role, a)`), el botón grande de la acción de entrega disponible (`marcar_enviado`/`marcar_entregado`) con el mismo `ConfirmDialog` de la ficha. «Añadir foto» para el mensajero solo si producto lo confirma (p. ej., como prueba de entrega). Inicio del mensajero con «Listos» y «Enviados» en vez del panel de recepción.
+**UX3-09 — El mensajero no puede marcar enviado o entregado desde el QR, y su inicio es el de recepción**
+Pantallas: `/t/:code`, inicio · Viewport: 360 (`capturas/it3/ficha-corta-mensajero-terminado-360.png`, `capturas/it3/inicio-mensajero-360.png`)
+Evidencia (en vivo, mensajero):
+- En `/t/26-00072` (terminado), la ficha corta ofrece solo «Añadir foto» y «Ver ficha completa». En la ficha completa del mismo trabajo **sí** aparece «Marcar enviado».
+- Justo en el momento del QR, el mensajero tiene que ir a otra pantalla para registrar el envío.
+- Su inicio repite las seis tarjetas del laboratorio («Nuevos 59», «En prueba»…), sin nada que sea suyo.
+Confirma el hallazgo ya anotado «mensajero y "Añadir foto"»: el código muestra el botón sin condición de rol (`quick-case.tsx:113`); si el mensajero debe verlo es decisión de producto.
+Fix propuesto: decidir con producto antes de la Iteración 4 (Entregas). Propuesta:
+- en `/t/:code`, el botón grande de la acción de entrega disponible (`canPerform(role, a)`), con el mismo `ConfirmDialog` de la ficha;
+- «Añadir foto» para el mensajero solo si se usa como prueba de entrega;
+- inicio con «Listos» y «Enviados».
+
+**UX3-21 — La orden impresa por recepción lleva precios al papel que acompaña al trabajo hasta el banco (nuevo)**
+Pantalla: orden imprimible · Viewport: 1280 (`capturas/it3/orden-imprimible-urgente-1280.png`)
+Evidencia (en vivo, admin): la orden lleva «$ 240.00» por línea y «Total: $ 240.00». Es lo que pide FIC-1 («con precios para administrador y recepción»), pero la spec (§5) dice que se imprimen **dos copias, clínica y laboratorio**, y la del laboratorio va al banco del técnico. La regla «técnico y mensajero nunca reciben precios» se cumple en la API y en la pantalla, pero no en el papel. No se clasifica como Critical porque FIC-1 lo pide así: es una contradicción entre la historia y la regla, y le toca decidir a producto.
+Causa: `print-case-page.tsx:63`, `hidePrices={hidesPrices(role)}` según quién imprime, no según para quién es la copia.
+Fix propuesto: dos botones en la pantalla de impresión, «Imprimir copia clínica» (con precios) e «Imprimir copia laboratorio» (sin precios), o un interruptor «Incluir precios» apagado por omisión. Test en `print-case-page.test.tsx`.
+
+**UX3-22 — La ficha corta no dice la fecha de entrega ni si es urgente (nuevo)**
+Pantalla: `/t/:code` · Viewports: 390/360 (`capturas/it3/ficha-corta-tecnico-390.png`)
+Evidencia (en vivo): el texto completo de la ficha corta de `26-00069` es «26-00069 · UX It3 C en proceso · En proceso · Fase: Empaque · Avanzar fase · Añadir foto · Ver ficha completa». No hay fecha comprometida, prioridad ni aviso de atraso. Lo que el técnico más necesita saber en el banco («¿para cuándo es?», «¿es urgente?») solo está en la ficha completa.
+Causa: `features/cases/quick-case.tsx:83-95` no pinta `promisedDate`/`dueDate` ni `priority`.
+Fix propuesto: bajo el paciente, «Entrega: 13/10/2026» y los chips de texto «Urgente», «Vence hoy» y «Atrasado» (la misma lógica de `dueBadge` que «Mis trabajos»). Test de `quick-case`.
+
+**UX3-23 — La ficha corta muestra una fase en trabajos que ya no están en producción (nuevo)**
+Pantalla: `/t/:code` · Viewport: 360 (`capturas/it3/ficha-corta-mensajero-terminado-360.png`)
+Evidencia (en vivo): `/t/26-00072`, **terminado**, muestra «Fase: Recepción». La ficha completa del mismo trabajo no muestra fase, porque `isStageVisible` la oculta fuera de producción. El mensajero o el técnico leen que el trabajo terminado está en «Recepción», es decir, sin empezar.
+Causa: `features/cases/quick-case.tsx:91` (`{c.stage && …}`) no aplica `isStageVisible(c.status)`, que sí usan `case-header.tsx:104` y `stage-control.tsx:398`.
+Fix propuesto: `c.stage && isStageVisible(c.status)`. Test de `quick-case` con un trabajo terminado.
 
 ### Minor
 
 **UX3-10 — El login reduce cualquier fallo a «Correo o contraseña incorrectos» y valida el campo vacío como «Correo inválido»**
-Pantalla: login · Viewports: todos (verificado en vivo a 1280: `capturas/it3/login-vacio-1280.png`, `login-error-1280.png`)
-Evidencia: con los campos vacíos, «Correo inválido» y «La contraseña debe tener al menos 8 caracteres». Para quien aún no escribió nada se lee como un error, no como «falta esto». Un usuario bloqueado o un límite de intentos (429) también ven «Correo o contraseña incorrectos».
-Causa: `features/auth/session.ts:39` devuelve `{ ok: false }` sin el código; `login-form.tsx:21` fija el texto. El schema de login (`packages/shared/src/schemas/auth.ts:11`) no distingue vacío de mal formado.
-Fix propuesto: devolver el `status` y el `code` de Better Auth y mapear «Usuario bloqueado: pide a administración que lo reactive» y «Demasiados intentos; espera un minuto». En el schema, `min(1, 'Escribe tu correo')` antes de `z.email`.
+Pantalla: login · Viewports: todos (`capturas/it3/login-vacio-1280.png`, `capturas/it3/login-error-1280.png`)
+Evidencia (en vivo): con los campos vacíos, «Correo inválido» y «La contraseña debe tener al menos 8 caracteres». Un usuario bloqueado o un 429 verían «Correo o contraseña incorrectos» (`session.ts:39`, `login-form.tsx:21`).
+Fix propuesto: mapear el `status`/`code` de Better Auth («Usuario bloqueado: pide a administración que lo reactive», «Demasiados intentos; espera un minuto») y `min(1, 'Escribe tu correo')` en el schema (`packages/shared/src/schemas/auth.ts:11`).
 
-**UX3-11 — Toasts genéricos que no repiten el nombre de la acción**
-Pantalla: ficha y ficha corta · Viewports: todos
-Evidencia (código): toda acción de estado termina en «Trabajo actualizado» (`use-cases.ts:93`) y todo cambio de fase en «Fase actualizada» (`:114`). La dirección de diseño (§6) pide que la acción mantenga su nombre hasta la confirmación. En la ficha corta, saber a qué fase pasó («Fase: Pulido») confirma el toque.
-Fix propuesto: `useCaseAction` recibe la acción y muestra `CASE_ACTION_DONE[accion]` («Trabajo finalizado», «Marcado como enviado»…, un `Record` exhaustivo); `useChangeStage` muestra el nombre de la fase nueva desde la respuesta.
+**UX3-11 — Toasts genéricos**
+Evidencia (en vivo): al avanzar la fase desde el QR el toast dice «Fase actualizada» (la fase nueva, «Modelo», solo se ve en la pantalla). Las acciones de estado terminan en «Trabajo actualizado» (`use-cases.ts:93,114`).
+Fix propuesto: `CASE_ACTION_DONE: Record<CaseAction, string>` exhaustivo («Trabajo finalizado», «Marcado como enviado»…) y «Fase: {nombre}» desde la respuesta.
 
-**UX3-12 — Diálogos: «Confirmar» en vez del nombre de la acción y «Cancelar»/«Volver» mezclados**
-Pantalla: ficha (pausar, cancelar, retroceder fase, finalizar, enviado, entregado) · Viewports: todos
-Evidencia (código): los diálogos con motivo usan «Confirmar» (`case-action-dialog.tsx:197`, `stage-control.tsx:348`) y «Volver». `ConfirmDialog` sí usa el nombre de la acción, pero su botón de cierre es «Cancelar» (`components/confirm-dialog.tsx:255`). Justo lo que `case-action-dialog.tsx:190-192` evitó a propósito para no confundirlo con «Cancelar trabajo». «Pausar» no explica el efecto (el trabajo sale de producción hasta «Reanudar»).
-Fix propuesto: botón principal con el nombre de la acción («Pausar», «Cancelar trabajo», «Retroceder fase»); «Volver» en todos los diálogos, `ConfirmDialog` incluido (prop `cancelLabel`); descripción breve en «Pausar».
+**UX3-12 — Diálogos que no nombran la acción ni su efecto**
+Evidencia (en vivo, `capturas/it3/dialogo-pausar-vacio-1280.png`): el diálogo «Pausar» no dice qué pasa con el trabajo y su botón es «Confirmar». El error del campo vacío, «Escribe el motivo», sí está bien. Según el código, `ConfirmDialog` cierra con «Cancelar» (`components/confirm-dialog.tsx:255`) mientras el resto de diálogos usan «Volver», que se eligió para no confundirlo con «Cancelar trabajo» (`case-action-dialog.tsx:190-192`). El de «Finalizar» no se abrió en vivo (ver los límites del recorrido).
+Fix propuesto: botón principal con el nombre de la acción («Pausar trabajo», «Cancelar trabajo», «Retroceder fase»), «Volver» en todos los diálogos (prop `cancelLabel` en `ConfirmDialog`) y una línea de efecto en «Pausar» («Sale de producción hasta que lo reanudes»).
 
-**UX3-13 — El historial muestra «Técnico» genérico para un técnico anterior**
-Pantalla: ficha → Historial · Viewports: todos
-Evidencia (código): `technicianName` (`features/cases/case-history.tsx:282-286`) solo resuelve el técnico actual o uno activo de `useTechnicians`. Para el técnico y el mensajero, que no consultan esa lista (`:269-270`), **cualquier** técnico anterior, activo o no, sale como «Técnico». Hallazgo ya anotado, confirmado y con más alcance.
-Fix propuesto: que `GET /api/trabajos/:id/eventos` devuelva los nombres de origen y destino de los eventos `assigned` (join de solo lectura con `users`, como ya se hace con `actor`). El cliente deja de adivinar.
+**UX3-13 — El historial muestra «Técnico» genérico para un técnico anterior, aunque siga activo**
+Evidencia (en vivo, técnico, `capturas/it3/historial-tecnico-390.png`): en `26-00069`, reasignado de «Técnico UX It3» a «Prueba Técnico» (activo) y de vuelta, el técnico lee «Técnico UX It3 → **Técnico**» y «**Técnico** → Técnico UX It3». El admin sí ve «Prueba Técnico» (`capturas/it3/historial-admin-1280.png`). Hallazgo ya anotado, confirmado con más alcance.
+Causa: `features/cases/case-history.tsx:269-286`: el técnico y el mensajero no consultan `useTechnicians`.
+Fix propuesto: que `GET /api/trabajos/:id/eventos` devuelva los nombres de origen y destino de `assigned` (join de solo lectura con `users`, como ya hace `actor`).
 
 **UX3-14 — El filtro de clínica de la lista no tiene buscador**
-Pantalla: Trabajos → filtros · Viewports: todos
-Evidencia (código): `features/cases/cases-filters.tsx:75-92` usa un `Select` plano, aunque `components/combobox.tsx` ya existe y la convención (§5) lo pide para catálogos largos que se buscan, como clínica. Hallazgo ya anotado, confirmado.
-Fix propuesto: reemplazarlo por `Combobox` con la opción «Todas».
+Causa: `features/cases/cases-filters.tsx:75-92` usa un `Select`, aunque `components/combobox.tsx` existe y §5 lo pide para clínica. Hallazgo ya anotado, confirmado.
+Fix propuesto: `Combobox` con la opción «Todas».
 
-**UX3-15 — Tinta ámbar en modo oscuro: el modo oscuro no es alcanzable**
-Evidencia: no hay `ThemeProvider`, toggle ni `classList.add('dark')` en `apps/web/src` (`grep` sin resultados), así que `.dark` nunca se aplica. Además, su bloque (`index.css:103-135`) conserva los valores de shadcn (`--primary` gris, no teal). El hallazgo ya anotado «tinta ámbar en oscuro» **se descarta como problema visible hoy**: el valor `#F5C66B` no lo ve nadie. El riesgo es que alguien active el modo oscuro y herede tokens sin probar.
-Fix propuesto: o se borra el bloque `.dark` hasta que se diseñe, o `theme-tokens.test.ts` interpreta `oklch()` y prueba el bloque entero. Recomendación: borrarlo (la dirección de diseño, §8, dejó el tema oscuro para después).
+**UX3-15 — Tinta ámbar en modo oscuro: el modo oscuro no existe en la práctica**
+Evidencia (en vivo): con `emulate colorScheme: dark`, el `body` sigue en `rgb(244, 246, 245)` y `<html>` no recibe la clase `.dark` (`prefers-color-scheme: dark` = `true`). No hay toggle ni `ThemeProvider` (`grep` sin resultados). El bloque `.dark` de `index.css:103-135` conserva valores de shadcn (`--primary` gris). El hallazgo ya anotado **se descarta como problema visible**; queda el riesgo de tokens sin probar.
+Fix propuesto: borrar `.dark` hasta que se diseñe (la dirección de diseño, §8, dejó el tema oscuro para después) o probarlo entero.
 
 **UX3-16 — Roles escritos a mano en la web**
-Evidencia (`grep`): `role === 'admin' || role === 'recepcion'` en `features/cases/case-header.tsx:43`, `photos-tab.tsx:27`, `case-detail-tab.tsx:116`, `case-form.tsx:120` y `routes/_app/trabajos/index.tsx:32`. La forma negada en `routes/_app/trabajos/nuevo.tsx:9` y `$caseId_.editar.tsx:16`. Hallazgo ya anotado (PR 3, M-4), confirmado, con dos sitios más.
-Fix propuesto: `CASE_WRITE_ROLES` (y, para notas internas y precios, `hidesPrices`) de `shared` en los siete sitios.
+Evidencia (`grep`): `role === 'admin' || role === 'recepcion'` en `case-header.tsx:43`, `photos-tab.tsx:27`, `case-detail-tab.tsx:116`, `case-form.tsx:120` y `routes/_app/trabajos/index.tsx:32`. La forma negada en `routes/_app/trabajos/nuevo.tsx:9` y `$caseId_.editar.tsx:16`. Hallazgo ya anotado, siete sitios.
+Fix propuesto: las constantes de `shared` (`CASE_WRITE_ROLES`, `hidesPrices`).
 
-**UX3-17 — «Incluye en prueba» a 11 px y sin el número**
-Pantalla: inicio · Viewports: todos
-Evidencia (código): `text-[11px]` (`features/cases/summary-cards.tsx:116`), por debajo de la escala mínima de 12 px de la dirección de diseño (§2). El hallazgo ya anotado («de ellos N en prueba») queda **parcialmente resuelto**: se avisa de que el contador incluye esos trabajos, pero no cuántos.
-Fix propuesto: «de ellos {summary.en_prueba} en prueba» a `text-xs`, con el mismo texto en el `aria-label`.
+**UX3-17 — «Incluye en prueba» a 11 px, sin número, y desalinea la tarjeta**
+Evidencia (en vivo, `capturas/it3/inicio-admin-1280.png`): `font-size: 11px`, por debajo de la escala mínima de 12 px. La tarjeta «En curso» sube su número (7) respecto a las otras cinco, porque `justify-between` reparte tres hijos en vez de dos. El hallazgo ya anotado («de ellos N en prueba») queda **parcialmente resuelto**.
+Causa: `features/cases/summary-cards.tsx:107,116`.
+Fix propuesto: «de ellos {en_prueba} en prueba» a `text-xs`, con el número anclado igual que en las demás tarjetas (p. ej. `mt-auto` en el número y la nota debajo).
 
 **UX3-18 — El técnico aparece dos veces en la ficha**
-Evidencia (código): campo «Técnico» en la cabecera (`case-header.tsx:103`) y tarjeta «Técnico responsable» en «Detalle» (`case-detail-tab.tsx:121-125`).
+Evidencia (en vivo): «Técnico: Técnico UX It3» en la cabecera y la tarjeta «Técnico responsable» en «Detalle» (`case-header.tsx:103`, `case-detail-tab.tsx:121-125`).
 Fix propuesto: con el panel «Producción» de UX3-05, quitar el campo de la cabecera.
 
-**UX3-19 — El login al que lleva el QR no dice a dónde se va a entrar**
-Pantalla: login con `?redirect=/t/…` · Viewports: 390/360 (verificado en vivo: `capturas/it3/login-redirect-qr-390.png`)
-Evidencia: al escanear el QR sin sesión, el técnico llega a un login idéntico al normal. La vuelta al destino funciona (`?redirect=%2Ft%2F26-00001`), pero nada dice que, tras entrar, se abrirá el trabajo 26-00001.
-Fix propuesto: si `safeRedirect(redirect)` empieza por `/t/`, una línea bajo «Laboratorio dental»: «Inicia sesión para abrir el trabajo 26-00001».
+**UX3-19 — El login al que lleva el QR no dice qué trabajo se abrirá**
+Evidencia (en vivo, `capturas/it3/login-redirect-qr-390.png`): `/login?redirect=%2Ft%2F26-00001` es idéntico al login normal. La vuelta al destino sí funciona: el técnico y el mensajero aterrizaron en `/t/26-00069` y `/t/26-00072` tras entrar.
+Fix propuesto: si el destino empieza por `/t/`, «Inicia sesión para abrir el trabajo 26-00001» bajo «Laboratorio dental».
 
-**UX3-20 — La orden impresa usa en A4 los tamaños de A5 (7–10 px)**
-Pantalla: orden imprimible · Viewport: impresión
-Evidencia (código): `print:text-[10px]` en el cuerpo, `print:text-[9px]` en piezas y material, y `print:text-[7px]` en los números del odontograma (`print-order.tsx:40`), sin variante por tamaño de hoja. En A5 compensa el espacio; en A4 deja texto muy pequeño para leer en el banco. Hay que comprobarlo con una impresión real (pendiente, sin sesión).
-Fix propuesto: tamaños base para A4 y reducción solo con `@media print and (max-width: 148mm)` (A5); números del odontograma a ≥ 9 px.
+**UX3-20 — La orden impresa usa en A4 los tamaños de A5 (7–10 px)** (solo código: el medio `print` no se pudo emular)
+Evidencia: `print:text-[10px]` en el cuerpo, `print:text-[9px]` en piezas y material y `print:text-[7px]` en el odontograma (`print-order.tsx:40`), sin variante por tamaño de hoja. En la pantalla, el QR mide 96×96 px (≈ 25 mm impreso), suficiente para escanear.
+Fix propuesto: tamaños base para A4 y reducción solo para A5; números del odontograma a ≥ 9 px.
+
+**UX3-24 — El selector de técnico no está ordenado (nuevo)**
+Evidencia (en vivo): «Técnico responsable» lista 27 técnicos en el orden de inserción de la BD: «Prueba Técnico», «Prueba Fix», 20 «Técnico E2E», … «Técnico UX It3» al final. Los homónimos vienen de los E2E de la BD de desarrollo, pero el orden es real: con 10–15 técnicos, recepción busca por nombre.
+Causa: `apps/api/src/features/cases/repo.ts:536-541` (`activeTechnicians` sin `orderBy`).
+Fix propuesto: `.orderBy(asc(users.name))`. Test de repo.
+
+**UX3-25 — Huecos y encabezados en la ficha (nuevo)**
+Evidencia (en vivo): cuando «Repetir» no aplica (p. ej. `26-00067`, nuevo), queda un `div.flex.justify-end` vacío de 0 px entre la tarjeta del técnico y «Líneas», que duplica el `gap-6` (48 px de hueco, `capturas/it3/ficha-nuevo-incompleto-1280.png`). Además, la ficha solo expone el `h1`: «Fase de producción», «Líneas», «Color y sistema»… son `CardTitle` sin rol de encabezado, así que un lector de pantalla no puede saltar entre secciones.
+Causa: `case-detail-tab.tsx:127-131` (el `RemakeDialog` devuelve `null` dentro del contenedor) y `components/ui/card.tsx` (`CardTitle` como `div`).
+Fix propuesto: no montar el contenedor si `!canRemake(status)`; `CardTitle` con `asChild` o un `h2` en las tarjetas de la ficha.
+
+**UX3-26 — Historial: lo más reciente al fondo y comentario sin etiqueta (nuevo)**
+Evidencia (en vivo, `capturas/it3/historial-admin-1280.png`): el formulario de comentario está arriba y la lista va de lo más antiguo a lo más reciente. En un trabajo largo, lo último que pasó queda al final. El `textarea` solo tiene placeholder («Escribe un comentario…»), sin etiqueta visible, y el piso de calidad (§7) pide etiquetas visibles en todos los campos.
+Fix propuesto: orden de lo más reciente a lo más antiguo (o el formulario al pie) y la etiqueta «Comentario».
+
+**UX3-27 — Ficha corta: «No encontrado» sin salida y «Avanzar fase» sin destino (nuevo)**
+Evidencia (en vivo, `capturas/it3/ficha-corta-no-encontrado-390.png`): «No encontrado» sugiere «búscalo en la lista de trabajos», pero no ofrece un botón para ir. «Avanzar fase» no dice a qué fase lleva («Avanzar a Modelo»), y con un toque accidental el técnico solo puede deshacerlo desde la ficha completa y con motivo.
+Fix propuesto: botón «Ir a trabajos» de 44 px en el `EmptyState` y rótulo «Avanzar a {siguiente}».
+
+**UX3-28 — El inicio del técnico se abre con los contadores del laboratorio (nuevo)**
+Evidencia (en vivo, `capturas/it3/inicio-tecnico-390.png`): a 390 px, las seis tarjetas del laboratorio («Nuevos 59», «Atrasados 9»…) ocupan la pantalla y «Mis trabajos» empieza en y = 513. Las tarjetas de «Mis trabajos» muestran una fecha sin decir de qué es («Recepción · En prueba · 09/10/2026»).
+Fix propuesto: para el técnico, «Mis trabajos» primero y las tarjetas del laboratorio después (o solo «Vencen hoy» y «Atrasados»); «Entrega 09/10/2026».
 
 ## Verificación de los hallazgos ya anotados en #101
 
 | # | Hallazgo anotado | Estado | Id / evidencia |
 |---|---|---|---|
-| 1 | Estados de error de red | **Confirmado, alcance mayor** | UX3-02: el login sin red, verificado en vivo, no muestra nada y deja un `Uncaught (in promise)`; la ficha, la ficha corta, «Mis trabajos» y las tarjetas convierten el error en un dato falso |
-| 2 | 409 del ciclo de vida con claves crudas | **Confirmado** | UX3-03: `case-status.ts:81`, `service.ts:297,333` |
-| 3 | Icono ámbar de `cases-table.tsx` | **Confirmado, Critical** | UX3-01: 2,45:1 (< 3:1); la forma lo distingue, pero en táctil no hay texto visible |
-| 4 | «de ellos N en prueba» | **Parcialmente resuelto** | UX3-17: hay aviso «Incluye en prueba», sin número y a 11 px |
-| 5 | Técnico anterior como «Técnico» en el historial | **Confirmado, alcance mayor** | UX3-13: para técnico y mensajero también le pasa a un anterior activo |
+| 1 | Estados de error de red | **Confirmado, alcance mayor** | UX3-02: pantalla del router en inglés sin red (en vivo), login sin aviso (en vivo), y errores convertidos en datos falsos |
+| 2 | 409 con claves crudas | **Confirmado en vivo** | UX3-03: `No se puede "marcar_entregado" un trabajo en estado "en_proceso"` |
+| 3 | Icono ámbar de `cases-table.tsx` | **Confirmado, Critical** | UX3-01: 2,45:1, y en móvil sin texto visible |
+| 4 | «de ellos N en prueba» | **Parcialmente resuelto** | UX3-17 |
+| 5 | Técnico anterior como «Técnico» | **Confirmado en vivo, alcance mayor** | UX3-13: le pasa también a un técnico anterior activo |
 | 6 | Filtro de clínica sin buscador | **Confirmado** | UX3-14 |
-| 7 | Tinta ámbar en modo oscuro | **Descartado como problema visible** | UX3-15: `.dark` no se aplica en ninguna parte; queda el riesgo de tokens sin probar |
-| 8 | Mensajero y «Añadir foto» en la ficha corta | **Confirmado (decisión de producto)** | UX3-09: se muestra sin condición de rol; además, al mensajero le falta la acción de entrega |
-| 9 | Roles escritos a mano en la web | **Confirmado, siete sitios** | UX3-16 |
-
-Nota: el cuerpo del issue #101 se sobrescribió por error el 2026-10-02 a las 23:30 UTC y hoy solo contiene el punto 9. El texto completo (descripción, checklist y los puntos 1-8) está en el historial de ediciones del issue (`userContentEdits`, edición de las 13:58:45 UTC). Conviene restaurarlo.
+| 7 | Tinta ámbar en modo oscuro | **Descartado como problema visible** | UX3-15: `.dark` no se aplica ni con `prefers-color-scheme: dark` |
+| 8 | Mensajero y «Añadir foto» | **Confirmado en vivo (decisión de producto)** | UX3-09 |
+| 9 | Roles escritos a mano | **Confirmado, siete sitios** | UX3-16 |
 
 ## Aciertos (mantener)
 
-- **El login cumple el piso de calidad en los tres viewports**: controles de 44 px (`getBoundingClientRect`: correo, contraseña e «Ingresar» de 364×44 a 1280, 322×44 a 390), sin scroll horizontal (`scrollWidth === clientWidth` en 1280, 390 y 360), errores bajo el campo con `aria-invalid` y `aria-describedby`, error del servidor con `role="alert"` en `--destructive` (6,54:1), pestaña del ticket en la tarjeta y consola limpia con red.
-- **La redirección desde el QR funciona**: `/t/26-00001` sin sesión lleva a `/login?redirect=%2Ft%2F26-00001` y el destino pasa por `safeRedirect`.
-- **Las acciones se derivan de `shared`, nunca a mano**: `availableActions` + `canPerform`, `CONFIRM_DESCRIPTIONS` y `EVENT_LABEL`/`EVENT_ICON` como `Record` exhaustivos. Una acción o un evento nuevos no compilan sin decidir cómo se muestran.
-- **La confirmación depende de si se puede deshacer, y dice la consecuencia** («No hay ninguna acción para devolverlo a "En proceso"»), nunca un «¿estás seguro?».
-- **Ficha corta pensada para el banco**: botones de 56 px a ancho completo, enlace «Ver ficha completa» de 44 px, cámara trasera directa (`capture="environment"`), motivos legibles cuando la fase no se puede cambiar y nunca precios (ni siquiera los lee).
-- **«Mis trabajos» no depende solo del color**: repite el estado con texto cuando no es «en proceso», y «Atrasado»/«Vence hoy» van como chip de texto con `--wax-amber-ink`.
-- **Las mutaciones esperan la invalidación** (`await invalidate()`): ningún botón se rehabilita con el estado viejo en pantalla, así que un doble toque no salta dos fases.
-- **El selector de técnico conserva al asignado inactivo** («(inactivo)») en vez de caer en «Sin asignar» en silencio, y se deshabilita para los estados donde la API respondería 409.
-- **Orden imprimible** con odontograma en blanco y negro (borde, no relleno de color), fecha de entrega en blanco para escribir a mano si falta, firmas y QR en SVG (sirve también en impresión).
+- **Precios y notas internas, bien enmascarados en vivo**: el técnico y el mensajero no ven ningún `$` ni «Notas internas» en la ficha completa ni en la ficha corta; el admin sí.
+- **Ficha corta para el banco**: «Avanzar fase» y «Añadir foto» de 358×56 px, «Ver ficha completa» de 44 px y cámara trasera directa. Avanzar desde el QR funcionó al primer toque (Empaque → Modelo).
+- **La vuelta al QR tras el login funciona** para el técnico y el mensajero, con el destino validado por `safeRedirect`.
+- **Ficha a 360 px**: ningún control interactivo por debajo de 44 px y sin scroll horizontal (`scrollWidth === clientWidth` en 1280, 390 y 360 en ficha, lista, inicio y ficha corta).
+- **Acciones por estado y por rol** derivadas de `shared`: el técnico ve «Finalizar», el mensajero «Marcar enviado» en terminado, y nadie ve acciones en entregado o cancelado. El selector de técnico se vuelve de solo lectura donde la API respondería 409.
+- **Aviso «En espera desde 03/10/2026: Esperando aprobación de color de la clínica»** con tinta ámbar legible, y «Para aceptar falta: Prescripción (texto o documento)» que explica por qué «Aceptar» está deshabilitado (`capturas/it3/ficha-en-espera-1280.png`).
+- **La tarjeta de fase explica cada bloqueo** en lenguaje de laboratorio («El trabajo está en una prueba en boca: recíbela para poder cambiar de fase»).
+- **El diálogo de motivo valida antes de enviar** («Escribe el motivo», con `aria-invalid`), y la confirmación nombra la consecuencia en lugar de un «¿estás seguro?».
+- **La orden imprimible** reproduce la hoja en papel: odontograma con borde (no relleno), QR SVG de 96 px, checklist y firmas.
+- **Consola limpia** en todo el recorrido con red, con los tres roles.
 
 ## Propuesta de ola de fixes
 
 | # | Commit | Hallazgos | Tamaño | Test que lo cubre |
 |---|---|---|---|---|
-| 1 | `fix(web): el icono de vencimiento cumple 3:1 y la tarjeta móvil lo dice con texto` | UX3-01 | S | `theme-tokens.test.ts` (3:1 del icono sobre `--card`); `cases-table.test.tsx` (texto en la tarjeta) |
-| 2 | `fix(web): distinguir error de red de «no existe» en ficha, ficha corta, inicio y login` | UX3-02 | M | Tests de `$caseId`/`quick-case`/`my-cases`/`summary-cards`/`login-form` con el mock de `api.ts` rechazando con red y con 404 |
-| 3 | `fix(shared): mensajes 409 legibles con rótulos de acción y estado en shared` | UX3-03, UX3-11 | S | Unit de `applyAction`; tests de servicio con fakes; test de los toasts en `use-cases` |
-| 4 | `fix(web): jerarquía de la barra de acciones y panel «Producción» antes de las pestañas` | UX3-04, UX3-05, UX3-12, UX3-18 | M | Test de `case-actions` (un solo primario); E2E de avanzar fase con «Historial» activo |
-| 5 | `fix(web): la repetición propone el cobro según la responsabilidad` | UX3-06 | S | Test de `remake-dialog` |
-| 6 | `fix(web): la orden impresa marca la urgencia y escala a A4` | UX3-07, UX3-20 | S | `print-order.test.tsx`; E2E de impresión existente en A4 y A5 |
-| 7 | `fix(web): la ficha corta confirma la foto subida` | UX3-08 | S | Test de `use-photo-upload` |
-| 8 | Decisión de producto + issue de la Iteración 4 | UX3-09 | — | Al implementar: E2E del mensajero marcando entregado desde `/t/:code` |
-| 9 | `refactor(web): roles de shared, combobox de clínica, nombres en el historial, avisos del login` | UX3-10, UX3-13, UX3-14, UX3-16, UX3-17, UX3-19 | M | Tests de cada componente tocado; test de API de `/eventos` con nombres |
+| 1 | `fix(web): iconos de vencimiento y urgencia legibles y con texto en móvil` | UX3-01 | S | `theme-tokens.test.ts`; `cases-table.test.tsx` |
+| 2 | `fix(web): pantalla de error del router en español y errores de red distintos de «no existe»` | UX3-02 | M | Test del `errorComponent`; tests por pantalla con mocks de `api.ts` (red y 404) |
+| 3 | `fix(shared): mensajes 409 legibles y toasts con el nombre de la acción` | UX3-03, UX3-11 | S | `applyAction` en `shared`; servicio con fakes; `use-cases` |
+| 4 | `fix(web): panel «Producción» antes de las pestañas y jerarquía de acciones` | UX3-04, UX3-05, UX3-12, UX3-18, UX3-25 | M | `case-actions` (un primario); E2E de avanzar fase desde «Historial» |
+| 5 | `fix(web): la ficha corta dice entrega y urgencia, oculta la fase fuera de producción y confirma la foto` | UX3-08, UX3-22, UX3-23, UX3-27 | S | `quick-case.test.tsx`; `use-photo-upload` |
+| 6 | `fix(web): orden impresa con urgencia, copia sin precios y escala A4` | UX3-07, UX3-20, UX3-21 | S | `print-order.test.tsx`; `print-case-page.test.tsx`; E2E A4/A5 |
+| 7 | `fix(web): la repetición propone el cobro según la responsabilidad` | UX3-06 | S | `remake-dialog.test.tsx` |
+| 8 | Decisión de producto + issue de la Iteración 4 | UX3-09, UX3-21 (copias), UX3-28 | — | Al implementar: E2E del mensajero desde `/t/:code` |
+| 9 | `refactor: roles de shared, combobox de clínica, técnicos ordenados, nombres en el historial, avisos del login` | UX3-10, UX3-13, UX3-14, UX3-16, UX3-17, UX3-19, UX3-24, UX3-26 | M | Tests de cada componente; repo de técnicos; `/eventos` con nombres |
 
-UX3-15 se resuelve borrando el bloque `.dark` o probándolo (decisión de Nelson). **Antes de la ola, completar el recorrido con sesión** (ficha en los ocho estados, diálogos, inicio por rol, impresión A4/A5, `/t/:code` como técnico y mensajero) para confirmar visualmente los hallazgos de código y capturar los que solo se ven en pantalla.
+UX3-15: borrar el bloque `.dark` o probarlo (decisión de Nelson).
 
 ## Capturas
 
-- `capturas/it3/login-vacio-1280.png`: validación con los campos vacíos.
-- `capturas/it3/login-error-1280.png`: credenciales inválidas (correo inventado, contraseña enmascarada).
-- `capturas/it3/login-redirect-qr-390.png`: login al que lleva el QR sin sesión.
-- `capturas/it3/login-sin-red-390.png`: login sin red, sin ningún aviso.
-- `capturas/it3/login-360.png`: login a 360 px.
+Todas en `capturas/it3/`. Ninguna muestra credenciales: los formularios de login no se capturaron con datos reales y las contraseñas aparecen enmascaradas.
 
-Ninguna captura muestra credenciales reales: los correos son inventados (`ux-it3-inexistente@example.com`) y la contraseña aparece enmascarada.
+- Login: `login-vacio-1280.png`, `login-error-1280.png`, `login-redirect-qr-390.png`, `login-sin-red-390.png`, `login-360.png`
+- Lista: `lista-ux-it3-1280.png`, `lista-tarjetas-390.png`
+- Ficha: `ficha-nuevo-incompleto-1280.png`, `ficha-en-proceso-1280.png`, `ficha-en-proceso-390.png`, `ficha-en-espera-1280.png`, `ficha-terminado-1280.png`, `dialogo-pausar-vacio-1280.png`, `dialogo-repetir-1280.png`, `historial-admin-1280.png`, `historial-tecnico-390.png`
+- Inicio: `inicio-admin-1280.png`, `inicio-tecnico-390.png`, `inicio-mensajero-360.png`
+- Orden imprimible: `orden-imprimible-urgente-1280.png`
+- Ficha corta: `ficha-corta-tecnico-390.png`, `ficha-corta-mensajero-terminado-360.png`, `ficha-corta-no-encontrado-390.png`
+- Sin red: `sin-red-error-router-390.png`
