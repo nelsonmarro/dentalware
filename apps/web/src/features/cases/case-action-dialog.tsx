@@ -6,6 +6,7 @@ import { FormDialog } from '@/components/form-dialog'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
+import { ACTION_EMPHASIS } from './action-emphasis'
 
 type CaseActionFormValues = z.input<typeof caseActionSchema>
 
@@ -63,7 +64,15 @@ export function CaseActionDialog({
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
             Volver
           </Button>
-          <Button type="submit" form="case-action-form" disabled={pending}>
+          {/* M-5: el botón que confirma es el principal del diálogo, salvo que la acción sea
+           * destructiva en `ACTION_EMPHASIS` (la misma clasificación que pinta la barra):
+           * confirmar «Cancelar trabajo» no puede verse como el primario teal de un avance. */}
+          <Button
+            type="submit"
+            form="case-action-form"
+            variant={ACTION_EMPHASIS[action] === 'destructive' ? 'destructive' : 'default'}
+            disabled={pending}
+          >
             {pending ? 'Guardando…' : confirmLabel}
           </Button>
         </>

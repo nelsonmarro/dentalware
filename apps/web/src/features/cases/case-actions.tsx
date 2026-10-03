@@ -3,6 +3,7 @@ import { availableActions, canPerform, CASE_ACTION_LABEL, requiresReason } from 
 import { useState } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
+import { actionVariant } from './action-emphasis'
 import type { CaseDetail } from './api'
 import { CaseActionDialog } from './case-action-dialog'
 import { useCaseAction } from './use-cases'
@@ -68,10 +69,14 @@ export function CaseActions({
   case: c,
   missing,
   role,
+  hasNextStage = false,
 }: {
   case: CaseDetail
   missing: string[]
   role: UserRole
+  /** El trabajo tiene una fase siguiente (o las fases no han cargado): el primario del panel
+   * es «Avanzar fase» y «Finalizar» baja a secundario (UX3-05). */
+  hasNextStage?: boolean
 }) {
   const [dialogAction, setDialogAction] = useState<ActionRequiringReason | null>(null)
   const [confirm, setConfirm] = useState<({ action: CaseAction } & ActionDialogCopy) | null>(null)
@@ -101,7 +106,7 @@ export function CaseActions({
         return (
           <Button
             key={a}
-            variant={a === 'cancelar' ? 'destructive' : 'default'}
+            variant={actionVariant(a, hasNextStage)}
             className="w-full sm:w-auto"
             disabled={disabled || action.isPending}
             onClick={() => run(a)}
