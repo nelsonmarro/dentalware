@@ -426,7 +426,7 @@ más arriba) ni `advancedFilter` con `mode: 'server'` (no tendría efecto).
   porque re-exporta las factorías) que prohíbe importar `features/*`, otro para `features/*.{ts,tsx}`
   que prohíbe importar el núcleo o un módulo hermano (sus propios sub-archivos, como
   `filtering-column-filter.tsx`, sí se pueden importar), y uno general para todo `data-grid/**` que
-  prohíbe `@/features/*`, `@/routes/*` y `@/lib/api` (docs/architecture.md §3.5).
+  prohíbe `@/features/*`, `@/routes/*` y `@/lib/api` (docs/architecture.md §4).
 - `GridFeatures` (`types.ts`) es el conjunto **completo** de features de TanStack que el tipado
   conoce; en runtime `useDataGrid` solo registra las que trae la lista `features` de esa tabla. Es
   lo que permite tipar `defineColumns`/`useDataGrid` una sola vez sin acoplar cada tabla a la unión

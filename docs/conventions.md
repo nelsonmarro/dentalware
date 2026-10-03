@@ -1,97 +1,106 @@
-# Convenciones de código y buenas prácticas — Dentalware
+# Convenciones de código — Dentalware
 
-Documento de referencia para cualquier persona o agente que toque el repo. Complementa `CLAUDE.md` (reglas de trabajo) y `docs/architecture.md` (arquitectura y decisiones). Si una convención nueva se decide en una revisión o ruling, se anota aquí en el mismo PR.
+Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabajo) y `docs/architecture.md` (fronteras y decisiones). Una convención nueva se anota aquí en el mismo PR que la introduce.
 
-## 1. Idioma, copy y nombres
+## 1. Idioma y nombres
 
-- **Español** en UI, mensajes de validación y error, comentarios, commits, issues y docs. Sentence case («Nuevo trabajo», no «Nuevo Trabajo»). Términos del dominio como los usa el laboratorio: trabajo (no caso), clínica, doctor, pieza (diente FDI), fase, técnico, mensajero, recepción.
-- **Código en inglés técnico** para identificadores (`caseInputSchema`, `createCase`, `useCases`) salvo términos de dominio sin traducción clara (`odontogram`, `fdi`, `remake`). Rutas HTTP y de la web en español (`/api/trabajos`, `/trabajos/nuevo`, `/configuracion`).
-- Archivos en `kebab-case` (`case-items-editor.tsx`, `use-cases.ts`); componentes React en `PascalCase`; hooks `useX`; constantes de dominio en `SCREAMING_SNAKE_CASE` (`CASE_STATUSES`, `CASE_PAGE_SIZE`); tipos e interfaces en `PascalCase` sin prefijo `I`.
-- Un componente o hook por archivo. Los tests viven junto al código: `x.test.ts(x)`.
+- **Español** en UI, validaciones, errores, comentarios, commits, issues y docs, en sentence case («Nuevo trabajo»). Vocabulario del laboratorio: trabajo (no caso), clínica, doctor, pieza (FDI), fase, técnico, mensajero, recepción.
+- **Identificadores en inglés técnico** (`caseInputSchema`, `useCases`) salvo términos de dominio (`odontogram`, `fdi`, `remake`). Rutas HTTP y web en español (`/api/trabajos`, `/configuracion`).
+- Archivos `kebab-case`; componentes `PascalCase`; hooks `useX`; constantes de dominio `SCREAMING_SNAKE_CASE`; tipos sin prefijo `I`. Un componente o hook por archivo; tests junto al código (`x.test.ts(x)`).
 
 ## 2. TypeScript y tooling
 
-- `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax` (usar `import type`), `erasableSyntaxOnly` en `packages/shared`: **sin `enum`, sin parameter properties, sin namespaces**; usar `as const` + tipos derivados.
-- Nunca `any`; `unknown` + narrowing. Nada de `!` no-null salvo justificado con comentario. Preferir tipos inferidos de zod (`z.input` / `z.output`) y de Drizzle (`typeof table.$inferSelect`).
-- Imports relativos con extensión `.ts` en `packages/shared` (ESM `nodenext`); alias `@/` en `apps/web`; en `apps/api` imports relativos.
-- Prettier: sin punto y coma, comillas simples, `printWidth` 100, plugin de Tailwind (ordena clases). ESLint 10 sin warnings: `pnpm lint` debe salir limpio; `no-unused-vars` se resuelve borrando, no con `_` decorativo salvo parámetros obligatorios.
-- Versiones fijadas en el `catalog:` de `pnpm-workspace.yaml`; antes de añadir o usar una API de librería, **context7** (regla 2 de `CLAUDE.md`). Node 24 en cada shell.
+- `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax` (`import type`); en `shared`, `erasableSyntaxOnly`: sin `enum`, namespaces ni parameter properties — `as const` y tipos derivados.
+- Nunca `any` (`unknown` + narrowing); `!` solo justificado. Tipos inferidos de zod (`z.input`/`z.output`) y Drizzle (`$inferSelect`).
+- Imports: `.ts` explícito en `shared`, alias `@/` en web, relativos en api.
+- Prettier (sin `;`, comillas simples, 100 columnas, orden de clases Tailwind) y ESLint sin warnings. Variables sin usar se borran.
+- Versiones fijadas en el `catalog:` de `pnpm-workspace.yaml`; context7 antes de usar una API de librería. Node 24 en cada shell.
 
-## 3. Estructura por features
+## 3. Estructura
 
-- `packages/shared/src/`: dominio puro (sin I/O): `schemas/*.ts` (zod + tipos), `case-status.ts` (máquina de estados), `money.ts`, `fdi.ts`, `business-days.ts`, `case-code.ts`, `case-readiness.ts`, `case-events.ts`, `csv.ts`, `roles.ts`. Todo se exporta desde `index.ts`.
-- `apps/api/src/features/<feature>/`: `ports.ts` (interfaces que consume el caso de uso: repositorios, `Storage`, `Clock`, `IdGenerator`, `UnitOfWork`, puertos de otras features), `service.ts` (casos de uso: orquesta reglas de `shared` y puertos; **sin Hono, sin Drizzle, sin `process.env`**), `errors.ts` (errores de dominio), `repo.ts` (adaptador Drizzle, `createXRepo(db) satisfies XRepository`), `schema.ts` (tablas Drizzle, la importa `repo.ts`; ver excepciones abajo), `routes.ts` (adaptador HTTP), `fakes.ts` (implementaciones en memoria de los puertos, usadas por `*.test.ts`), `*.test.ts`. Transversales en `lib/` (`validate`, `storage`, `images`), `db/` (conexión, relaciones, migraciones, `reset`), `scripts/` (seed, reset-test-db), `test/` (setup). `app.ts` es la raíz de composición (`createApp({ auth, db, webOrigin, storage, clock?, ids? })`): construye adaptadores, arma servicios por factoría y monta rutas; `main.ts` solo arranca.
-- `ports.ts` + `service.ts` son **obligatorios en features nuevas**. Un CRUD simple (un solo repositorio, sin transacción, sin enmascarado por rol, sin reglas) puede omitir `service.ts` y llamar al repo desde la ruta; en cuanto gana la primera regla, se le crea el servicio en ese mismo PR. Las features existentes se migran cuando se las toca (boy-scout), no en un big-bang: ver el plan por feature en `docs/architecture.md` §3.4–§3.6.
-- `apps/web/src/features/<feature>/`: `api.ts` (puerto/adaptador HTTP: cliente `hc` tipado; **única frontera con la red**), `use-*.ts` (capa de aplicación con TanStack Query), `*-form.tsx`, `*-table.tsx`, componentes de la feature y sus tests. Transversales en `components/` (y primitivas shadcn en `components/ui/`), utilidades en `lib/`, harness de pruebas en `test/`. `routes/` (TanStack Router file-based) **solo importa de `features/` y `components/`** y no contiene lógica de negocio. Nada de `fetch` ni `hc` fuera de `api.ts`; `authClient` (Better Auth) solo dentro de `features/auth/` (`auth-client.ts`), consumido por el resto de la web a través de `getSession()`/`signIn()`/`signOut()` (`session.ts`) o del hook `useSession()` (`use-session.ts`).
-- Una feature no importa el `repo`, el `schema` ni las `routes` de otra: declara lo que necesita como **puerto en su propio `ports.ts`** y la raíz de composición le inyecta la implementación de la otra feature (ver `docs/architecture.md` §2 y §3.5). Tres excepciones acotadas: el `repo.ts` de una feature puede importar el `schema.ts` de otra para joins y lecturas de solo lectura (ADR 24, p. ej. `cases/import.repo.ts` lee `clinics`/`doctors`/`products`); `ports.ts` puede importar (solo con `import type`) su propio `schema.ts` para derivar tipos de fila (ADR 25), nunca de `repo.ts`; y `errors.ts` puede reexportar una clase de error de dominio de otra feature, nunca un adaptador (ADR 26, p. ej. `attachments/errors.ts` reexporta `CaseNotFoundError` de `cases/errors.ts`).
+- **`packages/shared/src`**: dominio puro sin I/O (schemas zod, máquina de estados, dinero, FDI, días hábiles, código de trabajo, readiness, roles). Todo sale por `index.ts`; solo depende de `zod`.
+- **`apps/api/src/features/<f>/`**: `ports.ts`, `service.ts`, `errors.ts`, `repo.ts`, `schema.ts`, `routes.ts`, `fakes.ts`, `*.test.ts` (papel de cada uno en `docs/architecture.md` §3). Transversal en `lib/`, `db/`, `scripts/`, `test/`. `app.ts` es la raíz de composición; `main.ts` solo arranca.
+- **`apps/web/src/features/<f>/`**: `api.ts` (única frontera con la red), `use-*.ts` (TanStack Query), componentes y tests. Transversal en `components/` (`ui/` = primitivas shadcn), `lib/` y `test/`. `routes/` solo importa de `features/` y `components/` y no tiene lógica.
+- Una feature no importa el `repo`, `schema` ni `routes` de otra: declara un puerto y la raíz de composición lo inyecta (excepciones en ADR 24–26).
 
-## 4. API (Hono + Drizzle + Postgres)
+## 4. API
 
-- `routes.ts` solo valida, autoriza, traduce errores de dominio a códigos HTTP y serializa: **en una feature nueva no aparece `db.` ni `drizzle-orm` dentro de la ruta**; los datos llegan por el servicio (o por el repo, en el CRUD simple de §3). El contexto de sesión viaja al servicio como `RequestContext { userId, role }` construido desde `c.var.user`; el servicio nunca recibe el `Context` de Hono.
-- Servicios: factorías con dependencias explícitas (`createCasesService({ cases, storage, clock })`), sin contenedor de DI ni decoradores. Toda dependencia oculta se convierte en puerto: reloj (`Clock.today()`), generación de identificadores, disco, red. **Cada servicio se prueba con fakes en memoria** (sin Postgres ni HTTP) además de la prueba de integración de sus rutas; si un caso de uso no se puede probar sin Postgres, hay un adaptador dentro de la lógica.
-- Validación con `validate('json' | 'query' | 'param', schema)` usando los schemas de `@dentalware/shared`. Respuesta de validación: **422** `{ message: 'Datos inválidos', issues: [{ path, message }] }`.
-- Errores: lanzar `HTTPException` con mensaje en español; el `onError` global responde `{ message }`. **401** sin sesión en las rutas de solo lectura con `requireAuth` («No autenticado»), que da **403** «Sin permiso» si la sesión trae un rol que no está en `USER_ROLES` (un rol desconocido nunca es un permiso, #21), y **403** uniforme en las que llevan `requireRole(...)`, que no distingue «sin sesión» de «rol incorrecto» (ambos «Sin permiso»); 404 `{ message: 'No encontrado' }`; 409 para transiciones de estado inválidas; 413/415 en subidas. Códigos explícitos en `c.json(x, 200)`.
-- Escrituras solo para `admin | recepcion` salvo acciones propias del rol (técnico comenta, sube fotos, cambia fase y finaliza; mensajero marca enviado y entregado). Quién puede qué lo dicen las constantes de `shared` (`CASE_TRANSITIONS`, `*_ROLES`, ADR 31): cada ruta usa **su** constante con `requireRole(...X)`, aunque hoy coincida con otra, y en las operaciones del ciclo de vida (acciones, fase, técnico, repetición) el servicio **vuelve a comprobar** el rol, porque el guardián de ruta es una capa y la del servicio es la que sobrevive a que alguien toque la ruta. Crear, editar y comentar se apoyan solo en el guardián de ruta (`canWrite`/`requireAuth`). **Técnico y mensajero nunca reciben precios ni notas internas**: el enmascarado (`stripPrices`/`maskPriceEvents`) es decisión del **servicio** (en features no migradas, del `repo`/rutas), nunca solo de la UI; la lista devuelve `total: null`.
-- Dinero: se guarda y transporta como cadena decimal `"12.34"`; los cálculos usan centavos enteros (`money.ts`: `toCents`, `fromCents`, `lineTotalCents`, `sumCents`). Fechas de negocio como `YYYY-MM-DD` (`isoDate`), timestamps en UTC; el cliente formatea (`date-format.ts`).
-- Toda mutación de un trabajo escribe su `case_event` **en la misma transacción**. El puerto `UnitOfWork.run(fn)` con `createXRepo(db | tx)` (ADR 19) es el único patrón vigente: el par `xTx(tx, …)`/`x(db, …)` (`createCaseTx`/`createCase`) que existía antes de migrar `cases` desapareció (ver `docs/architecture.md` §3.6); una feature nueva o recién migrada no lo reintroduce. Nunca abrir `db.transaction` dentro de otra.
-- Catálogos con borrado lógico (`active`); los trabajos nunca se borran, se cancelan. Código de trabajo `AA-NNNNN` por secuencia anual con `FOR UPDATE`.
-- Subidas: `bodyLimit` antes de `parseBody`, MIME real por magic bytes (imágenes con `sharp`, PDF `%PDF-`), nombre de disco = UUID (el nombre original nunca forma la ruta), servidas solo con sesión. El driver se elige por configuración (`STORAGE_DRIVER`, hoy solo `local`) con `createStorage` en la raíz de composición; las features solo importan el tipo del puerto `Storage` y nunca un driver concreto, y todo driver (también el fake) pasa `lib/storage.contract.ts` (ADR 10, #103).
-- Configuración: `loadConfig` valida con zod y carga `.env` o `.env.test` según `NODE_ENV`; nada de `process.env` suelto fuera de `config.ts`. Las claves de integraciones externas (p. ej. `RESEND_API_KEY` y el remitente de correo, cuando lleguen los avisos por correo, Post-MVP) se declaran allí y llegan al adaptador por la raíz de composición, nunca al servicio.
-- Arranque (#21): `loadConfig` lanza `ConfigError` y `reportStartupError` (`lib/startup.ts`) solo reduce **ese** error a un mensaje limpio; cualquier otro fallo de arranque (Postgres caído, contraseña incorrecta) se imprime completo, con traza y `cause`, y el proceso sale con 1 — un mensaje genérico escondía la causa justo en el despliegue. `main.ts` es siempre el punto de entrada y va sin guarda; los scripts que además se importan desde tests (`seed.ts`, `reset-test-db.ts`) se protegen con `isMainModule(import.meta.url)` (`lib/is-main-module.ts`, compara con `realpathSync` para que un symlink no deje el proceso salir con 0 sin hacer nada).
-- Migraciones con drizzle-kit versionadas en `apps/api/drizzle/`; las columnas de iteraciones futuras se crean ya como `nullable` para no repetir migraciones; seed idempotente en `scripts/seed.ts` con datos en `seed-data.ts` (probados). `ensureAdmin` es idempotente también sobre el rol (si el admin existe con otro rol lo corrige a `admin`) y **nunca desbanea**: un bloqueo lo decidió una persona, así que devuelve `bloqueado` y avisa por stderr cómo desbloquearlo (#21). `users.role` lleva un CHECK derivado de `USER_ROLES` (`db/schema/auth.ts`): añadir un rol en shared obliga a `drizzle-kit generate`, que produce el DROP+ADD del CHECK.
+- **Rutas** solo validan, autorizan, traducen errores de dominio a HTTP y serializan; nada de `db.` en una feature con servicio. Pasan al servicio un `RequestContext { userId, role }` (`ctxFrom`), nunca el `Context` de Hono.
+- **Servicios**: factorías con dependencias explícitas; toda dependencia oculta (reloj, ids, disco, red, config) es un puerto. Cada servicio tiene test con fakes además de la integración de sus rutas.
+- **Validación**: `validate('json'|'query'|'param', schema)` con schemas de `shared` → 422 `{ message: 'Datos inválidos', issues }`.
+- **Errores**: `{ message }` en español. 401 «No autenticado» en `requireAuth`; 403 «Sin permiso» uniforme en `requireRole` y ante un rol desconocido; 404 «No encontrado»; 409 transición inválida; 413/415 en subidas. Status explícito en `c.json(x, 200)`.
+- **Permisos**: quién puede qué lo dicen las constantes de `shared` (`CASE_TRANSITIONS`, `*_ROLES`, ADR 31). Cada ruta usa **su** constante; en el ciclo de vida del trabajo el servicio vuelve a comprobar el rol. **Técnico y mensajero nunca reciben precios ni notas internas**: lo enmascara el servicio (`stripPrices`/`maskPriceEvents`), nunca solo la UI.
+- **Dinero** como cadena decimal `"12.34"`, cálculos en centavos (`money.ts`). Fechas de negocio `YYYY-MM-DD`, timestamps UTC; formatea el cliente.
+- **Transacciones**: toda mutación de un trabajo escribe su `case_event` en la misma transacción, vía `UnitOfWork.run(fn)` (ADR 19). Nunca `db.transaction` anidado.
+- Catálogos con borrado lógico (`active`); los trabajos se cancelan, no se borran. Código `AA-NNNNN` por secuencia anual con `FOR UPDATE`.
+- **Subidas**: `bodyLimit` antes de parsear, MIME real por magic bytes, nombre en disco = UUID, servidas solo con sesión. Las features solo conocen el puerto `Storage`; el driver lo elige `createStorage` según `STORAGE_DRIVER` (ADR 10).
+- **Configuración** solo en `config.ts` (`loadConfig` con zod, `.env`/`.env.test`); nada de `process.env` suelto. Las claves externas llegan al adaptador por la raíz de composición. Un error de config sale como mensaje limpio; cualquier otro fallo de arranque, con traza completa. Scripts importables desde tests se protegen con `isMainModule`.
+- **Migraciones** con drizzle-kit en `apps/api/drizzle/`; columnas futuras como `nullable`. Seed idempotente; `ensureAdmin` corrige el rol pero **nunca desbanea**. `users.role` tiene un CHECK derivado de `USER_ROLES`: un rol nuevo exige `drizzle-kit generate`.
 
-## 5. Web (React 19 + TanStack + Tailwind 4 + shadcn)
+## 5. Web
 
-- Estado de servidor solo con TanStack Query: claves centralizadas en `lib/query-keys.ts`; cada mutación invalida las claves que corresponden (lista, detalle, eventos, adjuntos). En las mutaciones que cambian lo que pinta el botón que las dispara, `onSuccess` **espera** la invalidación (`await invalidate()`, no `void`): `isPending` sigue en `true` mientras el detalle refetchea y el botón no se rehabilita con el estado viejo en pantalla — con `void`, un doble toque duplicaba la acción o saltaba dos fases (Iteración 3, PR 1). Una clave que no cambia con esas mutaciones no cuelga del prefijo que invalidan (p. ej. la lista de técnicos vive bajo `['users', …]`, no bajo `['trabajos', …]`). Sin estado global propio; el estado de UI local en el componente o en la URL.
-- Acciones de estado en la UI: se derivan de `shared` (`availableActions` + `canPerform`), nunca de una lista escrita a mano. Piden **confirmación** según la **reversibilidad**, no la frecuencia: una acción que lleva a un estado sin vuelta y estampa una fecha que no se reconstruye (`finalizar`, `marcar_enviado`, `marcar_entregado`) abre un `ConfirmDialog` que nombra la consecuencia concreta, nunca un «¿estás seguro?». Toda clasificación por acción o por estado (confirma o no, pide motivo o no, texto de bloqueo) es un `Record<CaseAction | CaseStatus, …>` **exhaustivo**, para que una acción o un estado nuevos no compilen hasta que alguien decida; una lista de «las que sí» deja lo nuevo en el comportamiento por omisión en silencio.
-- Cliente HTTP `hc<AppType>` en `features/<f>/api.ts` + `throwIfNotOk` → `ApiError { status, message, issues }`; errores al usuario con `toastApiError` **una sola vez** por acción (o en el hook o en el handler, no en ambos). Endpoints sin validador de `form` usan `fetch` mismo origen con `credentials: 'include'`, documentado en el archivo. Identidad: `authClient` (Better Auth) solo dentro de `features/auth/` (`auth-client.ts`); el resto de la web lo consume por `getSession()`/`signIn()`/`signOut()` (`session.ts`) o el hook `useSession()` (`use-session.ts`) — ver también §3.
-- Formularios: react-hook-form con `zodResolver` y los tres genéricos `useForm<z.input<S>, unknown, z.output<S>>`; los campos vacíos viajan como `''` y el schema los normaliza a `null`; mensajes de error bajo el campo con `aria-invalid`; botón primario al pie y a ancho completo en móvil.
-- Rutas: `beforeLoad` para sesión y rol (redirigir, nunca renderizar y luego ocultar); `validateSearch` tolerante (`schema.partial().catch({})`); la lista de trabajos guarda vista, filtros y página en la URL.
-- Redirección tras login (`?redirect=`, issue #20): el destino solo se obedece si es una ruta **interna** validada con `safeRedirect` (`features/auth/safe-redirect.ts`, función pura con test propio) — acepta rutas que empiezan por `/` y no por `//` ni `/\` (protocol-relative: saltan al host que sea); rechaza URLs absolutas, `javascript:…`, cadena vacía y `undefined`. Todo destino sin validar (de `location.href`, de `?redirect=`) pasa por `safeRedirect` antes de un `navigate`/`redirect`; nunca se usa el valor crudo.
-- Toda tabla usa `components/data-grid` (`DataGrid` + `useDataGrid` + `defineColumns`) y declara explícitamente sus features, salvo listas simples sin orden, filtro ni paginación (ver `docs/data-grid.md`); `data-table.tsx` ya no existe. Guía: `docs/data-grid.md`. Cada feature nueva del grid trae su test con y sin la feature; ninguna feature importa otra.
-- Primitivas `components/ui/*` con objetivo táctil de **44 px** por defecto (`Button`, `Select`, `Input`, `Tabs`, `Switch` 24×44); `sm`/`icon-sm` de 36 px solo en tablas densas de escritorio con `pointer-coarse:` a 44. Chips con texto (nunca solo color); código y montos en monoespaciada; pestaña de color del ticket en cabeceras.
-- Selección en formularios: `components/combobox.tsx` (Popover + `cmdk`, buscador sin mayúsculas ni tildes) para **catálogos largos que se buscan** (clínica, producto); `Select` para listas cortas o dependientes de otro campo (doctor, que depende de la clínica). El `Combobox` conserva el contrato del `Select`: disparador `role="combobox"` con el nombre del campo (`aria-haspopup="dialog"`, el desplegable es un diálogo con nombre), `role="option"` por ítem y opciones de 44 px; los E2E lo usan igual que un `Select`.
-- Color ámbar: `--wax-amber` es **acento** (borde, fondo claro, icono) y no llega a AA como texto; todo texto sobre un fondo ámbar claro usa `--wax-amber-ink` (con su valor propio en `.dark`), y su contraste sobre el fondo compuesto real está probado en `theme-tokens.test.ts`.
-- Responsive: una sola UI; tabla en ≥ `lg`, tarjetas en móvil (`useMediaQuery`, una variante montada a la vez); sin scroll horizontal de página en 1280 / 390 / 360 (`overflow-x-auto` + `min-w-0` en el contenedor que debe encoger).
-- Accesibilidad: `h1` por página, labels visibles o `aria-label`, `aria-pressed` en toggles (odontograma), foco visible, teclado en diálogos y selects, contraste AA (test `theme-tokens.test.ts`), `alt` en imágenes, `inputmode` en numéricos.
-- Imágenes: compresión en cliente (≤ 1600 px) antes de subir; `loading="lazy"` en miniaturas; `URL.createObjectURL` siempre revocado.
+- **Estado de servidor** solo con TanStack Query, claves en `lib/query-keys.ts`. Cada mutación invalida lo que cambia; si cambia lo que pinta su propio botón, `onSuccess` hace `await invalidate()` (con `void`, un doble toque repite la acción). Sin store global: estado de UI en el componente o en la URL.
+- **Acciones de estado** derivadas de `shared` (`availableActions` + `canPerform`). Se confirman por **reversibilidad**: lo que no tiene vuelta (`finalizar`, `marcar_enviado`, `marcar_entregado`) abre un `ConfirmDialog` que nombra la consecuencia. Toda clasificación por acción o estado es un `Record` **exhaustivo**, para que lo nuevo no compile sin decidir.
+- **HTTP**: `hc<AppType>` en `api.ts` + `throwIfNotOk` → `ApiError`. `toastApiError` una sola vez por acción. Identidad solo por `getSession`/`signIn`/`signOut` (`features/auth/session.ts`) o `useSession`; `authClient` no sale de `features/auth/`.
+- **Formularios**: react-hook-form + `zodResolver` con `useForm<z.input<S>, unknown, z.output<S>>`; vacíos como `''` normalizados a `null` por el schema; error bajo el campo con `aria-invalid`; primario al pie y a ancho completo en móvil.
+- **Rutas**: `beforeLoad` para sesión y rol (redirigir, no renderizar y ocultar); `validateSearch` tolerante (`schema.partial().catch({})`); vista, filtros y página en la URL. Todo destino de redirección pasa por `safeRedirect` (solo rutas internas).
+- **Tablas** con `components/data-grid` declarando sus features, salvo listas simples (`docs/data-grid.md`).
+- **Selección**: `Combobox` para catálogos largos que se buscan (clínica, producto); `Select` para listas cortas o dependientes.
+- **Diseño**:
+  - Objetivo táctil de **44 px** (36 px solo en tablas densas de escritorio, 44 con `pointer-coarse`).
+  - Chips con texto, nunca solo color; código y montos en monoespaciada.
+  - `--wax-amber` es acento; el texto sobre ámbar usa `--wax-amber-ink`. El contraste se prueba en `theme-tokens.test.ts`.
+- **Responsive**: una sola UI; tabla en ≥ `lg` y tarjetas en móvil, con una sola variante montada; sin scroll horizontal a 1280, 390 y 360 px.
+- **Accesibilidad**: un `h1` por página, labels o `aria-label`, `aria-pressed` en toggles, foco visible, teclado en diálogos y selects, contraste AA, `alt` e `inputmode`.
+- **Imágenes**: se comprimen en el cliente (≤ 1600 px), las miniaturas usan `loading="lazy"` y todo `createObjectURL` se revoca.
 
-## 6. Shared (contratos)
+## 6. Shared
 
-- Los schemas zod de `packages/shared` son la **única fuente de verdad** de los DTOs: los usa la API para validar y la web para tipar formularios. Mensajes en español dentro del schema (`{ error: '…' }`). Helpers reutilizables: `textoOpcional(max)`, `uuid`, `isoDate` (valida fecha real), `priceString`, `fdiTeethSchema`.
-- Constantes de dominio (`CASE_STATUSES`, `EDITABLE_CASE_STATUSES`, `CASE_EVENT_TYPES`, `ATTACHMENT_KINDS`, `IMPORT_COLUMNS`, y las listas de estados de las vistas rápidas `ACTIVE_FOR_DATES_STATUSES`/`EN_CURSO_STATUSES`) viven aquí y se derivan sus tipos; api y web no duplican listas ni tipos de respuesta (`ImportReport` viene de shared).
-- Sin dependencias de runtime salvo `zod`; nada de I/O.
+- Los schemas zod son la **única fuente de verdad** de los DTOs (la API valida y la web tipa con ellos), con mensajes en español dentro del schema.
+- Las constantes de dominio (`CASE_STATUSES`, listas de las vistas, roles…) viven aquí y de ellas se derivan los tipos. Api y web no duplican listas ni tipos de respuesta.
 
-## 7. Pruebas (TDD obligatorio)
+## 7. Pruebas
 
-- Ciclo RED → GREEN → refactor en cada tarea; una tarea sin prueba es un hallazgo _Important_ en revisión. Prueba primero lo que el hallazgo o la historia describen, con el nombre del test en español describiendo el comportamiento («al editar conserva el precio guardado hasta que se cambia de clínica»).
-- Vitest con proyectos `shared`, `api`, `web`. API contra Postgres real (`dentalware_test`, `truncateAll` en `beforeEach`, `createApp` con `storage` temporal), login por rol en cada test que dependa de permisos (probar 403 sin sesión y con rol incorrecto). Web con jsdom y Testing Library: `renderWithProviders`, `renderWithRouter`, `setMatchMedia`; consultas por rol y etiqueta; `findBy*` para lo asíncrono; mocks solo de `api.ts` (nunca de hooks internos).
-- E2E Playwright (`apps/web/e2e`): proyectos `escritorio` y `android` en local (`pnpm e2e --project=escritorio --project=android`, o `pnpm e2e:pr` para el subconjunto del PR), `iphone` solo en CI; datos únicos por ejecución creados por API en `helpers.ts`; selectores por rol/label; sin `waitForTimeout`; `login()` espera a que cargue «Inicio». Los E2E usan `.env.test` y `reset-test-db` limpia `dentalware_test` antes del seed; puertos 3000/5173 libres antes de correrlos.
-- **Niveles de E2E** (decidido el 2026-09-12, #61). Cada test E2E lleva **exactamente una** etiqueta de Playwright en su segundo argumento (`test('…', { tag: '@esencial' }, async …)`); `apps/web/src/test/e2e-tags.test.ts` lo verifica en `pnpm test`, así que un test sin nivel no llega a `main`. Criterio por nivel:
-  - `@esencial`: sin esto el laboratorio no puede trabajar ni un día — iniciar y cerrar sesión, redirección sin sesión, crear un trabajo y verlo en la lista, técnico sin precios, técnico sin acceso a configuración, crear clínica, crear producto.
-  - `@clave`: uso diario cuyo fallo no detiene el laboratorio — validación de login, comentar y subir foto, importar CSV, código de producto duplicado, tabla de productos sin scroll a 1280 px.
-  - `@extendida`: barridos y calidad que no cambian el flujo — accesibilidad táctil y, en adelante, recorridos largos.
-  Qué corre dónde: el **PR** corre los unit completos más `@esencial` + `@clave` en `escritorio` y `android` (`pnpm e2e:pr` en local reproduce el mismo subconjunto); el **push a `main`** corre todo, con `@extendida` e `iphone`. Un fallo en `main` se corrige de inmediato, antes de construir encima. Al añadir un E2E nuevo se elige el nivel con el criterio de arriba; en la duda, `@clave`.
-- `accesibilidad.spec.ts` barre tamaños táctiles en móvil (`@extendida`): toda pantalla nueva se añade ahí. Cada barrido **espera a un elemento propio de su pantalla** antes de medir (`page.goto` resuelve al cargar el documento, no al pintar; sin la espera se mide una pantalla vacía), y `expectTouchTargets` **falla si no mide ningún control**: un barrido que no mide nada no prueba nada. El `<select>` nativo oculto que Radix pinta para el envío del formulario (`aria-hidden`, `tabIndex=-1`) está excluido de `TOUCH_CONTROLS` porque no es tocable; mismo criterio y mismos atributos (Tarea 15, FIC-3 #73) para el `<input type="file">` oculto (`sr-only`) que `PhotoUploader`/`QuickCase` disparan con `.click()` desde un botón visible: el input no es el objetivo táctil, el botón sí.
-- Los tests de API contra Postgres crean y autentican usuarios en cada caso; con `NODE_ENV=test` Better Auth usa un hash de contraseña barato (`lib/password.ts`, `insecureTestPasswordHasher`) en vez de scrypt, que costaba ~600 ms por test. Nunca fuera de test: `createAuth` solo lo inyecta con esa condición.
-- Los revisores no ejecutan tests de BD ni E2E mientras haya un implementador activo (BD compartida).
+- **TDD** RED → GREEN → refactor; una tarea sin prueba es un hallazgo _Important_. Los nombres de los tests en español describen el comportamiento.
+- **API** contra Postgres real (`dentalware_test`, `truncateAll`), con login por rol en cada test que dependa de permisos (403 sin sesión y con rol incorrecto). En test, Better Auth usa un hash barato (`lib/password.ts`); nunca fuera de test.
+- **Web** con Testing Library (`renderWithProviders`, `renderWithRouter`, `setMatchMedia`): consultas por rol y etiqueta, `findBy*` para lo asíncrono y mocks solo de `api.ts`.
+- **Un test protege una constante con valores literales**, no derivando sus casos de esa misma constante.
+- **E2E** con Playwright:
+  - Proyectos `escritorio` y `android` en local; `iphone` solo en CI.
+  - Datos únicos por ejecución (`uniqueSuffix`), selectores por rol o label, sin `waitForTimeout`.
+  - Puertos 3000 y 5173 libres antes de correrlos.
+- **Niveles de E2E**: cada test lleva exactamente una etiqueta, verificada por `e2e-tags.test.ts`. Ante la duda, `@clave`.
+  - `@esencial`: sin esto el laboratorio no trabaja (sesión, crear trabajo, técnico sin precios ni configuración, crear clínica y producto).
+  - `@clave`: uso diario cuyo fallo no lo detiene.
+  - `@extendida`: barridos y recorridos largos.
 
-## 8. Git, revisión y proceso
+  El PR corre `@esencial` y `@clave` en escritorio y android (`pnpm e2e:pr`). El push a `main` corre todo, `iphone` incluido.
+- **Barrido táctil**: toda pantalla nueva entra en `accesibilidad.spec.ts`. Cada barrido espera a un elemento propio de su pantalla, y `expectTouchTargets` falla si no mide nada. Los inputs nativos ocultos (`aria-hidden`, `tabIndex=-1`) no cuentan como objetivo táctil.
+- Los revisores no corren tests de BD ni E2E mientras haya un implementador activo.
 
-- Ramas `feat/iteracion-N-…`, `fix/…`; commits pequeños con prefijo convencional en español (`feat(web): …`, `fix(api): …`, `test(web): …`, `docs: …`, `refactor(shared): …`) y `Refs #N`; trailers `Co-Authored-By` y `Claude-Session`. Pre-commit: lint-staged + typecheck; nunca `--no-verify`.
-- Verificación antes de cada commit: `pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test`; E2E al cerrar la tarea que los toque; verificación en Chrome DevTools de toda tarea de UI (1280×800, 390×844 y 360×740, consola limpia, capturas en el reporte).
-- Proceso por plan (SDD): un implementador a la vez, brief por tarea, reporte (`Implementado / Desviaciones con motivo / TDD / Verificación / Concerns`), revisión de código con severidades **Critical / Important / Minor**, ronda de fixes con re-revisión acotada, ledger `.superpowers/sdd/<plan>/progress.md` con los rulings. Revisión final de rama + ola de fixes antes del PR.
-- **Historias de usuario** (`docs/superpowers/specs/2026-09-12-historias-de-usuario-mvp.md`, regla 8 de `CLAUDE.md`): cada feature del MVP tiene entre 3 y 5 historias «Como [rol], quiero [acción] para [beneficio]» con versión mínima aceptable y criterios de aceptación; las pendientes son issues `historia` (sub-issues de la épica de su iteración, hito y `prioridad:*`), y lo técnico va en issues `tarea` enlazados desde la historia. El plan de una iteración se escribe a partir de sus historias; los criterios de aceptación son los tests que se escriben primero.
-- PR contra `main` con resumen, verificación y `Closes #N` por cada issue; tablero Kanban: En progreso al empezar, En revisión al abrir PR, Hecho al mergear. Al cerrar cada iteración: issue de revisión UI/UX con `frontend-design` (regla 6 de `CLAUDE.md`).
-- Secretos solo en `.env` (gitignored) y `.env.test` con valores de prueba; nunca tokens reales en chat, docs ni tests. GitGuardian escanea todo el repo, tests incluidos; en `.gitguardian.yaml` solo se silencian **por valor** (`ignored_matches`) las contraseñas inventadas de los usuarios efímeros que crean los tests en la BD de test. Un test nuevo con usuario reutiliza una de esas contraseñas; si inventa otra, se añade allí en el mismo PR. Un test que necesite una credencial de verdad la lee del entorno, nunca la escribe. La contraseña del admin en producción nunca es el valor de ejemplo de `.env.example`.
+## 8. Git y proceso
 
-## 9. Definición de hecho (checklist)
+- **Ramas y commits**:
+  - Ramas `feat/…` o `fix/…`.
+  - Commits pequeños en español con prefijo convencional, `Refs #N` y los trailers `Co-Authored-By` y `Claude-Session`.
+  - El pre-commit corre lint-staged y typecheck, no los tests. Nunca `--no-verify`.
+- **Antes de cada commit**: `pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test`. Los E2E se corren al cerrar la tarea que los toque. Toda tarea de UI se verifica en Chrome DevTools a 1280×800, 390×844 y 360×740, con la consola limpia.
+- **Proceso SDD**:
+  - Un implementador a la vez, con un brief por tarea.
+  - El reporte sigue el formato `Implementado / Desviaciones / TDD / Verificación / Concerns`.
+  - La revisión clasifica en Critical, Important o Minor; los fixes llevan re-revisión acotada.
+  - Los rulings se anotan en el ledger `.superpowers/sdd/<plan>/progress.md`.
+  - Revisión final de la rama antes del PR.
+- **Historias primero** (`docs/superpowers/specs/2026-09-12-historias-de-usuario-mvp.md`): cada historia es un issue `historia` con su versión mínima y sus criterios, que son los primeros tests. Lo técnico va en issues `tarea`.
+- **PR** contra `main` con `Closes #N`. El tablero avanza En progreso → En revisión → Hecho.
+- **Secretos**: solo en `.env` (gitignored) y `.env.test` con valores de prueba. GitGuardian escanea todo el repo. `.gitguardian.yaml` silencia solo, por valor, las contraseñas inventadas de los usuarios de test; un test nuevo reutiliza una de ellas o añade la suya en el mismo PR.
 
-- [ ] Prueba escrita primero y en verde en la capa correcta (shared / api / web / E2E).
-- [ ] Sin `any`, sin duplicar constantes o tipos que ya existen en shared.
-- [ ] **Sin dependencias hacia adaptadores desde los servicios**: `service.ts`/`ports.ts` no importan `hono`, `drizzle-orm`, `better-auth`, `sharp`, `node:fs`, `node:crypto`, `./repo.ts` ni nada de otra feature que no sea un puerto inyectado o un error de dominio reexportado de su `errors.ts` (ADR 26); excepción acotada: `ports.ts` puede importar **solo tipos** de su propio `schema.ts` para derivar tipos de fila (ADR 25), nunca de `repo.ts`; ninguna ruta nueva usa `db.` directo; el repo cumple su puerto con `satisfies`; el caso de uso tiene su test con fakes.
-- [ ] `pnpm lint` verifica las fronteras (`docs/architecture.md` §3.5): `service.ts`/`ports.ts` sin adaptadores, rutas sin `db.` directo, web sin `fetch`/`hc`/Better Auth fuera de su sitio.
-- [ ] Mensajes y textos en español, sentence case; roles y precios respetados en API y UI.
-- [ ] Verificado en Chrome DevTools (si toca UI) en los tres viewports con consola limpia y 44 px.
-- [ ] `pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test` en verde; E2E si aplica; puertos libres.
-- [ ] Commit con `Refs #N`, reporte de tarea y ledger actualizados; issue movido en el tablero.
+## 9. Definición de hecho
+
+- [ ] Prueba escrita primero y en verde en la capa correcta.
+- [ ] Sin `any`, sin duplicar constantes o tipos de `shared`.
+- [ ] Fronteras respetadas y verificadas por `pnpm lint` (`docs/architecture.md` §4): servicio sin adaptadores, repo con `satisfies`, ruta sin `db.`, web sin `fetch`/`hc`/Better Auth fuera de su sitio; caso de uso con test de fakes.
+- [ ] Español en sentence case; precios y roles respetados en API y UI.
+- [ ] UI verificada en los tres viewports, con consola limpia y objetivos de 44 px.
+- [ ] Verificación completa en verde; E2E si aplica; puertos libres.
+- [ ] Commit con `Refs #N`, reporte y ledger al día, issue movido en el tablero.

@@ -23,7 +23,7 @@ export const appRelations = defineRelations(schema, (r) => ({
   },
   cases: {
     // FK NOT NULL en `cases.clinic_id`/`cases.doctor_id`: `optional: false` lo refleja
-    // en el tipo (Drizzle Relations v2, ver docs/architecture.md §3.6 / task-3-report.md).
+    // en el tipo (Drizzle Relations v2, ver docs/architecture.md §3 / task-3-report.md).
     clinic: r.one.clinics({ from: r.cases.clinicId, to: r.clinics.id, optional: false }),
     doctor: r.one.doctors({ from: r.cases.doctorId, to: r.doctors.id, optional: false }),
     technician: r.one.users({ from: r.cases.assignedTechnicianId, to: r.users.id }),
