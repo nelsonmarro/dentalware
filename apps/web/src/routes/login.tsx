@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { getSessionStatus, INVALID_ROLE_MESSAGE, signOut } from '@/features/auth/session'
 import { LoginForm } from '@/features/auth/login-form'
+import { redirectCaseCode } from '@/features/auth/redirect-case-code'
 import { safeRedirect } from '@/features/auth/safe-redirect'
 
 // Tolerante (`docs/conventions.md` §5): un `?redirect=` malformado cae a `{}` en vez de tumbar
@@ -30,6 +31,7 @@ function LoginPage() {
   const { redirect: redirectTo } = Route.useSearch()
   const navigate = useNavigate()
   const router = useRouter()
+  const caseCode = redirectCaseCode(redirectTo)
   // Con un rol no válido la sesión sigue abierta: sin cerrarla, nadie podría entrar con otro
   // usuario desde este navegador. Tras cerrar, `invalidate` repite el `beforeLoad` y el aviso
   // desaparece (issue #21, M-4).
@@ -43,6 +45,12 @@ function LoginPage() {
         <CardHeader>
           <h1 className="text-2xl font-semibold">Dentalware</h1>
           <p className="text-muted-foreground">Laboratorio dental</p>
+          {/* UX3-19: desde el QR, el login dice qué trabajo se abrirá tras entrar. */}
+          {caseCode && (
+            <p className="text-sm">
+              Inicia sesión para abrir el trabajo <span className="font-mono">{caseCode}</span>
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           {invalidRole && (

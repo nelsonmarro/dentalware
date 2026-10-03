@@ -173,4 +173,24 @@ describe('redirección tras iniciar sesión (issue #20)', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/t/26-00123'))
     expect(await screen.findByRole('heading', { level: 1, name: '26-00123' })).toBeInTheDocument()
   })
+
+  // UX3-19: el login al que lleva el QR era idéntico al normal; ahora nombra el trabajo.
+  it('desde el QR, el login dice qué trabajo se abrirá tras entrar', async () => {
+    vi.mocked(authClient.getSession).mockResolvedValue(anonymous)
+    renderApp('/login?redirect=%2Ft%2F26-00001')
+    // El código va en monoespaciada (un `<span>` propio): se compara el texto del párrafo entero.
+    expect(
+      await screen.findByText(
+        (_, el) =>
+          el?.tagName === 'P' && el.textContent === 'Inicia sesión para abrir el trabajo 26-00001',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('con otro destino, el login no nombra ningún trabajo', async () => {
+    vi.mocked(authClient.getSession).mockResolvedValue(anonymous)
+    renderApp('/login?redirect=%2Ftrabajos')
+    await screen.findByLabelText('Correo')
+    expect(screen.queryByText(/Inicia sesión para abrir el trabajo/)).not.toBeInTheDocument()
+  })
 })
