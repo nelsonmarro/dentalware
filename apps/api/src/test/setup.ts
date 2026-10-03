@@ -13,7 +13,7 @@ import { truncateAll } from '../db/reset.ts'
 import * as schema from '../db/schema/index.ts'
 import { users } from '../db/schema/index.ts'
 import type { AppType } from '../app.ts'
-import { LocalStorage } from '../lib/storage.ts'
+import { LocalStorage } from '../lib/local-storage.ts'
 
 export { truncateAll }
 
