@@ -9,7 +9,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { Product } from '@/features/products/api'
-import { formatMoney } from '@/features/products/pricing-unit-label'
+import { formatMoney } from '@/lib/format-money'
 import { useMediaQuery } from '@/lib/use-media-query'
 import { computeTotals } from './case-totals'
 import { TeethDialog } from './teeth-dialog'

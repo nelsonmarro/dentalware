@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { formatMoney } from '@/features/products/pricing-unit-label'
+import { formatMoney } from '@/lib/format-money'
 import type { CaseDetail } from './api'
 import { useCreateRemake } from './use-cases'
 

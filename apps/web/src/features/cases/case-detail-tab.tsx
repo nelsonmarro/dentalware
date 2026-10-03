@@ -8,7 +8,7 @@ import {
 import { Check, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatMoney } from '@/features/products/pricing-unit-label'
+import { formatMoney } from '@/lib/format-money'
 import { cn } from '@/lib/utils'
 import type { CaseDetail } from './api'
 import { Odontogram } from './odontogram'

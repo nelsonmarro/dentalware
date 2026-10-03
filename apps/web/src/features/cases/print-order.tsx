@@ -8,7 +8,7 @@ import {
 } from '@dentalware/shared'
 import type { FdiTooth, PrintCopy } from '@dentalware/shared'
 import type { LabSettings } from '@/features/config/api'
-import { formatMoney } from '@/features/products/pricing-unit-label'
+import { formatMoney } from '@/lib/format-money'
 import { cn } from '@/lib/utils'
 import type { CaseDetail } from './api'
 import { formatDate } from './date-format'

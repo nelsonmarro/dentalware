@@ -11,7 +11,7 @@ import { LoadError } from '@/components/load-error'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { Product } from './api'
-import { formatMoney } from './pricing-unit-label'
+import { formatMoney } from '@/lib/format-money'
 import {
   useClinicPrices,
   useDeleteClinicPrice,
