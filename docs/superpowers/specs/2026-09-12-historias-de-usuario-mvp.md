@@ -8,7 +8,9 @@ Fuente de verdad de **qué** construye cada feature del MVP, escrita desde el pu
 
 **Código.** `<FEATURE>-<n>` (p. ej. `CIC-1`). El título del issue es «`CIC-1` · aceptar un trabajo con los datos obligatorios completos».
 
-Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 6 y 7 = baja. Dentro de una iteración, el orden de las historias en este documento es el orden sugerido de desarrollo.
+Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 7 = baja.
+
+**Recorte de alcance (Nelson, 2026-10-03).** Para lanzar antes, el MVP se ciñe al flujo que sostiene el negocio: **recibir → producir → entregar → cobrar**. Salen a Post-MVP CAL-1 (calendario), CAL-3 (ICS), CTA-4 (facturas del SRI), AVI-1, AVI-2 y AVI-3 (correos automáticos) y PEM-2 (histórico de VEVI); la Iteración 6 desaparece (la numeración de la 7 se conserva). Se recortan a su versión mínima CAL-2 (solo la vista «Vencen mañana»), AVI-4 (solo el enlace `wa.me`, pasa a la Iteración 7) y PEM-3 (respaldo diario sin S3); CTA-1 aplica el porcentaje de las repeticiones y CTA-3 sirve también para el saldo inicial de cada clínica. Las entregas (ENT-1 a ENT-5, recogidas incluidas) y el cobro **por trabajo** (CTA-2, con reparto del pago y estado `cobrado`) quedan completos. Las historias retiradas se conservan abajo marcadas «Post-MVP». Dentro de una iteración, el orden de las historias en este documento es el orden sugerido de desarrollo.
 
 ---
 
@@ -257,7 +259,7 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 6 y 7 = baja. Dentro 
 
 ---
 
-## Iteración 4 — Entregas y calendario (prioridad media)
+## Iteración 4 — Entregas (prioridad media)
 
 ### ENT — Recogidas y entregas
 
@@ -296,7 +298,7 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 6 y 7 = baja. Dentro 
 
 ### CAL — Calendario de entregas
 
-**CAL-1.** Como recepción, quiero ver un calendario semanal y mensual con las entregas y recogidas para anticipar los días cargados.
+**CAL-1.** Como recepción, quiero ver un calendario semanal y mensual con las entregas y recogidas para anticipar los días cargados. _(Post-MVP, recorte del 2026-10-03.)_
 - Versión mínima aceptable: vista mensual y semanal con un evento por trabajo aceptado en su `promised_date` y por `delivery` programada; filtro por clínica y mensajero.
 - Criterios:
   - Aceptar un trabajo crea su evento; cambiar la fecha comprometida lo mueve.
@@ -304,12 +306,12 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 6 y 7 = baja. Dentro 
   - Los colores de estado son los mismos de la lista.
 
 **CAL-2.** Como recepción, quiero un aviso interno un día antes de cada fecha comprometida para reaccionar antes de que se atrase.
-- Versión mínima aceptable: sección «Vencen mañana» en el inicio y marca en el calendario.
+- Versión mínima aceptable: vista rápida «Vencen mañana» en el inicio y en la lista de trabajos, con la misma definición en los dos lados (ADR 32); sin calendario.
 - Criterios:
-  - Incluye trabajos activos con `promised_date` = mañana (días hábiles).
+  - Incluye trabajos activos con `promised_date` = siguiente día hábil.
   - Desaparece cuando el trabajo pasa a `terminado` o posterior.
 
-**CAL-3.** Como doctor de una clínica, quiero suscribirme a un calendario (ICS) con mis entregas para verlas en mi propio calendario sin entrar a la app.
+**CAL-3.** Como doctor de una clínica, quiero suscribirme a un calendario (ICS) con mis entregas para verlas en mi propio calendario sin entrar a la app. _(Post-MVP, recorte del 2026-10-03.)_
 - Versión mínima aceptable: URL ICS por clínica con token, generada y revocable desde la ficha de la clínica.
 - Criterios:
   - El feed lista entregas programadas y fechas comprometidas de esa clínica, sin precios ni datos de otras clínicas.
@@ -325,6 +327,7 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 6 y 7 = baja. Dentro 
 - Versión mínima aceptable: pantalla «Cuentas» con lista de clínicas, saldo (Σ entregados + Σ ajustes − Σ pagos) y antigüedad 0-30 / 31-60 / 61-90 / 90+.
 - Criterios:
   - El saldo cambia al entregar un trabajo, registrar un pago o un ajuste.
+  - Una repetición suma `total × remake_charge_pct / 100`, no su `total` (`docs/architecture.md` §4).
   - Técnico y mensajero no acceden (403 y sin enlace).
 
 **CTA-2.** Como recepción, quiero registrar un pago de una clínica y repartirlo entre sus trabajos entregados para que los trabajos cobrados se cierren solos.
@@ -335,12 +338,13 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 6 y 7 = baja. Dentro 
   - Queda el evento en cada trabajo afectado.
 
 **CTA-3.** Como administrador, quiero registrar ajustes (descuentos, recargos, notas de crédito) con motivo para que la cuenta refleje los acuerdos con la clínica.
-- Versión mínima aceptable: ajuste con signo, monto, motivo y trabajo opcional.
+- Versión mínima aceptable: ajuste con signo, monto, motivo y trabajo opcional. Es también la vía para cargar el **saldo inicial** de cada clínica al arrancar (PEM-2 salió del MVP).
 - Criterios:
   - Motivo obligatorio; el ajuste aparece en los movimientos con quién lo registró.
+  - Un ajuste sin trabajo (p. ej. «Saldo inicial») suma al saldo y entra en la antigüedad por su fecha.
   - Solo administrador.
 
-**CTA-4.** Como recepción, quiero anotar el número de factura del SRI y los trabajos que incluye para cruzar la cuenta con la facturación externa.
+**CTA-4.** Como recepción, quiero anotar el número de factura del SRI y los trabajos que incluye para cruzar la cuenta con la facturación externa. _(Post-MVP, recorte del 2026-10-03.)_
 - Versión mínima aceptable: registro de `invoice_refs` con número, fecha, monto y trabajos.
 - Criterios:
   - Un trabajo no puede estar en dos facturas.
@@ -354,34 +358,37 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 6 y 7 = baja. Dentro 
 
 ---
 
-## Iteración 6 — Avisos por correo (prioridad baja)
+## Iteración 6 — Avisos por correo (retirada del MVP)
+
+Solo AVI-4, reducida al enlace `wa.me`, sigue en el MVP (Iteración 7).
 
 ### AVI — Notificaciones
 
-**AVI-1.** Como recepción, quiero que la clínica reciba un correo al recibir, enviar y entregar su trabajo para que no tenga que llamarnos a preguntar.
+**AVI-1.** Como recepción, quiero que la clínica reciba un correo al recibir, enviar y entregar su trabajo para que no tenga que llamarnos a preguntar. _(Post-MVP, recorte del 2026-10-03.)_
 - Versión mínima aceptable: correo automático (Resend) al correo de la clínica o del doctor en esos tres eventos, con código, paciente y estado.
 - Criterios:
   - Sin correo registrado no se envía y la ficha lo indica.
   - Cada envío queda en `notifications` con destinatario, plantilla y estado (enviado/fallido).
   - Los correos no incluyen precios.
 
-**AVI-2.** Como mensajero, quiero recibir un correo al asignarme una recogida o entrega para enterarme aunque no tenga la app abierta.
+**AVI-2.** Como mensajero, quiero recibir un correo al asignarme una recogida o entrega para enterarme aunque no tenga la app abierta. _(Post-MVP, recorte del 2026-10-03.)_
 - Versión mínima aceptable: correo al mensajero al crear o reprogramar una `delivery` asignada a él.
 - Criterios:
   - Incluye clínica, dirección, fecha y enlace a la entrega.
   - Queda en `notifications`.
 
-**AVI-3.** Como recepción, quiero que la clínica reciba un recordatorio un día antes de la fecha comprometida para que esté lista para recibir el trabajo.
+**AVI-3.** Como recepción, quiero que la clínica reciba un recordatorio un día antes de la fecha comprometida para que esté lista para recibir el trabajo. _(Post-MVP, recorte del 2026-10-03.)_
 - Versión mínima aceptable: envío diario programado que avisa los trabajos activos con `promised_date` = mañana.
 - Criterios:
   - Un trabajo se avisa una sola vez por fecha comprometida; si la fecha cambia, se vuelve a avisar.
   - Registro en `notifications`.
 
-**AVI-4.** Como recepción, quiero ver los avisos enviados de un trabajo y reenviar uno fallido, y abrir WhatsApp con el mensaje listo, para atender a la clínica por el canal que prefiera.
-- Versión mínima aceptable: pestaña «Avisos» en la ficha con lista de `notifications` y botón «Reenviar»; enlace `wa.me` con el texto prellenado (sin integración).
+**AVI-4.** Como recepción, quiero abrir WhatsApp con un mensaje listo para la clínica desde la ficha del trabajo para avisarle sin escribirlo a mano. _(Recortada el 2026-10-03; pasa a la Iteración 7.)_
+- Versión mínima aceptable: botón «Avisar por WhatsApp» en la ficha que abre `wa.me` al WhatsApp de la clínica con el texto prellenado (código, paciente, estado); sin backend ni registro de avisos.
 - Criterios:
-  - Reenviar crea un registro nuevo; el fallido conserva su error.
-  - El enlace `wa.me` usa el WhatsApp de la clínica y no envía nada por sí solo.
+  - El enlace usa el WhatsApp de la clínica y no envía nada por sí solo.
+  - Sin WhatsApp registrado, el botón no aparece y la ficha dice cómo añadirlo.
+  - El texto no incluye precios.
 
 ---
 
@@ -396,7 +403,7 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 6 y 7 = baja. Dentro 
   - Probado en un teléfono real de cada plataforma (absorbe #25).
   - Sin sesión abre en `/login`; las actualizaciones se aplican al reabrir.
 
-**PEM-2.** Como administrador, quiero cargar el histórico de trabajos de VEVI con la plantilla CSV para consultar trabajos anteriores desde el primer día.
+**PEM-2.** Como administrador, quiero cargar el histórico de trabajos de VEVI con la plantilla CSV para consultar trabajos anteriores desde el primer día. _(Post-MVP, recorte del 2026-10-03.)_
 - Versión mínima aceptable: importación CSV (IMP-2/IMP-3) con columnas opcionales de estado final y fechas para crear trabajos ya `entregado` o `cobrado` sin pasar por producción.
 - Criterios:
   - Los trabajos históricos no aparecen en vistas activas ni en «Vencen hoy».
@@ -404,7 +411,7 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 6 y 7 = baja. Dentro 
   - El informe de importación distingue histórico de trabajos nuevos.
 
 **PEM-3.** Como administrador, quiero que las fotos y documentos del laboratorio queden respaldados fuera del servidor para no perderlos si el VPS falla.
-- Versión mínima aceptable: adjuntos en almacenamiento S3 compatible con réplica (decisión #48) o respaldo diario verificado del volumen; restauración probada una vez.
+- Versión mínima aceptable: respaldo diario de la BD y del volumen de adjuntos con `infra/backup.sh`, copiado fuera del VPS; restauración probada una vez. El driver S3 (#48) queda Post-MVP; el código ya está desacoplado (#103).
 - Criterios:
   - Un adjunto subido hoy existe en el respaldo al día siguiente.
   - Restaurar un respaldo en un entorno limpio devuelve las fotos accesibles desde las fichas.
