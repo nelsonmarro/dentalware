@@ -268,6 +268,41 @@ Fix propuesto: para el técnico, «Mis trabajos» primero y las tarjetas del lab
 
 UX3-15: borrar el bloque `.dark` o probarlo (decisión de Nelson).
 
+## Resultado de la ola
+
+Ola en la rama `fix/revision-ui-ux-it3` (plan `56e9e0d`, 9 tareas). Commits de `git log 56e9e0d..HEAD`; el detalle de cada revisión está en el ledger `.superpowers/sdd/2026-10-03-revision-ui-ux-it3/progress.md`.
+
+| Hallazgo | Estado | Commit(s) |
+|---|---|---|
+| UX3-01 | Corregido | `e55896b`, `ab0eafb` |
+| UX3-02 | Corregido | `818dfce`, `bf2448e`, `2134f85`, `a082597`, `d00dc28` |
+| UX3-03 | Corregido | `7804eda`, `6242a80`, `137c806` |
+| UX3-04 | Corregido | `ab820f1`, `5623f7c`, `d85808d` |
+| UX3-05 | Corregido | `5623f7c`, `15eee26`, `d85808d`, `db4e98b`, `4988e92`, `a56b11d` |
+| UX3-06 | Corregido | `0b5a86c`, `b153a60` |
+| UX3-07 | Corregido | `d3dc7db` |
+| UX3-08 | Corregido | `f352a49`, `e4eb70d`, `6dcec6c` |
+| UX3-09 | Diferido a la Iteración 4 (#105, historias ENT) | — |
+| UX3-10 | Corregido | `be061c1`, `818dfce`, `a3d1506`, `82dca12` |
+| UX3-11 | Corregido | `b2fbf30`, `37a9727` |
+| UX3-12 | Corregido | `ae6f4ab`, `bb048d9`, `37a9727` |
+| UX3-13 | Corregido | `0f7a3a6`, `40f7fda`, `5b7a2c7` |
+| UX3-14 | Corregido | `c198d86`, `e9b8196` |
+| UX3-15 | Solo documentado: el modo oscuro no está activo en el MVP | `963b941` |
+| UX3-16 | Corregido | `6081fe9`, `8c3b04e`, `ccfdfe6` |
+| UX3-17 | Corregido | `6b99b99`, `f8bc5da` |
+| UX3-18 | Corregido | `5623f7c`, `9526139` |
+| UX3-19 | Corregido | `cee88e7` |
+| UX3-20 | Corregido | `1d2dcca`, `bfcc439` |
+| UX3-21 | Corregido (dos copias: laboratorio sin precios, clínica con precios) | `93d2961`, `3811381`, `78732e9` |
+| UX3-22 | Corregido | `3391cb3`, `465c7a6`, `f456152`, `bcc3054` |
+| UX3-23 | Corregido | `6f311f9` |
+| UX3-24 | Corregido | `c14d63c` |
+| UX3-25 | Corregido | `5623f7c`, `15eee26` |
+| UX3-26 | Corregido | `0f7a3a6` |
+| UX3-27 | Corregido | `465c7a6` |
+| UX3-28 | Corregido | `ac8a49c` |
+
 ## Capturas
 
 Todas en `capturas/it3/`. Ninguna muestra credenciales: los formularios de login no se capturaron con datos reales y las contraseñas aparecen enmascaradas.
