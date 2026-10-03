@@ -150,8 +150,8 @@ export function StageControl({
   return (
     <section aria-labelledby="fase-produccion" className="flex flex-col gap-3">
       <div className="flex flex-col gap-0.5">
-        <h3 id="fase-produccion" className="text-xs font-medium text-muted-foreground">
-          Fase de producción
+        <h3 id="fase-produccion" className="text-sm font-medium">
+          Fase
         </h3>
         <p className="text-lg leading-snug font-semibold">
           {stagesError

@@ -101,10 +101,11 @@ function primarios(panel: HTMLElement) {
 }
 
 describe('ProductionPanel', () => {
-  it('es una sección con encabezado «Producción»', async () => {
+  it('es una sección con encabezado «Producción» y la fase como subencabezado', async () => {
     renderWithProviders(<ProductionPanel case={caso()} missing={[]} role="admin" stages={fases} />)
     expect(await screen.findByRole('region', { name: 'Producción' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Producción' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Fase' })).toBeInTheDocument()
   })
 
   // UX3-04/UX3-05: antes de la última fase el único primario es «Avanzar fase»; «Finalizar»
@@ -218,7 +219,7 @@ describe('ProductionPanel', () => {
       />,
     )
     const panel = await screen.findByRole('region', { name: 'Producción' })
-    expect(within(panel).queryByRole('heading', { name: 'Fase de producción' })).toBeNull()
+    expect(within(panel).queryByRole('heading', { name: 'Fase' })).toBeNull()
     expect(primarios(panel)).toEqual(['Aceptar'])
     for (const el of panel.querySelectorAll('div')) {
       expect(el.childNodes.length, el.outerHTML).toBeGreaterThan(0)
