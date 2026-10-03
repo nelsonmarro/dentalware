@@ -6,6 +6,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Tipos de la orden impresa (UX3-20), en `rem` para que escalen con la raíz de impresión
+ * (16 px en A5, 22 px en A4; ver `@media print` al final). Los px del comentario son los de A5. */
+@theme {
+  --text-print-small: 0.5625rem; /* 9 px: piezas, material, rótulo de copia */
+  --text-print-body: 0.625rem; /* 10 px: cuerpo */
+  --text-print-base: 0.6875rem; /* 11 px: base del artículo */
+}
+
 @theme inline {
   --font-sans: 'Instrument Sans Variable', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
@@ -175,6 +183,14 @@
   @page {
     margin: 12mm;
   }
+  /* UX3-20: escala propia por tamaño de hoja. El ancho de la media query de impresión es el del
+   * área útil de la página: A5 deja 124 mm (148 − 2×12) y A4 186 mm, así que el umbral de 160 mm
+   * separa A5 de A4 (y carta, 192 mm). La orden mide todo en `rem` en papel, de modo que la raíz
+   * escala la orden entera: 22 px en hojas anchas (×1,375, el A4 tiene ×1,5 de ancho y ×1,47 de
+   * alto útil que A5) y 16 px en A5, la densidad con la que la orden cabe en una hoja. */
+  html {
+    font-size: 22px;
+  }
   :root,
   .dark {
     --background: oklch(1 0 0);
@@ -183,5 +199,11 @@
   body {
     background: #fff !important;
     color: #000 !important;
+  }
+}
+
+@media print and (max-width: 160mm) {
+  html {
+    font-size: 16px;
   }
 }
