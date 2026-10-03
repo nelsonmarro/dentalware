@@ -33,9 +33,9 @@ function canControlStage(role: UserRole): boolean {
  * Ficha corta del trabajo (Tarea 15, FIC-2 #72 / FIC-3 #73): pantalla a la que llega un
  * técnico al escanear el QR de la orden impresa (ruta `/t/:code`, montada dentro de `_app`
  * para heredar la sesión y el `?redirect=` de vuelta tras el login — ver `routes/_app/t.$code`).
- * Móvil primero: código, paciente, fase actual y dos acciones grandes para el puesto de
- * trabajo (con guantes, sin gestos finos): «Avanzar a {fase siguiente}» y «Añadir foto». Retroceder fase y
- * finalizar no son parte de FIC-3: solo la ficha completa los ofrece.
+ * Móvil primero: código, paciente, entrega, fase actual y dos acciones grandes para el puesto
+ * de trabajo (con guantes, sin gestos finos): «Avanzar a {fase siguiente}» y «Añadir foto».
+ * Retroceder fase y finalizar no son parte de FIC-3: solo la ficha completa los ofrece.
  *
  * Nunca precios: el enmascarado lo garantiza `GET /api/trabajos/codigo/:code` (mismo servicio
  * que `detail`); esta pantalla ni siquiera lee `total` ni `items`.
