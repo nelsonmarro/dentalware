@@ -40,6 +40,8 @@ const noAdapters = (files, extra = []) => ({
             group: [
               '../../lib/images.ts',
               '../../lib/storage.ts',
+              '../../lib/local-storage.ts',
+              '../../lib/create-storage.ts',
               '../../lib/ids.ts',
               '../../lib/clock.ts',
             ],

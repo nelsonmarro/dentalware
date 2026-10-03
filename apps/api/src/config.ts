@@ -25,6 +25,11 @@ const configSchema = z.object({
     .string()
     .min(1, { error: 'ADMIN_NAME no puede estar vacío' })
     .default('Administrador'),
+  // Almacenamiento de adjuntos (#103): local en el MVP; un driver de la nube (#48) se añade
+  // al enum y a `lib/create-storage.ts`. UPLOAD_DIR solo lo usa el driver `local`.
+  STORAGE_DRIVER: z
+    .enum(['local'], { error: 'STORAGE_DRIVER debe ser «local» (único driver del MVP)' })
+    .default('local'),
   UPLOAD_DIR: z.string().min(1).default('./data/uploads'),
 })
 
