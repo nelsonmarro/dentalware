@@ -55,7 +55,7 @@ Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabaj
 - **Responsive**: una sola UI; tabla en ≥ `lg` y tarjetas en móvil, con una sola variante montada; sin scroll horizontal a 1280, 390 y 360 px.
 - **Accesibilidad**: un `h1` por página, labels o `aria-label`, `aria-pressed` en toggles, foco visible, teclado en diálogos y selects, contraste AA, `alt` e `inputmode`.
 - **Imágenes**: se comprimen en el cliente (≤ 1600 px), las miniaturas usan `loading="lazy"` y todo `createObjectURL` se revoca.
-- **Orden impresa** (`features/cases/print-order.tsx`, UX3-20/21): en papel todo se mide en `rem` (tipos `print:text-print-small|body|base` de `index.css`, espaciados de Tailwind, QR con `print:size-24!`), nunca en `px`, porque la raíz de impresión escala por tamaño de hoja (16 px en A5, 22 px en A4 y carta, umbral `max-width: 160mm`). Se imprime por **copias** (`printCopiesFor(role)` en shared, derivada de `hidesPrices`): «Copia laboratorio» sin precios para todos y «Copia clínica» con precios solo para quien los recibe, cada una en su hoja; `impresion.spec.ts` comprueba una página por copia en A4 y en A5.
+- **Orden impresa**: en papel, todo en `rem` (la raíz escala por hoja: 16 px en A5 y por omisión, 20 px en A4/Carta); las copias salen de `printCopiesFor(role)` de shared, cada una en su hoja.
 
 ## 6. Shared
 

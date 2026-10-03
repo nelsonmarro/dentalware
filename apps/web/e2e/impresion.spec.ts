@@ -21,13 +21,13 @@ import {
  * `iphone` (WebKit) no lo soporta.
  *
  * UX3-21: admin y recepción imprimen dos copias (laboratorio sin precios, clínica con precios),
- * cada una en su hoja; UX3-20: la escala de A4 es propia (raíz de 22 px al imprimir en hojas
- * anchas, 16 px en A5, `index.css`), no el A5 estirado.
+ * cada una en su hoja; UX3-20: la escala de A4 y Carta es propia (raíz de 20 px al imprimir en
+ * hojas anchas, 16 px en A5 y por omisión, `index.css`), no el A5 estirado.
  */
 
 /** Ancho de página a 96 dpi: A4 (210 mm) y A5 (148 mm). Con `media: print` emulado, la media
  * query de ancho de `index.css` se evalúa contra el viewport. */
-const PAGE_WIDTH_PX = { A4: 794, A5: 559 } as const
+const PAGE_WIDTH_PX = { A4: 794, Letter: 816, A5: 559 } as const
 
 /** Trabajo de 4 líneas (el límite del ruling) con una pieza en cada esquina del odontograma:
  * 18/28 (superior) y 48/38 (inferior) son las piezas de los extremos de cada arcada — si el
@@ -63,7 +63,12 @@ async function createFourLineCase(page: Page, priority: 'normal' | 'urgente') {
  * (sin contar `/Type /Pages`, el nodo padre: el límite de palabra tras "Page" no matchea antes
  * de una "s"). `printBackground: false` es lo que imprime recepción con Ctrl+P: Chrome trae
  * «Gráficos de fondo» desactivado por defecto (I-1). */
-async function pdfPages(page: Page, testInfo: TestInfo, format: 'A4' | 'A5', name: string) {
+async function pdfPages(
+  page: Page,
+  testInfo: TestInfo,
+  format: 'A4' | 'A5' | 'Letter',
+  name: string,
+) {
   fs.mkdirSync(testInfo.outputDir, { recursive: true })
   const pdfPath = path.join(testInfo.outputDir, `${name}-${format}.pdf`)
   await page.pdf({ format, path: pdfPath, printBackground: false })
@@ -98,7 +103,7 @@ test.describe('Orden de trabajo imprimible', () => {
   })
 
   test(
-    'cada copia de una orden urgente de 4 líneas cabe en una página en A4 y en A5',
+    'cada copia de una orden urgente de 4 líneas cabe en una página en A4, Carta y A5',
     { tag: '@clave' },
     async ({ page }, testInfo) => {
       test.skip(testInfo.project.name === 'iphone', 'page.pdf() no existe en WebKit')
@@ -155,7 +160,7 @@ test.describe('Orden de trabajo imprimible', () => {
       }
 
       // «Ambas»: una hoja por copia, cada copia sin pasarse a una segunda hoja.
-      for (const format of ['A4', 'A5'] as const) {
+      for (const format of ['A4', 'Letter', 'A5'] as const) {
         expect(await pdfPages(page, testInfo, format, 'ambas'), `ambas copias en ${format}`).toBe(2)
       }
 
@@ -167,17 +172,17 @@ test.describe('Orden de trabajo imprimible', () => {
         await page.getByRole('tab', { name: tab }).click()
         await expect(page.getByTestId('rotulo-copia')).toHaveCount(1)
         await page.emulateMedia({ media: 'print' })
-        for (const format of ['A4', 'A5'] as const) {
+        for (const format of ['A4', 'Letter', 'A5'] as const) {
           expect(await pdfPages(page, testInfo, format, name), `${name} en ${format}`).toBe(1)
         }
       }
     },
   )
 
-  // UX3-20: la orden ya no usa en A4 los tamaños de A5 (7–10 px): en una hoja ancha todo
+  // UX3-20: la orden ya no usa en A4 ni en Carta los tamaños de A5 (7–10 px): en una hoja ancha todo
   // escala, y los números del odontograma nunca bajan de 9 px, ni en A5.
   test(
-    'la orden impresa tiene escala propia en A4 y el odontograma legible en A5',
+    'la orden impresa tiene escala propia en A4 y Carta y el odontograma legible en A5',
     { tag: '@clave' },
     async ({ page }) => {
       const created = await createFourLineCase(page, 'normal')
@@ -198,10 +203,15 @@ test.describe('Orden de trabajo imprimible', () => {
       }
       const a5 = await measure(PAGE_WIDTH_PX.A5)
       const a4 = await measure(PAGE_WIDTH_PX.A4)
+      const letter = await measure(PAGE_WIDTH_PX.Letter)
 
       expect(a5.tooth, 'números del odontograma en A5').toBeGreaterThanOrEqual(9)
-      expect(a4.tooth, 'números del odontograma en A4').toBeGreaterThanOrEqual(12)
-      expect(a4.body / a5.body, 'el texto de A4 no escala respecto al de A5').toBeGreaterThan(1.25)
+      expect(a4.tooth, 'números del odontograma en A4').toBeGreaterThanOrEqual(11)
+      expect(
+        a4.body / a5.body,
+        'el texto de A4 no escala respecto al de A5',
+      ).toBeGreaterThanOrEqual(1.25)
+      expect(letter, 'Carta usa la misma escala ancha que A4').toEqual(a4)
       // QR ≥ 24 mm en A5 (≈ 90 px) y más grande en A4.
       expect(a5.qr, 'QR en A5').toBeGreaterThanOrEqual(90)
       expect(a4.qr, 'QR en A4').toBeGreaterThan(a5.qr)

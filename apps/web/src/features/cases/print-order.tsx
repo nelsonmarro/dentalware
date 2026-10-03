@@ -108,8 +108,8 @@ function DeliveryDate({
  * se corte a la mitad (`break-inside-avoid`).
  *
  * UX3-20: en papel todo se mide en `rem` (tipos `print:text-print-*` de `index.css`, espaciados
- * y el QR con `print:size-24`), nunca en `px`: la raíz de impresión vale 16 px en A5 y 22 px en
- * hojas anchas (A4, carta), así que la misma orden escala entera en A4 en vez de imprimir los
+ * y el QR con `print:size-24`), nunca en `px`: la raíz de impresión vale 16 px en A5 y 20 px en
+ * hojas anchas (A4, Carta), así que la misma orden escala entera en A4 en vez de imprimir los
  * tamaños de A5 en una hoja el doble de grande.
  *
  * `publicUrl` (I-2): resuelta **fuera** de este componente (`lib/public-url.ts`, inyectada por
