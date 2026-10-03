@@ -103,6 +103,49 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
 
+  // UX3-14: el filtro de clínica pasó a `Combobox`. En móvil los filtros van plegados en
+  // «Filtros», así que el barrido de la lista no los veía: se despliegan y se mide también el
+  // desplegable (buscador y opciones), que es lo que se toca con guantes.
+  test(
+    'trabajos: filtros desplegados y buscador de clínica',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic } = await createClinicWithDoctor(page)
+      await page.goto('/trabajos')
+      await expect(page.getByRole('heading', { name: 'Trabajos' })).toBeVisible()
+      await page.getByText('Filtros', { exact: true }).click()
+      const clinicFilter = page.getByRole('combobox', { name: 'Clínica' })
+      await expect(clinicFilter).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+
+      await clinicFilter.click()
+      await page.getByPlaceholder('Buscar clínica').fill(clinic.name)
+      await expect(page.getByRole('option', { name: clinic.name })).toBeVisible()
+      // El desplegable entra con `zoom-in-95`: medido a mitad de la animación, una opción de
+      // 44 px mide ~42,6. Se espera a que termine antes de medir.
+      const popover = page.getByRole('dialog', { name: 'Elegir clínica' })
+      await popover.evaluate((el) =>
+        Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)),
+      )
+      await expectTouchTargets(popover, '[role=option]')
+    },
+  )
+
+  // UX3-19: el login al que lleva el QR dice qué trabajo se abrirá. Se mide sin sesión (contexto
+  // aparte: el `beforeEach` ya abrió la de admin, que rebotaría el login a «Inicio»).
+  test(
+    'login desde el QR: aviso del trabajo y controles',
+    { tag: '@extendida' },
+    async ({ browser }) => {
+      const anon = await browser.newContext()
+      const anonPage = await anon.newPage()
+      await anonPage.goto('/login?redirect=%2Ft%2F26-00001')
+      await expect(anonPage.getByText('Inicia sesión para abrir el trabajo')).toBeVisible()
+      await expectTouchTargets(anonPage, TOUCH_CONTROLS)
+      await anon.close()
+    },
+  )
+
   test('nuevo trabajo: selects y diálogo de piezas', { tag: '@extendida' }, async ({ page }) => {
     const { clinic, doctor } = await createClinicWithDoctor(page)
     const product = await createProduct(page)
