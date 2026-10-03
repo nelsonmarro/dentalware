@@ -83,8 +83,9 @@ export async function postComment(id: string, text: string) {
   ).event
 }
 
-/** `PUT /api/trabajos/:id/fase` (Tarea 6): responde solo `{ id, currentStageId }`, no el
- * detalle completo — el nombre de la fase se resuelve en el cliente contra `useStages`. */
+/** `PUT /api/trabajos/:id/fase` (Tarea 6): responde `{ id, currentStageId, stage }`, no el
+ * detalle completo; `stage` (`{ id, name }` o `null`) lo usa el toast «Fase: {nombre}»
+ * (UX3-11) sin resolver la fase contra `useStages`. */
 export async function changeStage(id: string, input: StageChangeInput) {
   return (
     await (
