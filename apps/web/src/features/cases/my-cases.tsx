@@ -66,8 +66,8 @@ export function MyCases({ technicianId }: { technicianId: string }) {
                         (`STATUS_COLOR` de arriba) no basta para distinguirlos de en_proceso
                         (conventions.md §5, nunca solo color) — se repite el rótulo del estado
                         con texto. Si no hay fase, `CASE_STATUS_LABEL` ya salió arriba: no se repite. */}
-                    {r.stage && r.status !== 'en_proceso' && ` · ${CASE_STATUS_LABEL[r.status]}`} ·{' '}
-                    {formatDate(date)}
+                    {r.stage && r.status !== 'en_proceso' && ` · ${CASE_STATUS_LABEL[r.status]}`} ·
+                    Entrega {formatDate(date)}
                   </p>
                 </Link>
               </li>

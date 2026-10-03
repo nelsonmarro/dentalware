@@ -78,7 +78,8 @@ describe('MyCases', () => {
     expect(fila).toHaveTextContent('26-00001')
     expect(fila).toHaveTextContent('Juan Pérez')
     expect(fila).toHaveTextContent('Cerámica')
-    expect(fila).toHaveTextContent('20/09/2026')
+    // UX3-28: la fecha dice de qué es.
+    expect(fila).toHaveTextContent('Entrega 20/09/2026')
   })
 
   // M-1 (ronda de fixes 1, T12): con `total: null` (como llega realmente para el rol técnico,
