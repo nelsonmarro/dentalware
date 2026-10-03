@@ -41,20 +41,23 @@ export function TechnicianSelect({ case: c, role }: { case: CaseDetail; role: Us
     )
   }
 
-  // M-4 (ola de fixes del PR 1, lote B): el asignado se dio de baja después de asignarlo, así
-  // que ya no está en `technicians.data` (solo activos, `UsersQuery.activeTechnicians`). Sin
-  // esto, el `<select>` caía en "Sin asignar" (ninguna `<option>` calzaba su valor) mientras
-  // la cabecera de arriba seguía mostrando su nombre — dos fuentes de verdad discrepando en
-  // la misma pantalla. Se espera a que `technicians.data` haya cargado para no parpadear la
-  // opción "(inactivo)" mientras la lista de activos todavía no llegó; se arma un objeto
-  // `{ id, name }` (en vez de `!` sobre `assignedTechnicianId`/`technician`) para que TS
-  // siga sabiendo, dentro del JSX, que ninguno de los dos es nulo.
-  const assignedInactive =
+  // El asignado no está entre las opciones de `technicians.data` en dos casos, y en ambos se
+  // pinta su nombre desde el detalle (`c.technician`) en vez de caer en "Sin asignar" con la
+  // cabecera diciendo otra cosa:
+  // - M-4 (ola de fixes del PR 1, lote B): se dio de baja después de asignarlo y la lista solo
+  //   trae activos → "(inactivo)".
+  // - Revisión de la Tarea 3 (#101): la lista todavía no llegó → solo el nombre, sin marca,
+  //   porque aún no se sabe si sigue activo.
+  // Se arma un objeto `{ id, label }` (en vez de `!`) para que TS sepa que ninguno es nulo.
+  const assignedMissing =
     c.assignedTechnicianId &&
     c.technician &&
-    technicians.data !== undefined &&
-    !technicians.data.some((t) => t.id === c.assignedTechnicianId)
-      ? { id: c.assignedTechnicianId, name: c.technician.name }
+    !technicians.data?.some((t) => t.id === c.assignedTechnicianId)
+      ? {
+          id: c.assignedTechnicianId,
+          label:
+            technicians.data === undefined ? c.technician.name : `${c.technician.name} (inactivo)`,
+        }
       : null
 
   return (
@@ -68,9 +71,7 @@ export function TechnicianSelect({ case: c, role }: { case: CaseDetail; role: Us
         onChange={(e) => assign.mutate({ tecnicoId: e.target.value || null })}
       >
         <option value="">Sin asignar</option>
-        {assignedInactive && (
-          <option value={assignedInactive.id}>{assignedInactive.name} (inactivo)</option>
-        )}
+        {assignedMissing && <option value={assignedMissing.id}>{assignedMissing.label}</option>}
         {technicians.data?.map((t) => (
           <option key={t.id} value={t.id}>
             {t.name}
