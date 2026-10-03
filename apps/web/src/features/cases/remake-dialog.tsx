@@ -10,7 +10,7 @@ import {
   type RemakeResponsibility,
 } from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useState } from 'react'
+import { useState, type ChangeEvent } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import type { z } from 'zod'
 import { FormDialog } from '@/components/form-dialog'
@@ -101,7 +101,7 @@ export function RemakeDialog({
   }
 
   const responsabilidad = register('responsabilidad', {
-    onChange: (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onChange: (e: ChangeEvent<HTMLSelectElement>) => {
       if (pctEdited) return
       const r = e.target.value as RemakeResponsibility
       setValue('cobroPct', REMAKE_CHARGE_PCT_BY_RESPONSIBILITY[r], { shouldValidate: true })
