@@ -64,4 +64,14 @@ describe('RouterErrorFallback (defaultErrorComponent)', () => {
       expect(vi.mocked(getSession).mock.calls.length).toBeGreaterThan(callsBefore),
     )
   })
+
+  // Ronda de fixes 1 (hallazgo Important de accesibilidad): mismo criterio que `LoadError`.
+  it('anuncia el mensaje con role="alert" y enfoca "Reintentar" al montar', async () => {
+    vi.mocked(getSession).mockRejectedValue(new TypeError('Failed to fetch'))
+
+    renderApp('/trabajos')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('No hay conexión con el servidor')
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toHaveFocus()
+  })
 })

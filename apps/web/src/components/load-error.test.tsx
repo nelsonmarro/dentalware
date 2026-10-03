@@ -22,4 +22,19 @@ describe('LoadError', () => {
 
     expect(screen.getByText('No se pudieron cargar las fases.')).toBeInTheDocument()
   })
+
+  // Ronda de fixes 1 (hallazgo Important de accesibilidad): un lector de pantalla debe
+  // anunciar el error sin que el foco ya esté ahí, y el foco debe caer en la acción útil
+  // («Reintentar») al montar — con guantes, no hay que buscarla.
+  it('anuncia el mensaje con role="alert"', () => {
+    render(<LoadError onRetry={() => {}} />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('No se pudo cargar la información')
+  })
+
+  it('enfoca "Reintentar" al montar', () => {
+    render(<LoadError onRetry={() => {}} />)
+
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toHaveFocus()
+  })
 })
