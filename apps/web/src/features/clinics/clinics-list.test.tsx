@@ -1,32 +1,12 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRouter,
-  RouterProvider,
-} from '@tanstack/react-router'
-import { render, screen } from '@testing-library/react'
-import type { ReactElement } from 'react'
+import { screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { setMatchMedia } from '@/test/match-media'
+import { renderWithQueryAndRouter } from '@/test/render'
 import { fetchClinics } from './api'
 import { ClinicsList } from './clinics-list'
 import { useClinics } from './use-clinics'
 
 vi.mock('./api', () => ({ fetchClinics: vi.fn() }))
-
-function renderWithProviders(ui: ReactElement) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  })
-  const router = createRouter({
-    routeTree: createRootRoute({
-      component: () => <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
-    }),
-    history: createMemoryHistory(),
-  })
-  return render(<RouterProvider router={router} />)
-}
 
 function Harness() {
   const clinics = useClinics(false)
@@ -47,7 +27,7 @@ describe('ClinicsList', () => {
       },
     ] as Awaited<ReturnType<typeof fetchClinics>>)
 
-    renderWithProviders(<Harness />)
+    renderWithQueryAndRouter(<Harness />)
 
     expect(await screen.findByText('Clínica Uno')).toBeInTheDocument()
   })
@@ -58,8 +38,12 @@ describe('ClinicsList', () => {
     setMatchMedia(true)
     vi.mocked(fetchClinics).mockRejectedValue(new TypeError('Failed to fetch'))
 
-    renderWithProviders(<Harness />)
+    renderWithQueryAndRouter(<Harness />)
 
-    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    const retry = await screen.findByRole('button', { name: 'Reintentar' })
+    expect(retry).toBeInTheDocument()
+    // Ronda de fixes 2 (I-1): embebido en la lista (no sustituye toda la pantalla), así que
+    // no debe robar el foco.
+    expect(retry).not.toHaveFocus()
   })
 })

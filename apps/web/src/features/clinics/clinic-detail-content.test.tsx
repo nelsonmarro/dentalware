@@ -1,14 +1,7 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRouter,
-  RouterProvider,
-} from '@tanstack/react-router'
-import { render, screen } from '@testing-library/react'
-import type { ReactElement } from 'react'
+import { screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { setMatchMedia } from '@/test/match-media'
+import { renderWithQueryAndRouter } from '@/test/render'
 import { ApiError } from '@/lib/api-error'
 import { ClinicDetailContent } from './clinic-detail-content'
 import type * as ClinicsApiModule from './api'
@@ -27,19 +20,6 @@ vi.mock('@/features/doctors/api', async (importOriginal) => ({
   fetchDoctors,
 }))
 
-function renderWithProviders(ui: ReactElement) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  })
-  const router = createRouter({
-    routeTree: createRootRoute({
-      component: () => <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
-    }),
-    history: createMemoryHistory(),
-  })
-  return render(<RouterProvider router={router} />)
-}
-
 describe('ClinicDetailContent', () => {
   it('muestra la clínica cuando carga bien', async () => {
     setMatchMedia(true)
@@ -53,32 +33,38 @@ describe('ClinicDetailContent', () => {
     })
     fetchDoctors.mockResolvedValue([])
 
-    renderWithProviders(<ClinicDetailContent clinicId="c1" />)
+    renderWithQueryAndRouter(<ClinicDetailContent clinicId="c1" />)
 
     expect(await screen.findByRole('heading', { name: 'Clínica Uno' })).toBeInTheDocument()
   })
 
-  it('una clínica inexistente (404) dice que no existe, con salida a la lista', async () => {
+  it('una clínica inexistente (404) dice que no existe, con salida a la lista y su propio h1', async () => {
     fetchClinic.mockRejectedValue(new ApiError('No encontrado', 404))
 
-    renderWithProviders(<ClinicDetailContent clinicId="c-no-existe" />)
+    renderWithQueryAndRouter(<ClinicDetailContent clinicId="c-no-existe" />)
 
-    expect(await screen.findByText('La clínica no existe')).toBeInTheDocument()
+    // M-1 (ronda de fixes 2): la rama de error también tiene su `h1` — antes esta pantalla se
+    // quedaba sin encabezado.
+    expect(await screen.findByRole('heading', { name: 'Clínica' })).toBeInTheDocument()
+    expect(screen.getByText('La clínica no existe')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Volver a clínicas' })).toBeInTheDocument()
   })
 
   // Ronda de fixes 1 (UX3-02, punto 3): antes, cualquier fallo (también un 500 o sin red)
   // mostraba "La clínica no existe.", aunque el problema fuera de red.
-  it('un fallo de red no dice que la clínica no existe: ofrece reintentar', async () => {
+  it('un fallo de red no dice que la clínica no existe: ofrece reintentar, con su h1 y enfocado', async () => {
     fetchClinic.mockRejectedValue(new TypeError('Failed to fetch'))
 
-    renderWithProviders(<ClinicDetailContent clinicId="c1" />)
+    renderWithQueryAndRouter(<ClinicDetailContent clinicId="c1" />)
 
-    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Clínica' })).toBeInTheDocument()
+    const retry = screen.getByRole('button', { name: 'Reintentar' })
     expect(screen.queryByText('La clínica no existe')).not.toBeInTheDocument()
+    // Ronda de fixes 2 (I-1): este `LoadError` sustituye toda la pantalla, así que sí enfoca.
+    expect(retry).toHaveFocus()
   })
 
-  it('un fallo al cargar los doctores ofrece reintentar en esa pestaña', async () => {
+  it('un fallo al cargar los doctores ofrece reintentar en esa pestaña, sin robar el foco', async () => {
     setMatchMedia(true)
     fetchClinic.mockResolvedValue({
       id: 'c1',
@@ -90,8 +76,12 @@ describe('ClinicDetailContent', () => {
     })
     fetchDoctors.mockRejectedValue(new TypeError('Failed to fetch'))
 
-    renderWithProviders(<ClinicDetailContent clinicId="c1" />)
+    renderWithQueryAndRouter(<ClinicDetailContent clinicId="c1" />)
 
-    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    const retry = await screen.findByRole('button', { name: 'Reintentar' })
+    expect(retry).toBeInTheDocument()
+    // Ronda de fixes 2 (I-1): embebido en la pestaña "Doctores", junto al resto de la
+    // pantalla (cabecera, pestañas) — no debe robar el foco.
+    expect(retry).not.toHaveFocus()
   })
 })

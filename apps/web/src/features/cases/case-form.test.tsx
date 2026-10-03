@@ -166,6 +166,22 @@ describe('CaseForm', () => {
     expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument()
   })
 
+  // M-3 (ronda de fixes 2): `onRetry` reintenta clínicas y productos de forma condicional
+  // (solo la que falló) — un test que solo comprueba que aparece "Reintentar" no prueba que
+  // el botón sirva de algo. Aquí ambos catálogos fallan la primera vez; al pulsar
+  // "Reintentar" los dos se resuelven y el formulario aparece.
+  it('"Reintentar" recupera el formulario cuando el segundo intento sí carga los catálogos', async () => {
+    vi.mocked(fetchClinics).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    vi.mocked(fetchProducts).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    const retry = await screen.findByRole('button', { name: 'Reintentar' })
+    await user.click(retry)
+
+    expect(await screen.findByRole('button', { name: 'Guardar' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument()
+  })
+
   it('enviar vacío muestra los errores obligatorios y no llama a onSubmit', async () => {
     const onSubmit = vi.fn()
     const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={onSubmit} />)

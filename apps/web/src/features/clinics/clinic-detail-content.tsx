@@ -31,19 +31,29 @@ export function ClinicDetailContent({ clinicId }: { clinicId: string }) {
 
   if (clinic.isPending) return <p className="text-sm text-muted-foreground">Cargando…</p>
   if (clinic.isError) {
+    // M-1 (ronda de fixes 2): las dos ramas pintan su propio `h1` — sin `PageHeader` esta
+    // pantalla se quedaba sin encabezado, y un lector de pantalla no tenía por dónde saltar.
     if (isNotFoundError(clinic.error)) {
       return (
-        <EmptyState
-          title="La clínica no existe"
-          action={
-            <Button asChild>
-              <Link to="/configuracion/clinicas">Volver a clínicas</Link>
-            </Button>
-          }
-        />
+        <div className="flex flex-col gap-6">
+          <PageHeader title="Clínica" />
+          <EmptyState
+            title="La clínica no existe"
+            action={
+              <Button asChild>
+                <Link to="/configuracion/clinicas">Volver a clínicas</Link>
+              </Button>
+            }
+          />
+        </div>
       )
     }
-    return <LoadError onRetry={() => void clinic.refetch()} />
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader title="Clínica" />
+        <LoadError onRetry={() => void clinic.refetch()} autoFocus />
+      </div>
+    )
   }
   if (!clinic.data) return null
   const c = clinic.data

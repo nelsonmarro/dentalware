@@ -1,32 +1,12 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRouter,
-  RouterProvider,
-} from '@tanstack/react-router'
-import { render, screen } from '@testing-library/react'
-import type { ReactElement } from 'react'
+import { screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { setMatchMedia } from '@/test/match-media'
+import { renderWithQueryAndRouter } from '@/test/render'
 import { fetchUsers } from './api'
 import { UsersList } from './users-list'
 import { useUsers } from './use-users'
 
 vi.mock('./api', () => ({ fetchUsers: vi.fn() }))
-
-function renderWithProviders(ui: ReactElement) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  })
-  const router = createRouter({
-    routeTree: createRootRoute({
-      component: () => <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
-    }),
-    history: createMemoryHistory(),
-  })
-  return render(<RouterProvider router={router} />)
-}
 
 function Harness() {
   const users = useUsers()
@@ -40,7 +20,7 @@ describe('UsersList', () => {
       { id: 'u1', name: 'Ana', email: 'ana@lab.local', role: 'admin', banned: false },
     ] as Awaited<ReturnType<typeof fetchUsers>>)
 
-    renderWithProviders(<Harness />)
+    renderWithQueryAndRouter(<Harness />)
 
     expect(await screen.findByText('Ana')).toBeInTheDocument()
   })
@@ -51,8 +31,11 @@ describe('UsersList', () => {
     setMatchMedia(true)
     vi.mocked(fetchUsers).mockRejectedValue(new TypeError('Failed to fetch'))
 
-    renderWithProviders(<Harness />)
+    renderWithQueryAndRouter(<Harness />)
 
-    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    const retry = await screen.findByRole('button', { name: 'Reintentar' })
+    expect(retry).toBeInTheDocument()
+    // Ronda de fixes 2 (I-1): embebido en la lista, no debe robar el foco.
+    expect(retry).not.toHaveFocus()
   })
 })

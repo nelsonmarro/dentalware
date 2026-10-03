@@ -57,6 +57,20 @@ describe('ClinicPricesTable', () => {
     expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
   })
 
+  // M-3 (ronda de fixes 2): `onRetry` reintenta productos y precios de forma condicional
+  // (solo la consulta que falló) — sin pulsar el botón, ese cableado nunca se ejercita.
+  it('"Reintentar" recupera la tabla cuando el segundo intento sí carga productos', async () => {
+    setMatchMedia(true)
+    vi.mocked(fetchProducts).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    const { user } = renderWithProviders(<ClinicPricesTable clinicId="clinic-1" />)
+
+    const retry = await screen.findByRole('button', { name: 'Reintentar' })
+    await user.click(retry)
+
+    expect(await screen.findByText(/Zirconio/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument()
+  })
+
   it('el buscador tiene una etiqueta visible asociada (UX1-09)', async () => {
     setMatchMedia(true)
     renderWithProviders(<ClinicPricesTable clinicId="clinic-1" />)
