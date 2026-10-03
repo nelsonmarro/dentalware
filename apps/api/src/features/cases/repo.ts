@@ -15,7 +15,7 @@ import {
   sumCents,
   toCents,
 } from '@dentalware/shared'
-import { and, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import type { Db, Tx } from '../../db/index.ts'
 import { users } from '../../db/schema/auth.ts'
 import { clinics } from '../clinics/schema.ts'
@@ -540,6 +540,7 @@ export function createUsersQuery(db: Db | Tx): UsersQuery {
         .select({ id: users.id, name: users.name })
         .from(users)
         .where(and(eq(users.role, 'tecnico'), or(eq(users.banned, false), isNull(users.banned))))
+        .orderBy(asc(users.name))
     },
   }
 }

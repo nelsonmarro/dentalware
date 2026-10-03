@@ -876,6 +876,30 @@ describe('/api/trabajos', () => {
       expect(body.technicians).toContainEqual({ id: tecnicoId, name: 'Ana Técnico' })
     })
 
+    it('devuelve los técnicos ordenados por nombre', async () => {
+      // Se insertan en orden inverso al alfabético: sin `orderBy`, Postgres los devuelve
+      // en orden de inserción.
+      await createUser(ctx.auth, ctx.db, {
+        email: 'zoila@t.local',
+        password: 'Tecnico123!',
+        name: 'Zoila Técnico',
+        role: 'tecnico',
+      })
+      await createUser(ctx.auth, ctx.db, {
+        email: 'bruno@t.local',
+        password: 'Tecnico123!',
+        name: 'Bruno Técnico',
+        role: 'tecnico',
+      })
+      const res = await app.request('/api/trabajos/tecnicos', req(admin, 'GET'))
+      const body = (await res.json()) as { technicians: { name: string }[] }
+      expect(body.technicians.map((t) => t.name)).toEqual([
+        'Ana Técnico',
+        'Bruno Técnico',
+        'Zoila Técnico',
+      ])
+    })
+
     it('no expone correo, rol ni estado de baneo', async () => {
       const res = await app.request('/api/trabajos/tecnicos', req(recepcion, 'GET'))
       const body = (await res.json()) as { technicians: Record<string, unknown>[] }

@@ -165,6 +165,7 @@ export interface StagesQuery {
  * y, con `id` y `name`, alimenta el combobox de `TechnicianSelect` en la web (Tarea 9) sin
  * exponer correo, rol ni estado de baneo. */
 export interface UsersQuery {
+  /** Técnicos activos ordenados por nombre (recepción busca por nombre en el selector). */
   activeTechnicians(): Promise<Named[]>
 }
 
