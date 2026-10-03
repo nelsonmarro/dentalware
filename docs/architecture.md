@@ -150,7 +150,7 @@ Saldo de clínica = Σ entregados + Σ ajustes − Σ pagos. Se calcula, no se g
 | 26 | `errors.ts` puede reexportar errores de dominio de otra feature | un error es contrato, no adaptador |
 | 27 | Una sola ruta de transiciones (`POST /api/trabajos/:id/acciones`): `CASE_ACTION_ROLES` en la ruta y `canPerform` en el servicio | el rol depende de la acción |
 | 28 | La fase es un recurso aparte del estado (`PUT …/fase`), solo en `en_proceso`; «Finalizar» lo sirve solo la barra de acciones | fase y estado avanzan a ritmos distintos |
-| 29 | `GET /api/trabajos/tecnicos` en el router de trabajos, devuelve solo `{ id, name }` | recepción no necesita más datos de usuarios |
+| 29 | `GET /api/trabajos/tecnicos` en el router de trabajos, devuelve solo `{ id, name }`; `GET …/:id/eventos` resuelve los nombres de técnico de los `assigned` leyendo `users` (ADR 24, solo lectura, una consulta) | recepción no necesita más datos de usuarios |
 | 30 | Fecha comprometida en días hábiles sin feriados (`addBusinessDays(inicio, días, [])`) | sin calendario de feriados en el MVP |
 | 31 | Reglas de rol y estado en `shared` (`hidesPrices`, `*_ROLES`, `canChangeStage`…), con `Record` exhaustivos | web y API no divergen; lo nuevo no compila sin decidir |
 | 32 | Una sola definición por vista rápida (`viewCondition`) para la lista y el resumen del inicio, probada contra Postgres con reloj fijo | los contadores coinciden con sus listas y son correctos |
