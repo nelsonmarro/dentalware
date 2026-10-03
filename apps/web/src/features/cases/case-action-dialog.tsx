@@ -10,7 +10,7 @@ import { ACTION_EMPHASIS } from './action-emphasis'
 
 type CaseActionFormValues = z.input<typeof caseActionSchema>
 
-/** Diálogo de motivo obligatorio para las acciones de `ACTIONS_REQUIRING_REASON`
+/** Diálogo de motivo obligatorio para las acciones de `ActionRequiringReason`
  * (pausar, cancelar): un `<textarea>` con validación de `caseActionSchema` antes de
  * habilitar el envío. */
 export function CaseActionDialog({
