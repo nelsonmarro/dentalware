@@ -21,4 +21,13 @@ describe('CommentForm', () => {
     expect(onSubmit).toHaveBeenCalledWith({ text: 'Listo para retirar' })
     expect(textarea).toHaveValue('')
   })
+
+  // UX3-26: el campo solo tenía placeholder; el piso de calidad pide etiqueta visible.
+  it('el campo tiene la etiqueta visible «Comentario»', () => {
+    renderWithProviders(<CommentForm onSubmit={vi.fn()} pending={false} />)
+    const textarea = screen.getByLabelText('Comentario')
+    const label = document.querySelector(`label[for="${textarea.id}"]`)
+    expect(label).toHaveTextContent('Comentario')
+    expect(label).toBeVisible()
+  })
 })

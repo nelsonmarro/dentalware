@@ -158,7 +158,7 @@ function EventDetail({
   }
 }
 
-/** Historial cronológico del trabajo: un ícono y texto en español por tipo de evento,
+/** Historial del trabajo, de lo más reciente a lo más antiguo (UX3-26): un ícono y texto en español por tipo de evento,
  * autor y fecha relativa; los comentarios muestran su texto en un bloque aparte y el resto
  * de eventos su motivo o destino cuando lo tienen (I-1). `stages` (todas, activas o no,
  * igual que `StageControl`) y `role` resuelven nombres de fase y de técnico sin disparar
@@ -201,7 +201,10 @@ export function CaseHistory({
   }
   return (
     <ol className="flex flex-col gap-4">
-      {events.map((e) => {
+      {/* UX3-26: lo más reciente primero. `/eventos` llega de más antiguo a más reciente
+          (`orderBy createdAt asc` en el repo, que `CaseHeader` también usa para el último
+          "hold"); se invierte solo aquí, al pintar. */}
+      {[...events].reverse().map((e) => {
         const Icon = EVENT_ICON[e.type]
         return (
           <li key={e.id} className="flex gap-3">

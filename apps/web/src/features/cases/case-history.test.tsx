@@ -85,7 +85,9 @@ beforeEach(() => {
 })
 
 describe('CaseHistory', () => {
-  it('muestra el trabajo creado y un comentario con su texto y autor, en orden ascendente', async () => {
+  // UX3-26: en un trabajo largo lo último que pasó quedaba al fondo; la API entrega los
+  // eventos de más antiguo a más reciente y el historial los pinta al revés.
+  it('muestra el trabajo creado y un comentario con su texto y autor, lo más reciente primero', async () => {
     renderWithProviders(
       <CaseHistory
         case={caso()}
@@ -104,10 +106,10 @@ describe('CaseHistory', () => {
     )
     const items = await screen.findAllByRole('listitem')
     expect(items).toHaveLength(2)
-    expect(items[0]).toHaveTextContent('Trabajo creado')
-    expect(items[1]).toHaveTextContent('Comentario')
-    expect(items[1]).toHaveTextContent('Beto')
-    expect(items[1]).toHaveTextContent('Todo listo para retirar')
+    expect(items[0]).toHaveTextContent('Comentario')
+    expect(items[0]).toHaveTextContent('Beto')
+    expect(items[0]).toHaveTextContent('Todo listo para retirar')
+    expect(items[1]).toHaveTextContent('Trabajo creado')
   })
 
   it('sin eventos muestra un mensaje de "sin actividad"', async () => {
@@ -135,8 +137,9 @@ describe('CaseHistory', () => {
       />,
     )
     const items = await screen.findAllByRole('listitem')
-    expect(items[0]).toHaveTextContent('Nuevo estado: En proceso')
-    expect(items[1]).toHaveTextContent('Nuevo estado: Terminado')
+    // Lo más reciente primero (UX3-26): finalizar, luego aceptar.
+    expect(items[0]).toHaveTextContent('Nuevo estado: Terminado')
+    expect(items[1]).toHaveTextContent('Nuevo estado: En proceso')
     // nunca la clave cruda
     expect(screen.queryByText(/en_proceso/)).not.toBeInTheDocument()
   })
