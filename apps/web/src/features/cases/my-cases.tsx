@@ -1,6 +1,7 @@
 import { toIsoDate } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { LoadError } from '@/components/load-error'
+import { AlertChip } from './alert-chip'
 import { dueBadge } from './case-views'
 import { formatDate } from './date-format'
 import { STATUS_COLOR, STATUS_LABEL } from './status-chip'
@@ -55,16 +56,8 @@ export function MyCases({ technicianId }: { technicianId: string }) {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono font-medium">{r.code}</span>
-                    {badge === 'atrasado' && (
-                      <span className="rounded-lg border border-destructive/40 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                        Atrasado
-                      </span>
-                    )}
-                    {badge === 'hoy' && (
-                      <span className="rounded-lg border border-[color:var(--wax-amber)]/40 bg-[color:var(--wax-amber)]/10 px-2 py-0.5 text-xs font-medium text-[color:var(--wax-amber-ink)]">
-                        Vence hoy
-                      </span>
-                    )}
+                    {badge === 'atrasado' && <AlertChip tone="destructive">Atrasado</AlertChip>}
+                    {badge === 'hoy' && <AlertChip tone="amber">Vence hoy</AlertChip>}
                   </div>
                   <p className="text-sm">{r.patientRef}</p>
                   <p className="text-sm text-muted-foreground">

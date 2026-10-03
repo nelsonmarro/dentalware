@@ -13,6 +13,7 @@ import {
   urlState,
   useDataGrid,
 } from '@/components/data-grid'
+import { AlertChip } from './alert-chip'
 import type { CaseListRow } from './api'
 import { dueBadge } from './case-views'
 import { formatDate } from './date-format'
@@ -61,33 +62,9 @@ function DueCell({ row, today }: { row: CaseListRow; today: string }) {
   )
 }
 
-/** Chip de texto para la urgencia/vencimiento (UX3-01): la tarjeta móvil no tiene `title` al
- * tacto, así que la señal necesita texto visible, no solo el icono de `StatusIcon` que basta
- * en la tabla de escritorio (ahí `title` responde al hover del mouse). Mismo patrón de chip
- * que ya usa `my-cases.tsx` para "Atrasado"/"Vence hoy". */
-function PriorityChip() {
-  return (
-    <span className="rounded-lg border border-destructive/40 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-      Urgente
-    </span>
-  )
-}
-
-function DueChip({ badge }: { badge: 'hoy' | 'atrasado' }) {
-  if (badge === 'atrasado') {
-    return (
-      <span className="rounded-lg border border-destructive/40 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-        Atrasado
-      </span>
-    )
-  }
-  return (
-    <span className="rounded-lg border border-[color:var(--wax-amber)]/40 bg-[color:var(--wax-amber)]/10 px-2 py-0.5 text-xs font-medium text-[color:var(--wax-amber-ink)]">
-      Vence hoy
-    </span>
-  )
-}
-
+/** Variante de tarjeta móvil (UX3-01): no hay `title` al tacto, así que la señal necesita
+ * texto visible vía `AlertChip`, no solo el icono de `StatusIcon` que basta en la tabla de
+ * escritorio (ahí `title` responde al hover del mouse). */
 function CardCode({ row }: { row: CaseListRow }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -99,7 +76,7 @@ function CardCode({ row }: { row: CaseListRow }) {
       >
         {row.code}
       </Link>
-      {row.priority === 'urgente' && <PriorityChip />}
+      {row.priority === 'urgente' && <AlertChip tone="destructive">Urgente</AlertChip>}
     </div>
   )
 }
@@ -110,7 +87,8 @@ function CardDue({ row, today }: { row: CaseListRow; today: string }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <span>{formatDate(date)}</span>
-      {badge && <DueChip badge={badge} />}
+      {badge === 'atrasado' && <AlertChip tone="destructive">Atrasado</AlertChip>}
+      {badge === 'hoy' && <AlertChip tone="amber">Vence hoy</AlertChip>}
     </div>
   )
 }
