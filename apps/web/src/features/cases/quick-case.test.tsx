@@ -320,7 +320,10 @@ describe('QuickCase', () => {
 
     renderWithProviders(<QuickCase code="26-99999" role="tecnico" />)
 
-    expect(await screen.findByText('No encontrado')).toBeInTheDocument()
+    // Pantalla completa: «No encontrado» es su h1 (un h1 por página, convenciones §5).
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'No encontrado' }),
+    ).toBeInTheDocument()
   })
 
   it('un código mal formado (422) también muestra No encontrado', async () => {

@@ -42,6 +42,7 @@ function CasePage() {
     return (
       <EmptyState
         title="El trabajo no existe"
+        pageTitle
         action={
           <Button asChild>
             <Link to="/trabajos">Volver a trabajos</Link>

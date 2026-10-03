@@ -54,6 +54,7 @@ export function PrintCasePage({ caseId, role }: { caseId: string; role: UserRole
     return (
       <EmptyState
         title="No se pudo cargar la orden"
+        pageTitle
         action={
           <Button asChild>
             <Link to="/trabajos/$caseId" params={{ caseId }}>

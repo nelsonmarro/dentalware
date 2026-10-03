@@ -62,6 +62,7 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
     return (
       <EmptyState
         title="No encontrado"
+        pageTitle
         description="Revisa el código impreso en la orden o búscalo en la lista de trabajos."
         action={
           // UX3-27: la salida que el texto sugiere, con el objetivo táctil de 44 px del `Button`.

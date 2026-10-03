@@ -143,6 +143,16 @@ describe('PrintCasePage', () => {
     },
   )
 
+  it('si la orden no carga, «No se pudo cargar la orden» es el h1 de la página', async () => {
+    fetchCase.mockRejectedValue(new TypeError('Failed to fetch'))
+    fetchLabSettings.mockResolvedValue({})
+    renderWithProviders(<PrintCasePage caseId="caso-1" role="recepcion" />)
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'No se pudo cargar la orden' }),
+    ).toBeInTheDocument()
+  })
+
   it('recepción imprime por omisión las dos copias, y solo la clínica lleva precios (UX3-21)', async () => {
     stubCaseAndSettings()
     renderWithProviders(<PrintCasePage caseId="caso-1" role="recepcion" />)
