@@ -52,6 +52,7 @@ Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabaj
   - Objetivo táctil de **44 px** (36 px solo en tablas densas de escritorio, 44 con `pointer-coarse`).
   - Chips con texto, nunca solo color; código y montos en monoespaciada.
   - `--wax-amber` es acento; el texto sobre ámbar usa `--wax-amber-ink`. El contraste se prueba en `theme-tokens.test.ts`.
+  - Sin modo oscuro en el MVP: nada aplica `.dark` (ni `prefers-color-scheme`); el bloque `.dark` de `index.css` queda en reserva y su contraste no se garantiza hasta que se diseñe y pruebe (UX3-15).
 - **Responsive**: una sola UI; tabla en ≥ `lg` y tarjetas en móvil, con una sola variante montada; sin scroll horizontal a 1280, 390 y 360 px.
 - **Accesibilidad**: un `h1` por página, labels o `aria-label`, `aria-pressed` en toggles, foco visible, teclado en diálogos y selects, contraste AA, `alt` e `inputmode`.
 - **Imágenes**: se comprimen en el cliente (≤ 1600 px), las miniaturas usan `loading="lazy"` y todo `createObjectURL` se revoca.
