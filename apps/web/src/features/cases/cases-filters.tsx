@@ -1,6 +1,7 @@
 import type { CaseStatus } from '@dentalware/shared'
 import { CASE_STATUS_LABEL, CASE_STATUSES } from '@dentalware/shared'
 import { useEffect, useState } from 'react'
+import { Combobox } from '@/components/combobox'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -71,24 +72,19 @@ export function CasesFilters({
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="filtro-clinica">Clínica</Label>
-        <Select
+        <Combobox
+          id="filtro-clinica"
+          aria-label="Clínica"
+          className="w-full"
           value={value.clinicId ?? ALL}
-          onValueChange={(v) =>
-            onChange({ clinicId: v === ALL ? undefined : v, doctorId: undefined })
-          }
-        >
-          <SelectTrigger id="filtro-clinica" className="h-11 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Todas</SelectItem>
-            {clinics.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onChange={(v) => onChange({ clinicId: v === ALL ? undefined : v, doctorId: undefined })}
+          items={[
+            { value: ALL, label: 'Todas' },
+            ...clinics.map((c) => ({ value: c.id, label: c.name })),
+          ]}
+          placeholder="Elegir clínica"
+          searchPlaceholder="Buscar clínica"
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="filtro-doctor">Doctor</Label>
