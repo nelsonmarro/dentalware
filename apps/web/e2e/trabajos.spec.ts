@@ -187,13 +187,18 @@ test.describe('Trabajos', () => {
       // primeras filas sin ordenar (`column_getAutoSortDir`, `@tanstack/table-core`) — si
       // ninguna trae un valor no nulo, cae a "desc" por defecto en vez de "asc". Con una fecha
       // real en la fila que este test crea, el primer clic es determinísticamente ascendente.
+      // Otro trabajo de la misma clínica sin fecha: con `nulls last` tiene que quedar detrás.
+      await createCase(page, { clinicId: clinic.id, doctorId: doctor.id, productId: product.id })
       const created = await createCase(page, {
         clinicId: clinic.id,
         doctorId: doctor.id,
         productId: product.id,
         dueDate: '2030-01-15',
       })
-      await page.goto('/trabajos?vista=nuevos')
+      // Filtrado por la clínica de este test: la BD es compartida y los urgentes van primero en
+      // toda la lista, así que un trabajo urgente de otro test (p. ej. `impresion.spec.ts`)
+      // adelantaba al nuestro sin que el orden por entrega estuviera mal.
+      await page.goto(`/trabajos?vista=nuevos&clinicId=${clinic.id}`)
       const header = page.getByRole('columnheader', { name: /Entrega/ })
       await page.getByRole('button', { name: 'Ordenar por Entrega' }).click()
       await expect(page).toHaveURL(/orden=entrega(?!-desc)/)
@@ -202,10 +207,11 @@ test.describe('Trabajos', () => {
       await expect(page).toHaveURL(/orden=entrega-desc/)
       await expect(header).toHaveAttribute('aria-sort', 'descending')
       // El aria-sort y la URL solo prueban la cabecera; con `nulls last` en ambas direcciones
-      // (`repo.ts:orderFor`) nuestro trabajo, el único con `dueDate` explícita entre los que
-      // crea este archivo, queda primero de la lista real tras el segundo clic — confirma que
+      // (`repo.ts:orderFor`) nuestro trabajo, el único con `dueDate` explícita de su clínica,
+      // queda primero de la lista real tras el segundo clic — confirma que
       // la web mandó `orden` a la API y que la tabla renderizó la fila que corresponde, no solo
       // que la cabecera cambió de aspecto.
+      await expect(page.locator('tbody').getByRole('link')).toHaveCount(2)
       const primerCodigo = page.locator('tbody').getByRole('link').first()
       await expect(primerCodigo).toHaveText(created.code)
     },
