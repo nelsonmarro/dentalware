@@ -5,7 +5,8 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { LabSettings } from '@/features/config/api'
@@ -120,20 +121,58 @@ function stubCaseAndSettings() {
   } as unknown as LabSettings)
 }
 
+function rotulos() {
+  return screen.getAllByTestId('rotulo-copia').map((el) => el.textContent)
+}
+
 describe('PrintCasePage', () => {
-  it('un técnico no ve precios ni el total en la orden impresa (I-3)', async () => {
-    stubCaseAndSettings()
-    renderWithProviders(<PrintCasePage caseId="caso-1" role="tecnico" />)
+  // UX3-21: el técnico (y el mensajero) solo imprime la copia laboratorio, sin precios; ni
+  // siquiera ve la opción de una copia clínica.
+  it.each(['tecnico', 'mensajero'] as const)(
+    '%s solo ve la copia laboratorio, sin precios ni total (I-3, UX3-21)',
+    async (role) => {
+      stubCaseAndSettings()
+      renderWithProviders(<PrintCasePage caseId="caso-1" role={role} />)
 
-    await screen.findByRole('heading', { name: /Orden de trabajo 26-00123/ })
-    expect(screen.queryByText(/\$/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Total/)).not.toBeInTheDocument()
-  })
+      await screen.findByRole('heading', { name: /Orden de trabajo 26-00123/ })
+      expect(rotulos()).toEqual(['Copia laboratorio'])
+      expect(screen.queryByText(/Copia clínica/)).not.toBeInTheDocument()
+      expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+      expect(screen.queryByText(/\$/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Total/)).not.toBeInTheDocument()
+    },
+  )
 
-  it('recepción sí ve precios y el total en la orden impresa', async () => {
+  it('recepción imprime por omisión las dos copias, y solo la clínica lleva precios (UX3-21)', async () => {
     stubCaseAndSettings()
     renderWithProviders(<PrintCasePage caseId="caso-1" role="recepcion" />)
 
-    expect(await screen.findByText('$ 147.00')).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'Ambas', selected: true })).toBeInTheDocument()
+    expect(rotulos()).toEqual(['Copia laboratorio', 'Copia clínica'])
+    // Un solo total: el de la copia clínica.
+    expect(screen.getAllByText('$ 147.00')).toHaveLength(1)
+    const [laboratorio, clinica] = screen.getAllByRole('article')
+    expect(within(laboratorio!).queryByText(/\$/)).not.toBeInTheDocument()
+    expect(within(clinica!).getByText('$ 147.00')).toBeInTheDocument()
+  })
+
+  it('recepción puede imprimir solo la copia laboratorio, sin precios (UX3-21)', async () => {
+    stubCaseAndSettings()
+    const user = userEvent.setup()
+    renderWithProviders(<PrintCasePage caseId="caso-1" role="recepcion" />)
+
+    await user.click(await screen.findByRole('tab', { name: 'Laboratorio' }))
+    expect(rotulos()).toEqual(['Copia laboratorio'])
+    expect(screen.queryByText(/\$/)).not.toBeInTheDocument()
+  })
+
+  it('admin puede imprimir solo la copia clínica, con precios (UX3-21)', async () => {
+    stubCaseAndSettings()
+    const user = userEvent.setup()
+    renderWithProviders(<PrintCasePage caseId="caso-1" role="admin" />)
+
+    await user.click(await screen.findByRole('tab', { name: 'Clínica' }))
+    expect(rotulos()).toEqual(['Copia clínica'])
+    expect(screen.getByText('$ 147.00')).toBeInTheDocument()
   })
 })

@@ -413,8 +413,9 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
   )
 
   // M-5 (ronda de fixes 1, Tarea 14, #71): la orden imprimible es pantalla nueva y no estaba en
-  // el barrido. Solo mide los controles en pantalla ("Volver al trabajo", "Imprimir"): el resto
-  // de la orden es contenido para papel, sin objetivos táctiles que probar.
+  // el barrido. Solo mide los controles en pantalla ("Volver al trabajo", "Imprimir" y, para
+  // admin, las pestañas «Copia a imprimir», UX3-21): el resto de la orden es contenido para
+  // papel, sin objetivos táctiles que probar.
   test(
     'orden de trabajo imprimible: "Volver al trabajo" e "Imprimir"',
     { tag: '@extendida' },

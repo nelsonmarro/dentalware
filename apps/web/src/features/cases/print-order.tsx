@@ -2,9 +2,11 @@ import {
   CHECKLIST_KEYS,
   CHECKLIST_LABEL,
   FDI_QUADRANTS,
+  PRINT_COPY_LABEL,
+  printCopyShowsPrices,
   SHADE_SYSTEM_LABEL,
 } from '@dentalware/shared'
-import type { FdiTooth } from '@dentalware/shared'
+import type { FdiTooth, PrintCopy } from '@dentalware/shared'
 import type { LabSettings } from '@/features/config/api'
 import { formatMoney } from '@/features/products/pricing-unit-label'
 import { cn } from '@/lib/utils'
@@ -94,9 +96,11 @@ function DeliveryDate({
  * papel de Arte Dental (spec §5, "Orden de trabajo actual del laboratorio", y la foto
  * `docs/planilla de ingreso actual.jpeg`): (1) encabezado del laboratorio y código con QR,
  * (2) clínica/doctor/paciente/fechas, (3) color y odontograma marcado, (4) líneas,
- * (5) observaciones, (6) lista de verificación ("Importante"), (7) firmas. Sin precios ni
- * total con `hidePrices` (técnico y mensajero); las notas internas nunca se imprimen, para
- * nadie — el papel que sale del laboratorio no las tenía.
+ * (5) observaciones, (6) lista de verificación ("Importante"), (7) firmas. Cada hoja es una
+ * **copia** rotulada (UX3-21, spec §5): la «Copia laboratorio» va al banco del técnico y nunca
+ * lleva precios ni total; la «Copia clínica» sí (`printCopyShowsPrices`, shared). Quién puede
+ * imprimir cuál lo decide `printCopiesFor(role)` en `PrintCasePage`, no este componente. Las
+ * notas internas nunca se imprimen, para nadie — el papel que sale del laboratorio no las tenía.
  *
  * K-1 (ronda de fixes 1): densidad de impresión propia (`print:` en tipos, paddings y
  * separaciones) para que una orden de hasta 4 líneas quepa en **una** página en A4 y en A5
@@ -109,14 +113,15 @@ function DeliveryDate({
 export function PrintOrder({
   case: c,
   settings,
-  hidePrices,
+  copy,
   publicUrl,
 }: {
   case: CaseDetail
   settings: LabSettings
-  hidePrices: boolean
+  copy: PrintCopy
   publicUrl: string
 }) {
+  const showPrices = printCopyShowsPrices(copy)
   // `/t/<código>` es la ruta de la ficha corta (`routes/_app/t.$code.tsx`, FIC-2): si se
   // renombra allí, cambia aquí también — el QR impreso apunta a esa URL.
   const url = `${publicUrl}/t/${c.code}`
@@ -151,6 +156,14 @@ export function PrintOrder({
           </div>
         </div>
         <div className="flex flex-col items-end gap-2 text-right print:gap-1">
+          {/* Rótulo de la copia: borde y texto, sin depender de color ni de fondo (en papel,
+           * «Gráficos de fondo» viene apagado en Chrome). */}
+          <p
+            data-testid="rotulo-copia"
+            className="rounded border border-foreground px-2 py-0.5 text-xs font-semibold tracking-wide print:text-[9px]"
+          >
+            {PRINT_COPY_LABEL[copy]}
+          </p>
           <h2 className="font-mono text-xl font-semibold print:text-sm">
             Orden de trabajo {c.code}
           </h2>
@@ -227,11 +240,11 @@ export function PrintOrder({
             </div>
             <div className="flex gap-4 text-sm print:gap-2 print:text-[10px]">
               <span>Cant.: {item.quantity}</span>
-              {!hidePrices && <span className="font-mono">{money(item.lineTotal)}</span>}
+              {showPrices && <span className="font-mono">{money(item.lineTotal)}</span>}
             </div>
           </div>
         ))}
-        {!hidePrices && (
+        {showPrices && (
           <p className="flex justify-end gap-2 pt-1 text-sm font-semibold print:text-[10px]">
             <span>Total:</span>
             <span className="font-mono">{money(c.total)}</span>
