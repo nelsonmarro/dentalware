@@ -8,6 +8,8 @@ export function useAttachments(caseId: string) {
   return useQuery({
     queryKey: queryKeys.attachments(caseId),
     queryFn: () => fetchAttachments(caseId),
+    // La ficha corta monta el hook antes de saber el id (lo resuelve por código).
+    enabled: caseId !== '',
   })
 }
 

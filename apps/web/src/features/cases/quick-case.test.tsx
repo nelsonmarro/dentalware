@@ -25,8 +25,11 @@ vi.mock('./api', async (importOriginal) => ({
   changeStage,
   fetchCaseByCode,
 }))
-const { uploadAttachment } = vi.hoisted(() => ({ uploadAttachment: vi.fn() }))
-vi.mock('./attachments-api', () => ({ uploadAttachment }))
+const { fetchAttachments, uploadAttachment } = vi.hoisted(() => ({
+  fetchAttachments: vi.fn(),
+  uploadAttachment: vi.fn(),
+}))
+vi.mock('./attachments-api', () => ({ fetchAttachments, uploadAttachment }))
 vi.mock('@/features/stages/api', () => ({ fetchStages: vi.fn() }))
 
 import { fetchStages } from '@/features/stages/api'
@@ -35,6 +38,8 @@ beforeEach(() => {
   changeStage.mockReset()
   fetchCaseByCode.mockReset()
   uploadAttachment.mockReset()
+  fetchAttachments.mockReset()
+  fetchAttachments.mockResolvedValue([])
   vi.mocked(fetchStages).mockReset()
   changeStage.mockResolvedValue({ id: 'c1', currentStageId: 'f2' })
 })
@@ -348,6 +353,39 @@ describe('QuickCase', () => {
     await user.upload(screen.getByLabelText('Añadir foto'), file)
 
     await waitFor(() => expect(uploadAttachment).toHaveBeenCalledWith('c1', expect.any(FormData)))
+  })
+
+  // UX3-08: «Fotos: N» confirma en la propia ficha que la foto entró (el aviso se va).
+  it('cuenta las fotos del trabajo, sin contar documentos', async () => {
+    fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+    fetchAttachments.mockResolvedValue([
+      { id: 'a1', kind: 'photo' },
+      { id: 'a2', kind: 'photo' },
+      { id: 'a3', kind: 'document' },
+    ])
+
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+    expect(await screen.findByText('Fotos: 2')).toBeInTheDocument()
+    expect(fetchAttachments).toHaveBeenCalledWith('c1')
+    // Mientras el código se resuelve no hay id: no se piden adjuntos de un trabajo vacío.
+    expect(fetchAttachments).not.toHaveBeenCalledWith('')
+  })
+
+  it('tras subir una foto el contador sube', async () => {
+    fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+    fetchAttachments.mockResolvedValueOnce([]).mockResolvedValue([{ id: 'a1', kind: 'photo' }])
+    uploadAttachment.mockResolvedValue({ attachment: { id: 'a1' } })
+    const user = userEvent.setup()
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    expect(await screen.findByText('Fotos: 0')).toBeInTheDocument()
+
+    const file = new File(['contenido'], 'foto.png', { type: 'image/png' })
+    await user.upload(screen.getByLabelText('Añadir foto'), file)
+
+    expect(await screen.findByText('Fotos: 1')).toBeInTheDocument()
   })
 
   it('si las fases no cargan lo dice, en vez de dejar el botón deshabilitado sin motivo', async () => {

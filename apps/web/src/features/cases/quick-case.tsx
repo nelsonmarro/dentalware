@@ -19,6 +19,7 @@ import { AlertChip } from './alert-chip'
 import { dueBadge, isStageVisible } from './case-views'
 import { formatDate } from './date-format'
 import { StatusChip } from './status-chip'
+import { useAttachments } from './use-attachments'
 import { useCaseByCode, useChangeStage } from './use-cases'
 import { usePhotoUpload } from './use-photo-upload'
 
@@ -46,6 +47,7 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
   const changeStage = useChangeStage(caseId ?? '')
   const photoInputRef = useRef<HTMLInputElement>(null)
   const { handleFiles, progress } = usePhotoUpload(caseId ?? '')
+  const attachments = useAttachments(caseId ?? '')
 
   if (q.isPending) return <p className="text-sm text-muted-foreground">Cargando…</p>
   if (q.isError) {
@@ -143,6 +145,13 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
         >
           <Camera /> Añadir foto
         </Button>
+        {/* UX3-08: el aviso «Foto añadida» se va; el contador queda en la ficha. Sin dato si
+            los adjuntos no cargaron (un fallo de red no se presenta como «Fotos: 0»). */}
+        {attachments.isSuccess && (
+          <p className="text-center text-sm text-muted-foreground">
+            {`Fotos: ${attachments.data.filter((a) => a.kind === 'photo').length}`}
+          </p>
+        )}
         {progress && (
           <span role="status" className="text-sm text-muted-foreground">
             {progress.done + 1} de {progress.total}…
