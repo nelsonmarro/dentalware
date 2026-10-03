@@ -8,8 +8,7 @@ import {
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
-import { toIsoDate } from '@dentalware/shared'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/lib/api-error'
 import type { Stage } from '@/features/stages/api'
 import type * as ApiModule from './api'
@@ -276,16 +275,29 @@ describe('QuickCase', () => {
       expect(await screen.findByText('Atrasado')).toBeInTheDocument()
     })
 
-    it('con la entrega hoy dice «Vence hoy»', async () => {
-      fetchCaseByCode.mockResolvedValue({
-        case: caso({ promisedDate: toIsoDate(new Date()) }),
-        missing: [],
+    // M-4 (revisión de la Tarea 5): hora fija. Con el reloj real, entre la fecha del test y el
+    // `new Date()` del componente podía cambiar el día (medianoche) y el test fallaba al azar.
+    // Solo se falsea `Date`: los temporizadores reales siguen moviendo `findBy*` y React Query.
+    describe('con el reloj fijo', () => {
+      beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(new Date(2026, 9, 3, 23, 59, 59))
       })
-      vi.mocked(fetchStages).mockResolvedValue(fases)
+      afterEach(() => {
+        vi.useRealTimers()
+      })
 
-      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+      it('con la entrega hoy dice «Vence hoy»', async () => {
+        fetchCaseByCode.mockResolvedValue({
+          case: caso({ promisedDate: '2026-10-03' }),
+          missing: [],
+        })
+        vi.mocked(fetchStages).mockResolvedValue(fases)
 
-      expect(await screen.findByText('Vence hoy')).toBeInTheDocument()
+        renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+        expect(await screen.findByText('Vence hoy')).toBeInTheDocument()
+      })
     })
 
     it('un trabajo terminado con la fecha pasada no se marca atrasado (misma regla que la lista)', async () => {
