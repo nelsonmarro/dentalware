@@ -7,7 +7,7 @@ import {
   type UserRole,
 } from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import type { z } from 'zod'
 import { FormDialog } from '@/components/form-dialog'
@@ -127,6 +127,7 @@ export function StageControl({
   role: UserRole
 }) {
   const [showBack, setShowBack] = useState(false)
+  const titleId = useId()
   const changeStage = useChangeStage(c.id)
 
   // M-3: `finalizar`/`cancelar` no limpian `currentStageId`, así que un trabajo ya cerrado
@@ -144,9 +145,9 @@ export function StageControl({
   const previousName = previous?.name
 
   return (
-    <section aria-labelledby="fase-produccion" className="flex flex-col gap-3">
+    <section aria-labelledby={titleId} className="flex flex-col gap-3">
       <div className="flex flex-col gap-0.5">
-        <h3 id="fase-produccion" className="text-sm font-medium">
+        <h3 id={titleId} className="text-sm font-medium">
           Fase
         </h3>
         <p className="text-lg leading-snug font-semibold">

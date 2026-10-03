@@ -272,4 +272,22 @@ describe('ProductionPanel', () => {
       expect(el.childNodes.length, el.outerHTML).toBeGreaterThan(0)
     }
   })
+
+  // M-5 (revisión de la Tarea 4): ids de `useId()`, no escritos a mano, para que dos paneles
+  // (o una prueba que monta varios) no compartan el id del título.
+  it('dos paneles montados no comparten ids de título', async () => {
+    renderWithProviders(
+      <>
+        <ProductionPanel case={caso()} missing={[]} role="admin" stages={fases} />
+        <ProductionPanel case={caso()} missing={[]} role="admin" stages={fases} />
+      </>,
+    )
+    const regiones = await screen.findAllByRole('region', { name: 'Producción' })
+    expect(regiones).toHaveLength(2)
+    const ids = [...document.querySelectorAll('[aria-labelledby]')].map((el) =>
+      el.getAttribute('aria-labelledby'),
+    )
+    expect(ids).toHaveLength(4)
+    expect(new Set(ids).size).toBe(4)
+  })
 })

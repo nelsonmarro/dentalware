@@ -1,4 +1,5 @@
 import { canChangeStage, type UserRole } from '@dentalware/shared'
+import { useId } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Stage } from '@/features/stages/api'
 import { cn } from '@/lib/utils'
@@ -36,6 +37,7 @@ export function ProductionPanel({
   onRemakeCreated?: (created: CaseDetail) => void
 }) {
   const showStage = !!c.currentStageId && isStageVisible(c.status)
+  const titleId = useId()
   const nav = stageNavigation(stages, c.currentStageId, stagesError)
   // Con las fases todavía en vuelo se asume que hay siguiente: «Finalizar» no se adelanta como
   // primario para luego cederle el sitio a «Avanzar fase» cuando lleguen. Con error o con la
@@ -45,10 +47,10 @@ export function ProductionPanel({
     showStage && canChangeStage(c.status) && (nav.loading || nav.next !== undefined)
 
   return (
-    <Card role="region" aria-labelledby="produccion-titulo">
+    <Card role="region" aria-labelledby={titleId}>
       <CardHeader>
         <CardTitle asChild>
-          <h2 id="produccion-titulo">Producción</h2>
+          <h2 id={titleId}>Producción</h2>
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
