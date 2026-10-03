@@ -104,14 +104,15 @@ export const CASE_ACTION_LABEL: Record<CaseAction, string> = {
 export type ApplyResult = { ok: true; status: CaseStatus } | { ok: false; reason: string }
 
 /** El motivo de rechazo llega tal cual al toast de la web (409): nombra la acción y el estado
- * con sus rótulos, nunca con las claves, y dice qué hacer — un 409 aquí casi siempre significa
- * que otra persona movió el trabajo mientras esta tenía la ficha abierta. */
+ * con sus rótulos, nunca con las claves, y explica la causa probable — otra persona movió el
+ * trabajo mientras esta tenía la ficha abierta. No pide recargar: la web refresca la ficha sola
+ * ante un 409 (I-1, revisión de la Tarea 3). */
 export function applyAction(status: CaseStatus, action: CaseAction): ApplyResult {
   const t = CASE_TRANSITIONS[action]
   if (!t.from.includes(status)) {
     return {
       ok: false,
-      reason: `No se puede "${CASE_ACTION_LABEL[action]}": el trabajo está en estado "${CASE_STATUS_LABEL[status]}". Recarga la ficha para ver su estado actual.`,
+      reason: `No se puede "${CASE_ACTION_LABEL[action]}": el trabajo está en estado "${CASE_STATUS_LABEL[status]}". Puede que otra persona lo haya cambiado.`,
     }
   }
   return { ok: true, status: t.to }

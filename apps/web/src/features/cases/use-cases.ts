@@ -7,7 +7,7 @@ import type {
   StageChangeInput,
 } from '@dentalware/shared'
 import { toast } from 'sonner'
-import { toastApiError } from '@/lib/api-error'
+import { ApiError, toastApiError } from '@/lib/api-error'
 import { queryKeys } from '@/lib/query-keys'
 import type { CaseListQueryInput } from './api'
 import {
@@ -50,6 +50,20 @@ function useInvalidateCases() {
   return () => qc.invalidateQueries({ queryKey: ['trabajos'] })
 }
 
+/** `onError` de las mutaciones del ciclo de vida (I-1, revisión de la Tarea 3). Un 409 dice
+ * que el trabajo cambió por debajo —otra persona lo movió mientras esta ficha seguía abierta—:
+ * se invalida todo bajo `['trabajos']` (detalle, eventos, lista) y se **espera** antes de avisar,
+ * para que la ficha y sus botones muestren el estado real cuando sale el toast y `isPending`
+ * no rehabilite los botones viejos. Un 500 o un fallo de red no dicen nada del estado: ahí se
+ * avisa sin refrescar, que solo repetiría la petición que falla. */
+function useConflictAwareError() {
+  const invalidate = useInvalidateCases()
+  return async (error: unknown) => {
+    if (error instanceof ApiError && error.status === 409) await invalidate()
+    toastApiError(error)
+  }
+}
+
 export function useCreateCase() {
   const invalidate = useInvalidateCases()
   return useMutation({
@@ -87,13 +101,14 @@ export function useEvents(id: string) {
  * segundo clic duplica la mutación (M-3, revisión de la Tarea 8). */
 export function useCaseAction(id: string) {
   const invalidate = useInvalidateCases()
+  const onError = useConflictAwareError()
   return useMutation({
     mutationFn: (input: CaseActionInput) => postCaseAction(id, input),
     onSuccess: async (_updated, input) => {
       await invalidate()
       toast.success(CASE_ACTION_DONE[input.accion])
     },
-    onError: toastApiError,
+    onError,
   })
 }
 
@@ -108,6 +123,7 @@ export function useCaseAction(id: string) {
  * retroceder inventando un motivo. Lo mismo vale para las dos mutaciones de abajo. */
 export function useChangeStage(id: string) {
   const invalidate = useInvalidateCases()
+  const onError = useConflictAwareError()
   return useMutation({
     mutationFn: (input: StageChangeInput) => changeStage(id, input),
     onSuccess: async (updated) => {
@@ -115,20 +131,21 @@ export function useChangeStage(id: string) {
       // UX3-11: la fase nueva por su nombre (la respuesta la trae); sin fase, el genérico.
       toast.success(updated.stage ? `Fase: ${updated.stage.name}` : 'Fase actualizada')
     },
-    onError: toastApiError,
+    onError,
   })
 }
 
 /** `PUT /api/trabajos/:id/tecnico`: invalida el detalle y los eventos (`assigned`). */
 export function useAssignTechnician(id: string) {
   const invalidate = useInvalidateCases()
+  const onError = useConflictAwareError()
   return useMutation({
     mutationFn: (input: AssignTechnicianInput) => assignTechnician(id, input),
     onSuccess: async () => {
       await invalidate()
       toast.success('Técnico asignado')
     },
-    onError: toastApiError,
+    onError,
   })
 }
 
@@ -148,13 +165,14 @@ export function useTechnicians(enabled: boolean) {
  * detalle del padre. */
 export function useCreateRemake(parentId: string) {
   const invalidate = useInvalidateCases()
+  const onError = useConflictAwareError()
   return useMutation({
     mutationFn: (input: RemakeInput) => createRemake(parentId, input),
     onSuccess: async () => {
       await invalidate()
       toast.success('Repetición creada')
     },
-    onError: toastApiError,
+    onError,
   })
 }
 

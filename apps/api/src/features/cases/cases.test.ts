@@ -555,7 +555,7 @@ describe('/api/trabajos', () => {
       expect(res.status).toBe(409)
       expect(await res.json()).toEqual({
         message:
-          'No se puede "Finalizar": el trabajo está en estado "Nuevo". Recarga la ficha para ver su estado actual.',
+          'No se puede "Finalizar": el trabajo está en estado "Nuevo". Puede que otra persona lo haya cambiado.',
       })
     })
 

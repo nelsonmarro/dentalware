@@ -113,12 +113,12 @@ describe('applyAction — transiciones inválidas', () => {
     expect(applyAction('nuevo', 'finalizar')).toEqual({
       ok: false,
       reason:
-        'No se puede "Finalizar": el trabajo está en estado "Nuevo". Recarga la ficha para ver su estado actual.',
+        'No se puede "Finalizar": el trabajo está en estado "Nuevo". Puede que otra persona lo haya cambiado.',
     })
     expect(applyAction('en_proceso', 'marcar_entregado')).toEqual({
       ok: false,
       reason:
-        'No se puede "Marcar entregado": el trabajo está en estado "En proceso". Recarga la ficha para ver su estado actual.',
+        'No se puede "Marcar entregado": el trabajo está en estado "En proceso". Puede que otra persona lo haya cambiado.',
     })
     expect(applyAction('entregado', 'aceptar').ok).toBe(false)
     expect(applyAction('cancelado', 'reanudar').ok).toBe(false)

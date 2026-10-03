@@ -291,7 +291,7 @@ describe('acciones de estado', () => {
     await expect(
       service.action('1', { accion: 'marcar_entregado', motivo: null }, admin),
     ).rejects.toThrow(
-      'No se puede "Marcar entregado": el trabajo está en estado "En proceso". Recarga la ficha para ver su estado actual.',
+      'No se puede "Marcar entregado": el trabajo está en estado "En proceso". Puede que otra persona lo haya cambiado.',
     )
   })
 
