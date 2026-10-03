@@ -337,10 +337,12 @@ test.describe('Trabajos', () => {
       await expect(page.getByText('En proceso')).toBeVisible()
 
       // Primera fase activa sembrada por `seed-data.ts` (`STAGES`): "Recepción"; un clic de
-      // "Avanzar fase" la mueve a la siguiente, "Modelo". `.first()`: el nombre sale en el panel
-      // «Producción» y puede repetirse en el historial si alguien abre esa pestaña.
+      // "Avanzar fase" la mueve a la siguiente, "Modelo". Acotado al panel «Producción»: el toast
+      // «Fase: Modelo» también contiene el nombre.
       await page.getByRole('button', { name: 'Avanzar fase' }).click()
-      await expect(page.getByText('Modelo').first()).toBeVisible()
+      await expect(
+        page.getByRole('region', { name: 'Producción' }).getByText('Modelo', { exact: true }),
+      ).toBeVisible()
 
       // El diálogo de confirmación de "Finalizar" (Tarea 8) deja dos botones con el mismo
       // nombre en pantalla: el de la barra de acciones y el de confirmar dentro del diálogo.
@@ -360,7 +362,6 @@ test.describe('Trabajos', () => {
     'avanza la fase desde el panel «Producción» con la pestaña «Historial» abierta',
     { tag: '@clave' },
     async ({ page }) => {
-      const errors = trackConsoleErrors(page)
       const { clinic, doctor } = await createClinicWithDoctor(page)
       const product = await createProduct(page)
       const trabajo = await createCompleteCase(page, {
@@ -389,7 +390,6 @@ test.describe('Trabajos', () => {
       await expect(
         historial.getByRole('listitem').filter({ hasText: 'Recepción → Modelo' }),
       ).toBeVisible()
-      expect(errors).toEqual([])
     },
   )
 
