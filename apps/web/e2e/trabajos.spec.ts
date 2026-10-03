@@ -489,7 +489,7 @@ test.describe('Trabajos', () => {
 
     // `cancelar` está en `ACTIONS_REQUIRING_REASON`: el motivo obligatorio es la confirmación
     // de esta acción (conventions §5: la reversibilidad manda la fricción, no un "¿estás
-    // seguro?" aparte); no hay `ConfirmDialog` adicional: el texto de `ACTION_DIALOG.cancelar`
+    // seguro?" aparte); no hay `ConfirmDialog` adicional: el texto de `REASON_DIALOG.cancelar`
     // (`case-actions.tsx`) va en el propio diálogo de motivo.
     await page.getByRole('button', { name: 'Cancelar trabajo' }).click()
     const dialog = page.getByRole('dialog')

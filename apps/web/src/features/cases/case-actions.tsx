@@ -1,10 +1,5 @@
-import type { CaseAction, UserRole } from '@dentalware/shared'
-import {
-  ACTIONS_REQUIRING_REASON,
-  availableActions,
-  canPerform,
-  CASE_ACTION_LABEL,
-} from '@dentalware/shared'
+import type { ActionRequiringReason, CaseAction, UserRole } from '@dentalware/shared'
+import { availableActions, canPerform, CASE_ACTION_LABEL, requiresReason } from '@dentalware/shared'
 import { useState } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
@@ -14,23 +9,34 @@ import { useCaseAction } from './use-cases'
 
 type ActionDialogCopy = { confirmLabel: string; description: string }
 
-/** Diálogo de cada acción, o `null` si se envía al primer clic (UX3-12: el botón principal
- * nombra la acción y la descripción dice qué le pasa al trabajo, nunca un «¿estás seguro?»).
- *
- * Las de `ACTIONS_REQUIRING_REASON` (shared) abren el diálogo con motivo y usan este texto;
- * del resto, las que tienen texto piden confirmación. El criterio para confirmar es la
- * **reversibilidad, no la frecuencia**: finalizar, marcar enviado y marcar entregado van a un
- * estado del que `CASE_TRANSITIONS` no ofrece vuelta y estampan una fecha que no se
- * reconstruye; las demás se quedan a un clic.
- *
- * `Record<CaseAction, …>` exhaustivo a propósito, no una lista de las que confirman: una
- * acción nueva en `shared` **no compila** hasta que alguien decide si abre diálogo. */
-const ACTION_DIALOG: Record<CaseAction, ActionDialogCopy | null> = {
-  aceptar: null,
+/** Diálogo con motivo de cada acción de `ActionRequiringReason` (shared): el botón principal
+ * nombra la acción y la descripción dice qué le pasa al trabajo (UX3-12). `Record` sobre el
+ * tipo estrecho (M-4): una acción que empiece a pedir motivo en shared no compila hasta tener
+ * su texto aquí — nunca un diálogo con descripción vacía o un «Confirmar» genérico. */
+const REASON_DIALOG: Record<ActionRequiringReason, ActionDialogCopy> = {
   pausar: {
     confirmLabel: 'Pausar trabajo',
     description: 'El trabajo sale de producción y queda "En espera" hasta que lo reanudes.',
   },
+  cancelar: {
+    confirmLabel: 'Cancelar trabajo',
+    description: 'El trabajo queda "Cancelado" y no hay ninguna acción para retomarlo.',
+  },
+}
+
+/** Confirmación de cada acción sin motivo, o `null` si se envía al primer clic. El criterio es
+ * la **reversibilidad, no la frecuencia**: finalizar, marcar enviado y marcar entregado van a
+ * un estado del que `CASE_TRANSITIONS` no ofrece vuelta y estampan una fecha que no se
+ * reconstruye; las demás se quedan a un clic. El texto dice la consecuencia concreta, nunca un
+ * «¿estás seguro?».
+ *
+ * `Record` exhaustivo a propósito, no una lista de las que confirman: una acción nueva en
+ * `shared` **no compila** hasta que alguien decide si es reversible. */
+const CONFIRM_DIALOG: Record<
+  Exclude<CaseAction, ActionRequiringReason>,
+  ActionDialogCopy | null
+> = {
+  aceptar: null,
   reanudar: null,
   enviar_prueba: null,
   recibir_prueba: null,
@@ -49,24 +55,14 @@ const ACTION_DIALOG: Record<CaseAction, ActionDialogCopy | null> = {
     description:
       'Se registrará la entrega con la fecha de hoy y el trabajo quedará cerrado: no queda ninguna acción para deshacerlo.',
   },
-  cancelar: {
-    confirmLabel: 'Cancelar trabajo',
-    description: 'El trabajo queda "Cancelado" y no hay ninguna acción para retomarlo.',
-  },
-}
-
-/** Texto del diálogo con motivo: si una acción con motivo nueva llegara sin texto propio,
- * al menos el botón dice su nombre (nunca un «Confirmar» genérico). */
-function reasonDialogCopy(a: CaseAction): ActionDialogCopy {
-  return ACTION_DIALOG[a] ?? { confirmLabel: CASE_ACTION_LABEL[a], description: '' }
 }
 
 /** Barra de acciones de estado de la ficha del trabajo: los botones disponibles se
  * derivan de `CASE_TRANSITIONS` (estado actual × rol), nunca a mano. "Aceptar" se
  * deshabilita mientras `missing` no esté vacío (el aviso de qué falta lo pinta
  * `CaseHeader`, no este componente, para no duplicarlo); las acciones de
- * `ACTIONS_REQUIRING_REASON` (pausar, cancelar) abren un diálogo con motivo
- * obligatorio, las que tienen texto en `ACTION_DIALOG` piden confirmación, y el
+ * `ActionRequiringReason` (pausar, cancelar) abren un diálogo con motivo
+ * obligatorio, las que tienen texto en `CONFIRM_DIALOG` piden confirmación, y el
  * resto se envía directo al hacer clic. */
 export function CaseActions({
   case: c,
@@ -77,7 +73,7 @@ export function CaseActions({
   missing: string[]
   role: UserRole
 }) {
-  const [dialogAction, setDialogAction] = useState<CaseAction | null>(null)
+  const [dialogAction, setDialogAction] = useState<ActionRequiringReason | null>(null)
   const [confirm, setConfirm] = useState<({ action: CaseAction } & ActionDialogCopy) | null>(null)
   const action = useCaseAction(c.id)
 
@@ -86,11 +82,11 @@ export function CaseActions({
   if (actions.length === 0) return null
 
   function run(a: CaseAction) {
-    if (ACTIONS_REQUIRING_REASON.includes(a)) {
+    if (requiresReason(a)) {
       setDialogAction(a)
       return
     }
-    const copy = ACTION_DIALOG[a]
+    const copy = CONFIRM_DIALOG[a]
     if (copy) {
       setConfirm({ action: a, ...copy })
       return
@@ -121,7 +117,7 @@ export function CaseActions({
             if (!open) setDialogAction(null)
           }}
           action={dialogAction}
-          {...reasonDialogCopy(dialogAction)}
+          {...REASON_DIALOG[dialogAction]}
           pending={action.isPending}
           onConfirm={(input) => {
             action.mutate(input, { onSuccess: () => setDialogAction(null) })

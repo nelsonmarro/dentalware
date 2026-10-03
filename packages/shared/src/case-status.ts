@@ -57,7 +57,7 @@ export const CASE_TRANSITIONS: Record<CaseAction, Transition> = {
  * nueva podía dejar fuera sin que nada lo avisara. Con el `Record` exhaustivo, añadir una
  * acción a `CASE_ACTIONS` sin decidir aquí si pide motivo no compila.
  */
-const REASON_REQUIRED_FOR_ACTION: Record<CaseAction, boolean> = {
+const REASON_REQUIRED_FOR_ACTION = {
   aceptar: false,
   pausar: true,
   reanudar: false,
@@ -67,11 +67,20 @@ const REASON_REQUIRED_FOR_ACTION: Record<CaseAction, boolean> = {
   marcar_enviado: false,
   marcar_entregado: false,
   cancelar: true,
+} as const satisfies Record<CaseAction, boolean>
+
+/** Acciones que exigen motivo, como tipo (M-4, revisión de la Tarea 3): derivado del `Record`
+ * de arriba (`as const`), para que la web pueda exigir un texto por cada una en un
+ * `Record<ActionRequiringReason, …>` exhaustivo. */
+export type ActionRequiringReason = {
+  [A in CaseAction]: (typeof REASON_REQUIRED_FOR_ACTION)[A] extends true ? A : never
+}[CaseAction]
+
+export function requiresReason(action: CaseAction): action is ActionRequiringReason {
+  return REASON_REQUIRED_FOR_ACTION[action]
 }
 
-export const ACTIONS_REQUIRING_REASON: readonly CaseAction[] = CASE_ACTIONS.filter(
-  (a) => REASON_REQUIRED_FOR_ACTION[a],
-)
+export const ACTIONS_REQUIRING_REASON: readonly CaseAction[] = CASE_ACTIONS.filter(requiresReason)
 
 /** Rótulo de cada estado tal como lo ve el laboratorio (chip de la web, historial y mensajes
  * de error de la API). Fuente única (UX3-03): antes vivía solo en la web y la API interpolaba

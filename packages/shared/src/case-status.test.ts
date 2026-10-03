@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   ACTIONS_REQUIRING_REASON,
+  type ActionRequiringReason,
   ACTIVE_FOR_DATES_STATUSES,
   applyAction,
   ASSIGN_TECHNICIAN_ROLES,
@@ -21,6 +22,7 @@ import {
   isActiveForDates,
   isEditableStatus,
   notEditableMessage,
+  requiresReason,
   notReassignableMessage,
   notRemakeableMessage,
   isEnCurso,
@@ -203,6 +205,16 @@ describe('availableActions', () => {
 describe('motivo obligatorio y permisos por rol', () => {
   it('pausar y cancelar exigen motivo', () => {
     expect([...ACTIONS_REQUIRING_REASON].sort()).toEqual(['cancelar', 'pausar'])
+  })
+
+  // M-4 (revisión de la Tarea 3): el tipo estrecho deja a la web exigir un texto de diálogo
+  // para cada acción con motivo en un `Record<ActionRequiringReason, …>` sin caer a un vacío.
+  it('requiresReason estrecha el tipo a las acciones con motivo', () => {
+    expect(requiresReason('pausar')).toBe(true)
+    expect(requiresReason('cancelar')).toBe(true)
+    expect(requiresReason('finalizar')).toBe(false)
+    expect(requiresReason('aceptar')).toBe(false)
+    expectTypeOf<ActionRequiringReason>().toEqualTypeOf<'pausar' | 'cancelar'>()
   })
 
   it('aplica la tabla de roles del spec', () => {
