@@ -36,7 +36,7 @@ function CasePage() {
     // UX3-02: solo un 404 real es "el trabajo no existe"; un fallo de red o del servidor se
     // puede reintentar y no debe mandar a la lista como si el trabajo nunca hubiera existido.
     if (!isNotFoundError(q.error)) {
-      return <LoadError onRetry={() => void q.refetch()} />
+      return <LoadError onRetry={() => void q.refetch()} autoFocus />
     }
     return (
       <EmptyState

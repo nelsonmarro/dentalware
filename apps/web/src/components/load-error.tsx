@@ -9,21 +9,29 @@ import { Button } from './ui/button'
  * el error no capturado de toda una ruta lo cubre `RouterErrorFallback`, no este componente.
  *
  * Accesibilidad (ronda de fixes 1, hallazgo Important): `role="alert"` en el mensaje, para que
- * un lector de pantalla lo anuncie sin que la pantalla tenga que estar enfocada ahí, y foco
- * inicial en «Reintentar» al montar — con guantes o teclado, la acción útil queda a un toque o
- * un Enter, sin buscarla.
+ * un lector de pantalla lo anuncie sin que la pantalla tenga que estar enfocada ahí.
+ *
+ * `autoFocus` (ronda de fixes 2, hallazgo I-1): por defecto **no** se activa. Cuando
+ * `LoadError` sustituye *todo* el contenido de la pantalla (ficha, `/t/:code`, el error
+ * principal de un detalle, un formulario bloqueado) sí tiene sentido mover el foco a
+ * «Reintentar» al montar — con guantes o teclado, la acción útil queda a un toque o un Enter.
+ * Pero cuando vive *embebido* junto a otros controles ya visibles (una pestaña, un interruptor
+ * «Mostrar inactivas», dos `LoadError` en la misma pantalla), robarle el foco a lo que la
+ * persona ya estaba usando es peor que no enfocar nada — `role="alert"` ya avisa sin moverlo.
  */
 export function LoadError({
   description = 'Revisa tu conexión e intenta de nuevo.',
   onRetry,
+  autoFocus = false,
 }: {
   description?: string
   onRetry: () => void
+  autoFocus?: boolean
 }) {
   const retryRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
-    retryRef.current?.focus()
-  }, [])
+    if (autoFocus) retryRef.current?.focus()
+  }, [autoFocus])
 
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-destructive/40 bg-destructive/5 px-6 py-12 text-center">

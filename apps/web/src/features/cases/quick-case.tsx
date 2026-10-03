@@ -50,7 +50,7 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
     // error (sin red, el servidor caído) no es "no encontrado": es "no se pudo cargar"
     // (UX3-02), y se puede reintentar.
     if (!isNotFoundError(q.error, [422])) {
-      return <LoadError onRetry={() => void q.refetch()} />
+      return <LoadError onRetry={() => void q.refetch()} autoFocus />
     }
     return (
       <EmptyState

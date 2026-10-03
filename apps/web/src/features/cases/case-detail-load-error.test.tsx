@@ -59,13 +59,15 @@ describe('ficha del trabajo: "no existe" distinto de "no se pudo cargar" (UX3-02
     expect(screen.getByRole('link', { name: 'Volver a trabajos' })).toBeInTheDocument()
   })
 
-  it('un fallo de red no dice que el trabajo no existe: ofrece reintentar', async () => {
+  it('un fallo de red no dice que el trabajo no existe: ofrece reintentar, ya enfocado', async () => {
     fetchCase.mockRejectedValue(new TypeError('Failed to fetch'))
 
     renderApp('/trabajos/c1')
 
-    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    const retry = await screen.findByRole('button', { name: 'Reintentar' })
     expect(screen.queryByText('El trabajo no existe')).not.toBeInTheDocument()
+    // Ronda de fixes 2 (I-1): este `LoadError` sustituye toda la ficha, así que enfoca.
+    expect(retry).toHaveFocus()
   })
 
   it('un error 500 del servidor tampoco dice que el trabajo no existe', async () => {

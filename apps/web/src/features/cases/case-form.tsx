@@ -212,6 +212,7 @@ export function CaseForm({
           if (clinics.isError) void clinics.refetch()
           if (products.isError) void products.refetch()
         }}
+        autoFocus
       />
     )
   }

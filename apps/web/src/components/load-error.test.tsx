@@ -32,8 +32,17 @@ describe('LoadError', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('No se pudo cargar la información')
   })
 
-  it('enfoca "Reintentar" al montar', () => {
+  // Ronda de fixes 2 (hallazgo I-1): por defecto NO enfoca — si `LoadError` vive embebido
+  // junto a otros controles (una pestaña, un interruptor), robar el foco al montar es peor
+  // que no moverlo. Solo lo hace quien lo use como el error que sustituye toda la pantalla.
+  it('sin autoFocus no enfoca "Reintentar"', () => {
     render(<LoadError onRetry={() => {}} />)
+
+    expect(screen.getByRole('button', { name: 'Reintentar' })).not.toHaveFocus()
+  })
+
+  it('con autoFocus enfoca "Reintentar" al montar', () => {
+    render(<LoadError onRetry={() => {}} autoFocus />)
 
     expect(screen.getByRole('button', { name: 'Reintentar' })).toHaveFocus()
   })
