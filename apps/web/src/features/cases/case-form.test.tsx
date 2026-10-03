@@ -506,6 +506,22 @@ describe('CaseForm', () => {
     expect(screen.getByRole('spinbutton', { name: 'Cantidad' })).toBeInTheDocument()
   })
 
+  it.each([
+    { role: 'recepcion' as const, editaPrecio: true },
+    { role: 'mensajero' as const, editaPrecio: false },
+  ])(
+    'el precio unitario lo edita quien escribe trabajos ($role: $editaPrecio)',
+    async ({ role, editaPrecio }) => {
+      const { user } = renderForm(<CaseForm role={role} pending={false} onSubmit={vi.fn()} />)
+
+      await user.click(await screen.findByRole('button', { name: 'Agregar línea' }))
+
+      expect(screen.queryByRole('spinbutton', { name: 'Precio unitario' }) !== null).toBe(
+        editaPrecio,
+      )
+    },
+  )
+
   it('"Guardar y nuevo" llama a onSubmit(input, true) con las piezas elegidas en el diálogo', async () => {
     const onSubmit = vi.fn()
     const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={onSubmit} />)
