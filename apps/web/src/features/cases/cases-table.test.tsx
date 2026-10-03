@@ -1,4 +1,4 @@
-import { CASE_ORDERS } from '@dentalware/shared'
+import { CASE_ORDERS, toIsoDate } from '@dentalware/shared'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -120,6 +120,75 @@ describe('CasesTable', () => {
     const link = await screen.findByRole('link', { name: /26-00123/ })
     expect(link).toBeInTheDocument()
     expect(screen.getByText('$ 147.00')).toBeInTheDocument()
+  })
+
+  it('en móvil la urgencia se muestra como chip de texto "Urgente", no solo un icono (UX3-01)', async () => {
+    // En la tarjeta no hay `title` al tacto: el trabajo 1 es urgente, así que su tarjeta
+    // debe mostrar el texto, no solo el icono (que en la tabla de escritorio sí basta,
+    // porque ahí el `title` nativo responde al hover del mouse).
+    setMatchMedia(false)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
+    )
+
+    await screen.findByRole('link', { name: /26-00123/ })
+    expect(screen.getByText('Urgente')).toBeInTheDocument()
+  })
+
+  it('en móvil "vence hoy" se muestra como chip de texto, no solo un icono (UX3-01)', async () => {
+    setMatchMedia(false)
+    const hoy = toIsoDate(new Date())
+    const rowsVenceHoy: CaseListRow[] = [
+      { ...rows[0]!, id: 'caso-hoy', code: '26-00200', priority: 'normal', dueDate: hoy },
+    ]
+    renderWithRouter(
+      <CasesTable
+        rows={rowsVenceHoy}
+        total={1}
+        hidePrices={false}
+        search={{}}
+        onSearchChange={vi.fn()}
+      />,
+    )
+
+    await screen.findByRole('link', { name: /26-00200/ })
+    expect(screen.getByText('Vence hoy')).toBeInTheDocument()
+  })
+
+  it('en escritorio el icono "Vence hoy" usa la tinta --wax-amber-ink, no --wax-amber (UX3-01)', async () => {
+    // `--wax-amber` da 2,45:1 sobre `--card`, por debajo del 3:1 que WCAG 1.4.11 exige a un
+    // icono; `--wax-amber-ink` sí lo cumple (verificado en `theme-tokens.test.ts`). Este test
+    // fija la clase real del icono para que una regresión a `--wax-amber` falle aquí también,
+    // no solo en el test del token (que no lee `cases-table.tsx`).
+    setMatchMedia(true)
+    const hoy = toIsoDate(new Date())
+    const rowsVenceHoy: CaseListRow[] = [
+      { ...rows[0]!, id: 'caso-hoy', code: '26-00201', priority: 'normal', dueDate: hoy },
+    ]
+    renderWithRouter(
+      <CasesTable
+        rows={rowsVenceHoy}
+        total={1}
+        hidePrices={false}
+        search={{}}
+        onSearchChange={vi.fn()}
+      />,
+    )
+
+    await screen.findByRole('link', { name: /26-00201/ })
+    const icon = screen.getByRole('img', { name: 'Vence hoy' })
+    expect(icon.className).toContain('wax-amber-ink')
+    expect(icon.className).not.toBe('text-[color:var(--wax-amber)]')
+  })
+
+  it('en móvil "atrasado" se muestra como chip de texto, no solo un icono (UX3-01)', async () => {
+    setMatchMedia(false)
+    renderWithRouter(
+      <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
+    )
+
+    await screen.findByRole('link', { name: /26-00123/ })
+    expect(screen.getByText('Atrasado')).toBeInTheDocument()
   })
 
   it('ordenar por Entrega navega con orden=entrega y sin pagina', async () => {

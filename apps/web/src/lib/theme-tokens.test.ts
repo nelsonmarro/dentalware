@@ -85,4 +85,15 @@ describe('tokens de color del tema claro (index.css)', () => {
     const badgeBackground = mixHex(waxAmber, 0.1, card)
     expect(contrastRatio(waxAmberInk, badgeBackground)).toBeGreaterThanOrEqual(4.5)
   })
+
+  // UX3-01: el icono "Vence hoy" de `cases-table.tsx` (tabla de trabajos) no es texto sino
+  // un gráfico (WCAG 1.4.11, contraste de componentes no textuales >= 3:1), y se pinta
+  // directo sobre `--card` (la fila/tarjeta), no sobre el fondo ámbar al 10 % de las
+  // insignias de arriba. `--wax-amber` (#d99a16) solo da 2,45:1 ahí, por debajo del 3:1
+  // exigido; `--wax-amber-ink`, la misma tinta que ya cumple AA como texto, también resuelve
+  // el icono.
+  it('el icono "Vence hoy" (--wax-amber-ink) cumple el contraste gráfico AA (>= 3:1) sobre --card', () => {
+    expect(contrastRatio(waxAmberInk, card)).toBeGreaterThanOrEqual(3)
+    expect(contrastRatio(waxAmber, card)).toBeLessThan(3)
+  })
 })

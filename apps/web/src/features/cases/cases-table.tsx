@@ -48,11 +48,69 @@ function DueCell({ row, today }: { row: CaseListRow; today: string }) {
     <div className="flex items-center gap-1.5">
       <span>{formatDate(date)}</span>
       {badge === 'hoy' && (
-        <StatusIcon label="Vence hoy" Icon={Clock} className="text-[color:var(--wax-amber)]" />
+        // UX3-01: `--wax-amber` (#d99a16) da 2,45:1 sobre `--card`, por debajo del 3:1 que
+        // WCAG 1.4.11 exige a un icono (componente gráfico, no texto); `--wax-amber-ink` es
+        // la misma tinta que ya usan como texto los avisos ámbar de `case-header.tsx`/
+        // `my-cases.tsx` y aquí resuelve el icono (verificado en `theme-tokens.test.ts`).
+        <StatusIcon label="Vence hoy" Icon={Clock} className="text-[color:var(--wax-amber-ink)]" />
       )}
       {badge === 'atrasado' && (
         <StatusIcon label="Atrasado" Icon={CircleAlert} className="text-destructive" />
       )}
+    </div>
+  )
+}
+
+/** Chip de texto para la urgencia/vencimiento (UX3-01): la tarjeta móvil no tiene `title` al
+ * tacto, así que la señal necesita texto visible, no solo el icono de `StatusIcon` que basta
+ * en la tabla de escritorio (ahí `title` responde al hover del mouse). Mismo patrón de chip
+ * que ya usa `my-cases.tsx` para "Atrasado"/"Vence hoy". */
+function PriorityChip() {
+  return (
+    <span className="rounded-lg border border-destructive/40 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+      Urgente
+    </span>
+  )
+}
+
+function DueChip({ badge }: { badge: 'hoy' | 'atrasado' }) {
+  if (badge === 'atrasado') {
+    return (
+      <span className="rounded-lg border border-destructive/40 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+        Atrasado
+      </span>
+    )
+  }
+  return (
+    <span className="rounded-lg border border-[color:var(--wax-amber)]/40 bg-[color:var(--wax-amber)]/10 px-2 py-0.5 text-xs font-medium text-[color:var(--wax-amber-ink)]">
+      Vence hoy
+    </span>
+  )
+}
+
+function CardCode({ row }: { row: CaseListRow }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Link
+        to="/trabajos/$caseId"
+        params={{ caseId: row.id }}
+        data-target-size="inline"
+        className="font-mono font-medium text-primary hover:underline"
+      >
+        {row.code}
+      </Link>
+      {row.priority === 'urgente' && <PriorityChip />}
+    </div>
+  )
+}
+
+function CardDue({ row, today }: { row: CaseListRow; today: string }) {
+  const date = row.promisedDate ?? row.dueDate
+  const badge = dueBadge(date, today, row.status)
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span>{formatDate(date)}</span>
+      {badge && <DueChip badge={badge} />}
     </div>
   )
 }
@@ -215,7 +273,7 @@ export function CasesTable({
           style={{ borderLeftColor: STATUS_COLOR[r.status] }}
         >
           <div className="flex items-center justify-between">
-            <CodeCell row={r} />
+            <CardCode row={r} />
             <StatusChip status={r.status} />
           </div>
           <p className="text-sm">
@@ -224,7 +282,7 @@ export function CasesTable({
           <p className="text-sm text-muted-foreground">{r.patientRef}</p>
           <p className="text-sm text-muted-foreground">{r.itemsSummary ?? '—'}</p>
           <div className="flex items-center justify-between">
-            <DueCell row={r} today={today} />
+            <CardDue row={r} today={today} />
             {!hidePrices && <span className="font-mono font-medium">{money(r.total)}</span>}
           </div>
         </div>
