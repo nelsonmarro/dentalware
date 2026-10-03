@@ -190,6 +190,10 @@ export const TOUCH_SWITCHES = '[role=switch]'
  * capturar) y los `console.error` de `page` y devuelve la lista para comprobarla al final del
  * test con `expect(errors).toEqual([])`. Úsala en `beforeEach`/`afterEach` del spec; las
  * páginas de contextos nuevos (`browser.newContext()`) se registran aparte.
+ * Ruido conocido fuera de esta guarda: «Error in route match: /_app/» en el log del WebServer
+ * (Vite reenvía la consola del navegador al detectar un agente) es un `getSession()` del
+ * `beforeLoad` de `_app` abortado («Failed to fetch») al cerrar el contexto con una navegación en
+ * vuelo, ya terminado el test; no es un error de render ni de datos (Tarea 9, #101).
  */
 export function trackConsoleErrors(page: Page): string[] {
   const errors: string[] = []
