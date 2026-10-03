@@ -77,14 +77,17 @@ describe('SummaryCards', () => {
     expect(screen.queryByRole('link', { name: /^Todos/ })).not.toBeInTheDocument()
   })
 
-  // M-6 (ronda de fixes 1, T12): el `aria-label` de "En curso" dejaba fuera la leyenda visual
-  // "Incluye en prueba" — justo la aclaración del doble conteo (ruling PR 2, T12, punto 4).
-  it('el nombre accesible de "En curso" incluye la aclaración de "en prueba"', async () => {
+  // UX3-17: «Incluye en prueba» no decía cuántos; la tarjeta dice «de ellos N en prueba» (el
+  // contador de la vista `en_prueba`, subconjunto de `en_curso`), visible y en el nombre
+  // accesible, sin desplazar el número respecto a las demás tarjetas.
+  it('«En curso» dice cuántos de ellos están en prueba', async () => {
     fetchSummary.mockResolvedValue(SUMMARY)
     renderWithProviders(<SummaryCards />)
 
-    expect(
-      await screen.findByRole('link', { name: /En curso 5.*incluye en prueba/i }),
-    ).toBeInTheDocument()
+    const card = await screen.findByRole('link', { name: 'En curso 5, de ellos 2 en prueba' })
+    expect(card).toHaveTextContent('de ellos 2 en prueba')
+    // El número es el último hijo de la tarjeta, como en las demás: la nota va arriba, con
+    // el rótulo, y `justify-between` deja el número abajo en todas.
+    expect(card.lastElementChild).toHaveTextContent(/^5$/)
   })
 })
