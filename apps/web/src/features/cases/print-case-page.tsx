@@ -104,7 +104,7 @@ export function PrintCasePage({ caseId, role }: { caseId: string; role: UserRole
 
   if (copies.length === 1) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 print:block">
         {toolbar}
         {renderCopies(copies)}
       </div>
@@ -114,7 +114,11 @@ export function PrintCasePage({ caseId, role }: { caseId: string; role: UserRole
   return (
     <Tabs
       value={selection}
-      onValueChange={(value) => setSelection(value as PrintSelection)}
+      onValueChange={(value) => {
+        // Sin cast: Radix entrega un `string`; solo se acepta si es una de las pestañas pintadas.
+        const next = selections.find((option) => option === value)
+        if (next) setSelection(next)
+      }}
       className="gap-4"
     >
       {toolbar}
@@ -132,7 +136,7 @@ export function PrintCasePage({ caseId, role }: { caseId: string; role: UserRole
         <p className="text-sm text-muted-foreground">{SELECTION_HINT[selection]}</p>
       </div>
       {selections.map((value) => (
-        <TabsContent key={value} value={value} className="flex flex-col gap-4">
+        <TabsContent key={value} value={value} className="flex flex-col gap-4 print:block">
           {renderCopies(value === 'ambas' ? copies : [value])}
         </TabsContent>
       ))}

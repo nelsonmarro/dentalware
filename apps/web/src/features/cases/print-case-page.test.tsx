@@ -187,4 +187,17 @@ describe('PrintCasePage', () => {
     expect(within(laboratorio!).getByText('URGENTE')).toBeInTheDocument()
     expect(within(clinica!).getByText('URGENTE')).toBeInTheDocument()
   })
+
+  // En papel el contenedor de las copias es un bloque, no un flex: el salto de hoja entre copias
+  // (`print:break-after-page`) no debe depender de saltos dentro de flex, que WebKit ignora.
+  it('el contenedor de las copias se imprime como bloque, con una copia o con varias', async () => {
+    stubCaseAndSettings()
+    const { unmount } = renderWithProviders(<PrintCasePage caseId="caso-1" role="recepcion" />)
+    expect((await screen.findByRole('tabpanel')).className).toMatch(/print:block/)
+    unmount()
+
+    renderWithProviders(<PrintCasePage caseId="caso-1" role="tecnico" />)
+    const article = await screen.findByRole('article')
+    expect(article.parentElement?.parentElement?.className).toMatch(/print:block/)
+  })
 })

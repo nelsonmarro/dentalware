@@ -417,7 +417,7 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
   // admin, las pestañas «Copia a imprimir», UX3-21): el resto de la orden es contenido para
   // papel, sin objetivos táctiles que probar.
   test(
-    'orden de trabajo imprimible: "Volver al trabajo" e "Imprimir"',
+    'orden de trabajo imprimible: "Volver al trabajo", "Imprimir" y las pestañas de copia',
     { tag: '@extendida' },
     async ({ page }) => {
       const { clinic, doctor } = await createClinicWithDoctor(page)
