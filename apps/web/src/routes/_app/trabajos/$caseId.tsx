@@ -88,12 +88,7 @@ function CasePage() {
         </TabsContent>
         <TabsContent value="historial" className="flex flex-col gap-4 pt-4">
           <CommentForm onSubmit={(v) => addComment.mutate(v.text)} pending={addComment.isPending} />
-          <CaseHistory
-            events={events.data ?? []}
-            case={q.data.case}
-            stages={stages.data ?? []}
-            role={user.role}
-          />
+          <CaseHistory events={events.data ?? []} case={q.data.case} stages={stages.data ?? []} />
         </TabsContent>
       </Tabs>
     </div>

@@ -941,6 +941,40 @@ describe('/api/trabajos', () => {
       expect(eventos.events.some((e) => e.type === 'assigned')).toBe(true)
     })
 
+    // UX3-13: el técnico y el mensajero no consultan la lista de técnicos, así que la web
+    // pintaba «Técnico» genérico para uno anterior (activo o no). `/eventos` trae los nombres.
+    it('/eventos trae los nombres de origen y destino de cada asignación, también al técnico', async () => {
+      const id = await createOne(recepcion)
+      const otroId = await createUser(ctx.auth, ctx.db, {
+        email: 'beto@t.local',
+        password: 'Tecnico123!',
+        name: 'Beto Técnico',
+        role: 'tecnico',
+      })
+      await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId }))
+      await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId: otroId }))
+      // Beto deja el laboratorio: su nombre sigue en el historial.
+      await ctx.db
+        .update(ctx.schema.users)
+        .set({ banned: true })
+        .where(eq(ctx.schema.users.id, otroId))
+      await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId }))
+
+      const eventos = (await (
+        await app.request(`/api/trabajos/${id}/eventos`, req(tecnico, 'GET'))
+      ).json()) as { events: { type: string; fromName: string | null; toName: string | null }[] }
+      expect(
+        eventos.events.filter((e) => e.type === 'assigned').map((e) => [e.fromName, e.toName]),
+      ).toEqual([
+        [null, 'Ana Técnico'],
+        ['Ana Técnico', 'Beto Técnico'],
+        ['Beto Técnico', 'Ana Técnico'],
+      ])
+      // Los demás eventos no llevan nombres.
+      const created = eventos.events.find((e) => e.type === 'created')
+      expect([created?.fromName, created?.toName]).toEqual([null, null])
+    })
+
     it('responde 422 si el técnico no existe o no está activo', async () => {
       const id = await createOne(recepcion)
       const res = await app.request(

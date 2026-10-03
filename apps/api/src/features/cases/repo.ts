@@ -385,10 +385,32 @@ export function createCasesRepo(db: Db | Tx) {
             .where(inArray(cases.code, codes))
         : []
       const idByCode = new Map(related.map((c) => [c.code, c.id]))
+      // UX3-13: nombres de origen y destino de cada `assigned`, con un join de solo lectura
+      // sobre `users` (como `actor`). Sin filtrar por `banned`: un técnico que ya no está
+      // activo sigue teniendo nombre en el historial.
+      const userIds = [
+        ...new Set(
+          rows
+            .filter((r) => r.type === 'assigned')
+            .flatMap((r) => [r.fromValue, r.toValue])
+            .filter((v): v is string => !!v),
+        ),
+      ]
+      const named = userIds.length
+        ? await db
+            .select({ id: users.id, name: users.name })
+            .from(users)
+            .where(inArray(users.id, userIds))
+        : []
+      const nameById = new Map(named.map((u) => [u.id, u.name]))
+      const nameOf = (r: (typeof rows)[number], id: string | null) =>
+        r.type === 'assigned' && id ? (nameById.get(id) ?? null) : null
       return rows.map((r) => ({
         ...r,
         relatedCaseId:
           r.type === 'remake_created' && r.toValue ? (idByCode.get(r.toValue) ?? null) : null,
+        fromName: nameOf(r, r.fromValue),
+        toName: nameOf(r, r.toValue),
       }))
     },
 

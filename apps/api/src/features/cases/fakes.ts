@@ -276,6 +276,10 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
         // Placeholder: `events()` lo recalcula por código en cada lectura (ver arriba), igual
         // que `repo.ts` lo resuelve con un `select` al leer en vez de guardarlo.
         relatedCaseId: null,
+        // El fake no conoce nombres de usuarios: los nombres de `assigned` (UX3-13) son un
+        // `select` sobre `users` en `repo.ts`, probado contra Postgres en `cases.test.ts`.
+        fromName: null,
+        toName: null,
       })
     },
     async applyTransition(id, patch) {
