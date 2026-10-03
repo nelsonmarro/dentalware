@@ -14,6 +14,7 @@ import { LoadError } from '@/components/load-error'
 import { Button } from '@/components/ui/button'
 import { useStages } from '@/features/stages/use-stages'
 import { isNotFoundError } from '@/lib/api-error'
+import { isStageVisible } from './case-views'
 import { StatusChip } from './status-chip'
 import { useCaseByCode, useChangeStage } from './use-cases'
 import { usePhotoUpload } from './use-photo-upload'
@@ -96,7 +97,10 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
         </div>
         <StatusChip status={c.status} />
       </div>
-      {c.stage && (
+      {/* UX3-23: misma regla que la ficha completa (`case-header`, `stage-control`): fuera de
+          producción la fase guardada ya no describe el trabajo (un terminado no está en
+          «Recepción»). */}
+      {c.stage && isStageVisible(c.status) && (
         <p className="text-sm text-muted-foreground">
           <span>Fase:</span> <span className="font-medium text-foreground">{c.stage.name}</span>
         </p>

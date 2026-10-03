@@ -175,6 +175,28 @@ describe('QuickCase', () => {
     expect(screen.queryByRole('button', { name: 'Avanzar fase' })).not.toBeInTheDocument()
   })
 
+  // UX3-23: `finalizar`/`cancelar` no limpian `currentStageId`, así que un trabajo terminado
+  // sigue trayendo fase; la ficha corta decía «Fase: Recepción» de un trabajo ya hecho.
+  it('un trabajo terminado no muestra la fase en la que quedó', async () => {
+    fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'terminado' }), missing: [] })
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+    await screen.findByRole('heading', { level: 1, name: '26-00123' })
+    expect(screen.queryByText('Fase:')).not.toBeInTheDocument()
+    expect(screen.queryByText('Modelado')).not.toBeInTheDocument()
+  })
+
+  it('un trabajo en espera sí muestra la fase en la que se quedó', async () => {
+    fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'en_espera' }), missing: [] })
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+    expect(await screen.findByText('Modelado')).toBeInTheDocument()
+  })
+
   it('un código inexistente muestra No encontrado', async () => {
     fetchCaseByCode.mockRejectedValue(new ApiError('No encontrado', 404))
     vi.mocked(fetchStages).mockResolvedValue(fases)
