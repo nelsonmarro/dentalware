@@ -19,6 +19,7 @@ describe('/api/adjuntos', () => {
   let admin: string
   let recepcion: string
   let tecnico: string
+  let mensajero: string
   let adminId: string
   let caseId: string
 
@@ -55,9 +56,16 @@ describe('/api/adjuntos', () => {
       name: 'Ana Técnico',
       role: 'tecnico',
     })
+    await createUser(ctx.auth, ctx.db, {
+      email: 'mens@t.local',
+      password: 'Mensajero1!',
+      name: 'Mensajero',
+      role: 'mensajero',
+    })
     admin = await loginAs(app, 'admin@t.local', 'Admin12345!')
     recepcion = await loginAs(app, 'recep@t.local', 'Recep12345!')
     tecnico = await loginAs(app, 'tec@t.local', 'Tecnico123!')
+    mensajero = await loginAs(app, 'mens@t.local', 'Mensajero1!')
 
     const [clinic] = await ctx.db.insert(ctx.schema.clinics).values({ name: 'Sonrisa' }).returning()
     const [doctor] = await ctx.db
@@ -274,5 +282,23 @@ describe('/api/adjuntos', () => {
       headers: { cookie: admin },
     })
     expect(getDeleted.status).toBe(404)
+  })
+  it.each([
+    { quien: 'el mensajero', cookie: () => mensajero, status: 403 },
+    // El router entero lleva `requireAuth` antes de `requireRole`: sin sesión es 401.
+    { quien: 'sin sesión', cookie: () => '', status: 401 },
+    { quien: 'recepción', cookie: () => recepcion, status: 204 },
+  ])('al borrar un adjunto, $quien recibe $status', async ({ cookie, status }) => {
+    const buf = await jpegFixture(300, 200)
+    const up = await upload(recepcion, new File([buf], 'foto.jpg', { type: 'image/jpeg' }))
+    const { attachment } = (await up.json()) as { attachment: { id: string } }
+
+    const res = await app.request(`/api/adjuntos/${attachment.id}`, {
+      method: 'DELETE',
+      headers: { cookie: cookie(), origin: ctx.config.WEB_ORIGIN },
+    })
+    expect(res.status).toBe(status)
+    const stored = await ctx.db.query.attachments.findFirst({ where: { id: attachment.id } })
+    expect(stored === undefined).toBe(status === 204)
   })
 })
