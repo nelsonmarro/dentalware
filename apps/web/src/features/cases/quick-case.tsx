@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { useStages } from '@/features/stages/use-stages'
 import { isNotFoundError } from '@/lib/api-error'
 import { AlertChip } from './alert-chip'
+import { isPhoto } from './attachment-kind'
 import { dueBadge, isStageVisible } from './case-views'
 import { formatDate } from './date-format'
 import { StatusChip } from './status-chip'
@@ -157,7 +158,7 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
             los adjuntos no cargaron (un fallo de red no se presenta como «Fotos: 0»). */}
         {attachments.isSuccess && (
           <p className="text-center text-sm text-muted-foreground">
-            {`Fotos: ${attachments.data.filter((a) => a.kind === 'photo').length}`}
+            {`Fotos: ${attachments.data.filter(isPhoto).length}`}
           </p>
         )}
         {progress && (

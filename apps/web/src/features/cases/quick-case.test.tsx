@@ -358,18 +358,22 @@ describe('QuickCase', () => {
   })
 
   // UX3-08: «Fotos: N» confirma en la propia ficha que la foto entró (el aviso se va).
-  it('cuenta las fotos del trabajo, sin contar documentos', async () => {
+  // I-1 (revisión de la Tarea 5): foto es lo que tiene MIME de imagen, la misma regla que la
+  // pestaña de la ficha completa; `kind` lo puede forzar el cliente (un escaneo es imagen).
+  it('cuenta las fotos por su MIME, no por `kind`: una imagen «scan» sí, un PDF no', async () => {
     fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
     vi.mocked(fetchStages).mockResolvedValue(fases)
     fetchAttachments.mockResolvedValue([
-      { id: 'a1', kind: 'photo' },
-      { id: 'a2', kind: 'photo' },
-      { id: 'a3', kind: 'document' },
+      { id: 'a1', kind: 'photo', mime: 'image/jpeg' },
+      { id: 'a2', kind: 'scan', mime: 'image/png' },
+      { id: 'a3', kind: 'photo', mime: 'application/pdf' },
+      { id: 'a4', kind: 'document', mime: 'application/pdf' },
+      { id: 'a5', kind: 'document', mime: 'image/jpeg' },
     ])
 
     renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
 
-    expect(await screen.findByText('Fotos: 2')).toBeInTheDocument()
+    expect(await screen.findByText('Fotos: 3')).toBeInTheDocument()
     expect(fetchAttachments).toHaveBeenCalledWith('c1')
     // Mientras el código se resuelve no hay id: no se piden adjuntos de un trabajo vacío.
     expect(fetchAttachments).not.toHaveBeenCalledWith('')
@@ -378,7 +382,9 @@ describe('QuickCase', () => {
   it('tras subir una foto el contador sube', async () => {
     fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
     vi.mocked(fetchStages).mockResolvedValue(fases)
-    fetchAttachments.mockResolvedValueOnce([]).mockResolvedValue([{ id: 'a1', kind: 'photo' }])
+    fetchAttachments
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([{ id: 'a1', kind: 'photo', mime: 'image/webp' }])
     uploadAttachment.mockResolvedValue({ attachment: { id: 'a1' } })
     const user = userEvent.setup()
     renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)

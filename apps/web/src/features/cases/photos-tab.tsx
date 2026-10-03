@@ -11,13 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { isPhoto } from './attachment-kind'
 import type { Attachment } from './attachments-api'
 import { PhotoUploader } from './photo-uploader'
 import { useAttachments, useDeleteAttachment } from './use-attachments'
-
-function isPdf(a: Attachment) {
-  return a.mime === 'application/pdf'
-}
 
 /** Grilla de miniaturas (clic abre el original en un diálogo) y lista de documentos
  * PDF; "Eliminar" con confirmación solo para admin|recepción. */
@@ -29,8 +26,8 @@ export function PhotosTab({ caseId, role }: { caseId: string; role: UserRole }) 
   const [toDelete, setToDelete] = useState<Attachment | null>(null)
 
   const rows = attachments.data ?? []
-  const photos = rows.filter((a) => !isPdf(a))
-  const documents = rows.filter(isPdf)
+  const photos = rows.filter(isPhoto)
+  const documents = rows.filter((a) => !isPhoto(a))
 
   return (
     <div className="flex flex-col gap-4">

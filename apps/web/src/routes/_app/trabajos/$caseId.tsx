@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
 import { LoadError } from '@/components/load-error'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { attachmentsTabLabel } from '@/features/cases/attachment-kind'
 import { CaseDetailTab } from '@/features/cases/case-detail-tab'
 import { CaseHeader } from '@/features/cases/case-header'
 import { CaseHistory, historyTabLabel } from '@/features/cases/case-history'
@@ -74,7 +75,9 @@ function CasePage() {
       <Tabs defaultValue="detalle">
         <TabsList>
           <TabsTrigger value="detalle">Detalle</TabsTrigger>
-          <TabsTrigger value="fotos">Fotos ({attachments.data?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="fotos">
+            {attachmentsTabLabel(attachments.data?.length ?? 0)}
+          </TabsTrigger>
           <TabsTrigger value="historial">{historyTabLabel(events.data?.length ?? 0)}</TabsTrigger>
         </TabsList>
         <TabsContent value="detalle" className="pt-4">

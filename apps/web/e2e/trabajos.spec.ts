@@ -164,7 +164,7 @@ test.describe('Trabajos', () => {
     await expect(commentEvent).toBeVisible()
     await expect(commentEvent.getByText('Administrador')).toBeVisible()
 
-    await page.getByRole('tab', { name: /^Fotos/ }).click()
+    await page.getByRole('tab', { name: /^Adjuntos/ }).click()
     await page.getByLabel('Subir archivo').setInputFiles(FOTO_PATH)
     await expect(page.getByRole('img', { name: 'foto.png' })).toBeVisible()
 
