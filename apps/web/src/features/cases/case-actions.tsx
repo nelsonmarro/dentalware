@@ -12,29 +12,53 @@ import type { CaseDetail } from './api'
 import { CaseActionDialog } from './case-action-dialog'
 import { useCaseAction } from './use-cases'
 
-/** Qué confirma cada acción antes de enviarse, o `null` si se envía al primer clic. El
- * criterio es la **reversibilidad, no la frecuencia**: las tres que llevan texto van a un
- * estado del que `CASE_TRANSITIONS` no ofrece vuelta y estampan una fecha que no se
- * reconstruye; las demás se quedan a un clic porque "pausar"/"cancelar" siguen disponibles.
+type ActionDialogCopy = { confirmLabel: string; description: string }
+
+/** Diálogo de cada acción, o `null` si se envía al primer clic (UX3-12: el botón principal
+ * nombra la acción y la descripción dice qué le pasa al trabajo, nunca un «¿estás seguro?»).
  *
- * Es un `Record<CaseAction, …>` exhaustivo a propósito, no una lista de las que confirman:
- * así una acción nueva en `shared` **no compila** hasta que alguien decide si es reversible.
- * Con una lista se quedaría en un clic por omisión, que es justo el fallo que esto corrige.
- * El texto dice la consecuencia concreta —qué fecha queda registrada y a dónde no se
- * vuelve—, nunca un "¿estás seguro?". */
-const CONFIRM_DESCRIPTIONS: Record<CaseAction, string | null> = {
+ * Las de `ACTIONS_REQUIRING_REASON` (shared) abren el diálogo con motivo y usan este texto;
+ * del resto, las que tienen texto piden confirmación. El criterio para confirmar es la
+ * **reversibilidad, no la frecuencia**: finalizar, marcar enviado y marcar entregado van a un
+ * estado del que `CASE_TRANSITIONS` no ofrece vuelta y estampan una fecha que no se
+ * reconstruye; las demás se quedan a un clic.
+ *
+ * `Record<CaseAction, …>` exhaustivo a propósito, no una lista de las que confirman: una
+ * acción nueva en `shared` **no compila** hasta que alguien decide si abre diálogo. */
+const ACTION_DIALOG: Record<CaseAction, ActionDialogCopy | null> = {
   aceptar: null,
-  pausar: null,
+  pausar: {
+    confirmLabel: 'Pausar trabajo',
+    description: 'El trabajo sale de producción y queda "En espera" hasta que lo reanudes.',
+  },
   reanudar: null,
   enviar_prueba: null,
   recibir_prueba: null,
-  finalizar:
-    'El trabajo pasará a "Terminado" con la fecha de hoy. No hay ninguna acción para devolverlo a "En proceso".',
-  marcar_enviado:
-    'Se registrará el envío con la fecha de hoy. No hay ninguna acción para devolverlo a "Terminado".',
-  marcar_entregado:
-    'Se registrará la entrega con la fecha de hoy y el trabajo quedará cerrado: no queda ninguna acción para deshacerlo.',
-  cancelar: null,
+  finalizar: {
+    confirmLabel: 'Finalizar',
+    description:
+      'El trabajo pasará a "Terminado" con la fecha de hoy. No hay ninguna acción para devolverlo a "En proceso".',
+  },
+  marcar_enviado: {
+    confirmLabel: 'Marcar enviado',
+    description:
+      'Se registrará el envío con la fecha de hoy. No hay ninguna acción para devolverlo a "Terminado".',
+  },
+  marcar_entregado: {
+    confirmLabel: 'Marcar entregado',
+    description:
+      'Se registrará la entrega con la fecha de hoy y el trabajo quedará cerrado: no queda ninguna acción para deshacerlo.',
+  },
+  cancelar: {
+    confirmLabel: 'Cancelar trabajo',
+    description: 'El trabajo queda "Cancelado" y no hay ninguna acción para retomarlo.',
+  },
+}
+
+/** Texto del diálogo con motivo: si una acción con motivo nueva llegara sin texto propio,
+ * al menos el botón dice su nombre (nunca un «Confirmar» genérico). */
+function reasonDialogCopy(a: CaseAction): ActionDialogCopy {
+  return ACTION_DIALOG[a] ?? { confirmLabel: CASE_ACTION_LABEL[a], description: '' }
 }
 
 /** Barra de acciones de estado de la ficha del trabajo: los botones disponibles se
@@ -42,7 +66,7 @@ const CONFIRM_DESCRIPTIONS: Record<CaseAction, string | null> = {
  * deshabilita mientras `missing` no esté vacío (el aviso de qué falta lo pinta
  * `CaseHeader`, no este componente, para no duplicarlo); las acciones de
  * `ACTIONS_REQUIRING_REASON` (pausar, cancelar) abren un diálogo con motivo
- * obligatorio, las que tienen texto en `CONFIRM_DESCRIPTIONS` piden confirmación, y el
+ * obligatorio, las que tienen texto en `ACTION_DIALOG` piden confirmación, y el
  * resto se envía directo al hacer clic. */
 export function CaseActions({
   case: c,
@@ -54,7 +78,7 @@ export function CaseActions({
   role: UserRole
 }) {
   const [dialogAction, setDialogAction] = useState<CaseAction | null>(null)
-  const [confirm, setConfirm] = useState<{ action: CaseAction; description: string } | null>(null)
+  const [confirm, setConfirm] = useState<({ action: CaseAction } & ActionDialogCopy) | null>(null)
   const action = useCaseAction(c.id)
 
   const actions = availableActions(c.status).filter((a) => canPerform(role, a))
@@ -66,9 +90,9 @@ export function CaseActions({
       setDialogAction(a)
       return
     }
-    const description = CONFIRM_DESCRIPTIONS[a]
-    if (description) {
-      setConfirm({ action: a, description })
+    const copy = ACTION_DIALOG[a]
+    if (copy) {
+      setConfirm({ action: a, ...copy })
       return
     }
     action.mutate({ accion: a, motivo: null })
@@ -97,7 +121,7 @@ export function CaseActions({
             if (!open) setDialogAction(null)
           }}
           action={dialogAction}
-          title={CASE_ACTION_LABEL[dialogAction]}
+          {...reasonDialogCopy(dialogAction)}
           pending={action.isPending}
           onConfirm={(input) => {
             action.mutate(input, { onSuccess: () => setDialogAction(null) })
@@ -110,9 +134,9 @@ export function CaseActions({
           onOpenChange={(open) => {
             if (!open) setConfirm(null)
           }}
-          title={CASE_ACTION_LABEL[confirm.action]}
+          title={confirm.confirmLabel}
           description={confirm.description}
-          confirmLabel={CASE_ACTION_LABEL[confirm.action]}
+          confirmLabel={confirm.confirmLabel}
           pending={action.isPending}
           onConfirm={() => {
             action.mutate(

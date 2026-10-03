@@ -99,7 +99,9 @@ describe('CaseActions', () => {
       <CaseActions case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />,
     )
     await user.click(await screen.findByRole('button', { name: 'Pausar' }))
-    const confirmar = screen.getByRole('button', { name: 'Confirmar' })
+    const confirmar = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Pausar trabajo',
+    })
     await user.click(confirmar)
     expect(await screen.findByText('Escribe el motivo')).toBeInTheDocument()
     expect(postCaseAction).not.toHaveBeenCalled()
@@ -111,6 +113,44 @@ describe('CaseActions', () => {
         motivo: 'Falta antagonista',
       }),
     )
+  })
+
+  // UX3-12: el botón principal nombra la acción y una línea dice qué le pasa al trabajo;
+  // «Volver» (no «Cancelar») cierra, para no leerse como «Cancelar trabajo».
+  it.each([
+    [
+      'Pausar',
+      'Pausar trabajo',
+      'El trabajo sale de producción y queda "En espera" hasta que lo reanudes.',
+    ],
+    [
+      'Cancelar trabajo',
+      'Cancelar trabajo',
+      'El trabajo queda "Cancelado" y no hay ninguna acción para retomarlo.',
+    ],
+  ])('el diálogo de «%s» nombra la acción y su efecto', async (boton, confirmar, efecto) => {
+    const { user } = renderWithProviders(
+      <CaseActions case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />,
+    )
+    await user.click(await screen.findByRole('button', { name: boton }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name: confirmar })).toBeInTheDocument()
+    expect(within(dialog).getByText(efecto)).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: confirmar })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Volver' })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument()
+  })
+
+  it('la confirmación de finalizar cierra con «Volver», no con «Cancelar»', async () => {
+    const { user } = renderWithProviders(
+      <CaseActions case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Finalizar' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Volver' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(postCaseAction).not.toHaveBeenCalled()
   })
 
   it('un trabajo entregado no ofrece ninguna acción de estado', async () => {

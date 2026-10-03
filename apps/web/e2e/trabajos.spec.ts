@@ -424,13 +424,13 @@ test.describe('Trabajos', () => {
 
     // `pausar` está en `ACTIONS_REQUIRING_REASON` (shared): sin motivo, `caseActionSchema`
     // rechaza y el diálogo no se cierra ni dispara la mutación.
-    await dialog.getByRole('button', { name: 'Confirmar' }).click()
+    await dialog.getByRole('button', { name: 'Pausar trabajo' }).click()
     await expect(dialog.getByText('Escribe el motivo')).toBeVisible()
     await expect(page.getByText('En proceso', { exact: true })).toBeVisible()
 
     const motivo = `Falta antagonista E2E ${uniqueSuffix()}`
     await dialog.getByLabel('Motivo').fill(motivo)
-    await dialog.getByRole('button', { name: 'Confirmar' }).click()
+    await dialog.getByRole('button', { name: 'Pausar trabajo' }).click()
     await expect(page.getByText('En espera', { exact: true })).toBeVisible()
     // El motivo queda visible en la ficha (CaseHeader: "En espera desde …: <motivo>").
     await expect(page.getByText(motivo)).toBeVisible()
@@ -486,17 +486,17 @@ test.describe('Trabajos', () => {
 
     // `cancelar` está en `ACTIONS_REQUIRING_REASON`: el motivo obligatorio es la confirmación
     // de esta acción (conventions §5: la reversibilidad manda la fricción, no un "¿estás
-    // seguro?" aparte); no hay `ConfirmDialog` adicional (`CONFIRM_DESCRIPTIONS.cancelar` es
-    // `null` en `case-actions.tsx`).
+    // seguro?" aparte); no hay `ConfirmDialog` adicional: el texto de `ACTION_DIALOG.cancelar`
+    // (`case-actions.tsx`) va en el propio diálogo de motivo.
     await page.getByRole('button', { name: 'Cancelar trabajo' }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
-    await dialog.getByRole('button', { name: 'Confirmar' }).click()
+    await dialog.getByRole('button', { name: 'Cancelar trabajo' }).click()
     await expect(dialog.getByText('Escribe el motivo')).toBeVisible()
 
     const motivo = `Clínica desistió E2E ${uniqueSuffix()}`
     await dialog.getByLabel('Motivo').fill(motivo)
-    await dialog.getByRole('button', { name: 'Confirmar' }).click()
+    await dialog.getByRole('button', { name: 'Cancelar trabajo' }).click()
     await expect(page.getByText('Cancelado', { exact: true })).toBeVisible()
 
     // `availableActions('cancelado')` es vacío (`CASE_TRANSITIONS`, shared): ningún botón de

@@ -36,7 +36,9 @@ export function ConfirmDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          {/* «Volver», como el resto de diálogos (UX3-12): «Cancelar» junto a una acción de
+           * trabajo se leía como «Cancelar trabajo». */}
+          <AlertDialogCancel>Volver</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
             disabled={pending}

@@ -16,14 +16,18 @@ export function CaseActionDialog({
   open,
   onOpenChange,
   action,
-  title,
+  confirmLabel,
+  description,
   pending,
   onConfirm,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   action: CaseAction
-  title: string
+  /** Nombre de la acción (UX3-12): título del diálogo y texto del botón principal. */
+  confirmLabel: string
+  /** Qué le pasa al trabajo al confirmar. */
+  description: string
   pending: boolean
   onConfirm: (input: CaseActionInput) => void
 }) {
@@ -49,17 +53,18 @@ export function CaseActionDialog({
     <FormDialog
       open={open}
       onOpenChange={handleOpenChange}
-      title={title}
+      title={confirmLabel}
+      description={description}
       footer={
         <>
           {/* "Volver", no "Cancelar": la acción "cancelar" (cancelar trabajo) también abre
-           * este diálogo — "Cancelar" junto a "Confirmar" leía como una segunda acción de
+           * este diálogo — "Cancelar" junto a la acción leía como una segunda acción de
            * cancelar el trabajo, no como cerrar el diálogo (M-2, revisión de la Tarea 8). */}
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
             Volver
           </Button>
           <Button type="submit" form="case-action-form" disabled={pending}>
-            {pending ? 'Guardando…' : 'Confirmar'}
+            {pending ? 'Guardando…' : confirmLabel}
           </Button>
         </>
       }

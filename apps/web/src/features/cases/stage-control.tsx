@@ -38,11 +38,14 @@ type StageChangeFormValues = z.input<typeof stageChangeSchema>
 function BackStageDialog({
   open,
   onOpenChange,
+  previousName,
   pending,
   onConfirm,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Fase a la que vuelve el trabajo (UX3-12: el diálogo dice el efecto concreto). */
+  previousName: string | undefined
   pending: boolean
   onConfirm: (motivo: string) => void
 }) {
@@ -69,14 +72,18 @@ function BackStageDialog({
       open={open}
       onOpenChange={handleOpenChange}
       title="Retroceder fase"
-      description="El trabajo vuelve a la fase anterior."
+      description={
+        previousName
+          ? `El trabajo vuelve a "${previousName}".`
+          : 'El trabajo vuelve a la fase anterior.'
+      }
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
             Volver
           </Button>
           <Button type="submit" form="stage-back-form" disabled={pending}>
-            {pending ? 'Guardando…' : 'Confirmar'}
+            {pending ? 'Guardando…' : 'Retroceder fase'}
           </Button>
         </>
       }
@@ -136,6 +143,9 @@ export function StageControl({
   const canControl = canControlStage(role) && canChangeStage(c.status)
   const next = canControl ? nextStage(stages, c.currentStageId) : undefined
   const last = canControl && isLastStage(stages, c.currentStageId)
+  const previous = previousStage(stages, c.currentStageId)
+  // `previousStage` devuelve la referencia de shared (sin nombre): el nombre sale de la lista.
+  const previousName = stages.find((s) => s.id === previous?.id)?.name
 
   return (
     <Card>
@@ -172,7 +182,7 @@ export function StageControl({
             <Button
               variant="outline"
               className="w-full sm:w-auto"
-              disabled={!previousStage(stages, c.currentStageId) || changeStage.isPending}
+              disabled={!previous || changeStage.isPending}
               onClick={() => setShowBack(true)}
             >
               Retroceder fase
@@ -192,6 +202,7 @@ export function StageControl({
       <BackStageDialog
         open={showBack}
         onOpenChange={setShowBack}
+        previousName={previousName}
         pending={changeStage.isPending}
         onConfirm={(motivo) => {
           changeStage.mutate(
