@@ -237,11 +237,30 @@ describe('CaseActions', () => {
     expect(confirmar).toHaveAttribute('data-variant', variante)
   })
 
-  it('un trabajo entregado no ofrece ninguna acción de estado', async () => {
+  // Un entregado ya no cambia de estado; a recepción solo le queda «Repetir» (UX3-05: vive en
+  // esta barra como secundaria).
+  it('un trabajo entregado no ofrece ninguna acción de estado, solo «Repetir»', async () => {
     renderWithProviders(
       <CaseActions case={caso({ status: 'entregado' })} missing={[]} role="recepcion" />,
     )
-    await waitFor(() => expect(screen.queryAllByRole('button')).toHaveLength(0))
+    await waitFor(() =>
+      expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Repetir']),
+    )
+  })
+
+  it('un mensajero marca enviado un trabajo terminado, pero no ve «Repetir»', async () => {
+    renderWithProviders(
+      <CaseActions case={caso({ status: 'terminado' })} missing={[]} role="mensajero" />,
+    )
+    expect(await screen.findByRole('button', { name: 'Marcar enviado' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Repetir' })).not.toBeInTheDocument()
+  })
+
+  it('a un técnico, en un trabajo entregado, no le monta nada', () => {
+    const { container } = renderWithProviders(
+      <CaseActions case={caso({ status: 'entregado' })} missing={[]} role="tecnico" />,
+    )
+    expect(container).toBeEmptyDOMElement()
   })
 
   it('finalizar pide confirmación con la consecuencia concreta y no se envía hasta confirmar', async () => {

@@ -146,11 +146,13 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     // cero controles y pasaba en vacío (lo destapó `expectTouchTargets` al exigir medir algo).
     await expect(page.getByRole('heading', { name: created.code, level: 1 })).toBeVisible()
     await expect(page.getByRole('tab', { name: 'Detalle' })).toBeVisible()
+    // UX3-05: el panel «Producción» (técnico y acciones) va sobre las pestañas y entra en la medida.
+    await expect(page.getByRole('region', { name: 'Producción' })).toBeVisible()
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
 
   // M-6 (ola de fixes del PR 1, lote B): un trabajo `nuevo` (el único caso que cubría el test
-  // de arriba) no monta la tarjeta de fase (`StageControl`) ni el `<select>` de técnico
+  // de arriba) no monta la fase del panel «Producción» (`StageControl`) ni el `<select>` de técnico
   // (`TechnicianSelect`, de solo lectura mientras no hay sesión de trabajo en curso) ni sus
   // diálogos ("Retroceder fase", "Repetir"); y `TOUCH_CONTROLS` no medía `<select>` nativos
   // (ver el comentario de `TOUCH_CONTROLS` en `helpers.ts`). Dos trabajos por API: uno

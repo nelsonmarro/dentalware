@@ -337,8 +337,8 @@ test.describe('Trabajos', () => {
       await expect(page.getByText('En proceso')).toBeVisible()
 
       // Primera fase activa sembrada por `seed-data.ts` (`STAGES`): "Recepción"; un clic de
-      // "Avanzar fase" la mueve a la siguiente, "Modelo". `.first()`: el nombre aparece dos
-      // veces (el campo "Fase" de `CaseHeader` y el propio `StageControl`).
+      // "Avanzar fase" la mueve a la siguiente, "Modelo". `.first()`: el nombre sale en el panel
+      // «Producción» y puede repetirse en el historial si alguien abre esa pestaña.
       await page.getByRole('button', { name: 'Avanzar fase' }).click()
       await expect(page.getByText('Modelo').first()).toBeVisible()
 
@@ -351,6 +351,45 @@ test.describe('Trabajos', () => {
       await page.getByRole('button', { name: 'Finalizar' }).click()
       await page.getByRole('alertdialog').getByRole('button', { name: 'Finalizar' }).click()
       await expect(page.getByText('Terminado', { exact: true })).toBeVisible()
+    },
+  )
+
+  // UX3-05: fase, técnico y acciones viven en el panel «Producción», sobre las pestañas, así
+  // que se avanza la fase sin salir de «Historial» y el evento aparece ahí mismo.
+  test(
+    'avanza la fase desde el panel «Producción» con la pestaña «Historial» abierta',
+    { tag: '@clave' },
+    async ({ page }) => {
+      const errors = trackConsoleErrors(page)
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const trabajo = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      const aceptado = await page.request.post(`/api/trabajos/${trabajo.id}/acciones`, {
+        data: { accion: 'aceptar' },
+      })
+      expect(aceptado.ok()).toBe(true)
+
+      await page.goto(`/trabajos/${trabajo.id}`)
+      const historialTab = page.getByRole('tab', { name: /^Historial/ })
+      await historialTab.click()
+      const historial = page.getByRole('tabpanel', { name: /^Historial/ })
+      await expect(historial).toBeVisible()
+
+      const produccion = page.getByRole('region', { name: 'Producción' })
+      // Primera fase del seed: "Recepción" → "Modelo".
+      await produccion.getByRole('button', { name: 'Avanzar fase' }).click()
+      await expect(toasts(page).getByText('Fase: Modelo')).toBeVisible()
+      await expect(produccion.getByText('Modelo', { exact: true })).toBeVisible()
+
+      await expect(historialTab).toHaveAttribute('aria-selected', 'true')
+      await expect(
+        historial.getByRole('listitem').filter({ hasText: 'Recepción → Modelo' }),
+      ).toBeVisible()
+      expect(errors).toEqual([])
     },
   )
 

@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
 import { LoadError } from '@/components/load-error'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CaseActions } from '@/features/cases/case-actions'
 import { CaseDetailTab } from '@/features/cases/case-detail-tab'
 import { CaseHeader } from '@/features/cases/case-header'
 import { CaseHistory, historyTabLabel } from '@/features/cases/case-history'
 import { CommentForm } from '@/features/cases/comment-form'
 import { PhotosTab } from '@/features/cases/photos-tab'
+import { ProductionPanel } from '@/features/cases/production-panel'
 import { useAttachments } from '@/features/cases/use-attachments'
 import { useAddComment, useCase, useEvents } from '@/features/cases/use-cases'
 import { useStages } from '@/features/stages/use-stages'
@@ -27,7 +27,7 @@ function CasePage() {
   const events = useEvents(caseId)
   const attachments = useAttachments(caseId)
   const addComment = useAddComment(caseId)
-  // `true` (incluir inactivos): `StageControl` necesita resolver el nombre de la fase
+  // `true` (incluir inactivos): `StageControl` (en `ProductionPanel`) necesita resolver el nombre de la fase
   // actual del trabajo aunque se haya desactivado después de asignarla.
   const stages = useStages(true)
 
@@ -61,7 +61,16 @@ function CasePage() {
         role={user.role}
         events={events.data ?? []}
       />
-      <CaseActions case={q.data.case} missing={q.data.missing} role={user.role} />
+      <ProductionPanel
+        case={q.data.case}
+        missing={q.data.missing}
+        role={user.role}
+        stages={stages.data ?? []}
+        stagesError={stages.isError}
+        onRemakeCreated={(created) =>
+          void navigate({ to: '/trabajos/$caseId', params: { caseId: created.id } })
+        }
+      />
       <Tabs defaultValue="detalle">
         <TabsList>
           <TabsTrigger value="detalle">Detalle</TabsTrigger>
@@ -69,16 +78,7 @@ function CasePage() {
           <TabsTrigger value="historial">{historyTabLabel(events.data?.length ?? 0)}</TabsTrigger>
         </TabsList>
         <TabsContent value="detalle" className="pt-4">
-          <CaseDetailTab
-            case={q.data.case}
-            hidePrices={hidePrices}
-            role={user.role}
-            stages={stages.data ?? []}
-            stagesError={stages.isError}
-            onRemakeCreated={(created) =>
-              void navigate({ to: '/trabajos/$caseId', params: { caseId: created.id } })
-            }
-          />
+          <CaseDetailTab case={q.data.case} hidePrices={hidePrices} role={user.role} />
         </TabsContent>
         <TabsContent value="fotos" className="pt-4">
           <PhotosTab caseId={caseId} role={user.role} />

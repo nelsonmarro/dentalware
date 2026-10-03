@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { Slot } from 'radix-ui'
 
 import { cn } from '@/lib/utils'
 
@@ -33,9 +34,16 @@ function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
+/** `asChild` para que el título sea un encabezado real (`<h2>`, `<h3>`) cuando la tarjeta es
+ * una sección de la página (UX3-25): un `div` no deja saltar entre secciones con el lector. */
+function CardTitle({
+  className,
+  asChild = false,
+  ...props
+}: React.ComponentProps<'div'> & { asChild?: boolean }) {
+  const Comp = asChild ? Slot.Root : 'div'
   return (
-    <div
+    <Comp
       data-slot="card-title"
       className={cn(
         'font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm',

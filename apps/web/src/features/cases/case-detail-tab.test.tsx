@@ -95,18 +95,30 @@ describe('CaseDetailTab', () => {
     expect(screen.getByText('Mordida')).toBeInTheDocument()
   })
 
-  it('un técnico no ve el botón de repetir en un trabajo entregado', () => {
-    // `RemakeDialog` no recibe `role`: toda la defensa de la UI es el guardián de
-    // `case-detail-tab.tsx`. Sin esta prueba, sustituirlo por `true` dejaba los tests en
-    // verde y el técnico llegaba a rellenar el formulario para comerse un 403 al enviarlo
-    // (I-3 de la revisión de la Tarea 9). La API ya lo rechaza; esto fija la UI.
+  // UX3-25: las secciones de la ficha son encabezados reales (antes `CardTitle` era un `div`
+  // y un lector de pantalla no podía saltar entre ellas).
+  it('cada sección es un encabezado h2', () => {
     renderWithProviders(
-      <CaseDetailTab case={baseCase({ status: 'entregado' })} hidePrices role="tecnico" />,
+      <CaseDetailTab
+        case={baseCase({ observations: 'Obs', prescription: 'Rx' })}
+        hidePrices={false}
+        role="admin"
+      />,
     )
-    expect(screen.queryByRole('button', { name: 'Repetir' })).not.toBeInTheDocument()
+    for (const name of [
+      'Líneas',
+      'Color y sistema',
+      'Lista de verificación',
+      'Observaciones',
+      'Prescripción',
+      'Notas internas',
+    ]) {
+      expect(screen.getByRole('heading', { level: 2, name })).toBeInTheDocument()
+    }
   })
 
-  it('recepción sí ve el botón de repetir en un trabajo entregado', () => {
+  // UX3-05/UX3-18: fase, técnico y «Repetir» se mudaron al panel «Producción».
+  it('no repite la fase, el técnico ni «Repetir»', () => {
     renderWithProviders(
       <CaseDetailTab
         case={baseCase({ status: 'entregado' })}
@@ -114,6 +126,7 @@ describe('CaseDetailTab', () => {
         role="recepcion"
       />,
     )
-    expect(screen.getByRole('button', { name: 'Repetir' })).toBeInTheDocument()
+    expect(screen.queryByText('Técnico responsable')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Repetir' })).not.toBeInTheDocument()
   })
 })

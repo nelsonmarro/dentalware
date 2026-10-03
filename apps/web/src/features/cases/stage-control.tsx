@@ -15,7 +15,6 @@ import { useForm } from 'react-hook-form'
 import type { z } from 'zod'
 import { FormDialog } from '@/components/form-dialog'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import type { Stage } from '@/features/stages/api'
@@ -105,7 +104,8 @@ function BackStageDialog({
   )
 }
 
-/** Control de fase de producción de la ficha (CIC-2/CIC-5): fase actual, "Avanzar fase" y
+/** Control de fase de producción del panel «Producción» de la ficha (CIC-2/CIC-5, UX3-05;
+ * sección con `h3`, sin tarjeta propia): fase actual, "Avanzar fase" y
  * "Retroceder fase" (con motivo) mientras el trabajo está `en_proceso`. Fuera de
  * `en_proceso` la fase queda de solo lectura con el motivo de por qué. Sin fase asignada
  * (trabajo `nuevo`, todavía sin aceptar) no muestra nada.
@@ -148,57 +148,59 @@ export function StageControl({
   const previousName = stages.find((s) => s.id === previous?.id)?.name
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Fase de producción</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <p className="text-sm font-medium">
+    <section aria-labelledby="fase-produccion" className="flex flex-col gap-3">
+      <div className="flex flex-col gap-0.5">
+        <h3 id="fase-produccion" className="text-xs font-medium text-muted-foreground">
+          Fase de producción
+        </h3>
+        <p className="text-lg leading-snug font-semibold">
           {stagesError
             ? 'No se pudieron cargar las fases. Recarga la página.'
             : stagesLoading
               ? 'Cargando…'
               : (current?.name ?? 'Fase desconocida')}
         </p>
-        {!canChangeStage(c.status) && (
-          <p className="text-sm text-muted-foreground">{STAGE_CHANGE_BLOCKED_REASON[c.status]}</p>
-        )}
-        {canChangeStage(c.status) &&
-          !stagesLoading &&
-          !stagesError &&
-          (currentInactive || !current) && (
-            <p className="text-sm text-muted-foreground">
-              La fase en la que estaba este trabajo ya no está activa. Pide a administración que la
-              reactive en Configuración → Fases.
-            </p>
-          )}
-        {last && (
+      </div>
+      {!canChangeStage(c.status) && (
+        <p className="text-sm text-muted-foreground">{STAGE_CHANGE_BLOCKED_REASON[c.status]}</p>
+      )}
+      {canChangeStage(c.status) &&
+        !stagesLoading &&
+        !stagesError &&
+        (currentInactive || !current) && (
           <p className="text-sm text-muted-foreground">
-            Es la última fase: para terminar el trabajo usa "Finalizar" en las acciones de arriba.
+            La fase en la que estaba este trabajo ya no está activa. Pide a administración que la
+            reactive en Configuración → Fases.
           </p>
         )}
-        {canControl && (
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      {last && (
+        <p className="text-sm text-muted-foreground">
+          Es la última fase: termina el trabajo con «Finalizar».
+        </p>
+      )}
+      {canControl && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          {/* «Avanzar fase» primero: es el primario del panel mientras haya fase siguiente
+           * (UX3-05) y en móvil, apilado, queda arriba. */}
+          {!last && (
             <Button
-              variant="outline"
               className="w-full sm:w-auto"
-              disabled={!previous || changeStage.isPending}
-              onClick={() => setShowBack(true)}
+              disabled={!next || changeStage.isPending}
+              onClick={() => changeStage.mutate({ direccion: 'avanzar', motivo: null })}
             >
-              Retroceder fase
+              Avanzar fase
             </Button>
-            {!last && (
-              <Button
-                className="w-full sm:w-auto"
-                disabled={!next || changeStage.isPending}
-                onClick={() => changeStage.mutate({ direccion: 'avanzar', motivo: null })}
-              >
-                Avanzar fase
-              </Button>
-            )}
-          </div>
-        )}
-      </CardContent>
+          )}
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto"
+            disabled={!previous || changeStage.isPending}
+            onClick={() => setShowBack(true)}
+          >
+            Retroceder fase
+          </Button>
+        </div>
+      )}
       <BackStageDialog
         open={showBack}
         onOpenChange={setShowBack}
@@ -211,6 +213,6 @@ export function StageControl({
           )
         }}
       />
-    </Card>
+    </section>
   )
 }

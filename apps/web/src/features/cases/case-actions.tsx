@@ -1,12 +1,29 @@
 import type { ActionRequiringReason, CaseAction, UserRole } from '@dentalware/shared'
-import { availableActions, canPerform, CASE_ACTION_LABEL, requiresReason } from '@dentalware/shared'
+import {
+  availableActions,
+  canPerform,
+  canRemake,
+  CASE_ACTION_LABEL,
+  REMAKE_ROLES,
+  requiresReason,
+} from '@dentalware/shared'
 import { useState } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
-import { actionVariant } from './action-emphasis'
+import { cn } from '@/lib/utils'
+import { actionVariant, type ActionButtonVariant } from './action-emphasis'
 import type { CaseDetail } from './api'
 import { CaseActionDialog } from './case-action-dialog'
+import { RemakeDialog } from './remake-dialog'
 import { useCaseAction } from './use-cases'
+
+/** Orden en la barra: el primario primero (arriba en la pila móvil), luego los secundarios y
+ * «Repetir», y lo destructivo al final y aparte (UX3-04). */
+const VARIANT_ORDER: Record<ActionButtonVariant, number> = {
+  default: 0,
+  outline: 1,
+  destructive: 2,
+}
 
 type ActionDialogCopy = { confirmLabel: string; description: string }
 
@@ -58,8 +75,10 @@ const CONFIRM_DIALOG: Record<
   },
 }
 
-/** Barra de acciones de estado de la ficha del trabajo: los botones disponibles se
- * derivan de `CASE_TRANSITIONS` (estado actual × rol), nunca a mano. "Aceptar" se
+/** Barra de acciones de estado del panel «Producción» (`role="group"`, «Acciones del
+ * trabajo»): los botones disponibles se derivan de `CASE_TRANSITIONS` (estado actual × rol),
+ * nunca a mano, con el peso de `ACTION_EMPHASIS` (un solo primario, primero; lo destructivo al
+ * final) y «Repetir» como secundaria cuando aplica (UX3-04/UX3-05). "Aceptar" se
  * deshabilita mientras `missing` no esté vacío (el aviso de qué falta lo pinta
  * `CaseHeader`, no este componente, para no duplicarlo); las acciones de
  * `ActionRequiringReason` (pausar, cancelar) abren un diálogo con motivo
@@ -70,6 +89,8 @@ export function CaseActions({
   missing,
   role,
   hasNextStage = false,
+  onRemakeCreated,
+  className,
 }: {
   case: CaseDetail
   missing: string[]
@@ -77,14 +98,25 @@ export function CaseActions({
   /** El trabajo tiene una fase siguiente (o las fases no han cargado): el primario del panel
    * es «Avanzar fase» y «Finalizar» baja a secundario (UX3-05). */
   hasNextStage?: boolean
+  /** Adónde ir tras crear una repetición (Tarea 9): el hijo puede nacer incompleto, así que
+   * quien monta la barra navega a su ficha en vez de quedarse en la del padre. */
+  onRemakeCreated?: (created: CaseDetail) => void
+  className?: string
 }) {
   const [dialogAction, setDialogAction] = useState<ActionRequiringReason | null>(null)
   const [confirm, setConfirm] = useState<({ action: CaseAction } & ActionDialogCopy) | null>(null)
   const action = useCaseAction(c.id)
 
-  const actions = availableActions(c.status).filter((a) => canPerform(role, a))
+  const actions = availableActions(c.status)
+    .filter((a) => canPerform(role, a))
+    .map((a) => ({ action: a, variant: actionVariant(a, hasNextStage) }))
+    .sort((x, y) => VARIANT_ORDER[x.variant] - VARIANT_ORDER[y.variant])
+  // `RemakeDialog` no recibe `role`: este guardián es toda la defensa de la UI (I-3 de la
+  // revisión de la Tarea 9; la API responde 403 de todos modos).
+  const showRemake = (REMAKE_ROLES as readonly UserRole[]).includes(role) && canRemake(c.status)
 
-  if (actions.length === 0) return null
+  // Sin acciones ni «Repetir» no se monta nada: ni un contenedor vacío (UX3-25).
+  if (actions.length === 0 && !showRemake) return null
 
   function run(a: CaseAction) {
     if (requiresReason(a)) {
@@ -100,21 +132,38 @@ export function CaseActions({
   }
 
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-      {actions.map((a) => {
-        const disabled = a === 'aceptar' && missing.length > 0
-        return (
+    <div
+      role="group"
+      aria-label="Acciones del trabajo"
+      className={cn('flex flex-col gap-2 sm:flex-row sm:flex-wrap', className)}
+    >
+      {actions
+        .filter((a) => a.variant !== 'destructive')
+        .map(({ action: a, variant }) => (
           <Button
             key={a}
-            variant={actionVariant(a, hasNextStage)}
+            variant={variant}
             className="w-full sm:w-auto"
-            disabled={disabled || action.isPending}
+            disabled={(a === 'aceptar' && missing.length > 0) || action.isPending}
             onClick={() => run(a)}
           >
             {CASE_ACTION_LABEL[a]}
           </Button>
-        )
-      })}
+        ))}
+      {showRemake && <RemakeDialog case={c} onCreated={onRemakeCreated} />}
+      {actions
+        .filter((a) => a.variant === 'destructive')
+        .map(({ action: a, variant }) => (
+          <Button
+            key={a}
+            variant={variant}
+            className="w-full sm:ml-auto sm:w-auto"
+            disabled={action.isPending}
+            onClick={() => run(a)}
+          >
+            {CASE_ACTION_LABEL[a]}
+          </Button>
+        ))}
       {dialogAction && (
         <CaseActionDialog
           open
