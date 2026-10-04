@@ -184,10 +184,15 @@ test.describe('Entregas (Iteración 4, #35)', () => {
       await expect(page.getByText('Constancia de entrega')).toBeVisible()
       await expect(page.getByRole('button', { name: 'Eliminar foto.png' })).toHaveCount(0)
       await page.getByRole('tab', { name: /^Historial/ }).click()
-      await expect(page.getByRole('link', { name: 'Ver constancia' })).toHaveAttribute(
-        'href',
-        /^\/api\/adjuntos\/[0-9a-f-]+$/,
-      )
+      // Acotado al historial: el panel «Entrega» también enlaza la constancia (UX4-09).
+      await expect(
+        page
+          .getByRole('tabpanel', { name: /^Historial/ })
+          .getByRole('link', { name: 'Ver constancia' }),
+      ).toHaveAttribute('href', /^\/api\/adjuntos\/[0-9a-f-]+$/)
+      await expect(
+        page.getByRole('region', { name: 'Entrega' }).getByRole('link', { name: 'Ver constancia' }),
+      ).toBeVisible()
     },
   )
 
