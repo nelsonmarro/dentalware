@@ -1,4 +1,4 @@
-import type { CaseAction } from './case-status.ts'
+import { availableActions, canPerform, type CaseAction, type CaseStatus } from './case-status.ts'
 import { hasRole, type UserRole } from './roles.ts'
 
 /** Tipo de entrega (Iteración 4): `recogida` trae el trabajo al laboratorio (ENT-1),
@@ -175,4 +175,44 @@ export function canActOnDelivery(
   const closes = DELIVERY_CLOSED_BY_ACTION[action]
   if (closes === null || hasRole(DELIVERY_MANAGE_ROLES, actor.role)) return true
   return pending?.type === closes && pending.courierId === actor.userId
+}
+
+/**
+ * Las acciones de estado que `actor` ve y puede hacer sobre un trabajo: las del estado
+ * (`availableActions`), las de su rol (`canPerform`) y, en las que cierran una entrega, solo la
+ * suya (`canActOnDelivery`). Una sola fuente para la barra de acciones de la web y para saber si
+ * la ficha corta del mensajero queda sin acción (UX4-08).
+ */
+export function actionsFor(
+  actor: { role: UserRole; userId: string },
+  status: CaseStatus,
+  pending: DeliveryAssignment | null | undefined,
+): CaseAction[] {
+  return availableActions(status)
+    .filter((a) => canPerform(actor.role, a))
+    .filter((a) => canActOnDelivery(actor, a, pending))
+}
+
+/** Motivo de una recogida o entrega que tiene otro mensajero (UX4-08). `Record` exhaustivo. */
+export const OTHER_COURIER_REASON: Record<DeliveryType, (courierName: string) => string> = {
+  recogida: (name) => `Esta recogida la tiene ${name}.`,
+  entrega: (name) => `Esta entrega la tiene ${name}.`,
+}
+
+/** Motivo de la ficha corta del mensajero cuando el trabajo no tiene entrega pendiente (UX4-08). */
+export const NO_PENDING_DELIVERY_FOR_COURIER =
+  'Este trabajo no tiene una entrega pendiente para ti.'
+
+/**
+ * Por qué el mensajero no tiene acción en la ficha corta (UX4-08): la recogida o entrega es de
+ * otro, o no hay ninguna pendiente. La suya no necesita motivo (`null`): su tarea («Recoger hoy
+ * en …») ya dice qué hacer.
+ */
+export function courierNoActionReason(
+  pending: Pick<PendingDelivery, 'type' | 'courierId' | 'courierName'> | null | undefined,
+  userId: string,
+): string | null {
+  if (!pending) return NO_PENDING_DELIVERY_FOR_COURIER
+  if (pending.courierId !== userId) return OTHER_COURIER_REASON[pending.type](pending.courierName)
+  return null
 }

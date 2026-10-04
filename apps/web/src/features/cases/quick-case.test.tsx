@@ -597,6 +597,54 @@ describe('QuickCase', () => {
       expect(screen.queryByRole('button', { name: 'Marcar entregado' })).not.toBeInTheDocument()
     })
 
+    // UX4-08: sin acción, la ficha corta dice por qué (no parece un fallo de la app).
+    it('en la recogida de otro mensajero dice quién la tiene', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({
+          status: 'por_recoger',
+          pendingDelivery: pendiente('recogida', 'otro', { courierName: 'Luis Mensajero T7' }),
+        }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      expect(
+        await screen.findByText('Esta recogida la tiene Luis Mensajero T7.'),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Recibido' })).not.toBeInTheDocument()
+      // No es su tarea: ni «Recoger hoy en …» ni la dirección.
+      expect(screen.queryByText(/^Recoger /)).not.toBeInTheDocument()
+    })
+
+    it('sin entrega pendiente dice que no hay nada para él', async () => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'nuevo' }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      expect(
+        await screen.findByText('Este trabajo no tiene una entrega pendiente para ti.'),
+      ).toBeInTheDocument()
+    })
+
+    it('con una acción disponible no muestra motivo', async () => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'terminado' }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      expect(await screen.findByRole('button', { name: 'Marcar enviado' })).toBeInTheDocument()
+      expect(screen.queryByText(/no tiene una entrega pendiente/)).not.toBeInTheDocument()
+    })
+
+    it('admin no ve motivos de mensajero', async () => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'nuevo' }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="admin" self={mario} />)
+
+      await screen.findByRole('heading', { level: 1, name: '26-00123' })
+      expect(screen.queryByText(/no tiene una entrega pendiente/)).not.toBeInTheDocument()
+    })
+
     // UX4-07: al mensajero que escanea el QR la ficha le dice qué hacer, cuándo y dónde.
     it('con su entrega de hoy dice «Entregar hoy en {clínica}» con dirección y teléfono', async () => {
       fetchCaseByCode.mockResolvedValue({

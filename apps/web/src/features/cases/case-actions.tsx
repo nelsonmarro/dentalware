@@ -5,9 +5,7 @@ import type {
   UserRole,
 } from '@dentalware/shared'
 import {
-  availableActions,
-  canActOnDelivery,
-  canPerform,
+  actionsFor,
   canRemake,
   CASE_ACTION_LABEL,
   REMAKE_ROLES,
@@ -136,11 +134,10 @@ export function CaseActions({
   const [confirm, setConfirm] = useState<({ action: CaseAction } & ActionDialogCopy) | null>(null)
   const action = useCaseAction(c.id)
 
-  // `canActOnDelivery` (M-4): a un mensajero no se le ofrece «Recibido» ni «Marcar entregado»
-  // de una recogida o entrega asignada a otro (la API respondería 403).
-  const actions = availableActions(c.status)
-    .filter((a) => canPerform(role, a))
-    .filter((a) => canActOnDelivery({ role, userId: self.id }, a, c.pendingDelivery))
+  // `actionsFor` (shared): estado ∩ rol ∩ `canActOnDelivery` (M-4): a un mensajero no se le
+  // ofrece «Recibido» ni «Marcar entregado» de una recogida o entrega asignada a otro (la API
+  // respondería 403). La ficha corta usa la misma regla para explicar por qué no hay acción.
+  const actions = actionsFor({ role, userId: self.id }, c.status, c.pendingDelivery)
     .map((a) => ({ action: a, variant: actionVariant(a, hasNextStage) }))
     .sort((x, y) => VARIANT_ORDER[x.variant] - VARIANT_ORDER[y.variant])
   // `RemakeDialog` no recibe `role`: este guardián es toda la defensa de la UI (I-3 de la

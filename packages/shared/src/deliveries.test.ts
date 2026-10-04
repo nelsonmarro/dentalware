@@ -16,6 +16,8 @@ import {
   canActOnDelivery,
   cancelledDeliveryReason,
   courierTaskTitle,
+  courierNoActionReason,
+  actionsFor,
   isClosedByCancellation,
   isOverdueDelivery,
 } from './deliveries.ts'
@@ -156,6 +158,54 @@ describe('entregas', () => {
       expect(courierTaskTitle('recogida', 'el 09/10/2026', 'Clínica Sur')).toBe(
         'Recoger el 09/10/2026 en Clínica Sur',
       )
+    })
+  })
+
+  // UX4-08: la ficha corta del mensajero sin acción dice por qué, nunca queda muda.
+  describe('courierNoActionReason', () => {
+    const pendiente = (type: 'recogida' | 'entrega', courierId: string) => ({
+      type,
+      courierId,
+      courierName: 'Luis Mensajero T7',
+      scheduledFor: '2026-10-04',
+    })
+    it('una recogida de otro mensajero dice quién la tiene', () => {
+      expect(courierNoActionReason(pendiente('recogida', 'm2'), 'm1')).toBe(
+        'Esta recogida la tiene Luis Mensajero T7.',
+      )
+    })
+    it('una entrega de otro mensajero dice quién la tiene', () => {
+      expect(courierNoActionReason(pendiente('entrega', 'm2'), 'm1')).toBe(
+        'Esta entrega la tiene Luis Mensajero T7.',
+      )
+    })
+    it('sin entrega pendiente dice que no hay nada para él', () => {
+      expect(courierNoActionReason(null, 'm1')).toBe(
+        'Este trabajo no tiene una entrega pendiente para ti.',
+      )
+    })
+    it('la suya no necesita motivo: su tarea ya dice qué hacer', () => {
+      expect(courierNoActionReason(pendiente('entrega', 'm1'), 'm1')).toBeNull()
+    })
+  })
+
+  // Una sola regla para la barra de acciones y para saber si la ficha corta queda sin acción.
+  describe('actionsFor', () => {
+    const yo = { role: 'mensajero', userId: 'm1' } as const
+    it('el mensajero ve «Marcar entregado» solo en su propia entrega', () => {
+      expect(actionsFor(yo, 'enviado', { type: 'entrega', courierId: 'm1' })).toEqual([
+        'marcar_entregado',
+      ])
+      expect(actionsFor(yo, 'enviado', { type: 'entrega', courierId: 'm2' })).toEqual([])
+    })
+    it('el mensajero no tiene acciones en un trabajo en producción', () => {
+      expect(actionsFor(yo, 'en_proceso', null)).toEqual([])
+    })
+    it('recepción ve las acciones de su rol en el estado', () => {
+      expect(actionsFor({ role: 'recepcion', userId: 'r1' }, 'enviado', null)).toEqual([
+        'marcar_entregado',
+        'cancelar',
+      ])
     })
   })
 })

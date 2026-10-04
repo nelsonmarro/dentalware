@@ -1,6 +1,8 @@
 import {
   ATTACHMENT_UPLOAD_ROLES,
+  actionsFor,
   canChangeStage,
+  courierNoActionReason,
   courierTaskTitle,
   DELIVERY_MANAGE_ROLES,
   DELIVERY_ROLES,
@@ -118,6 +120,12 @@ export function QuickCase({
   const courier = deliversOnly(role)
   // UX4-07: la entrega o recogida que le toca a este mensajero: qué hacer, cuándo y dónde.
   const myTask = courier && c.pendingDelivery?.courierId === self.id ? c.pendingDelivery : null
+  // UX4-08: sin acción, el mensajero sabe por qué (la tiene otro, o no hay ninguna pendiente)
+  // en vez de una ficha muda que parece un fallo. Misma regla que la barra (`actionsFor`).
+  const noActionReason =
+    courier && actionsFor({ role, userId: self.id }, c.status, c.pendingDelivery).length === 0
+      ? courierNoActionReason(c.pendingDelivery, self.id)
+      : null
   // Misma fuente que la ficha completa (`stageNavigation`): qué fase sigue, si es la última y
   // si la actual está desactivada.
   const nav = stageNavigation(stages.data ?? [], c.currentStageId, stages.isError)
@@ -188,6 +196,7 @@ export function QuickCase({
           <span>Fase:</span> <span className="font-medium text-foreground">{c.stage.name}</span>
         </p>
       )}
+      {noActionReason && <p className="text-base">{noActionReason}</p>}
       {blockedReason && <p className="text-sm text-muted-foreground">{blockedReason}</p>}
       {stagesProblem && <p className="text-sm text-muted-foreground">{stagesProblem}</p>}
       {canControl && last && (
