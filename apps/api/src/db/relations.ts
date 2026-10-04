@@ -36,6 +36,7 @@ export const appRelations = defineRelations(schema, (r) => ({
     events: r.many.caseEvents(),
     attachments: r.many.attachments(),
     tryins: r.many.caseTryins(),
+    deliveries: r.many.deliveries(),
   },
   caseItems: {
     case: r.one.cases({ from: r.caseItems.caseId, to: r.cases.id }),
@@ -51,5 +52,13 @@ export const appRelations = defineRelations(schema, (r) => ({
   attachments: {
     case: r.one.cases({ from: r.attachments.caseId, to: r.cases.id }),
     uploader: r.one.users({ from: r.attachments.uploadedBy, to: r.users.id }),
+  },
+  deliveries: {
+    case: r.one.cases({ from: r.deliveries.caseId, to: r.cases.id, optional: false }),
+    courier: r.one.users({ from: r.deliveries.courierId, to: r.users.id, optional: false }),
+    proofAttachment: r.one.attachments({
+      from: r.deliveries.proofAttachmentId,
+      to: r.attachments.id,
+    }),
   },
 }))
