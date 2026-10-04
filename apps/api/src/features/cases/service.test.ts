@@ -16,7 +16,7 @@ import {
 } from './fakes.ts'
 import type { FakeAttachment } from './fakes.ts'
 import type { CaseDetail, Named, UnitOfWork } from './ports.ts'
-import { createCasesService, stripPrices } from './service.ts'
+import { createCasesService, stripPrices, type CasesService } from './service.ts'
 
 const admin = { userId: 'u1', role: 'admin' } as const
 const tecnico = { userId: 'u2', role: 'tecnico' } as const
@@ -524,6 +524,42 @@ describe('técnico responsable', () => {
     expect((await service.events('1', admin)).at(-1)).toMatchObject({ type: 'assigned' })
   })
 
+  // #97: dentro de la transacción, las escrituras del trabajo leen con `byIdForUpdate` (fila
+  // bloqueada) y nunca con `byId`. El fake no tiene concurrencia, así que se comprueba la
+  // lectura: el repo de la unidad de trabajo falla si alguien usa `byId`. El bloqueo real contra
+  // Postgres lo prueban los tests de concurrencia de `cases.test.ts`.
+  it.each([
+    ['assignTechnician', (s: CasesService) => s.assignTechnician('1', { tecnicoId: 't1' }, admin)],
+    ['action', (s: CasesService) => s.action('1', { accion: 'pausar', motivo: 'Falta' }, admin)],
+    [
+      'changeStage',
+      (s: CasesService) => s.changeStage('1', { direccion: 'avanzar', motivo: null }, admin),
+    ],
+  ])('%s lee el trabajo con byIdForUpdate dentro de la transacción', async (_metodo, run) => {
+    const { repo } = fakeCasesRepo([
+      caseDetailFixture({ id: '1', status: 'en_proceso', currentStageId: 'f1' }),
+    ])
+    const sinBloqueo = {
+      ...repo,
+      byId: async () => {
+        throw new Error('lectura sin FOR UPDATE dentro de la transacción')
+      },
+    }
+    const service = createCasesService({
+      cases: repo,
+      attachments: fakeAttachmentsQuery(true),
+      stages: fakeStagesQuery([
+        { id: 'f1', sort: 1, active: true },
+        { id: 'f2', sort: 2, active: true },
+      ]),
+      users: fakeUsersQuery([{ id: 't1', name: 'Técnico' }]),
+      couriers: fakeCouriersLookup(),
+      uow: fakeUow(sinBloqueo),
+      clock: fixedClock(),
+    })
+    await expect(run(service)).resolves.toMatchObject({ id: '1' })
+  })
+
   it('rechaza un usuario que no es técnico activo', async () => {
     const service = servicioConTecnicos([{ id: 't1' }], {})
     await expect(service.assignTechnician('1', { tecnicoId: 'otro' }, admin)).rejects.toThrow(
@@ -759,7 +795,6 @@ describe('repetición', () => {
       attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery(),
       users: fakeUsersQuery(),
-      couriers: fakeCouriersLookup(),
       couriers: fakeCouriersLookup(),
       uow: uowQueFalla,
       clock: fixedClock('2026-09-18'),

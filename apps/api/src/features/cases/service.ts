@@ -432,14 +432,16 @@ export function createCasesService(deps: {
      * puede reasignar un trabajo ya cerrado (`canAssignTechnician`, shared); el resto de
      * estados sí lo permite. El técnico debe estar activo (`UsersQuery.activeTechnicians`,
      * puerto de la feature `users`); si no, `CaseInputError`. Deja el evento `assigned` con el
-     * técnico anterior y el nuevo.
+     * técnico anterior y el nuevo. Lee el trabajo con `byIdForUpdate` (#97), igual que `action` y
+     * `changeStage`: una acción simultánea no se cuela entre la validación del estado y la
+     * escritura, y el «antes» del evento es el técnico que dejó la operación anterior.
      */
     async assignTechnician(id: string, input: AssignTechnicianInput, ctx: RequestContext) {
       await deps.uow.run(async ({ cases }) => {
         if (!(ASSIGN_TECHNICIAN_ROLES as readonly UserRole[]).includes(ctx.role)) {
           throw new CaseForbiddenError()
         }
-        const found = await cases.byId(id)
+        const found = await cases.byIdForUpdate(id)
         if (!found) throw new CaseNotFoundError()
         if (!canAssignTechnician(found.status)) {
           throw new CaseStateError(notReassignableMessage(found.status))

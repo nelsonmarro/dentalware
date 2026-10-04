@@ -198,9 +198,11 @@ export interface UsersQuery {
   activeTechnicians(): Promise<Named[]>
 }
 
-/** Puerto de OTRA feature (usuarios, ADR 24): valida el mensajero de una recogida y devuelve
- * su nombre, que el historial muestra en el evento `pickup_scheduled`. `undefined` si el id no
- * es de un mensajero activo (no existe, tiene otro rol o está bloqueado). */
+/** Puerto declarado por `cases` y cumplido en la raíz de composición con `createCouriersQuery`
+ * de la feature `deliveries` (que lee `users` de solo lectura, ADR 24): valida el mensajero de
+ * una recogida o de un envío y devuelve su nombre, que el historial muestra en los eventos
+ * `pickup_scheduled` y `shipped`. `undefined` si el id no es de un mensajero activo (no
+ * existe, tiene otro rol o está bloqueado). */
 export interface CouriersLookup {
   findActiveCourier(userId: string): Promise<Named | undefined>
 }

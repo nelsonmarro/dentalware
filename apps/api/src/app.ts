@@ -61,8 +61,9 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     // Puerto de la feature `users` (ADR 24: `createUsersQuery` lee `users` por join/lectura de
     // solo lectura desde el `repo.ts` de `cases`, sin importar el `repo`/rutas de `users`).
     users: createUsersQuery(db),
-    // Puerto de la feature `deliveries` (ADR 24): valida el mensajero de una recogida y da su
-    // nombre para el historial, sobre la misma lista que alimenta el selector de mensajeros.
+    // `CouriersLookup` es un puerto declarado por `cases`; aquí se cumple con
+    // `createCouriersQuery` de `deliveries` (ADR 24): valida el mensajero de una recogida o un
+    // envío y da su nombre para el historial, sobre la lista que alimenta el selector.
     couriers: {
       findActiveCourier: async (userId) =>
         (await couriersQuery.activeCouriers()).find((c) => c.id === userId),

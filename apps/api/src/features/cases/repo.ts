@@ -456,11 +456,10 @@ export function createCasesRepo(db: Db | Tx) {
 
     async createRemake(parentId, input, actorId) {
       // `FOR UPDATE` sobre el padre: mismo patrón que `update`. Protege contra otra
-      // `createRemake` concurrente sobre el mismo padre (la segunda espera a que la primera
-      // libere la fila antes de leer el estado); no protege contra `action()`, que lee con
-      // `cases.byId(id)` sin `FOR UPDATE` — una acción concurrente puede seguir colándose
-      // entre esta lectura y el insert. El bloqueo sigue siendo necesario y correcto para lo
-      // que sí cubre; el comentario anterior prometía más de lo que da.
+      // `createRemake` concurrente sobre el mismo padre y, desde #97, también contra `action()`,
+      // `changeStage()` y `assignTechnician()`, que leen con `byIdForUpdate` dentro de su
+      // transacción: la operación que llega segunda espera a que la primera libere la fila y
+      // valida contra el estado que dejó.
       const [parent] = await db.select().from(cases).where(eq(cases.id, parentId)).for('update')
       if (!parent) throw new CaseNotFoundError()
       if (!canRemake(parent.status)) {
