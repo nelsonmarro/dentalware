@@ -1,4 +1,9 @@
-import { CASE_STATUS_LABEL, type CaseEventType, type CaseStatus } from '@dentalware/shared'
+import {
+  CASE_STATUS_LABEL,
+  CASE_STATUSES,
+  type CaseEventType,
+  type CaseStatus,
+} from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import {
   ArrowLeftRight,
@@ -150,7 +155,11 @@ function EventDetail({
         </p>
       ) : null
     case 'delivered':
-      return <p className="text-sm text-muted-foreground">Con foto de constancia</p>
+      // Desde la Iteración 4 `toValue` es el id de la constancia; antes era el estado
+      // (`entregado`) y no había foto: solo se nombra la foto cuando la hay.
+      return e.toValue && !(CASE_STATUSES as readonly string[]).includes(e.toValue) ? (
+        <p className="text-sm text-muted-foreground">Con foto de constancia</p>
+      ) : null
     case 'delivery_failed':
       return e.reason && e.toValue ? (
         <p className="text-sm text-muted-foreground">

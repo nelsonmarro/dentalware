@@ -191,6 +191,21 @@ describe('CaseHistory', () => {
     },
   )
 
+  // Revisión final del PR 1 de la Iteración 4 (M-1): un `delivered` de la Iteración 3 guarda el
+  // estado (`entregado`) en `toValue` y no tiene foto; no puede decir que la tiene.
+  it('un evento delivered anterior a la Iteración 4 (sin constancia) no dice que tiene foto', async () => {
+    renderWithProviders(
+      <CaseHistory
+        case={caso()}
+        stages={[]}
+        events={[event({ type: 'delivered', fromValue: 'enviado', toValue: 'entregado' })]}
+      />,
+    )
+    const item = await screen.findByRole('listitem')
+    expect(within(item).getByText('Entregado')).toBeInTheDocument()
+    expect(item).not.toHaveTextContent('Con foto de constancia')
+  })
+
   it('una pausa muestra su motivo', async () => {
     renderWithProviders(
       <CaseHistory
