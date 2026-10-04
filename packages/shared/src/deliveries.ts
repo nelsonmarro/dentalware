@@ -125,9 +125,38 @@ export const DELIVERY_CLOSING_ACTION: Record<DeliveryType, CaseAction> = {
   entrega: 'marcar_entregado',
 }
 
-/** La entrega o recogida pendiente de un trabajo, tal como la ve quien decide si puede
- * cerrarla: de qué tipo es y a qué mensajero está asignada. */
-export type PendingDelivery = { type: DeliveryType; courierId: string }
+/** A quién está asignada una entrega o recogida: lo que necesita quien decide si puede
+ * cerrarla (`canActOnDelivery`). */
+export type DeliveryAssignment = { type: DeliveryType; courierId: string }
+
+/** La entrega o recogida pendiente de un trabajo, tal como la trae su ficha (UX4-07/09): de qué
+ * tipo es, quién la tiene y para qué día está programada. Sin dinero. */
+export type PendingDelivery = DeliveryAssignment & {
+  courierName: string
+  /** `YYYY-MM-DD`. */
+  scheduledFor: string
+}
+
+/** La última entrega hecha de un trabajo (UX4-09): cuándo, quién y con qué constancia. */
+export type LastDelivered = {
+  /** Timestamp ISO (UTC); formatea el cliente. */
+  doneAt: string
+  courierName: string
+  proofAttachmentId: string | null
+}
+
+/** Verbo de la tarea del mensajero por tipo (UX4-07). En la recogida el mensajero **recoge** en
+ * la clínica; quien lo recibe es el laboratorio. `Record` exhaustivo. */
+export const COURIER_TASK_VERB: Record<DeliveryType, string> = {
+  recogida: 'Recoger',
+  entrega: 'Entregar',
+}
+
+/** «Entregar hoy en Clínica Norte» / «Recoger el 09/10/2026 en Clínica Sur» (UX4-07): `when` lo
+ * formatea el cliente («hoy» o «el dd/mm/aaaa»). */
+export function courierTaskTitle(type: DeliveryType, when: string, clinicName: string): string {
+  return `${COURIER_TASK_VERB[type]} ${when} en ${clinicName}`
+}
 
 /**
  * ¿Puede `actor` hacer `action` sobre el trabajo cuya entrega pendiente es `pending`?
@@ -141,7 +170,7 @@ export type PendingDelivery = { type: DeliveryType; courierId: string }
 export function canActOnDelivery(
   actor: { role: UserRole; userId: string },
   action: CaseAction,
-  pending: PendingDelivery | null | undefined,
+  pending: DeliveryAssignment | null | undefined,
 ): boolean {
   const closes = DELIVERY_CLOSED_BY_ACTION[action]
   if (closes === null || hasRole(DELIVERY_MANAGE_ROLES, actor.role)) return true

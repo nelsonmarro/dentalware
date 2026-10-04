@@ -1,9 +1,10 @@
-import { and, asc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { Db, Tx } from '../../db/index.ts'
 import { users } from '../../db/schema/auth.ts'
 import { cases } from '../cases/schema.ts'
 import { clinics } from '../clinics/schema.ts'
 import type {
+  CaseDeliveryInfoQuery,
   CaseEventLog,
   CouriersQuery,
   DeliveriesRepository,
@@ -177,4 +178,51 @@ export function createCouriersQuery(db: Db | Tx) {
         .orderBy(asc(users.name))
     },
   } satisfies CouriersQuery
+}
+
+/**
+ * La entrega pendiente y la última entrega hecha de un trabajo, con el nombre del mensajero
+ * (UX4-07/09): dos lecturas con join a `users` (ADR 24, solo lectura). La pendiente es como mucho
+ * una (`deliveries_one_pending_idx` por tipo, y un trabajo está por recoger o enviado, no las dos
+ * cosas); la última hecha es solo de tipo `entrega` (una recogida hecha no es «entregado»).
+ */
+export function createCaseDeliveryInfoQuery(db: Db | Tx) {
+  return {
+    async deliveryInfo(caseId) {
+      const [pending] = await db
+        .select({
+          type: deliveries.type,
+          courierId: deliveries.courierId,
+          courierName: users.name,
+          scheduledFor: deliveries.scheduledFor,
+        })
+        .from(deliveries)
+        .innerJoin(users, eq(deliveries.courierId, users.id))
+        .where(and(eq(deliveries.caseId, caseId), eq(deliveries.status, 'pendiente')))
+        .limit(1)
+      const [last] = await db
+        .select({
+          doneAt: deliveries.doneAt,
+          courierName: users.name,
+          proofAttachmentId: deliveries.proofAttachmentId,
+        })
+        .from(deliveries)
+        .innerJoin(users, eq(deliveries.courierId, users.id))
+        .where(
+          and(
+            eq(deliveries.caseId, caseId),
+            eq(deliveries.type, 'entrega'),
+            eq(deliveries.status, 'hecha'),
+            isNotNull(deliveries.doneAt),
+          ),
+        )
+        .orderBy(desc(deliveries.doneAt))
+        .limit(1)
+      return {
+        pending: pending ?? null,
+        // `doneAt` no es nulo por el `isNotNull` de arriba; Drizzle no estrecha el tipo.
+        lastDelivered: last?.doneAt ? { ...last, doneAt: last.doneAt } : null,
+      }
+    },
+  } satisfies CaseDeliveryInfoQuery
 }

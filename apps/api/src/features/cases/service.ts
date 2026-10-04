@@ -31,7 +31,7 @@ import {
   type CaseEventType,
   type CaseInput,
   type CaseListQuery,
-  type PendingDelivery,
+  type LastDelivered,
   type RemakeInput,
   type StageChangeInput,
   type StageRef,
@@ -42,12 +42,12 @@ import type { RequestContext } from '../../lib/request-context.ts'
 import { CaseForbiddenError, CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type {
   AttachmentsQuery,
+  CaseDeliveriesQuery,
   CaseDetail,
   CaseListRow,
   CasesRepository,
   CaseTransitionPatch,
   CouriersLookup,
-  DeliveryLog,
   Named,
   StagesQuery,
   UnitOfWork,
@@ -140,9 +140,9 @@ export function createCasesService(deps: {
   stages: StagesQuery
   users: UsersQuery
   couriers: CouriersLookup
-  /** Solo lectura, fuera de la transacción: qué entrega está pendiente para la ficha (M-4).
-   * Las escrituras de entregas van siempre por `uow.run`. */
-  deliveries: Pick<DeliveryLog, 'pendingFor'>
+  /** Solo lectura, fuera de la transacción: la entrega pendiente y la última hecha para la
+   * ficha (M-4, UX4-07/09). Las escrituras de entregas van siempre por `uow.run`. */
+  deliveries: CaseDeliveriesQuery
   uow: UnitOfWork
   clock: Clock
 }) {
@@ -157,20 +157,18 @@ export function createCasesService(deps: {
   const toDetail = async (found: CaseDetail, ctx: RequestContext) => {
     const hasDoc = await deps.attachments.hasDocument(found.id)
     const masked = hidesPrices(ctx.role) ? stripPrices(found) : found
+    const info = await deps.deliveries.deliveryInfo(found.id)
+    const lastDelivered: LastDelivered | null = info.lastDelivered && {
+      ...info.lastDelivered,
+      doneAt: info.lastDelivered.doneAt.toISOString(),
+    }
     return {
-      case: { ...masked, pendingDelivery: await pendingDelivery(found.id) },
+      // La entrega pendiente (con su mensajero, M-4: la web la usa con `canActOnDelivery` para no
+      // ofrecerle a un mensajero la acción de una entrega ajena) y la última entrega hecha
+      // (UX4-09). Sin dinero: viajan igual para todos los roles.
+      case: { ...masked, pendingDelivery: info.pending, lastDelivered },
       missing: readiness(found, hasDoc),
     }
-  }
-  /** La recogida o entrega pendiente del trabajo (como mucho hay una: un trabajo está por
-   * recoger o enviado, no las dos cosas) con su mensajero (M-4): la web la usa con
-   * `canActOnDelivery` para no ofrecerle a un mensajero la acción de una entrega ajena. */
-  const pendingDelivery = async (caseId: string): Promise<PendingDelivery | null> => {
-    for (const type of DELIVERY_TYPES) {
-      const pending = await deps.deliveries.pendingFor(caseId, type)
-      if (pending) return { type, courierId: pending.courierId }
-    }
-    return null
   }
   return {
     async list(q: CaseListQuery, ctx: RequestContext) {

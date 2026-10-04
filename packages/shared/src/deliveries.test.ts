@@ -15,6 +15,7 @@ import {
   DELIVERY_TYPES,
   canActOnDelivery,
   cancelledDeliveryReason,
+  courierTaskTitle,
   isClosedByCancellation,
   isOverdueDelivery,
 } from './deliveries.ts'
@@ -141,6 +142,20 @@ describe('entregas', () => {
       const ctx = { role, userId: 'r1' }
       expect(canActOnDelivery(ctx, 'recibir', { type: 'recogida', courierId: 'm2' })).toBe(true)
       expect(canActOnDelivery(ctx, 'marcar_entregado', null)).toBe(true)
+    })
+  })
+
+  // UX4-07: la ficha corta del mensajero dice qué hacer, cuándo y dónde, no la fecha comprometida.
+  describe('courierTaskTitle', () => {
+    it('una entrega se rotula con el verbo «Entregar»', () => {
+      expect(courierTaskTitle('entrega', 'hoy', 'Clínica Norte')).toBe(
+        'Entregar hoy en Clínica Norte',
+      )
+    })
+    it('una recogida se rotula con el verbo «Recoger», no «Recibir»', () => {
+      expect(courierTaskTitle('recogida', 'el 09/10/2026', 'Clínica Sur')).toBe(
+        'Recoger el 09/10/2026 en Clínica Sur',
+      )
     })
   })
 })

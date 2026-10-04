@@ -47,7 +47,7 @@ packages/shared (máquina de estados, dinero, FDI, readiness, schemas zod)
 
 `app.ts` (`createApp(deps)`) es la raíz de composición: construye adaptadores, arma servicios y monta rutas. `main.ts` es lo único que toca el mundo real. Implementación de referencia: `features/cases`.
 
-**Entregas** (`features/deliveries`, Iteración 4): recogidas y entregas del día, «No se pudo» y lista de mensajeros, con su propio `UnitOfWork`. Las transiciones del trabajo que abren o cierran una entrega viven en `cases` y escriben por su puerto `DeliveryLog` (ADR 34).
+**Entregas** (`features/deliveries`, Iteración 4): recogidas y entregas del día, «No se pudo» y lista de mensajeros, con su propio `UnitOfWork`. Las transiciones del trabajo que abren o cierran una entrega viven en `cases` y escriben por su puerto `DeliveryLog` (ADR 34). La ficha del trabajo lee su entrega pendiente y la última hecha por el puerto de lectura `CaseDeliveriesQuery` de `cases`, que cumple `createCaseDeliveryInfoQuery` de `deliveries` en `app.ts`.
 
 **Cuándo hace falta `service.ts`**: siempre en una feature nueva, o si la feature usa más de un puerto, tiene reglas o autorización más allá de `requireRole`, necesita transacción, enmascara por rol u orquesta varios pasos. Un CRUD simple (`clinics`, `doctors`, `stages`, `lab-settings`) puede llamar al repo desde la ruta; con su primera regla gana servicio en ese mismo PR. Las features viejas se migran cuando se tocan (boy-scout): faltan `users` (Drizzle en la ruta) y `products` (reglas en la ruta), excluidas del lint de rutas hasta entonces.
 

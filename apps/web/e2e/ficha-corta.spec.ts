@@ -99,7 +99,9 @@ test.describe('Ficha corta del QR (/t/:code, FIC-2 #72 / FIC-3 #73)', () => {
 
       await page.goto(`/t/${trabajo.code}`)
       await expect(page.getByRole('heading', { level: 1, name: trabajo.code })).toBeVisible()
-      await expect(page.getByText(/^Entrega: \d{2}\/\d{2}\/\d{4}$/)).toBeVisible()
+      await expect(
+        page.getByText(/^Fecha (comprometida|deseada): \d{2}\/\d{2}\/\d{4}$/),
+      ).toBeVisible()
       await expect(page.getByText('Fotos: 0')).toBeVisible()
 
       await page.getByLabel('Añadir foto').setInputFiles(FOTO_PATH)
@@ -141,7 +143,10 @@ test.describe('Ficha corta del QR (/t/:code, FIC-2 #72 / FIC-3 #73)', () => {
     { tag: '@clave' },
     async ({ page, browser }) => {
       await loginAsAdmin(page)
-      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const { clinic, doctor } = await createClinicWithDoctor(page, {
+        address: 'Av. Amazonas N34-12',
+        phone: '02 255 1234',
+      })
       const product = await createProduct(page)
       const trabajo = await createAcceptedCase(page, {
         clinicId: clinic.id,
@@ -168,6 +173,16 @@ test.describe('Ficha corta del QR (/t/:code, FIC-2 #72 / FIC-3 #73)', () => {
         await expect(
           courierPage.getByRole('heading', { level: 1, name: trabajo.code }),
         ).toBeVisible()
+        // UX4-07: le dice qué hacer, cuándo y dónde, no la fecha comprometida con la clínica.
+        await expect(
+          courierPage.getByRole('heading', { level: 2, name: `Entregar hoy en ${clinic.name}` }),
+        ).toBeVisible()
+        await expect(courierPage.getByText(/^Fecha comprometida/)).toHaveCount(0)
+        await expect(courierPage.getByRole('link', { name: /Av\. Amazonas N34-12/ })).toBeVisible()
+        await expect(courierPage.getByRole('link', { name: /02 255 1234/ })).toHaveAttribute(
+          'href',
+          'tel:022551234',
+        )
         // Su foto es la constancia: no hay «Añadir foto» genérico.
         await expect(courierPage.getByRole('button', { name: 'Añadir foto' })).toHaveCount(0)
 

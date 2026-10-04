@@ -64,6 +64,7 @@ function caso(overrides: Partial<CaseDetail> = {}): CaseDetail {
     stage: null,
     items: [],
     pendingDelivery: null,
+    lastDelivered: null,
     ...overrides,
   } as unknown as CaseDetail
 }
@@ -308,7 +309,15 @@ describe('CaseActions', () => {
     const { user } = renderWithProviders(
       <CaseActions
         self={yo}
-        case={caso({ status: 'enviado', pendingDelivery: { type: 'entrega', courierId: yo.id } })}
+        case={caso({
+          status: 'enviado',
+          pendingDelivery: {
+            type: 'entrega',
+            courierId: yo.id,
+            courierName: 'Mario',
+            scheduledFor: '2026-10-04',
+          },
+        })}
         missing={[]}
         role="mensajero"
       />,
@@ -329,7 +338,12 @@ describe('CaseActions', () => {
         <CaseActions
           case={caso({
             status: 'por_recoger',
-            pendingDelivery: { type: 'recogida', courierId: 'otro' },
+            pendingDelivery: {
+              type: 'recogida',
+              courierId: 'otro',
+              courierName: 'Mario',
+              scheduledFor: '2026-10-04',
+            },
           })}
           self={yo}
           missing={[]}
@@ -344,7 +358,12 @@ describe('CaseActions', () => {
         <CaseActions
           case={caso({
             status: 'por_recoger',
-            pendingDelivery: { type: 'recogida', courierId: yo.id },
+            pendingDelivery: {
+              type: 'recogida',
+              courierId: yo.id,
+              courierName: 'Mario',
+              scheduledFor: '2026-10-04',
+            },
           })}
           self={yo}
           missing={[]}
@@ -359,7 +378,12 @@ describe('CaseActions', () => {
         <CaseActions
           case={caso({
             status: 'enviado',
-            pendingDelivery: { type: 'entrega', courierId: 'otro' },
+            pendingDelivery: {
+              type: 'entrega',
+              courierId: 'otro',
+              courierName: 'Mario',
+              scheduledFor: '2026-10-04',
+            },
           })}
           self={yo}
           missing={[]}
@@ -374,7 +398,12 @@ describe('CaseActions', () => {
         <CaseActions
           case={caso({
             status: 'enviado',
-            pendingDelivery: { type: 'entrega', courierId: 'otro' },
+            pendingDelivery: {
+              type: 'entrega',
+              courierId: 'otro',
+              courierName: 'Mario',
+              scheduledFor: '2026-10-04',
+            },
           })}
           self={yo}
           missing={[]}
@@ -460,7 +489,15 @@ describe('CaseActions', () => {
       // Otra persona ya lo envió; la ficha se refresca (foco, otra mutación…) y la barra sigue
       // montada con «Marcar entregado», pero «Marcar enviado» ya no existe.
       fetchCase.mockResolvedValueOnce({
-        case: caso({ status: 'enviado', pendingDelivery: { type: 'entrega', courierId: 'm1' } }),
+        case: caso({
+          status: 'enviado',
+          pendingDelivery: {
+            type: 'entrega',
+            courierId: 'm1',
+            courierName: 'Mario',
+            scheduledFor: '2026-10-04',
+          },
+        }),
         missing: [],
       })
       await client.invalidateQueries({ queryKey: ['trabajos'] })
@@ -474,7 +511,15 @@ describe('CaseActions', () => {
       const avisos = vi.spyOn(toast, 'error')
       fetchCase.mockResolvedValueOnce({ case: caso({ status: 'terminado' }), missing: [] })
       fetchCase.mockResolvedValueOnce({
-        case: caso({ status: 'enviado', pendingDelivery: { type: 'entrega', courierId: yo.id } }),
+        case: caso({
+          status: 'enviado',
+          pendingDelivery: {
+            type: 'entrega',
+            courierId: yo.id,
+            courierName: 'Mario',
+            scheduledFor: '2026-10-04',
+          },
+        }),
         missing: [],
       })
       postCaseAction.mockRejectedValueOnce(

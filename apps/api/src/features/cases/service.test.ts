@@ -1474,20 +1474,22 @@ describe('entrega pendiente en el detalle', () => {
     type: 'recogida' | 'entrega',
     status: 'pendiente' | 'hecha' | 'fallida',
     courierId = 'u3',
+    extra: { id?: string; doneAt?: Date | null; proofAttachmentId?: string | null } = {},
   ) => ({
-    id: `d-${type}-${status}`,
+    id: extra.id ?? `d-${type}-${status}`,
     caseId: '1',
     type,
     courierId,
     scheduledFor: '2026-10-03',
     status,
-    doneAt: null,
-    proofAttachmentId: null,
+    doneAt: extra.doneAt ?? null,
+    proofAttachmentId: extra.proofAttachmentId ?? null,
   })
+  const nombres = { u3: 'Mario Mensajero', u9: 'Luis Mensajero' }
 
   function servicio(status: CaseStatus, seed: ReturnType<typeof entrega>[]) {
     const { repo } = fakeCasesRepo([completo({ id: '1', code: '26-00042', status })])
-    const deliveries = fakeDeliveryLog(seed)
+    const deliveries = fakeDeliveryLog(seed, nombres)
     return createCasesService({
       cases: repo,
       attachments: fakeAttachmentsQuery(true),
@@ -1500,10 +1502,16 @@ describe('entrega pendiente en el detalle', () => {
     })
   }
 
-  it('un trabajo por recoger trae su recogida pendiente y el mensajero asignado', async () => {
+  // UX4-07: la ficha corta del mensajero dice para qué día y con quién, no solo el id.
+  it('un trabajo por recoger trae su recogida pendiente con mensajero y fecha', async () => {
     const service = servicio('por_recoger', [entrega('recogida', 'pendiente', 'u9')])
     const { case: found } = await service.detail('1', mensajero)
-    expect(found.pendingDelivery).toEqual({ type: 'recogida', courierId: 'u9' })
+    expect(found.pendingDelivery).toEqual({
+      type: 'recogida',
+      courierId: 'u9',
+      courierName: 'Luis Mensajero',
+      scheduledFor: '2026-10-03',
+    })
   })
 
   it('la ficha corta por código trae la entrega pendiente de un trabajo enviado', async () => {
@@ -1512,12 +1520,72 @@ describe('entrega pendiente en el detalle', () => {
       entrega('entrega', 'pendiente', 'u3'),
     ])
     const { case: found } = await service.detailByCode('26-00042', mensajero)
-    expect(found.pendingDelivery).toEqual({ type: 'entrega', courierId: 'u3' })
+    expect(found.pendingDelivery).toEqual({
+      type: 'entrega',
+      courierId: 'u3',
+      courierName: 'Mario Mensajero',
+      scheduledFor: '2026-10-03',
+    })
   })
 
   it('sin entrega pendiente trae null aunque haya entregas cerradas', async () => {
     const service = servicio('entregado', [entrega('entrega', 'hecha')])
     const { case: found } = await service.detail('1', admin)
     expect(found.pendingDelivery).toBeNull()
+  })
+
+  // UX4-09: «Entregado el 04/10 por … · Ver constancia».
+  it('un trabajo entregado trae la última entrega hecha con mensajero y constancia', async () => {
+    const service = servicio('entregado', [
+      entrega('entrega', 'hecha', 'u9', {
+        id: 'vieja',
+        doneAt: new Date('2026-10-01T15:00:00Z'),
+        proofAttachmentId: 'a1',
+      }),
+      entrega('entrega', 'hecha', 'u3', {
+        id: 'nueva',
+        doneAt: new Date('2026-10-03T16:30:00Z'),
+        proofAttachmentId: 'a2',
+      }),
+      entrega('recogida', 'hecha', 'u9', {
+        id: 'recogida',
+        doneAt: new Date('2026-10-04T10:00:00Z'),
+      }),
+    ])
+    const { case: found } = await service.detail('1', mensajero)
+    expect(found.lastDelivered).toEqual({
+      doneAt: '2026-10-03T16:30:00.000Z',
+      courierName: 'Mario Mensajero',
+      proofAttachmentId: 'a2',
+    })
+  })
+
+  it('sin entrega hecha la última entrega es null (una recogida hecha no cuenta)', async () => {
+    const service = servicio('nuevo', [
+      entrega('recogida', 'hecha', 'u9', { doneAt: new Date('2026-10-02T10:00:00Z') }),
+      entrega('entrega', 'fallida'),
+    ])
+    const { case: found } = await service.detail('1', admin)
+    expect(found.lastDelivered).toBeNull()
+  })
+
+  // UX4-07: la ficha corta lleva al mensajero a la clínica (mapa y llamada).
+  it('la clínica del detalle trae dirección y teléfono', async () => {
+    const service = servicio('enviado', [])
+    const { case: found } = await service.detail('1', mensajero)
+    expect(found.clinic).toEqual({
+      id: expect.any(String),
+      name: 'Sonrisa',
+      address: 'Av. Amazonas N34-12',
+      phone: '02 255 1234',
+    })
+  })
+
+  it('el mensajero sigue sin ver dinero con la entrega en el detalle', async () => {
+    const service = servicio('enviado', [entrega('entrega', 'pendiente', 'u3')])
+    const { case: found } = await service.detail('1', mensajero)
+    expect(found.total).toBeNull()
+    expect(found.remakeChargePct).toBeNull()
+    expect(found.items.every((i) => i.unitPrice === null && i.lineTotal === null)).toBe(true)
   })
 })

@@ -1,4 +1,10 @@
-import type { CasePriority, CaseStatus, DeliveryStatus, DeliveryType } from '@dentalware/shared'
+import type {
+  CasePriority,
+  CaseStatus,
+  DeliveryStatus,
+  DeliveryType,
+  PendingDelivery,
+} from '@dentalware/shared'
 // Solo tipos: la forma de fila se deriva del schema (mismo ruling que `cases/ports.ts`, ADR 25).
 import type { deliveries } from './schema.ts'
 
@@ -56,6 +62,18 @@ export interface DeliveriesRepository {
 }
 
 export type Named = { id: string; name: string }
+
+/**
+ * Lectura de las entregas de un trabajo para su ficha (UX4-07/09): la pendiente y la última
+ * entrega hecha, con el nombre del mensajero. Cumple estructuralmente el puerto
+ * `CaseDeliveriesQuery` de `cases` en la raíz de composición (ADR 24/34). Sin dinero.
+ */
+export interface CaseDeliveryInfoQuery {
+  deliveryInfo(caseId: string): Promise<{
+    pending: PendingDelivery | null
+    lastDelivered: { doneAt: Date; courierName: string; proofAttachmentId: string | null } | null
+  }>
+}
 
 /** Puerto de OTRA feature (usuarios, ADR 24/29): mensajeros activos para el selector, sin
  * exponer correo, rol ni baneo — mismo patrón que `UsersQuery.activeTechnicians` de `cases`. */

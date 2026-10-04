@@ -90,6 +90,7 @@ function caso(overrides: Partial<CaseDetail> = {}): CaseDetail {
     stage: null,
     items: [],
     pendingDelivery: null,
+    lastDelivered: null,
     ...overrides,
   } as unknown as CaseDetail
 }

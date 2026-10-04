@@ -1035,6 +1035,58 @@ describe('/api/trabajos', () => {
         expect(entrega!.doneAt).not.toBeNull()
       })
 
+      // UX4-07/09: la ficha dice con quién sale y para cuándo, y después quién lo entregó y con
+      // qué constancia; la clínica trae dirección y teléfono para el mensajero. Sin dinero.
+      it('GET /api/trabajos/:id trae la entrega pendiente, la última hecha y la clínica con dirección', async () => {
+        await ctx.db
+          .update(ctx.schema.clinics)
+          .set({ address: 'Av. Amazonas N34-12', phone: '02 255 1234' })
+          .where(eq(ctx.schema.clinics.id, clinicId))
+        const id = await crearEnviado()
+        type Ficha = {
+          case: {
+            pendingDelivery: unknown
+            lastDelivered: unknown
+            clinic: unknown
+            total: string | null
+          }
+        }
+        const ficha = async () =>
+          (
+            (await (
+              await app.request(`/api/trabajos/${id}`, req(mensajero, 'GET'))
+            ).json()) as Ficha
+          ).case
+        const enviado = await ficha()
+        expect(enviado.pendingDelivery).toEqual({
+          type: 'entrega',
+          courierId: mensajeroId,
+          courierName: 'Mensajero',
+          scheduledFor: hoy,
+        })
+        expect(enviado.lastDelivered).toBeNull()
+        expect(enviado.clinic).toEqual({
+          id: clinicId,
+          name: 'Sonrisa',
+          address: 'Av. Amazonas N34-12',
+          phone: '02 255 1234',
+        })
+        expect(enviado.total).toBeNull()
+
+        const constanciaId = await adjuntoDe(id)
+        await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', { accion: 'marcar_entregado', constanciaId }),
+        )
+        const entregado = await ficha()
+        expect(entregado.pendingDelivery).toBeNull()
+        expect(entregado.lastDelivered).toEqual({
+          doneAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+          courierName: 'Mensajero',
+          proofAttachmentId: constanciaId,
+        })
+      })
+
       it('otro mensajero no entrega una entrega que no es suya (403)', async () => {
         const { otro } = await otroMensajero()
         const id = await crearEnviado()
@@ -1112,7 +1164,12 @@ describe('/api/trabajos', () => {
             case: { pendingDelivery: unknown }
           }
         ).case.pendingDelivery
-      expect(await ficha()).toEqual({ type: 'recogida', courierId: mensajeroId })
+      expect(await ficha()).toEqual({
+        type: 'recogida',
+        courierId: mensajeroId,
+        courierName: 'Mensajero',
+        scheduledFor: hoy,
+      })
       await app.request(
         `/api/trabajos/${id}/acciones`,
         req(mensajero, 'POST', { accion: 'recibir' }),
