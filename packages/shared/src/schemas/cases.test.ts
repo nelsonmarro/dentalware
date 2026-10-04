@@ -140,11 +140,12 @@ describe('ATTACHMENT_KINDS', () => {
 })
 
 describe('CASE_VIEWS', () => {
-  it('incluye la vista en prueba entre atrasados y listos', () => {
+  it('incluye "vencen mañana" justo después de "vencen hoy" (CAL-2)', () => {
     expect(CASE_VIEWS).toEqual([
       'nuevos',
       'en_curso',
       'vencen_hoy',
+      'vencen_manana',
       'atrasados',
       'en_prueba',
       'listos',

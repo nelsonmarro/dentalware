@@ -11,6 +11,7 @@ import { CaseHistory, historyTabLabel } from '@/features/cases/case-history'
 import { CommentForm } from '@/features/cases/comment-form'
 import { PhotosTab } from '@/features/cases/photos-tab'
 import { ProductionPanel } from '@/features/cases/production-panel'
+import { RemakesList } from '@/features/cases/remakes-list'
 import { useAttachments } from '@/features/cases/use-attachments'
 import { useAddComment, useCase, useEvents } from '@/features/cases/use-cases'
 import { useStages } from '@/features/stages/use-stages'
@@ -82,8 +83,9 @@ function CasePage() {
           </TabsTrigger>
           <TabsTrigger value="historial">{historyTabLabel(events.data?.length ?? 0)}</TabsTrigger>
         </TabsList>
-        <TabsContent value="detalle" className="pt-4">
+        <TabsContent value="detalle" className="flex flex-col gap-6 pt-4">
           <CaseDetailTab case={q.data.case} hidePrices={hidePrices} role={user.role} />
+          <RemakesList caseId={caseId} />
         </TabsContent>
         <TabsContent value="fotos" className="pt-4">
           <PhotosTab caseId={caseId} role={user.role} />

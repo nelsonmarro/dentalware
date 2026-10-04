@@ -37,6 +37,18 @@ export const queryKeys = {
   // Bajo `users` por el mismo motivo que `caseTechnicians`: son usuarios con rol mensajero
   // (`GET /api/entregas/mensajeros`); dar de baja a uno refresca los selectores.
   couriers: ['users', 'mensajeros'] as const,
+  // Bajo el prefijo `trabajos` (Tarea 7, ENT-5): cada acción sobre un trabajo (recibir,
+  // marcar enviado o entregado, cancelar) cambia sus entregas, así que `useInvalidateCases`
+  // (invalida `['trabajos']`) refresca «Entregas» y el inicio del mensajero sin tocarlos aparte;
+  // y la entrega fallida invalida el mismo prefijo, que también alcanza el historial del trabajo.
+  deliveries: {
+    day: (dia: string, mensajeroId?: string) =>
+      ['trabajos', 'entregas', dia, mensajeroId ?? null] as const,
+  },
   caseEvents: (id: string) => ['trabajos', id, 'eventos'] as const,
+  // Bajo el prefijo `trabajos` (#96, Tarea 9): repetir el trabajo (`useCreateRemake`, que
+  // invalida ese prefijo) refresca el bloque «Repeticiones» de la ficha del padre sin tocarlo
+  // aparte.
+  caseRemakes: (id: string) => ['trabajos', id, 'repeticiones'] as const,
   attachments: (caseId: string) => ['trabajos', caseId, 'adjuntos'] as const,
 }

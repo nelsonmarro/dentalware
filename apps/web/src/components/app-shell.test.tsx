@@ -24,6 +24,21 @@ describe('AppShell', () => {
     expect(getByRole('button', { name: 'Cerrar sesión' })).toHaveTextContent('Cerrar sesión')
   })
 
+  // I-1 (revisión de la Tarea 7): `GET /api/entregas` es de DELIVERY_ROLES; el técnico no
+  // debe ver un enlace a una pantalla que siempre fallaría.
+  it.each([
+    { role: 'admin' as const, entregas: true },
+    { role: 'recepcion' as const, entregas: true },
+    { role: 'mensajero' as const, entregas: true },
+    { role: 'tecnico' as const, entregas: false },
+  ])('con rol $role muestra Entregas: $entregas', async ({ role, entregas }) => {
+    renderWithRouter(<AppShell user={{ name: 'Ana', role }}>contenido</AppShell>)
+    for (const name of ['Principal', 'Principal móvil']) {
+      const nav = await screen.findByRole('navigation', { name })
+      expect(within(nav).queryByRole('link', { name: /Entregas/ }) !== null).toBe(entregas)
+    }
+  })
+
   it.each([
     { role: 'admin' as const, cuentas: true, configuracion: true },
     { role: 'recepcion' as const, cuentas: true, configuracion: false },

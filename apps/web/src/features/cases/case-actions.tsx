@@ -6,6 +6,7 @@ import type {
 } from '@dentalware/shared'
 import {
   availableActions,
+  canActOnDelivery,
   canPerform,
   canRemake,
   CASE_ACTION_LABEL,
@@ -78,7 +79,7 @@ const CONFIRM_DIALOG: Record<
 type DeliveryFormDialogProps = {
   case: CaseDetail
   role: UserRole
-  self?: DeliverySelf
+  self: DeliverySelf
   open: boolean
   onOpenChange: (open: boolean) => void
 }
@@ -121,9 +122,11 @@ export function CaseActions({
   hasNextStage?: boolean
   /** Adónde ir tras crear una repetición (Tarea 9): el hijo puede nacer incompleto, así que
    * quien monta la barra navega a su ficha en vez de quedarse en la del padre. */
-  onRemakeCreated?: (created: CaseDetail) => void
-  /** Quien usa la app: el mensajero envía con él mismo (`ShipDialog`). */
-  self?: DeliverySelf
+  onRemakeCreated?: (created: { id: string }) => void
+  /** Quien usa la app: el mensajero envía con él mismo (`ShipDialog`) y solo ve la acción de
+   * la entrega que tiene asignada (`canActOnDelivery`, M-4). Obligatorio: sin él un mensajero
+   * tendría un «Marcar enviado» que nunca se habilita. */
+  self: DeliverySelf
   /** `large`: botones de 56 px a todo el ancho, para la ficha corta del mensajero (#105). */
   size?: 'default' | 'large'
   className?: string
@@ -133,8 +136,11 @@ export function CaseActions({
   const [confirm, setConfirm] = useState<({ action: CaseAction } & ActionDialogCopy) | null>(null)
   const action = useCaseAction(c.id)
 
+  // `canActOnDelivery` (M-4): a un mensajero no se le ofrece «Recibido» ni «Marcar entregado»
+  // de una recogida o entrega asignada a otro (la API respondería 403).
   const actions = availableActions(c.status)
     .filter((a) => canPerform(role, a))
+    .filter((a) => canActOnDelivery({ role, userId: self.id }, a, c.pendingDelivery))
     .map((a) => ({ action: a, variant: actionVariant(a, hasNextStage) }))
     .sort((x, y) => VARIANT_ORDER[x.variant] - VARIANT_ORDER[y.variant])
   // `RemakeDialog` no recibe `role`: este guardián es toda la defensa de la UI (I-3 de la

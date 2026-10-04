@@ -159,6 +159,42 @@ describe('features/deliveries/repo', () => {
       expect(row?.status).toBe('fallida')
       expect(row?.failedReason).toBe('Clínica cerrada')
     })
+
+    it('markFailed sobre una entrega ya hecha devuelve false y no la cambia', async () => {
+      const repo = createDeliveriesRepo(ctx.db)
+      const caseId = await createCase()
+      const created = await repo.create({
+        caseId,
+        type: 'entrega',
+        courierId,
+        scheduledFor: '2026-09-10',
+      })
+      const doneAt = new Date('2026-09-10T15:00:00Z')
+      expect(await repo.markDone(created.id, doneAt, null)).toBe(true)
+
+      expect(await repo.markFailed(created.id, 'Clínica cerrada', new Date())).toBe(false)
+
+      const row = await repo.byId(created.id)
+      expect(row).toMatchObject({ status: 'hecha', failedReason: null, doneAt })
+    })
+
+    it('markDone sobre una entrega fallida devuelve false y no la cambia', async () => {
+      const repo = createDeliveriesRepo(ctx.db)
+      const caseId = await createCase()
+      const created = await repo.create({
+        caseId,
+        type: 'entrega',
+        courierId,
+        scheduledFor: '2026-09-10',
+      })
+      const at = new Date('2026-09-10T15:00:00Z')
+      expect(await repo.markFailed(created.id, 'Clínica cerrada', at)).toBe(true)
+
+      expect(await repo.markDone(created.id, new Date(), null)).toBe(false)
+
+      const row = await repo.byId(created.id)
+      expect(row).toMatchObject({ status: 'fallida', failedReason: 'Clínica cerrada', doneAt: at })
+    })
   })
 
   describe('listForDay', () => {

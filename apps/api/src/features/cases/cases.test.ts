@@ -13,9 +13,15 @@ import {
 } from '../../test/setup.ts'
 
 describe('/api/trabajos', () => {
-  // Fecha de negocio de hoy con el reloj del sistema (el de `createApp` sin `clock`): un envío
-  // o una recogida no pueden programarse para antes de hoy.
+  // Fecha de negocio de hoy, fijada una vez para todo el archivo e inyectada como `clock.today`
+  // en `app`: un envío o una recogida no pueden programarse para antes de hoy, y si el test y la
+  // API leyeran cada uno el reloj del sistema, una corrida que cruza la medianoche los separaría.
   const hoy = toIsoDate(new Date())
+  const ayer = (() => {
+    const d = new Date(`${hoy}T12:00:00`)
+    d.setDate(d.getDate() - 1)
+    return toIsoDate(d)
+  })()
   const adminPwd = testPassword()
   const recepcionPwd = testPassword()
   const tecnicoPwd = testPassword()
@@ -40,6 +46,7 @@ describe('/api/trabajos', () => {
       db: ctx.db,
       webOrigin: ctx.config.WEB_ORIGIN,
       storage: ctx.storage,
+      clock: { today: () => hoy, now: () => new Date() },
     })
   })
   afterAll(async () => {
@@ -825,8 +832,6 @@ describe('/api/trabajos', () => {
 
     // Iteración 4, Tarea 4 (ENT-3, ENT-4): enviar con mensajero y entregar con constancia.
     describe('envío y entrega', () => {
-      const ayer = toIsoDate(new Date(Date.now() - 24 * 60 * 60 * 1000))
-
       async function crearTerminado() {
         const { id } = await crearTrabajoEnProceso()
         await app.request(
@@ -884,6 +889,46 @@ describe('/api/trabajos', () => {
             { path: 'envio.fecha', message: 'La fecha de entrega no puede ser anterior a hoy.' },
           ],
         })
+      })
+
+      // T4 de la revisión final del PR 2: el envío solo se asigna a un mensajero activo.
+      it('un envío con un técnico como mensajero responde 422 y no programa nada', async () => {
+        const id = await crearTerminado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', {
+            accion: 'marcar_enviado',
+            envio: { mensajeroId: tecnicoId, fecha: hoy },
+          }),
+        )
+        expect(res.status).toBe(422)
+        expect(await res.json()).toEqual({
+          message: 'Datos inválidos',
+          issues: [{ path: 'envio.mensajeroId', message: 'Elige un mensajero activo.' }],
+        })
+        expect(await entregasDe(id)).toEqual([])
+      })
+
+      it('un envío con un mensajero bloqueado responde 422 y no programa nada', async () => {
+        const id = await crearTerminado()
+        const { otroId } = await otroMensajero()
+        await ctx.db
+          .update(ctx.schema.users)
+          .set({ banned: true })
+          .where(eq(ctx.schema.users.id, otroId))
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', {
+            accion: 'marcar_enviado',
+            envio: { mensajeroId: otroId, fecha: hoy },
+          }),
+        )
+        expect(res.status).toBe(422)
+        expect(await res.json()).toEqual({
+          message: 'Datos inválidos',
+          issues: [{ path: 'envio.mensajeroId', message: 'Elige un mensajero activo.' }],
+        })
+        expect(await entregasDe(id)).toEqual([])
       })
 
       it('el mensajero que se asigna a sí mismo envía (200): entrega pendiente y shippedAt, sin precios', async () => {
@@ -1055,6 +1100,24 @@ describe('/api/trabajos', () => {
       ).json()) as { events: { type: string; toValue: string | null; reason: string | null }[] }
       expect(eventos.events.map((e) => e.type)).toEqual(['created', 'pickup_scheduled'])
       expect(eventos.events[1]).toMatchObject({ toValue: hoy, reason: 'Mensajero' })
+    })
+
+    // M-4: la ficha dice de quién es la recogida pendiente, para que la web solo le ofrezca
+    // «Recibido» al mensajero que la tiene asignada.
+    it('GET /api/trabajos/:id trae la recogida pendiente y su mensajero; recibida, null', async () => {
+      const id = await crearPorRecoger()
+      const ficha = async () =>
+        (
+          (await (await app.request(`/api/trabajos/${id}`, req(mensajero, 'GET'))).json()) as {
+            case: { pendingDelivery: unknown }
+          }
+        ).case.pendingDelivery
+      expect(await ficha()).toEqual({ type: 'recogida', courierId: mensajeroId })
+      await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(mensajero, 'POST', { accion: 'recibir' }),
+      )
+      expect(await ficha()).toBeNull()
     })
 
     it('responde 422 si el mensajero de la recogida no es un mensajero activo', async () => {
@@ -1450,42 +1513,43 @@ describe('/api/trabajos', () => {
     })
   })
 
+  // Helpers de repeticiones: los usan `/repetir` y `/repeticiones`.
+  async function avanzarAEntregado(id: string) {
+    await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'aceptar' }))
+    await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' }))
+    await app.request(
+      `/api/trabajos/${id}/acciones`,
+      req(admin, 'POST', {
+        accion: 'marcar_enviado',
+        envio: { mensajeroId, fecha: hoy },
+      }),
+    )
+    await app.request(
+      `/api/trabajos/${id}/acciones`,
+      req(admin, 'POST', { accion: 'marcar_entregado', constanciaId: await adjuntoDe(id) }),
+    )
+  }
+
+  async function crearTrabajoEntregado() {
+    const id = await createOne(recepcion, {
+      dueDate: '2026-12-01',
+      prescription: 'Corona completa disilicato',
+      items: [{ productId: zr, quantity: 1, teeth: [11, 12] }],
+    })
+    await avanzarAEntregado(id)
+    return { id }
+  }
+
+  function remakeBody(overrides: Record<string, unknown> = {}) {
+    return {
+      motivo: 'Fractura en cerámica al probar',
+      responsabilidad: 'laboratorio',
+      cobroPct: 0,
+      ...overrides,
+    }
+  }
+
   describe('POST /api/trabajos/:id/repetir', () => {
-    async function avanzarAEntregado(id: string) {
-      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'aceptar' }))
-      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' }))
-      await app.request(
-        `/api/trabajos/${id}/acciones`,
-        req(admin, 'POST', {
-          accion: 'marcar_enviado',
-          envio: { mensajeroId, fecha: hoy },
-        }),
-      )
-      await app.request(
-        `/api/trabajos/${id}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_entregado', constanciaId: await adjuntoDe(id) }),
-      )
-    }
-
-    async function crearTrabajoEntregado() {
-      const id = await createOne(recepcion, {
-        dueDate: '2026-12-01',
-        prescription: 'Corona completa disilicato',
-        items: [{ productId: zr, quantity: 1, teeth: [11, 12] }],
-      })
-      await avanzarAEntregado(id)
-      return { id }
-    }
-
-    function remakeBody(overrides: Record<string, unknown> = {}) {
-      return {
-        motivo: 'Fractura en cerámica al probar',
-        responsabilidad: 'laboratorio',
-        cobroPct: 0,
-        ...overrides,
-      }
-    }
-
     it('repite un trabajo entregado (201): código nuevo, hijo enlazado al padre y líneas copiadas', async () => {
       const { id } = await crearTrabajoEntregado()
       const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
@@ -1720,6 +1784,80 @@ describe('/api/trabajos', () => {
     })
   })
 
+  // #96, Tarea 9: desde la ficha del padre no había forma de ver sus repeticiones. El
+  // endpoint es un bloque de la ficha (`requireAuth`, no `requireRole`: cualquier rol
+  // autenticado lo lee), sin dinero.
+  describe('GET /api/trabajos/:id/repeticiones', () => {
+    it('lista las repeticiones directas, de la más reciente a la más antigua', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const primero = (await (
+        await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      ).json()) as { case: { id: string; code: string } }
+      const segundo = (await (
+        await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      ).json()) as { case: { id: string; code: string } }
+
+      const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(admin, 'GET'))
+      expect(res.status).toBe(200)
+      const { repeticiones } = (await res.json()) as {
+        repeticiones: { id: string; code: string; status: string; remakeReason: string }[]
+      }
+      expect(repeticiones.map((r) => r.id)).toEqual([segundo.case.id, primero.case.id])
+      expect(repeticiones[0]).toMatchObject({
+        code: segundo.case.code,
+        status: 'nuevo',
+        remakeReason: 'Fractura en cerámica al probar',
+      })
+    })
+
+    it('no incluye al nieto, solo a los hijos directos', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const hijoRes = await app.request(
+        `/api/trabajos/${id}/repetir`,
+        req(admin, 'POST', remakeBody()),
+      )
+      const { case: hijo } = (await hijoRes.json()) as { case: { id: string } }
+      await avanzarAEntregado(hijo.id)
+      await app.request(`/api/trabajos/${hijo.id}/repetir`, req(admin, 'POST', remakeBody()))
+
+      const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(admin, 'GET'))
+      const { repeticiones } = (await res.json()) as { repeticiones: { id: string }[] }
+      expect(repeticiones.map((r) => r.id)).toEqual([hijo.id])
+    })
+
+    it('un trabajo sin repeticiones devuelve la lista vacía', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(admin, 'GET'))
+      const { repeticiones } = (await res.json()) as { repeticiones: unknown[] }
+      expect(repeticiones).toEqual([])
+    })
+
+    it('un técnico ve la lista, sin ningún campo de dinero', async () => {
+      const { id } = await crearTrabajoEntregado()
+      await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+
+      const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(tecnico, 'GET'))
+      expect(res.status).toBe(200)
+      const { repeticiones } = (await res.json()) as { repeticiones: Record<string, unknown>[] }
+      expect(repeticiones).toHaveLength(1)
+      expect(Object.keys(repeticiones[0]!).sort()).toEqual(
+        ['code', 'id', 'receivedAt', 'remakeReason', 'status'].sort(),
+      )
+    })
+
+    it('responde 404 si el trabajo no existe', async () => {
+      const res = await app.request(`/api/trabajos/${randomUUID()}/repeticiones`, req(admin, 'GET'))
+      expect(res.status).toBe(404)
+      expect(await res.json()).toEqual({ message: 'No encontrado' })
+    })
+
+    it('401 sin sesión', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(`/api/trabajos/${id}/repeticiones`, req('', 'GET'))
+      expect(res.status).toBe(401)
+    })
+  })
+
   // T11 (#68): resumen del día por vista. `app` (el de todo el archivo) usa el reloj real del
   // sistema, así que "hoy" no es determinista para `vencen_hoy`/`atrasados`: esta app propia
   // con un reloj fijo (mismo patrón que `clock` en `createApp`, ver `app.ts`) es la que deja
@@ -1908,6 +2046,69 @@ describe('/api/trabajos', () => {
       const resumenRes = await resumenApp.request('/api/trabajos/resumen', req(admin, 'GET'))
       const { resumen } = (await resumenRes.json()) as { resumen: Record<string, number> }
       expect(resumen.atrasados).toBe(4)
+    })
+  })
+
+  // CAL-2 (#80, Tarea 8): "vencen mañana" es el siguiente día *hábil* tras hoy (ADR 30), no el
+  // día de calendario siguiente. Reloj fijo en viernes para que "mañana" salte el fin de
+  // semana: un trabajo que vence el sábado no debe contar, y uno que vence el lunes (el
+  // siguiente día hábil real) sí. Con la mutación "+1 día natural" en vez de `addBusinessDays`,
+  // el lunes dejaría de contar (mañana sería el sábado) y este test lo detecta.
+  describe('vencen_manana (CAL-2)', () => {
+    const VIERNES = '2026-10-02'
+    let vencenMananaApp: ReturnType<typeof createApp>
+
+    beforeAll(() => {
+      vencenMananaApp = createApp({
+        auth: ctx.auth,
+        db: ctx.db,
+        webOrigin: ctx.config.WEB_ORIGIN,
+        storage: ctx.storage,
+        clock: { today: () => VIERNES, now: () => new Date(`${VIERNES}T12:00:00Z`) },
+      })
+    })
+
+    it('el lunes (siguiente día hábil) cuenta; el sábado y un trabajo terminado no', async () => {
+      const lunesId = await createOne(recepcion, { patientRef: 'Vence el lunes' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_proceso', promisedDate: '2026-10-05' })
+        .where(eq(ctx.schema.cases.id, lunesId))
+
+      const sabadoId = await createOne(recepcion, { patientRef: 'Vence el sábado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_proceso', promisedDate: '2026-10-03' })
+        .where(eq(ctx.schema.cases.id, sabadoId))
+
+      const terminadoLunesId = await createOne(recepcion, {
+        patientRef: 'Terminado, vencía el lunes',
+      })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'terminado', promisedDate: '2026-10-05' })
+        .where(eq(ctx.schema.cases.id, terminadoLunesId))
+
+      const listaRes = await vencenMananaApp.request(
+        '/api/trabajos?vista=vencen_manana',
+        req(admin, 'GET'),
+      )
+      expect(listaRes.status).toBe(200)
+      const { cases: lista, total } = (await listaRes.json()) as {
+        cases: { id: string }[]
+        total: number
+      }
+      const ids = lista.map((c) => c.id)
+
+      expect(ids).toContain(lunesId)
+      expect(ids).not.toContain(sabadoId)
+      expect(ids).not.toContain(terminadoLunesId)
+      expect(total).toBe(1)
+
+      // ADR 32: el contador del resumen coincide con el total de la lista de su misma vista.
+      const resumenRes = await vencenMananaApp.request('/api/trabajos/resumen', req(admin, 'GET'))
+      const { resumen } = (await resumenRes.json()) as { resumen: Record<string, number> }
+      expect(resumen.vencen_manana).toBe(total)
     })
   })
 

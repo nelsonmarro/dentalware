@@ -1,4 +1,5 @@
 import {
+  addBusinessDays,
   CASE_VIEWS,
   caseInputSchema,
   canRemake,
@@ -11,6 +12,7 @@ import {
   remakeDueDate,
   sumCents,
   toCents,
+  toIsoDate,
 } from '@dentalware/shared'
 import type {
   AttachmentKind,
@@ -187,6 +189,12 @@ function matchesView(view: CaseView | undefined, today: string, r: CaseDetail): 
       return isEnCurso(r.status)
     case 'vencen_hoy':
       return activeForDates && effectiveDate === today
+    case 'vencen_manana': {
+      // Mismo cálculo que `viewCondition` (`repo.ts`, CAL-2): el siguiente día *hábil*, no el
+      // día de calendario siguiente.
+      const siguienteDiaHabil = toIsoDate(addBusinessDays(new Date(`${today}T00:00:00`), 1, []))
+      return activeForDates && effectiveDate === siguienteDiaHabil
+    }
     case 'atrasados':
       return activeForDates && effectiveDate !== null && effectiveDate < today
     case 'en_prueba':
@@ -397,6 +405,21 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
       })
       return { id, code }
     },
+    // Mismo criterio que `repo.ts`: solo los hijos de primer grado, de la más reciente a la
+    // más antigua. El `Map` conserva el orden de inserción (ascendente); `.reverse()` lo
+    // vuelve el orden de creación descendente que pide el puerto, sin un `createdAt` propio.
+    async remakesOf(parentId) {
+      return [...rows.values()]
+        .filter((r) => r.parentCaseId === parentId)
+        .reverse()
+        .map((r) => ({
+          id: r.id,
+          code: r.code,
+          status: r.status,
+          receivedAt: r.receivedAt,
+          remakeReason: r.remakeReason,
+        }))
+    },
   }
   return { repo, rows, events, lastListQuery: () => lastListQuery }
 }
@@ -481,13 +504,18 @@ export function fakeDeliveryLog(seed: FakeDelivery[] = []) {
         (r) => r.caseId === caseId && r.type === type && r.status === 'pendiente',
       )
     },
+    // Mismo contrato condicional que `deliveries/repo.ts`: solo cierra una entrega `pendiente`.
     async markDone(id, doneAt, proofAttachmentId) {
       const cur = rows.get(id)
-      if (cur) rows.set(id, { ...cur, status: 'hecha', doneAt, proofAttachmentId })
+      if (cur?.status !== 'pendiente') return false
+      rows.set(id, { ...cur, status: 'hecha', doneAt, proofAttachmentId })
+      return true
     },
     async markFailed(id, reason, at) {
       const cur = rows.get(id)
-      if (cur) rows.set(id, { ...cur, status: 'fallida', doneAt: at, failedReason: reason })
+      if (cur?.status !== 'pendiente') return false
+      rows.set(id, { ...cur, status: 'fallida', doneAt: at, failedReason: reason })
+      return true
     },
   }
   return { log, rows }

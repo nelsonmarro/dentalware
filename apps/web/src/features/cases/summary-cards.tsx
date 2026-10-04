@@ -18,6 +18,7 @@ const VIEW_COLOR: Record<CaseView, string> = {
   nuevos: STATUS_COLOR.nuevo,
   en_curso: STATUS_COLOR.en_proceso,
   vencen_hoy: 'var(--wax-amber)',
+  vencen_manana: STATUS_COLOR.en_espera,
   atrasados: STATUS_COLOR.cancelado,
   en_prueba: STATUS_COLOR.en_prueba,
   listos: STATUS_COLOR.terminado,

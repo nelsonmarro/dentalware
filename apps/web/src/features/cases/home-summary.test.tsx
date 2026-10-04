@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-router'
 import { render, screen } from '@testing-library/react'
 import type { ReactElement } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as ApiModule from './api'
 import { HomeSummary } from './home-summary'
 
@@ -20,6 +20,14 @@ vi.mock('./api', async (importOriginal) => ({
   fetchSummary,
   fetchCases,
 }))
+const { fetchDeliveries } = vi.hoisted(() => ({ fetchDeliveries: vi.fn() }))
+vi.mock('@/features/deliveries/api', () => ({ fetchDeliveries }))
+
+beforeEach(() => {
+  fetchSummary.mockReset()
+  fetchCases.mockReset()
+  fetchDeliveries.mockReset()
+})
 
 function renderWithProviders(ui: ReactElement) {
   const client = new QueryClient({
@@ -50,19 +58,46 @@ const SUMMARY = {
 // `HomeSummary` (feature `cases`, no una ruta: `routes/` no tiene archivo de test en este
 // proyecto) para poder probarlo como cualquier otro componente de features.
 describe('HomeSummary', () => {
-  it.each(['admin', 'recepcion', 'mensajero'] as const)('%s no ve "Mis trabajos"', async (role) => {
+  it.each(['admin', 'recepcion'] as const)('%s no ve "Mis trabajos"', async (role) => {
     fetchSummary.mockResolvedValue(SUMMARY)
-    renderWithProviders(<HomeSummary role={role} technicianId="u-1" />)
+    renderWithProviders(<HomeSummary role={role} userId="u-1" />)
 
     await screen.findByRole('link', { name: /Nuevos 1/ })
     expect(screen.queryByRole('heading', { name: 'Mis trabajos' })).not.toBeInTheDocument()
     expect(fetchCases).not.toHaveBeenCalled()
   })
 
+  it.each(['admin', 'recepcion', 'tecnico'] as const)(
+    '%s no ve «Entregas de hoy»',
+    async (role) => {
+      fetchSummary.mockResolvedValue(SUMMARY)
+      fetchCases.mockResolvedValue({ cases: [], total: null })
+      renderWithProviders(<HomeSummary role={role} userId="u-1" />)
+
+      await screen.findByRole('link', { name: /Nuevos 1/ })
+      expect(screen.queryByRole('heading', { name: 'Entregas de hoy' })).not.toBeInTheDocument()
+      expect(fetchDeliveries).not.toHaveBeenCalled()
+    },
+  )
+
+  // INI-3 (#105): el mensajero abre su inicio con su ruta de hoy, en lugar de los contadores
+  // del laboratorio (que no le dicen qué hacer).
+  it('el mensajero ve «Entregas de hoy» y no los contadores', async () => {
+    fetchSummary.mockResolvedValue(SUMMARY)
+    fetchDeliveries.mockResolvedValue([])
+    renderWithProviders(<HomeSummary role="mensajero" userId="m-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Entregas de hoy' })).toBeInTheDocument()
+    expect(await screen.findByText('No tienes entregas hoy')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Nuevos/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Mis trabajos' })).not.toBeInTheDocument()
+    expect(fetchSummary).not.toHaveBeenCalled()
+  })
+
   it('técnico ve "Mis trabajos"', async () => {
     fetchSummary.mockResolvedValue(SUMMARY)
     fetchCases.mockResolvedValue({ cases: [], total: null })
-    renderWithProviders(<HomeSummary role="tecnico" technicianId="tec-1" />)
+    renderWithProviders(<HomeSummary role="tecnico" userId="tec-1" />)
 
     expect(await screen.findByRole('heading', { name: 'Mis trabajos' })).toBeInTheDocument()
   })
@@ -72,7 +107,7 @@ describe('HomeSummary', () => {
   it('técnico ve "Mis trabajos" antes que los contadores del laboratorio', async () => {
     fetchSummary.mockResolvedValue(SUMMARY)
     fetchCases.mockResolvedValue({ cases: [], total: null })
-    renderWithProviders(<HomeSummary role="tecnico" technicianId="tec-1" />)
+    renderWithProviders(<HomeSummary role="tecnico" userId="tec-1" />)
 
     const mine = await screen.findByRole('heading', { name: 'Mis trabajos' })
     const counter = await screen.findByRole('link', { name: /Nuevos 1/ })

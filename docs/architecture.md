@@ -47,6 +47,8 @@ packages/shared (máquina de estados, dinero, FDI, readiness, schemas zod)
 
 `app.ts` (`createApp(deps)`) es la raíz de composición: construye adaptadores, arma servicios y monta rutas. `main.ts` es lo único que toca el mundo real. Implementación de referencia: `features/cases`.
 
+**Entregas** (`features/deliveries`, Iteración 4): recogidas y entregas del día, «No se pudo» y lista de mensajeros, con su propio `UnitOfWork`. Las transiciones del trabajo que abren o cierran una entrega viven en `cases` y escriben por su puerto `DeliveryLog` (ADR 34).
+
 **Cuándo hace falta `service.ts`**: siempre en una feature nueva, o si la feature usa más de un puerto, tiene reglas o autorización más allá de `requireRole`, necesita transacción, enmascara por rol u orquesta varios pasos. Un CRUD simple (`clinics`, `doctors`, `stages`, `lab-settings`) puede llamar al repo desde la ruta; con su primera regla gana servicio en ese mismo PR. Las features viejas se migran cuando se tocan (boy-scout): faltan `users` (Drizzle en la ruta) y `products` (reglas en la ruta), excluidas del lint de rutas hasta entonces.
 
 ### Web (`apps/web/src`)
@@ -86,7 +88,8 @@ En la API, los tests y `fakes.ts` quedan fuera de estas reglas. En la web sí en
 
 - **Configuración**: `lab_settings`, `users` (+ Better Auth), `clinics`, `doctors`, `product_categories`, `products`, `clinic_product_prices` y `stages`.
 - **Operación**: `cases` (con `parent_case_id` para las repeticiones), `case_items`, `case_events`, `attachments`, `case_tryins` y `case_sequences`.
-- **Previstas**: `deliveries`, `account_adjustments`, `payments` y `payment_allocations`.
+- **Entregas**: `deliveries` (recogida o entrega, mensajero, fecha, estado `pendiente`/`hecha`/`fallida` y motivo).
+- **Previstas**: `account_adjustments`, `payments` y `payment_allocations`.
 
 Saldo de clínica = Σ entregados + Σ ajustes − Σ pagos. Se calcula, no se guarda.
 
@@ -155,3 +158,4 @@ Saldo de clínica = Σ entregados + Σ ajustes − Σ pagos. Se calcula, no se g
 | 31 | Reglas de rol y estado en `shared` (`hidesPrices`, `*_ROLES`, `canChangeStage`…), con `Record` exhaustivos | web y API no divergen; lo nuevo no compila sin decidir |
 | 32 | Una sola definición por vista rápida (`viewCondition`) para la lista y el resumen del inicio, probada contra Postgres con reloj fijo | los contadores coinciden con sus listas y son correctos |
 | 33 | Recorte del MVP a recibir → producir → entregar → cobrar. Entregas con recogidas y cobro por trabajo completos; CAL-1, CAL-3, CTA-4, AVI-1 a AVI-3 y PEM-2 a Post-MVP | lanzar antes sin tocar el flujo que paga al laboratorio |
+| 34 | Entregas en su feature; las transiciones que abren o cierran una entrega escriben por un puerto de `cases` (`DeliveryLog`) en la misma transacción, con la factoría inyectada en `drizzleUnitOfWork` desde `app.ts`; al revés, «No se pudo» escribe `delivery_failed` por el puerto `CaseEventLog` de `deliveries`, con su propio `DeliveriesUnitOfWork` compuesto en `app.ts`; `pickup_scheduled` y `shipped` guardan el nombre del mensajero en `reason` (copia en el momento) y la fecha en `toValue`, y `delivery_failed` guarda el motivo en `reason` y la nueva fecha en `toValue`; las entregas se cierran solo si siguen pendientes (`markDone`/`markFailed` condicionales, 409 si otra petición la cerró antes) | el evento y la entrega no se separan; ninguna feature importa el `repo.ts` de la otra; el historial no cambia si el mensajero se renombra; «No se pudo» y las acciones que cierran la misma entrega no se pisan |

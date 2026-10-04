@@ -343,6 +343,19 @@ describe('/api/adjuntos', () => {
     expect(await res.json()).toEqual({ message: 'La constancia debe ser una foto' })
   })
 
+  // T4 de la revisión final del PR 2: la constancia es solo de quien entrega.
+  it('el técnico no puede subir una constancia (403)', async () => {
+    const buf = await jpegFixture(300, 200)
+    const res = await upload(
+      tecnico,
+      new File([buf], 'constancia.jpg', { type: 'image/jpeg' }),
+      'constancia',
+    )
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ message: 'Sin permiso' })
+    expect(await ctx.db.query.attachments.findMany({ where: { caseId } })).toEqual([])
+  })
+
   it('el técnico sigue subiendo fotos (201)', async () => {
     const buf = await jpegFixture(300, 200)
     const res = await upload(tecnico, new File([buf], 'foto.jpg', { type: 'image/jpeg' }), 'photo')

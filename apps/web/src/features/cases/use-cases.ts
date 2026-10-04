@@ -19,6 +19,7 @@ import {
   fetchCaseByCode,
   fetchCases,
   fetchEvents,
+  fetchRemakes,
   fetchTechnicians,
   postCaseAction,
   postComment,
@@ -56,7 +57,7 @@ function useInvalidateCases() {
  * para que la ficha y sus botones muestren el estado real cuando sale el toast y `isPending`
  * no rehabilite los botones viejos. Un 500 o un fallo de red no dicen nada del estado: ahí se
  * avisa sin refrescar, que solo repetiría la petición que falla. */
-function useConflictAwareError() {
+export function useConflictAwareError() {
   const invalidate = useInvalidateCases()
   return async (error: unknown) => {
     if (error instanceof ApiError && error.status === 409) await invalidate()
@@ -175,6 +176,13 @@ export function useCreateRemake(parentId: string) {
     },
     onError,
   })
+}
+
+/** `GET /api/trabajos/:id/repeticiones` (#96, Tarea 9): hijos directos del padre, sin dinero.
+ * Bajo el prefijo `['trabajos']` (ver `queryKeys.caseRemakes`), así que `useCreateRemake` (que
+ * invalida ese prefijo) la refresca sin tocarla aparte. */
+export function useCaseRemakes(id: string) {
+  return useQuery({ queryKey: queryKeys.caseRemakes(id), queryFn: () => fetchRemakes(id) })
 }
 
 export function useAddComment(id: string) {

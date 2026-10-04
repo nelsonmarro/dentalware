@@ -29,7 +29,7 @@ Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabaj
 - **Servicios**: factorías con dependencias explícitas; toda dependencia oculta (reloj, ids, disco, red, config) es un puerto. Cada servicio tiene test con fakes además de la integración de sus rutas.
 - **Validación**: `validate('json'|'query'|'param', schema)` con schemas de `shared` → 422 `{ message: 'Datos inválidos', issues }`.
 - **Errores**: `{ message }` en español. 401 «No autenticado» en `requireAuth`; 403 «Sin permiso» uniforme en `requireRole` y ante un rol desconocido; 404 «No encontrado»; 409 transición inválida; 413/415 en subidas. Status explícito en `c.json(x, 200)`.
-- **Permisos**: quién puede qué lo dicen las constantes de `shared` (`CASE_TRANSITIONS`, `*_ROLES`, ADR 31). Cada ruta usa **su** constante; en el ciclo de vida del trabajo el servicio vuelve a comprobar el rol. **Técnico y mensajero nunca reciben precios ni notas internas**: lo enmascara el servicio (`stripPrices`/`maskPriceEvents`), nunca solo la UI. El mensajero solo sube adjuntos `constancia` (los demás tipos, `ATTACHMENT_UPLOAD_ROLES`) y solo actúa sobre sus propias recogidas y entregas (lo comprueba el servicio).
+- **Permisos**: quién puede qué lo dicen las constantes de `shared` (`CASE_TRANSITIONS`, `*_ROLES`, ADR 31). Cada ruta usa **su** constante; en el ciclo de vida del trabajo el servicio vuelve a comprobar el rol. **Técnico y mensajero nunca reciben precios ni notas internas**: lo enmascara el servicio (`stripPrices`/`maskPriceEvents`), nunca solo la UI. El mensajero solo sube adjuntos `constancia` (los demás tipos, `ATTACHMENT_UPLOAD_ROLES`) y solo actúa sobre sus propias recogidas y entregas: lo comprueba el servicio con `canActOnDelivery` (shared), y la web usa la misma regla con el `pendingDelivery { type, courierId }` de la ficha para no mostrarle la acción de una entrega ajena.
 - **Dinero** como cadena decimal `"12.34"`, cálculos en centavos (`money.ts`). Fechas de negocio `YYYY-MM-DD`, timestamps UTC; formatea el cliente.
 - **Transacciones**: toda mutación de un trabajo escribe su `case_event` en la misma transacción, vía `UnitOfWork.run(fn)` (ADR 19). Nunca `db.transaction` anidado.
 - Catálogos con borrado lógico (`active`); los trabajos se cancelan, no se borran. Código `AA-NNNNN` por secuencia anual con `FOR UPDATE`.
@@ -74,6 +74,7 @@ Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabaj
   - Proyectos `escritorio` y `android` en local; `iphone` solo en CI.
   - Datos únicos por ejecución (`uniqueSuffix`), selectores por rol o label, sin `waitForTimeout`.
   - Puertos 3000 y 5173 libres antes de correrlos.
+  - Cada `browser.newContext()` extra (otro rol con su sesión) se cierra en `finally`. Leer un id de la URL tras guardar espera una URL que excluya `/nuevo` (`/\/trabajos\/(?!nuevo$)[^/]+$/`): la de antes de navegar también casa.
 - **Niveles de E2E**: cada test lleva exactamente una etiqueta, verificada por `e2e-tags.test.ts`. Ante la duda, `@clave`.
   - `@esencial`: sin esto el laboratorio no trabaja (sesión, crear trabajo, técnico sin precios ni configuración, crear clínica y producto).
   - `@clave`: uso diario cuyo fallo no lo detiene.

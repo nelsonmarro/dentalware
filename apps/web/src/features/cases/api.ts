@@ -116,6 +116,17 @@ export async function createRemake(id: string, input: RemakeInput) {
 }
 
 /**
+ * `GET /api/trabajos/:id/repeticiones` (#96, Tarea 9): hijos directos del trabajo, de la más
+ * reciente a la más antigua, sin dinero — bloque «Repeticiones» de la ficha del padre.
+ */
+export async function fetchRemakes(id: string) {
+  return (
+    await (await throwIfNotOk(await trabajos[':id'].repeticiones.$get({ param: { id } }))).json()
+  ).repeticiones
+}
+export type RemakeSummary = Awaited<ReturnType<typeof fetchRemakes>>[number]
+
+/**
  * `GET /api/trabajos/tecnicos` (Tarea 9): solo `id` y `name` de los técnicos activos, para el
  * combobox de `TechnicianSelect`. Solo admin y recepción (403 el resto): `TechnicianSelect`
  * consulta este endpoint únicamente cuando el rol puede asignar (`useTechnicians`, no llamado

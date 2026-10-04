@@ -61,14 +61,18 @@ function caso(overrides: Partial<CaseDetail> = {}): CaseDetail {
     technician: null,
     stage: null,
     items: [],
+    pendingDelivery: null,
     ...overrides,
   } as unknown as CaseDetail
 }
 
+/** Quien usa la app (`self`, obligatorio donde un mensajero llega al envío). */
+const yo = { id: 'u-yo', name: 'Yo' }
+
 describe('CaseActions', () => {
   it('en un trabajo nuevo y completo ofrece Aceptar y Cancelar a recepción', async () => {
     renderWithProviders(
-      <CaseActions case={caso({ status: 'nuevo' })} missing={[]} role="recepcion" />,
+      <CaseActions self={yo} case={caso({ status: 'nuevo' })} missing={[]} role="recepcion" />,
     )
     expect(await screen.findByRole('button', { name: 'Aceptar' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Cancelar trabajo' })).toBeInTheDocument()
@@ -78,6 +82,7 @@ describe('CaseActions', () => {
   it('deshabilita Aceptar cuando el trabajo está incompleto', async () => {
     renderWithProviders(
       <CaseActions
+        self={yo}
         case={caso({ status: 'nuevo' })}
         missing={['Color', 'Prescripción']}
         role="recepcion"
@@ -90,7 +95,7 @@ describe('CaseActions', () => {
 
   it('a un técnico no le ofrece Aceptar ni Cancelar', async () => {
     renderWithProviders(
-      <CaseActions case={caso({ status: 'nuevo' })} missing={[]} role="tecnico" />,
+      <CaseActions self={yo} case={caso({ status: 'nuevo' })} missing={[]} role="tecnico" />,
     )
     await waitFor(() => expect(screen.queryAllByRole('button')).toHaveLength(0))
     expect(screen.queryByRole('button', { name: 'Aceptar' })).not.toBeInTheDocument()
@@ -99,7 +104,7 @@ describe('CaseActions', () => {
 
   it('pausar pide motivo y no envía hasta que se escribe', async () => {
     const { user } = renderWithProviders(
-      <CaseActions case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />,
+      <CaseActions self={yo} case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />,
     )
     await user.click(await screen.findByRole('button', { name: 'Pausar' }))
     const confirmar = within(screen.getByRole('dialog')).getByRole('button', {
@@ -133,7 +138,7 @@ describe('CaseActions', () => {
     ],
   ])('el diálogo de «%s» nombra la acción y su efecto', async (boton, confirmar, efecto) => {
     const { user } = renderWithProviders(
-      <CaseActions case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />,
+      <CaseActions self={yo} case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />,
     )
     await user.click(await screen.findByRole('button', { name: boton }))
     const dialog = screen.getByRole('dialog')
@@ -146,7 +151,7 @@ describe('CaseActions', () => {
 
   it('la confirmación de finalizar cierra con «Volver», no con «Cancelar»', async () => {
     const { user } = renderWithProviders(
-      <CaseActions case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />,
+      <CaseActions self={yo} case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />,
     )
     await user.click(await screen.findByRole('button', { name: 'Finalizar' }))
     const dialog = screen.getByRole('alertdialog')
@@ -171,6 +176,7 @@ describe('CaseActions', () => {
     async (status, hasNextStage, primario) => {
       renderWithProviders(
         <CaseActions
+          self={yo}
           case={caso({ status })}
           missing={[]}
           role="admin"
@@ -191,6 +197,7 @@ describe('CaseActions', () => {
   it('con una fase siguiente por delante «Finalizar» no es primario y ninguna acción lo es', async () => {
     renderWithProviders(
       <CaseActions
+        self={yo}
         case={caso({ status: 'en_proceso' })}
         missing={[]}
         role="tecnico"
@@ -208,7 +215,7 @@ describe('CaseActions', () => {
 
   it('pausar y enviar a prueba son secundarias y cancelar es destructiva', async () => {
     renderWithProviders(
-      <CaseActions case={caso({ status: 'en_proceso' })} missing={[]} role="admin" />,
+      <CaseActions self={yo} case={caso({ status: 'en_proceso' })} missing={[]} role="admin" />,
     )
     expect(await screen.findByRole('button', { name: 'Pausar' })).toHaveAttribute(
       'data-variant',
@@ -231,7 +238,7 @@ describe('CaseActions', () => {
     ['Pausar', 'default'],
   ])('el botón que confirma «%s» lleva la variante %s', async (boton, variante) => {
     const { user } = renderWithProviders(
-      <CaseActions case={caso({ status: 'en_proceso' })} missing={[]} role="admin" />,
+      <CaseActions self={yo} case={caso({ status: 'en_proceso' })} missing={[]} role="admin" />,
     )
     await user.click(await screen.findByRole('button', { name: boton }))
     const dialog = screen.getByRole('dialog')
@@ -245,7 +252,7 @@ describe('CaseActions', () => {
   // esta barra como secundaria).
   it('un trabajo entregado no ofrece ninguna acción de estado, solo «Repetir»', async () => {
     renderWithProviders(
-      <CaseActions case={caso({ status: 'entregado' })} missing={[]} role="recepcion" />,
+      <CaseActions self={yo} case={caso({ status: 'entregado' })} missing={[]} role="recepcion" />,
     )
     await waitFor(() =>
       expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Repetir']),
@@ -254,7 +261,7 @@ describe('CaseActions', () => {
 
   it('un mensajero marca enviado un trabajo terminado, pero no ve «Repetir»', async () => {
     renderWithProviders(
-      <CaseActions case={caso({ status: 'terminado' })} missing={[]} role="mensajero" />,
+      <CaseActions self={yo} case={caso({ status: 'terminado' })} missing={[]} role="mensajero" />,
     )
     expect(await screen.findByRole('button', { name: 'Marcar enviado' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Repetir' })).not.toBeInTheDocument()
@@ -262,14 +269,19 @@ describe('CaseActions', () => {
 
   it('a un técnico, en un trabajo entregado, no le monta nada', () => {
     const { container } = renderWithProviders(
-      <CaseActions case={caso({ status: 'entregado' })} missing={[]} role="tecnico" />,
+      <CaseActions self={yo} case={caso({ status: 'entregado' })} missing={[]} role="tecnico" />,
     )
     expect(container).toBeEmptyDOMElement()
   })
 
   it('en «por recoger» «Recibido» se envía al primer clic, sin diálogo', async () => {
     const { user } = renderWithProviders(
-      <CaseActions case={caso({ status: 'por_recoger' })} missing={[]} role="recepcion" />,
+      <CaseActions
+        self={yo}
+        case={caso({ status: 'por_recoger' })}
+        missing={[]}
+        role="recepcion"
+      />,
     )
     await user.click(await screen.findByRole('button', { name: 'Recibido' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -281,7 +293,7 @@ describe('CaseActions', () => {
 
   it('«Marcar enviado» abre el diálogo de envío con mensajero y fecha, sin enviar nada', async () => {
     const { user } = renderWithProviders(
-      <CaseActions case={caso({ status: 'terminado' })} missing={[]} role="recepcion" />,
+      <CaseActions self={yo} case={caso({ status: 'terminado' })} missing={[]} role="recepcion" />,
     )
     await user.click(await screen.findByRole('button', { name: 'Marcar enviado' }))
     const dialog = await screen.findByRole('dialog', { name: 'Marcar enviado' })
@@ -292,7 +304,12 @@ describe('CaseActions', () => {
 
   it('«Marcar entregado» abre el diálogo de la foto de constancia, sin enviar nada', async () => {
     const { user } = renderWithProviders(
-      <CaseActions case={caso({ status: 'enviado' })} missing={[]} role="mensajero" />,
+      <CaseActions
+        self={yo}
+        case={caso({ status: 'enviado', pendingDelivery: { type: 'entrega', courierId: yo.id } })}
+        missing={[]}
+        role="mensajero"
+      />,
     )
     await user.click(await screen.findByRole('button', { name: 'Marcar entregado' }))
     const dialog = await screen.findByRole('dialog', { name: 'Marcar entregado' })
@@ -302,9 +319,73 @@ describe('CaseActions', () => {
     expect(postCaseAction).not.toHaveBeenCalled()
   })
 
+  // M-4 (revisión final del PR 1 de la Iteración 4): el mensajero solo ve la acción de la
+  // entrega que tiene asignada (`canActOnDelivery`); la API respondería 403 a la de otro.
+  describe('entregas de otro mensajero', () => {
+    it('a un mensajero no le ofrece «Recibido» de una recogida asignada a otro', () => {
+      const { container } = renderWithProviders(
+        <CaseActions
+          case={caso({
+            status: 'por_recoger',
+            pendingDelivery: { type: 'recogida', courierId: 'otro' },
+          })}
+          self={yo}
+          missing={[]}
+          role="mensajero"
+        />,
+      )
+      expect(container).toBeEmptyDOMElement()
+    })
+
+    it('a un mensajero le ofrece «Recibido» de su propia recogida', () => {
+      renderWithProviders(
+        <CaseActions
+          case={caso({
+            status: 'por_recoger',
+            pendingDelivery: { type: 'recogida', courierId: yo.id },
+          })}
+          self={yo}
+          missing={[]}
+          role="mensajero"
+        />,
+      )
+      expect(screen.getByRole('button', { name: 'Recibido' })).toBeInTheDocument()
+    })
+
+    it('a un mensajero no le ofrece «Marcar entregado» de una entrega asignada a otro', () => {
+      const { container } = renderWithProviders(
+        <CaseActions
+          case={caso({
+            status: 'enviado',
+            pendingDelivery: { type: 'entrega', courierId: 'otro' },
+          })}
+          self={yo}
+          missing={[]}
+          role="mensajero"
+        />,
+      )
+      expect(container).toBeEmptyDOMElement()
+    })
+
+    it('recepción ve «Marcar entregado» aunque la entrega sea de un mensajero', () => {
+      renderWithProviders(
+        <CaseActions
+          case={caso({
+            status: 'enviado',
+            pendingDelivery: { type: 'entrega', courierId: 'otro' },
+          })}
+          self={yo}
+          missing={[]}
+          role="recepcion"
+        />,
+      )
+      expect(screen.getByRole('button', { name: 'Marcar entregado' })).toBeInTheDocument()
+    })
+  })
+
   it('finalizar pide confirmación con la consecuencia concreta y no se envía hasta confirmar', async () => {
     const { user } = renderWithProviders(
-      <CaseActions case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />,
+      <CaseActions self={yo} case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />,
     )
     await user.click(await screen.findByRole('button', { name: 'Finalizar' }))
     const dialog = screen.getByRole('alertdialog')
@@ -333,7 +414,14 @@ describe('CaseActions', () => {
 
     function Harness() {
       useCase('c1')
-      return <CaseActions case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />
+      return (
+        <CaseActions
+          self={yo}
+          case={caso({ status: 'en_proceso' })}
+          missing={[]}
+          role="recepcion"
+        />
+      )
     }
     const { user } = renderWithProviders(<Harness />)
 

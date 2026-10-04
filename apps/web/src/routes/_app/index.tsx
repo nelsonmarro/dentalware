@@ -19,7 +19,7 @@ function HomePage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Inicio" description={`Bienvenido, ${user.name}`} />
-      <HomeSummary role={user.role} technicianId={user.id} />
+      <HomeSummary role={user.role} userId={user.id} />
       {/* Estado del servidor: se conserva (login.spec.ts lo comprueba) en un sitio discreto,
           al pie del panel en vez de bajo el título (ruling PR 2, T12, punto 5). */}
       <p className="text-xs text-muted-foreground">

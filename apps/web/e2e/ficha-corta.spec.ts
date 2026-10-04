@@ -1,10 +1,10 @@
-import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import {
   ADMIN,
   createClinicWithDoctor,
   createCourier,
   createProduct,
+  FOTO_PATH,
   login,
   loginAsAdmin,
   todayIso,
@@ -12,8 +12,6 @@ import {
   trackConsoleErrors,
   uniqueSuffix,
 } from './helpers'
-
-const FOTO_PATH = path.join(import.meta.dirname, 'fixtures', 'foto.png')
 
 /**
  * Trabajo aceptado y en producción (`en_proceso`, primera fase activa de `seed-data.ts`:
@@ -162,25 +160,30 @@ test.describe('Ficha corta del QR (/t/:code, FIC-2 #72 / FIC-3 #73)', () => {
 
       // Contexto aparte: el de `page` tiene la sesión de admin.
       const courierContext = await browser.newContext()
-      const courierPage = await courierContext.newPage()
-      const courierErrors = trackConsoleErrors(courierPage)
-      await login(courierPage, { email: courier.email, password: courier.password })
-      await courierPage.goto(`/t/${trabajo.code}`)
-      await expect(courierPage.getByRole('heading', { level: 1, name: trabajo.code })).toBeVisible()
-      // Su foto es la constancia: no hay «Añadir foto» genérico.
-      await expect(courierPage.getByRole('button', { name: 'Añadir foto' })).toHaveCount(0)
+      try {
+        const courierPage = await courierContext.newPage()
+        const courierErrors = trackConsoleErrors(courierPage)
+        await login(courierPage, { email: courier.email, password: courier.password })
+        await courierPage.goto(`/t/${trabajo.code}`)
+        await expect(
+          courierPage.getByRole('heading', { level: 1, name: trabajo.code }),
+        ).toBeVisible()
+        // Su foto es la constancia: no hay «Añadir foto» genérico.
+        await expect(courierPage.getByRole('button', { name: 'Añadir foto' })).toHaveCount(0)
 
-      await courierPage.getByRole('button', { name: 'Marcar entregado' }).click()
-      const dialog = courierPage.getByRole('dialog', { name: 'Marcar entregado' })
-      await dialog.getByLabel('Foto de constancia').setInputFiles(FOTO_PATH)
-      await expect(dialog.getByRole('img', { name: 'Foto de constancia' })).toBeVisible()
-      await dialog.getByRole('button', { name: 'Marcar entregado' }).click()
+        await courierPage.getByRole('button', { name: 'Marcar entregado' }).click()
+        const dialog = courierPage.getByRole('dialog', { name: 'Marcar entregado' })
+        await dialog.getByLabel('Foto de constancia').setInputFiles(FOTO_PATH)
+        await expect(dialog.getByRole('img', { name: 'Foto de constancia' })).toBeVisible()
+        await dialog.getByRole('button', { name: 'Marcar entregado' }).click()
 
-      await expect(toasts(courierPage).getByText('Marcado como entregado')).toBeVisible()
-      await expect(courierPage.getByText('Entregado', { exact: true })).toBeVisible()
-      await expect(courierPage.getByRole('button', { name: 'Marcar entregado' })).toHaveCount(0)
-      expect(courierErrors).toEqual([])
-      await courierContext.close()
+        await expect(toasts(courierPage).getByText('Marcado como entregado')).toBeVisible()
+        await expect(courierPage.getByText('Entregado', { exact: true })).toBeVisible()
+        await expect(courierPage.getByRole('button', { name: 'Marcar entregado' })).toHaveCount(0)
+        expect(courierErrors).toEqual([])
+      } finally {
+        await courierContext.close()
+      }
     },
   )
 })

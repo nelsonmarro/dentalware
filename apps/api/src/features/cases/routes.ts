@@ -145,6 +145,21 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
     .get('/:id/eventos', requireAuth, validate('param', idParamSchema), async (c) =>
       c.json({ events: await service.events(c.req.valid('param').id, ctxFrom(c)) }, 200),
     )
+    // #96, Tarea 9: bloque «Repeticiones» de la ficha del padre. Solo `requireAuth` (como
+    // `/eventos`): sin dinero, cualquier rol autenticado la ve igual (401 sin sesión, no el
+    // 403 uniforme de `requireRole`).
+    .get('/:id/repeticiones', requireAuth, validate('param', idParamSchema), async (c) => {
+      try {
+        const repeticiones = await service.remakes(c.req.valid('param').id)
+        return c.json({ repeticiones }, 200)
+      } catch (e) {
+        // `{ message: 'No encontrado' }` (conventions.md §4), no "El trabajo no existe" de
+        // `CaseNotFoundError` (mismo criterio que `/codigo/:code`, Tarea 15): este endpoint es
+        // un bloque de la ficha, no la ficha completa.
+        if (e instanceof CaseNotFoundError) return c.json({ message: 'No encontrado' }, 404)
+        toHttp(e)
+      }
+    })
     .post(
       '/:id/comentarios',
       requireAuth,

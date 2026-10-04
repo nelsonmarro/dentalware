@@ -73,7 +73,7 @@ export function RemakeDialog({
   onCreated,
 }: {
   case: CaseDetail
-  onCreated?: (created: CaseDetail) => void
+  onCreated?: (created: { id: string }) => void
 }) {
   const [open, setOpen] = useState(false)
   const [pctEdited, setPctEdited] = useState(false)

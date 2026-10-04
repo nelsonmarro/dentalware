@@ -142,11 +142,14 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     { tag: '@extendida' },
     async ({ browser }) => {
       const anon = await browser.newContext()
-      const anonPage = await anon.newPage()
-      await anonPage.goto('/login?redirect=%2Ft%2F26-00001')
-      await expect(anonPage.getByText('Inicia sesión para abrir el trabajo')).toBeVisible()
-      await expectTouchTargets(anonPage, TOUCH_CONTROLS)
-      await anon.close()
+      try {
+        const anonPage = await anon.newPage()
+        await anonPage.goto('/login?redirect=%2Ft%2F26-00001')
+        await expect(anonPage.getByText('Inicia sesión para abrir el trabajo')).toBeVisible()
+        await expectTouchTargets(anonPage, TOUCH_CONTROLS)
+      } finally {
+        await anon.close()
+      }
     },
   )
 
@@ -412,12 +415,89 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       const courier = await createCourier(page)
 
       const courierContext = await browser.newContext()
-      const courierPage = await courierContext.newPage()
-      await login(courierPage, { email: courier.email, password: courier.password })
-      await courierPage.goto(`/t/${created.code}`)
-      await expect(courierPage.getByRole('button', { name: 'Marcar enviado' })).toBeVisible()
-      await expectTouchTargets(courierPage, TOUCH_CONTROLS)
-      await courierContext.close()
+      try {
+        const courierPage = await courierContext.newPage()
+        await login(courierPage, { email: courier.email, password: courier.password })
+        await courierPage.goto(`/t/${created.code}`)
+        await expect(courierPage.getByRole('button', { name: 'Marcar enviado' })).toBeVisible()
+        await expectTouchTargets(courierPage, TOUCH_CONTROLS)
+      } finally {
+        await courierContext.close()
+      }
+    },
+  )
+
+  // ENT-5: «Entregas», con el enlace al mapa, el `tel:` y las acciones de una entrega pendiente.
+  test('entregas: grupo de clínica y acciones', { tag: '@extendida' }, async ({ page }) => {
+    const { clinic, doctor } = await createClinicWithDoctor(page, {
+      address: 'Av. Amazonas N34-120 y Atahualpa, Quito',
+      phone: '099 123 4567',
+    })
+    const product = await createProduct(page)
+    const created = await createCompleteCase(page, {
+      clinicId: clinic.id,
+      doctorId: doctor.id,
+      productId: product.id,
+    })
+    for (const accion of ['aceptar', 'finalizar']) {
+      await runCaseAction(page, created.id, accion)
+    }
+    const courier = await createCourier(page)
+    const shipped = await page.request.post(`/api/trabajos/${created.id}/acciones`, {
+      data: { accion: 'marcar_enviado', envio: { mensajeroId: courier.id, fecha: todayIso() } },
+    })
+    expect(shipped.ok()).toBe(true)
+
+    await page.goto(`/entregas?mensajeroId=${courier.id}`)
+    await expect(page.getByRole('heading', { level: 1, name: 'Entregas' })).toBeVisible()
+    const group = page.getByRole('region', { name: clinic.name })
+    await expect(group.getByRole('button', { name: 'Marcar entregado' })).toBeVisible()
+    await expect(group.getByRole('link', { name: /099 123 4567/ })).toBeVisible()
+    await expectTouchTargets(page, TOUCH_CONTROLS)
+
+    // ENT-5: el diálogo «No se pudo» (motivo y nueva fecha).
+    await group.getByRole('button', { name: 'No se pudo' }).click()
+    const dialog = page.getByRole('dialog', { name: 'No se pudo entregar' })
+    await expect(dialog.getByLabel('Nueva fecha')).toBeVisible()
+    await expectTouchTargets(dialog, TOUCH_CONTROLS)
+  })
+
+  // INI-3 (#105): el inicio del mensajero, con su ruta de hoy agrupada por clínica.
+  test(
+    'inicio del mensajero: entregas de hoy',
+    { tag: '@extendida' },
+    async ({ page, browser }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, created.id, accion)
+      }
+      const courier = await createCourier(page)
+      const shipped = await page.request.post(`/api/trabajos/${created.id}/acciones`, {
+        data: { accion: 'marcar_enviado', envio: { mensajeroId: courier.id, fecha: todayIso() } },
+      })
+      expect(shipped.ok()).toBe(true)
+
+      const courierContext = await browser.newContext()
+      try {
+        const courierPage = await courierContext.newPage()
+        await login(courierPage, { email: courier.email, password: courier.password })
+        const group = courierPage.getByRole('region', { name: clinic.name })
+        await expect(group.getByRole('button', { name: 'Marcar entregado' })).toBeVisible()
+        expect(
+          await courierPage.evaluate(
+            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+          ),
+        ).toBe(true)
+        await expectTouchTargets(courierPage, TOUCH_CONTROLS)
+      } finally {
+        await courierContext.close()
+      }
     },
   )
 
@@ -536,21 +616,25 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       expect(assignRes.ok()).toBe(true)
 
       const tecnicoContext = await browser.newContext()
-      const tecnicoPage = await tecnicoContext.newPage()
-      await login(tecnicoPage, { email, password })
+      try {
+        const tecnicoPage = await tecnicoContext.newPage()
+        await login(tecnicoPage, { email, password })
 
-      await expect(tecnicoPage.getByRole('heading', { name: 'Mis trabajos' })).toBeVisible()
-      // La fila tiene que estar antes de medir: con la lista vacía el barrido no mediría
-      // ninguna fila de "Mis trabajos" y el criterio quedaría sin probar.
-      await expect(tecnicoPage.getByRole('link', { name: new RegExp(trabajo.code) })).toBeVisible()
-      expect(
-        await tecnicoPage.evaluate(
-          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
-        ),
-      ).toBe(true)
-      await expectTouchTargets(tecnicoPage, TOUCH_CONTROLS)
-
-      await tecnicoContext.close()
+        await expect(tecnicoPage.getByRole('heading', { name: 'Mis trabajos' })).toBeVisible()
+        // La fila tiene que estar antes de medir: con la lista vacía el barrido no mediría
+        // ninguna fila de "Mis trabajos" y el criterio quedaría sin probar.
+        await expect(
+          tecnicoPage.getByRole('link', { name: new RegExp(trabajo.code) }),
+        ).toBeVisible()
+        expect(
+          await tecnicoPage.evaluate(
+            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+          ),
+        ).toBe(true)
+        await expectTouchTargets(tecnicoPage, TOUCH_CONTROLS)
+      } finally {
+        await tecnicoContext.close()
+      }
     },
   )
 

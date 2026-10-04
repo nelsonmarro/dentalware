@@ -2,11 +2,14 @@ import {
   addBusinessDays,
   applyAction,
   ASSIGN_TECHNICIAN_ROLES,
+  canActOnDelivery,
   canAssignTechnician,
   canChangeStage,
   canPerform,
+  cancelledDeliveryReason,
   CASE_WRITE_ROLES,
   CONSTANCIA_INVALIDA,
+  DELIVERY_ALREADY_CLOSED_MESSAGE,
   DELIVERY_MANAGE_ROLES,
   DELIVERY_TYPES,
   firstStage,
@@ -28,6 +31,7 @@ import {
   type CaseEventType,
   type CaseInput,
   type CaseListQuery,
+  type PendingDelivery,
   type RemakeInput,
   type StageChangeInput,
   type StageRef,
@@ -43,6 +47,7 @@ import type {
   CasesRepository,
   CaseTransitionPatch,
   CouriersLookup,
+  DeliveryLog,
   Named,
   StagesQuery,
   UnitOfWork,
@@ -135,6 +140,9 @@ export function createCasesService(deps: {
   stages: StagesQuery
   users: UsersQuery
   couriers: CouriersLookup
+  /** Solo lectura, fuera de la transacción: qué entrega está pendiente para la ficha (M-4).
+   * Las escrituras de entregas van siempre por `uow.run`. */
+  deliveries: Pick<DeliveryLog, 'pendingFor'>
   uow: UnitOfWork
   clock: Clock
 }) {
@@ -148,10 +156,21 @@ export function createCasesService(deps: {
    * `detailByCode` no duplica `stripPrices` ni el cálculo de `missing`. */
   const toDetail = async (found: CaseDetail, ctx: RequestContext) => {
     const hasDoc = await deps.attachments.hasDocument(found.id)
+    const masked = hidesPrices(ctx.role) ? stripPrices(found) : found
     return {
-      case: hidesPrices(ctx.role) ? stripPrices(found) : found,
+      case: { ...masked, pendingDelivery: await pendingDelivery(found.id) },
       missing: readiness(found, hasDoc),
     }
+  }
+  /** La recogida o entrega pendiente del trabajo (como mucho hay una: un trabajo está por
+   * recoger o enviado, no las dos cosas) con su mensajero (M-4): la web la usa con
+   * `canActOnDelivery` para no ofrecerle a un mensajero la acción de una entrega ajena. */
+  const pendingDelivery = async (caseId: string): Promise<PendingDelivery | null> => {
+    for (const type of DELIVERY_TYPES) {
+      const pending = await deps.deliveries.pendingFor(caseId, type)
+      if (pending) return { type, courierId: pending.courierId }
+    }
+    return null
   }
   return {
     async list(q: CaseListQuery, ctx: RequestContext) {
@@ -244,7 +263,10 @@ export function createCasesService(deps: {
      * en vez de pisarla. `marcar_enviado` programa la entrega pendiente (ENT-3) y
      * `marcar_entregado` la cierra con la foto de constancia (ENT-4). Devuelve el detalle
      * enmascarado por rol (técnico y mensajero pueden ejecutar acciones sin ver precios:
-     * `finalizar`, `recibir`, `marcar_enviado`/`marcar_entregado`).
+     * `finalizar`, `recibir`, `marcar_enviado`/`marcar_entregado`). El bloqueo del trabajo no
+     * cubre «No se pudo» (`deliveries`, que no lo toma): por eso `recibir`, `marcar_entregado` y
+     * `cancelar` cierran la entrega con un cierre condicional y, si otra petición la cerró
+     * antes, responden 409 con `DELIVERY_ALREADY_CLOSED_MESSAGE` (I-1 del PR 2).
      */
     async action(id: string, input: CaseActionInput, ctx: RequestContext) {
       await deps.uow.run(async ({ cases, tryins, deliveries }) => {
@@ -268,10 +290,12 @@ export function createCasesService(deps: {
             // la Iteración 4) se recibe igual —tolerancia deliberada, como `recibir_prueba`—,
             // pero solo quien administra entregas: a un mensajero no le consta como suya.
             const pending = await deliveries.pendingFor(id, 'recogida')
-            if (!hasRole(DELIVERY_MANAGE_ROLES, ctx.role) && pending?.courierId !== ctx.userId) {
+            if (!canActOnDelivery(ctx, 'recibir', pending && { type: 'recogida', ...pending })) {
               throw new CaseForbiddenError()
             }
-            if (pending) await deliveries.markDone(pending.id, deps.clock.now(), null)
+            if (pending && !(await deliveries.markDone(pending.id, deps.clock.now(), null))) {
+              throw new CaseStateError(DELIVERY_ALREADY_CLOSED_MESSAGE)
+            }
             break
           }
           case 'aceptar': {
@@ -350,7 +374,9 @@ export function createCasesService(deps: {
             // El permiso va antes que la constancia (rol antes que datos, como `marcar_enviado`):
             // a otro mensajero se le responde 403 sin decirle nada de la foto.
             const pending = await deliveries.pendingFor(id, 'entrega')
-            if (!hasRole(DELIVERY_MANAGE_ROLES, ctx.role) && pending?.courierId !== ctx.userId) {
+            if (
+              !canActOnDelivery(ctx, 'marcar_entregado', pending && { type: 'entrega', ...pending })
+            ) {
               throw new CaseForbiddenError()
             }
             const proof = await deps.attachments.constancia(id, constanciaId)
@@ -358,7 +384,9 @@ export function createCasesService(deps: {
               throw new CaseInputError(CONSTANCIA_INVALIDA, 'constanciaId')
             }
             const now = deps.clock.now()
-            if (pending) await deliveries.markDone(pending.id, now, constanciaId)
+            if (pending && !(await deliveries.markDone(pending.id, now, constanciaId))) {
+              throw new CaseStateError(DELIVERY_ALREADY_CLOSED_MESSAGE)
+            }
             patch.deliveredAt = now
             event.toValue = constanciaId
             break
@@ -371,8 +399,15 @@ export function createCasesService(deps: {
             const now = deps.clock.now()
             for (const type of DELIVERY_TYPES) {
               const pending = await deliveries.pendingFor(id, type)
-              if (pending) {
-                await deliveries.markFailed(pending.id, `Trabajo cancelado: ${input.motivo}`, now)
+              if (
+                pending &&
+                !(await deliveries.markFailed(
+                  pending.id,
+                  cancelledDeliveryReason(input.motivo),
+                  now,
+                ))
+              ) {
+                throw new CaseStateError(DELIVERY_ALREADY_CLOSED_MESSAGE)
               }
             }
             break
@@ -504,6 +539,16 @@ export function createCasesService(deps: {
         cases.createRemake(parentId, { ...input, receivedAt: deps.clock.today() }, ctx.userId),
       )
       return mustGet(id)
+    },
+    /**
+     * Repeticiones directas del trabajo (#96, Tarea 9): la ficha del padre lista sus hijos de
+     * primer grado, de la más reciente a la más antigua, sin dinero (`RemakeSummary`). Sin
+     * enmascarar por rol: la ruta usa solo `requireAuth` (como `events`/`detail`), cualquier
+     * rol autenticado la ve igual. Lanza `CaseNotFoundError` si el padre no existe.
+     */
+    async remakes(id: string) {
+      await mustGet(id)
+      return deps.cases.remakesOf(id)
     },
     /**
      * Técnicos activos para el combobox de `assignTechnician` en la web (Tarea 9): mismo
