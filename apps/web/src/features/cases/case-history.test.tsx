@@ -5,7 +5,7 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as ApiModule from './api'
@@ -142,6 +142,54 @@ describe('CaseHistory', () => {
     // nunca la clave cruda
     expect(screen.queryByText(/en_proceso/)).not.toBeInTheDocument()
   })
+
+  // Revisión de la Tarea 4: `shipped`/`delivered` guardan fecha y constancia en `toValue`, no un
+  // estado; el historial los dice con palabras y nunca enseña la fecha cruda ni el id.
+  it.each([
+    [
+      'pickup_scheduled',
+      { toValue: '2026-10-05', reason: 'Mario Mensajero' },
+      'Recogida programada',
+      'Con Mario Mensajero para el 05/10/2026',
+    ],
+    [
+      'picked_up',
+      { fromValue: 'por_recoger', toValue: 'nuevo' },
+      'Recibido en el laboratorio',
+      null,
+    ],
+    [
+      'shipped',
+      { fromValue: 'terminado', toValue: '2026-10-05', reason: 'Mario Mensajero' },
+      'Enviado',
+      'Con Mario Mensajero para el 05/10/2026',
+    ],
+    [
+      'delivered',
+      { fromValue: 'enviado', toValue: '9b2f7c1e-0000-4000-8000-000000000001' },
+      'Entregado',
+      'Con foto de constancia',
+    ],
+    [
+      'delivery_failed',
+      { toValue: '2026-10-06', reason: 'Clínica cerrada' },
+      'Entrega o recogida fallida',
+      'Motivo: Clínica cerrada — nueva fecha 06/10/2026',
+    ],
+  ] as const)(
+    'el evento %s se lee con palabras, no con su valor crudo',
+    async (type, campos, rotulo, detalle) => {
+      renderWithProviders(
+        <CaseHistory case={caso()} stages={[]} events={[event({ type, ...campos })]} />,
+      )
+      const item = await screen.findByRole('listitem')
+      expect(within(item).getByText(rotulo)).toBeInTheDocument()
+      if (detalle) expect(within(item).getByText(detalle)).toBeInTheDocument()
+      expect(item).not.toHaveTextContent('2026-10-0')
+      expect(item).not.toHaveTextContent('9b2f7c1e')
+      expect(item).not.toHaveTextContent('Nuevo estado')
+    },
+  )
 
   it('una pausa muestra su motivo', async () => {
     renderWithProviders(

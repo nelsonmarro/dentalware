@@ -3,6 +3,7 @@ import {
   ACTION_PAYLOAD,
   ACTIONS_REQUIRING_REASON,
   type ActionRequiringReason,
+  type ActionRequiringDeliveryForm,
   ACTIVE_FOR_DATES_STATUSES,
   applyAction,
   ASSIGN_TECHNICIAN_ROLES,
@@ -26,6 +27,7 @@ import {
   isEditableStatus,
   notEditableMessage,
   requiresReason,
+  requiresDeliveryForm,
   notReassignableMessage,
   notRemakeableMessage,
   isEnCurso,
@@ -262,6 +264,18 @@ describe('motivo obligatorio y permisos por rol', () => {
     expect(requiresReason('finalizar')).toBe(false)
     expect(requiresReason('aceptar')).toBe(false)
     expectTypeOf<ActionRequiringReason>().toEqualTypeOf<'pausar' | 'cancelar'>()
+  })
+
+  // Tarea 5 (Iteración 4): la web abre un diálogo con datos de entrega (mensajero y fecha, o la
+  // foto de constancia) para cada acción de este tipo, en un `Record` exhaustivo.
+  it('requiresDeliveryForm estrecha el tipo a las acciones con envío o constancia', () => {
+    expect(requiresDeliveryForm('marcar_enviado')).toBe(true)
+    expect(requiresDeliveryForm('marcar_entregado')).toBe(true)
+    expect(requiresDeliveryForm('recibir')).toBe(false)
+    expect(requiresDeliveryForm('pausar')).toBe(false)
+    expectTypeOf<ActionRequiringDeliveryForm>().toEqualTypeOf<
+      'marcar_enviado' | 'marcar_entregado'
+    >()
   })
 
   it('aplica la tabla de roles del spec', () => {

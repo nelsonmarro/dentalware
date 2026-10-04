@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import type { Stage } from '@/features/stages/api'
 import type { CaseDetail, CaseEvent } from './api'
+import { formatDate } from './date-format'
 
 export const EVENT_LABEL: Record<CaseEventType, string> = {
   created: 'Trabajo creado',
@@ -40,7 +41,7 @@ export const EVENT_LABEL: Record<CaseEventType, string> = {
   shipped: 'Enviado',
   delivered: 'Entregado',
   pickup_scheduled: 'Recogida programada',
-  picked_up: 'Trabajo recibido',
+  picked_up: 'Recibido en el laboratorio',
   delivery_failed: 'Entrega o recogida fallida',
   cancelled: 'Cancelado',
   remake_created: 'Repetición creada',
@@ -139,6 +140,23 @@ function EventDetail({
           {technicianName(e.fromValue, e.fromName)} → {technicianName(e.toValue, e.toName)}
         </p>
       )
+    // Iteración 4: estos eventos guardan fecha, mensajero, motivo o constancia en vez de un
+    // estado (ver `cases/service.ts`); se dicen con palabras, nunca con el valor crudo.
+    case 'pickup_scheduled':
+    case 'shipped':
+      return e.reason && e.toValue ? (
+        <p className="text-sm text-muted-foreground">
+          {`Con ${e.reason} para el ${formatDate(e.toValue)}`}
+        </p>
+      ) : null
+    case 'delivered':
+      return <p className="text-sm text-muted-foreground">Con foto de constancia</p>
+    case 'delivery_failed':
+      return e.reason && e.toValue ? (
+        <p className="text-sm text-muted-foreground">
+          {`Motivo: ${e.reason} — nueva fecha ${formatDate(e.toValue)}`}
+        </p>
+      ) : null
     case 'remake_created':
       return (
         <>

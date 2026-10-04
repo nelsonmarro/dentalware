@@ -90,6 +90,19 @@ export function requiresReason(action: CaseAction): action is ActionRequiringRea
   return ACTION_PAYLOAD[action] === 'motivo'
 }
 
+/** Acciones que piden datos de entrega (Iteración 4): `envio` (mensajero y fecha, ENT-2) o
+ * `constancia` (foto de la entrega, ENT-4). Derivado de `ACTION_PAYLOAD` como
+ * `ActionRequiringReason`, para que la web tenga un diálogo por cada una en un `Record`
+ * exhaustivo. */
+export type ActionRequiringDeliveryForm = {
+  [A in CaseAction]: (typeof ACTION_PAYLOAD)[A] extends 'envio' | 'constancia' ? A : never
+}[CaseAction]
+
+export function requiresDeliveryForm(action: CaseAction): action is ActionRequiringDeliveryForm {
+  const payload = ACTION_PAYLOAD[action]
+  return payload === 'envio' || payload === 'constancia'
+}
+
 export const ACTIONS_REQUIRING_REASON: readonly CaseAction[] = CASE_ACTIONS.filter(requiresReason)
 
 /** Rótulo de cada estado tal como lo ve el laboratorio (chip de la web, historial y mensajes

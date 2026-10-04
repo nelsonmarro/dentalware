@@ -341,17 +341,19 @@ export function createCasesService(deps: {
             if (!constanciaId) {
               throw new CaseInputError('Añade la foto de constancia', 'constanciaId')
             }
-            const proof = await deps.attachments.constancia(id, constanciaId)
-            if (proof?.kind !== 'constancia' || !proof.mime.startsWith('image/')) {
-              throw new CaseInputError(CONSTANCIA_INVALIDA, 'constanciaId')
-            }
             // Mismo criterio que `recibir`: el mensajero solo cierra la entrega que tiene
             // asignada. Un trabajo enviado sin entrega pendiente (enviado antes de la
             // Iteración 4) se entrega igual —tolerancia deliberada— y la constancia queda solo
             // en el evento; pero solo quien administra entregas: a un mensajero no le consta.
+            // El permiso va antes que la constancia (rol antes que datos, como `marcar_enviado`):
+            // a otro mensajero se le responde 403 sin decirle nada de la foto.
             const pending = await deliveries.pendingFor(id, 'entrega')
             if (!hasRole(DELIVERY_MANAGE_ROLES, ctx.role) && pending?.courierId !== ctx.userId) {
               throw new CaseForbiddenError()
+            }
+            const proof = await deps.attachments.constancia(id, constanciaId)
+            if (proof?.kind !== 'constancia' || !proof.mime.startsWith('image/')) {
+              throw new CaseInputError(CONSTANCIA_INVALIDA, 'constanciaId')
             }
             const now = deps.clock.now()
             if (pending) await deliveries.markDone(pending.id, now, constanciaId)

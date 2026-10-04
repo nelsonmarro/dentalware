@@ -101,6 +101,23 @@ function primarios(panel: HTMLElement) {
 }
 
 describe('ProductionPanel', () => {
+  // Tarea 5 (ENT-2): la ficha completa pasa quién usa la app hasta el diálogo de envío, para
+  // que el mensajero envíe con él mismo.
+  it('el mensajero marca enviado con su nombre fijo en el diálogo', async () => {
+    const { user } = renderWithProviders(
+      <ProductionPanel
+        case={caso({ status: 'terminado', currentStageId: null })}
+        missing={[]}
+        role="mensajero"
+        self={{ id: 'm7', name: 'Mario Mensajero' }}
+        stages={fases}
+      />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Marcar enviado' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Marcar enviado' })
+    expect(within(dialog).getByText('Mario Mensajero')).toBeInTheDocument()
+  })
+
   it('es una sección con encabezado «Producción» y la fase como subencabezado', async () => {
     renderWithProviders(<ProductionPanel case={caso()} missing={[]} role="admin" stages={fases} />)
     expect(await screen.findByRole('region', { name: 'Producción' })).toBeInTheDocument()

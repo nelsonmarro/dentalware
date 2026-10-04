@@ -10,6 +10,9 @@ const { postCaseAction, fetchCase } = vi.hoisted(() => ({
   fetchCase: vi.fn(),
 }))
 vi.mock('./api', () => ({ postCaseAction, fetchCase }))
+vi.mock('@/features/deliveries/api', () => ({
+  fetchCouriers: vi.fn().mockResolvedValue([{ id: 'm1', name: 'Bruno Mensajero' }]),
+}))
 
 beforeEach(() => {
   postCaseAction.mockClear()
@@ -156,6 +159,7 @@ describe('CaseActions', () => {
   // UX3-04/UX3-05: un solo primario por contexto. Tabla literal (no derivada de la
   // clasificación que protege): estado × fase → el único botón primario esperado.
   it.each([
+    ['por_recoger', false, 'Recibido'],
     ['nuevo', false, 'Aceptar'],
     ['en_proceso', false, 'Finalizar'],
     ['en_espera', false, 'Reanudar'],
@@ -261,6 +265,41 @@ describe('CaseActions', () => {
       <CaseActions case={caso({ status: 'entregado' })} missing={[]} role="tecnico" />,
     )
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('en «por recoger» «Recibido» se envía al primer clic, sin diálogo', async () => {
+    const { user } = renderWithProviders(
+      <CaseActions case={caso({ status: 'por_recoger' })} missing={[]} role="recepcion" />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Recibido' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(postCaseAction).toHaveBeenCalledWith('c1', { accion: 'recibir', motivo: null }),
+    )
+  })
+
+  it('«Marcar enviado» abre el diálogo de envío con mensajero y fecha, sin enviar nada', async () => {
+    const { user } = renderWithProviders(
+      <CaseActions case={caso({ status: 'terminado' })} missing={[]} role="recepcion" />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Marcar enviado' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Marcar enviado' })
+    expect(within(dialog).getByRole('combobox', { name: 'Mensajero' })).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Fecha de entrega')).toBeInTheDocument()
+    expect(postCaseAction).not.toHaveBeenCalled()
+  })
+
+  it('«Marcar entregado» abre el diálogo de la foto de constancia, sin enviar nada', async () => {
+    const { user } = renderWithProviders(
+      <CaseActions case={caso({ status: 'enviado' })} missing={[]} role="mensajero" />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Marcar entregado' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Marcar entregado' })
+    expect(
+      within(dialog).getByRole('button', { name: 'Tomar foto de constancia' }),
+    ).toBeInTheDocument()
+    expect(postCaseAction).not.toHaveBeenCalled()
   })
 
   it('finalizar pide confirmación con la consecuencia concreta y no se envía hasta confirmar', async () => {

@@ -1,10 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
   createClinicWithDoctor,
+  createCourier,
   createProduct,
   expectTouchTargets,
   login,
   loginAsAdmin,
+  shipAndDeliver,
+  todayIso,
   TOUCH_CONTROLS,
   TOUCH_SWITCHES,
   uniqueSuffix,
@@ -310,14 +313,82 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
         doctorId: doctor.id,
         productId: product.id,
       })
-      for (const accion of ['aceptar', 'finalizar', 'marcar_enviado', 'marcar_entregado']) {
+      for (const accion of ['aceptar', 'finalizar']) {
         await runCaseAction(page, created.id, accion)
       }
+      // Enviar y entregar exigen mensajero y constancia (Iteración 4, Tarea 4).
+      const courier = await createCourier(page)
+      await shipAndDeliver(page, created.id, courier.id)
 
       await page.goto(`/trabajos/${created.id}`)
       await page.getByRole('button', { name: 'Repetir' }).click()
       const dialog = page.getByRole('dialog')
       await expect(dialog).toBeVisible()
+      await expectTouchTargets(dialog, TOUCH_CONTROLS)
+    },
+  )
+
+  // Iteración 4 (ENT-1): la sección plegable del formulario, abierta.
+  test(
+    'nuevo trabajo: sección «Programar recogida» abierta',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      await page.goto('/trabajos/nuevo')
+      await expect(page.getByRole('heading', { name: 'Nuevo trabajo' })).toBeVisible()
+      await page.getByRole('button', { name: 'Programar recogida' }).click()
+      await expect(page.getByRole('combobox', { name: 'Mensajero' })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+    },
+  )
+
+  // Iteración 4 (ENT-2/ENT-4): los diálogos de enviar y entregar.
+  test(
+    'ficha de un trabajo terminado: diálogo «Marcar enviado»',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, created.id, accion)
+      }
+
+      await page.goto(`/trabajos/${created.id}`)
+      await page.getByRole('button', { name: 'Marcar enviado' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Marcar enviado' })
+      await expect(dialog.getByRole('combobox', { name: 'Mensajero' })).toBeVisible()
+      await expectTouchTargets(dialog, TOUCH_CONTROLS)
+    },
+  )
+
+  test(
+    'ficha de un trabajo enviado: diálogo «Marcar entregado»',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, created.id, accion)
+      }
+      const courier = await createCourier(page)
+      const shipped = await page.request.post(`/api/trabajos/${created.id}/acciones`, {
+        data: { accion: 'marcar_enviado', envio: { mensajeroId: courier.id, fecha: todayIso() } },
+      })
+      expect(shipped.ok()).toBe(true)
+
+      await page.goto(`/trabajos/${created.id}`)
+      await page.getByRole('button', { name: 'Marcar entregado' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Marcar entregado' })
+      await expect(dialog.getByRole('button', { name: 'Tomar foto de constancia' })).toBeVisible()
       await expectTouchTargets(dialog, TOUCH_CONTROLS)
     },
   )

@@ -47,7 +47,7 @@ describe('usePhotoUpload', () => {
     const { result } = renderHook(() => usePhotoUpload('caso-1'), { wrapper })
     const file = new File(['contenido'], 'foto.png', { type: 'image/png' })
 
-    let done: Promise<void> | undefined
+    let done: Promise<unknown> | undefined
     act(() => {
       done = result.current.handleFiles(fileList([file]))
     })
@@ -77,7 +77,7 @@ describe('usePhotoUpload', () => {
   it('llama a onUploaded al terminar la subida', async () => {
     uploadAttachment.mockResolvedValue({ id: 'a1' })
     const onUploaded = vi.fn()
-    const { result } = renderHook(() => usePhotoUpload('caso-1', onUploaded), { wrapper })
+    const { result } = renderHook(() => usePhotoUpload('caso-1', { onUploaded }), { wrapper })
     const file = new File(['contenido'], 'foto.png', { type: 'image/png' })
 
     await act(async () => {
@@ -177,7 +177,7 @@ describe('usePhotoUpload', () => {
 
   it('sin archivos no llama a la mutación ni a onUploaded', async () => {
     const onUploaded = vi.fn()
-    const { result } = renderHook(() => usePhotoUpload('caso-1', onUploaded), { wrapper })
+    const { result } = renderHook(() => usePhotoUpload('caso-1', { onUploaded }), { wrapper })
 
     await act(async () => {
       await result.current.handleFiles(null)
@@ -185,5 +185,49 @@ describe('usePhotoUpload', () => {
 
     expect(uploadAttachment).not.toHaveBeenCalled()
     expect(onUploaded).not.toHaveBeenCalled()
+  })
+
+  // ENT-4 (Iteración 4): la constancia de entrega sube por el mismo endpoint con su tipo.
+  it('con kind «constancia» lo envía en el formulario de la subida', async () => {
+    uploadAttachment.mockResolvedValue({ id: 'a1' })
+    const { result } = renderHook(() => usePhotoUpload('caso-1', { kind: 'constancia' }), {
+      wrapper,
+    })
+    const file = new File(['contenido'], 'foto.png', { type: 'image/png' })
+
+    await act(async () => {
+      await result.current.handleFiles(fileList([file]))
+    })
+
+    const form = uploadAttachment.mock.calls[0]![1] as FormData
+    expect(form.get('kind')).toBe('constancia')
+  })
+
+  it('sin kind no lo envía (la API decide el tipo por el archivo)', async () => {
+    uploadAttachment.mockResolvedValue({ id: 'a1' })
+    const { result } = renderHook(() => usePhotoUpload('caso-1'), { wrapper })
+    const file = new File(['contenido'], 'foto.png', { type: 'image/png' })
+
+    await act(async () => {
+      await result.current.handleFiles(fileList([file]))
+    })
+
+    const form = uploadAttachment.mock.calls[0]![1] as FormData
+    expect(form.has('kind')).toBe(false)
+  })
+
+  it('devuelve los adjuntos que entraron, sin los que fallaron', async () => {
+    uploadAttachment
+      .mockResolvedValueOnce({ id: 'a1' })
+      .mockRejectedValueOnce(new ApiError('Formato no permitido', 415))
+    const { result } = renderHook(() => usePhotoUpload('caso-1'), { wrapper })
+    const files = ['a.png', 'b.png'].map((n) => new File(['contenido'], n, { type: 'image/png' }))
+
+    let uploaded: unknown
+    await act(async () => {
+      uploaded = await result.current.handleFiles(fileList(files))
+    })
+
+    expect(uploaded).toEqual([{ id: 'a1' }])
   })
 })

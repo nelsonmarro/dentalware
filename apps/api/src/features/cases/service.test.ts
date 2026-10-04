@@ -1201,6 +1201,14 @@ describe('envío y entrega', () => {
     expect(rows.get('1')!.status).toBe('enviado')
   })
 
+  it('otro mensajero con una constancia que no es de este trabajo recibe 403, no 422: el permiso va antes que los datos', async () => {
+    const { service, rows } = enviadoConMario([{ ...fotoDeEste, id: 'a2', caseId: '2' }])
+    await expect(service.action('1', entregar('a2'), otroMensajero)).rejects.toBeInstanceOf(
+      CaseForbiddenError,
+    )
+    expect(rows.get('1')!.status).toBe('enviado')
+  })
+
   it('marcar entregado sin constancia lanza CaseInputError en constanciaId', async () => {
     const { service } = enviadoConMario()
     await expect(

@@ -1,4 +1,4 @@
-import { ATTACHMENT_DELETE_ROLES, hasRole } from '@dentalware/shared'
+import { ATTACHMENT_DELETE_ROLES, ATTACHMENT_UPLOAD_ROLES, hasRole } from '@dentalware/shared'
 import type { UserRole } from '@dentalware/shared'
 import { FileText, Trash2 } from 'lucide-react'
 import { useState } from 'react'
@@ -18,11 +18,15 @@ import { PhotoUploader } from './photo-uploader'
 import { useAttachments, useDeleteAttachment } from './use-attachments'
 
 /** Grilla de miniaturas (clic abre el original en un diálogo) y lista de documentos
- * PDF; "Eliminar" con confirmación solo para admin|recepción. */
+ * PDF; "Eliminar" con confirmación solo para admin|recepción y subir solo para
+ * `ATTACHMENT_UPLOAD_ROLES`. */
 export function PhotosTab({ caseId, role }: { caseId: string; role: UserRole }) {
   const attachments = useAttachments(caseId)
   const del = useDeleteAttachment(caseId)
   const canDelete = hasRole(ATTACHMENT_DELETE_ROLES, role)
+  // El mensajero solo sube la constancia, desde el diálogo de entrega (decisión 11 del plan):
+  // la API le responde 403 a cualquier otro adjunto.
+  const canUpload = hasRole(ATTACHMENT_UPLOAD_ROLES, role)
   const [preview, setPreview] = useState<Attachment | null>(null)
   const [toDelete, setToDelete] = useState<Attachment | null>(null)
 
@@ -32,7 +36,7 @@ export function PhotosTab({ caseId, role }: { caseId: string; role: UserRole }) 
 
   return (
     <div className="flex flex-col gap-4">
-      <PhotoUploader caseId={caseId} />
+      {canUpload && <PhotoUploader caseId={caseId} />}
 
       {attachments.isSuccess && rows.length === 0 && (
         <EmptyState title="Sin fotos ni documentos todavía" />
