@@ -12,7 +12,7 @@ export type NewDelivery = {
 }
 
 /** Una fila de «Mis entregas del día»: sin dinero (decisión 7 del plan). `case.status` deja ver
- * una entrega `fallida` cuyo trabajo quedó `cancelado` (ruling de la Tarea 6, M-? de la Tarea 2):
+ * una entrega `fallida` cuyo trabajo quedó `cancelado` (ruling de la Tarea 6):
  * la lista la sigue mostrando como dato histórico, pero no es accionable (`fail` la rechaza con
  * 409 porque ya no está `pendiente`, igual que cualquier otra entrega cerrada). */
 export type DeliveryListItem = {

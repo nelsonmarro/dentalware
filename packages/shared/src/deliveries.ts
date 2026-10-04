@@ -51,7 +51,8 @@ export const ATTACHMENT_UPLOAD_ROLES = [
 export const CONSTANCIA_INVALIDA = 'La foto de constancia no es de este trabajo.'
 
 /** Mensaje del 409 cuando `fail` actúa sobre una entrega que ya no está pendiente (ruling de
- * la Tarea 6): literal único para que la web la reconozca con `useConflictAwareError`. */
+ * la Tarea 6). La web no lo compara: `useConflictAwareError` reacciona al status 409 (refresca
+ * y muestra este texto tal cual); el literal es el contrato de la API y de sus pruebas. */
 export const DELIVERY_NOT_PENDING_MESSAGE = 'Esta entrega ya no está pendiente.'
 
 /** Mensaje del 409 cuando `recibir`, `marcar_entregado` o `cancelar` van a cerrar la entrega

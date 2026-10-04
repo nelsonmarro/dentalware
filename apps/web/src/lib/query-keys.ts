@@ -42,7 +42,6 @@ export const queryKeys = {
   // (invalida `['trabajos']`) refresca «Entregas» y el inicio del mensajero sin tocarlos aparte;
   // y la entrega fallida invalida el mismo prefijo, que también alcanza el historial del trabajo.
   deliveries: {
-    all: ['trabajos', 'entregas'] as const,
     day: (dia: string, mensajeroId?: string) =>
       ['trabajos', 'entregas', dia, mensajeroId ?? null] as const,
   },
