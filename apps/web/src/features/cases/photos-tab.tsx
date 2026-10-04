@@ -23,14 +23,14 @@ import { useAttachments, useDeleteAttachment } from './use-attachments'
 function ProofBadge({ attachment: a }: { attachment: Attachment }) {
   if (a.kind !== 'constancia') return null
   return a.linkedToDelivery ? (
-    <Badge className="pointer-events-none absolute bottom-1.5 left-1.5 h-6 max-w-[calc(100%-0.75rem)] shadow-sm">
+    <Badge className="pointer-events-none absolute inset-x-1.5 bottom-1.5 h-auto w-auto justify-start rounded-md py-1 text-left whitespace-normal shadow-sm">
       <CircleCheck aria-hidden />
       Constancia de entrega
     </Badge>
   ) : (
     <Badge
       variant="outline"
-      className="pointer-events-none absolute bottom-1.5 left-1.5 h-6 max-w-[calc(100%-0.75rem)] bg-background shadow-sm"
+      className="pointer-events-none absolute inset-x-1.5 bottom-1.5 h-auto w-auto justify-start rounded-md bg-background py-1 text-left whitespace-normal shadow-sm"
     >
       <CircleDashed aria-hidden />
       Constancia sin usar
