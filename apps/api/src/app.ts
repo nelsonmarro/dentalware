@@ -20,6 +20,8 @@ import { createCasesRepo, createUsersQuery, drizzleUnitOfWork } from './features
 import { createCasesService } from './features/cases/service.ts'
 import { clinicsRoutes } from './features/clinics/routes.ts'
 import { createCouriersQuery, createDeliveriesRepo } from './features/deliveries/repo.ts'
+import { deliveriesRoutes } from './features/deliveries/routes.ts'
+import { createDeliveriesService } from './features/deliveries/service.ts'
 import { doctorsRoutes } from './features/doctors/routes.ts'
 import { healthRoutes } from './features/health/routes.ts'
 import { labSettingsRoutes } from './features/lab-settings/routes.ts'
@@ -73,6 +75,7 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     uow: casesUow,
     clock: effectiveClock,
   })
+  const deliveriesService = createDeliveriesService({ couriers: couriersQuery })
   const importService = createImportService({
     catalog: createImportCatalog(db),
     uow: casesUow,
@@ -129,6 +132,7 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     .route('/api/trabajos', casesRoutes(casesService, importRoutes(importService)))
     .route('/api/users', usersRoutes(db, auth))
     .route('/api/adjuntos', attachmentsRoutes(attachmentsService))
+    .route('/api/entregas', deliveriesRoutes(deliveriesService))
 
   app.notFound((c) => c.json({ message: 'Recurso no encontrado' }, 404))
   app.onError((err, c) => {

@@ -25,6 +25,7 @@ import { ChecklistField } from './checklist-field'
 import { ClinicPatientFields } from './clinic-patient-fields'
 import { ColorFields } from './color-fields'
 import { NotesFields } from './notes-fields'
+import { PickupFields } from './pickup-fields'
 
 export type CaseFormValues = z.input<typeof caseInputSchema>
 
@@ -231,6 +232,9 @@ export function CaseForm({
             doctors={doctors.data ?? []}
             onClinicChange={handleClinicChange}
           />
+
+          {/* ENT-1: solo al crear; una recogida no se programa editando un trabajo. */}
+          {!isEdit && <PickupFields form={form} />}
 
           <Card>
             <CardHeader>
