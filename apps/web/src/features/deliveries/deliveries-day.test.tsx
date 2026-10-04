@@ -241,6 +241,41 @@ describe('DeliveriesDay', () => {
     expect(within(tarjeta).queryByRole('button')).not.toBeInTheDocument()
   })
 
+  // M-3 de la revisión final del PR 2: «Cancelado» solo para la entrega que cerró la
+  // cancelación; las cerradas antes conservan su estado real (y su motivo, si fallaron).
+  it('la recogida hecha de un trabajo cancelado después se ve «Hecha», no «Cancelado»', async () => {
+    fetchDeliveries.mockResolvedValue([
+      entrega({
+        type: 'recogida',
+        status: 'hecha',
+        doneAt: '2026-10-03T10:00:00.000Z',
+        case: { ...entrega().case, status: 'cancelado' },
+      }),
+    ])
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="admin" userId="a1" />)
+
+    const tarjeta = await screen.findByRole('listitem')
+    expect(within(tarjeta).getByText('Hecha')).toBeInTheDocument()
+    expect(within(tarjeta).queryByText('Cancelado')).not.toBeInTheDocument()
+    expect(within(tarjeta).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('una fallida real de un trabajo cancelado después conserva «Fallida» y su motivo', async () => {
+    fetchDeliveries.mockResolvedValue([
+      entrega({
+        status: 'fallida',
+        failedReason: 'Clínica cerrada',
+        case: { ...entrega().case, status: 'cancelado' },
+      }),
+    ])
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="admin" userId="a1" />)
+
+    const tarjeta = await screen.findByRole('listitem')
+    expect(within(tarjeta).getByText('Fallida')).toBeInTheDocument()
+    expect(within(tarjeta).getByText('Motivo: Clínica cerrada')).toBeInTheDocument()
+    expect(within(tarjeta).queryByText('Cancelado')).not.toBeInTheDocument()
+  })
+
   it('una pendiente de ayer se marca «Atrasada»; la de hoy no', async () => {
     fetchDeliveries.mockResolvedValue([
       entrega({

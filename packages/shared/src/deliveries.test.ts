@@ -12,6 +12,8 @@ import {
   DELIVERY_CLOSING_ACTION,
   DELIVERY_TYPES,
   canActOnDelivery,
+  cancelledDeliveryReason,
+  isClosedByCancellation,
   isOverdueDelivery,
 } from './deliveries.ts'
 
@@ -65,6 +67,24 @@ describe('entregas', () => {
     expect(DELIVERY_ALREADY_CLOSED_MESSAGE).toBe(
       'La entrega ya no está pendiente. Puede que otra persona la haya cerrado.',
     )
+  })
+
+  // M-3 de la revisión final del PR 2: «Cancelado» solo para la entrega que cerró la
+  // cancelación, reconocida por el prefijo de su motivo (una sola fuente con la API).
+  it('el motivo de una entrega cerrada al cancelar lleva el prefijo de cancelación', () => {
+    expect(cancelledDeliveryReason('La clínica lo anuló')).toBe(
+      'Trabajo cancelado: La clínica lo anuló',
+    )
+  })
+  it('solo una fallida con el prefijo de cancelación se cerró por la cancelación', () => {
+    const motivo = cancelledDeliveryReason('La clínica lo anuló')
+    expect(isClosedByCancellation({ status: 'fallida', failedReason: motivo })).toBe(true)
+    expect(isClosedByCancellation({ status: 'fallida', failedReason: 'Clínica cerrada' })).toBe(
+      false,
+    )
+    expect(isClosedByCancellation({ status: 'fallida', failedReason: null })).toBe(false)
+    expect(isClosedByCancellation({ status: 'hecha', failedReason: motivo })).toBe(false)
+    expect(isClosedByCancellation({ status: 'pendiente', failedReason: null })).toBe(false)
   })
 
   // M-2 de la revisión final del PR 2: una sola fuente para «qué acción cierra cada tipo de

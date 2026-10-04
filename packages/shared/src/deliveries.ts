@@ -60,6 +60,25 @@ export const DELIVERY_NOT_PENDING_MESSAGE = 'Esta entrega ya no está pendiente.
 export const DELIVERY_ALREADY_CLOSED_MESSAGE =
   'La entrega ya no está pendiente. Puede que otra persona la haya cerrado.'
 
+/** Prefijo del motivo con el que `cancelar` cierra la recogida o entrega pendiente del trabajo
+ * (ruling de la Tarea 6): es lo que distingue esa entrega de una fallida real anterior. */
+export const CANCELLED_DELIVERY_REASON_PREFIX = 'Trabajo cancelado: '
+
+/** Motivo de la entrega que cierra la cancelación del trabajo (API, `CasesService.action`). */
+export function cancelledDeliveryReason(motivo: string | null): string {
+  return `${CANCELLED_DELIVERY_REASON_PREFIX}${motivo ?? ''}`
+}
+
+/** ¿La cerró la cancelación del trabajo? Solo una `fallida` con el prefijo de cancelación (M-3
+ * de la revisión final del PR 2): una recogida `hecha` o una fallida real anterior a la
+ * cancelación conservan su estado y su motivo en la web, aunque el trabajo esté cancelado. */
+export function isClosedByCancellation(d: {
+  status: DeliveryStatus
+  failedReason: string | null
+}): boolean {
+  return d.status === 'fallida' && !!d.failedReason?.startsWith(CANCELLED_DELIVERY_REASON_PREFIX)
+}
+
 /** Una entrega/recogida está atrasada si sigue pendiente y su fecha programada ya pasó
  * (decisión 7 del plan: el día de hoy también muestra las pendientes atrasadas). */
 export function isOverdueDelivery(

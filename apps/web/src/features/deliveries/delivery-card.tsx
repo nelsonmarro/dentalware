@@ -7,6 +7,7 @@ import {
   DELIVERY_MANAGE_ROLES,
   DELIVERY_ROLES,
   hasRole,
+  isClosedByCancellation,
   isOverdueDelivery,
   type UserRole,
 } from '@dentalware/shared'
@@ -28,8 +29,9 @@ import { FailDialog } from './fail-dialog'
  * Una recogida o entrega de la lista del día (ENT-5): tipo, código (enlace a la ficha corta),
  * paciente, «Urgente» y «Atrasada», y la acción que la cierra con los **mismos** diálogos de la
  * ficha. Una pendiente ofrece su acción (un solo primario) y «No se pudo»; una cerrada queda
- * atenuada con su estado y sin acciones. La de un trabajo cancelado (ruling de la Tarea 6: queda
- * `fallida` con «Trabajo cancelado: …») se ve «Cancelado», nunca como fallida reprogramable.
+ * atenuada con su estado y sin acciones. La que cerró la cancelación del trabajo (ruling de la
+ * Tarea 6: `fallida` con el prefijo de cancelación, `isClosedByCancellation`) se ve «Cancelado»,
+ * nunca como fallida reprogramable; las cerradas antes de cancelar conservan su estado real.
  */
 export function DeliveryCard({
   delivery: d,
@@ -45,8 +47,10 @@ export function DeliveryCard({
 }) {
   const [dialog, setDialog] = useState<'entregar' | 'fallida' | null>(null)
   const action = useCaseAction(d.case.id)
-  const cancelled = d.case.status === 'cancelado'
-  const pending = d.status === 'pendiente' && !cancelled
+  const cancelled = isClosedByCancellation(d)
+  // Cancelar cierra la pendiente en la misma transacción; el estado del trabajo es solo una
+  // red por si una pendiente de un trabajo cancelado llegara igual: nunca es accionable.
+  const pending = d.status === 'pendiente' && d.case.status !== 'cancelado'
   const closing = DELIVERY_CLOSING_ACTION[d.type]
   // Misma regla que la API y la ficha (`canActOnDelivery`, M-3): una sola fuente para «el
   // mensajero solo actúa sobre lo suyo»; admin y recepción, sobre cualquiera.
@@ -56,7 +60,7 @@ export function DeliveryCard({
   // «No se pudo»: quien puede cerrar la entrega también puede reprogramarla (la API exige lo
   // mismo en `POST /api/entregas/:id/fallida`).
   const canFail = pending && own && hasRole(DELIVERY_ROLES, role)
-  const overdue = !cancelled && isOverdueDelivery(d, today)
+  const overdue = pending && isOverdueDelivery(d, today)
   // Quien administra entregas ve las de todos: el nombre del mensajero orienta a recepción.
   const showCourier = hasRole(DELIVERY_MANAGE_ROLES, role)
 

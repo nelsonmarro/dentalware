@@ -6,6 +6,7 @@ import {
   canAssignTechnician,
   canChangeStage,
   canPerform,
+  cancelledDeliveryReason,
   CASE_WRITE_ROLES,
   CONSTANCIA_INVALIDA,
   DELIVERY_ALREADY_CLOSED_MESSAGE,
@@ -402,7 +403,7 @@ export function createCasesService(deps: {
                 pending &&
                 !(await deliveries.markFailed(
                   pending.id,
-                  `Trabajo cancelado: ${input.motivo}`,
+                  cancelledDeliveryReason(input.motivo),
                   now,
                 ))
               ) {
