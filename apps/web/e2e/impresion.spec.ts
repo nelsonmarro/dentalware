@@ -233,22 +233,25 @@ test.describe('Orden de trabajo imprimible', () => {
       expect(user.ok()).toBe(true)
 
       const tecnicoContext = await browser.newContext()
-      const tecnicoPage = await tecnicoContext.newPage()
-      const tecnicoErrors = trackConsoleErrors(tecnicoPage)
-      await login(tecnicoPage, { email, password })
-      await tecnicoPage.goto(`/trabajos/${created.id}/imprimir`)
+      try {
+        const tecnicoPage = await tecnicoContext.newPage()
+        const tecnicoErrors = trackConsoleErrors(tecnicoPage)
+        await login(tecnicoPage, { email, password })
+        await tecnicoPage.goto(`/trabajos/${created.id}/imprimir`)
 
-      await expect(tecnicoPage.getByTestId('rotulo-copia')).toHaveText(['Copia laboratorio'])
-      await expect(tecnicoPage.getByRole('tab')).toHaveCount(0)
-      await expect(tecnicoPage.getByText('Copia clínica')).toHaveCount(0)
-      // Dentro de la orden: `getByText` en toda la página también cuenta texto oculto que no
-      // es de la orden (scripts en línea del documento).
-      const orden = tecnicoPage.getByRole('article')
-      await expect(orden).toHaveCount(1)
-      await expect(orden.getByText(/\$/)).toHaveCount(0)
-      await expect(orden.getByText(/Total/)).toHaveCount(0)
-      expect(tecnicoErrors).toEqual([])
-      await tecnicoContext.close()
+        await expect(tecnicoPage.getByTestId('rotulo-copia')).toHaveText(['Copia laboratorio'])
+        await expect(tecnicoPage.getByRole('tab')).toHaveCount(0)
+        await expect(tecnicoPage.getByText('Copia clínica')).toHaveCount(0)
+        // Dentro de la orden: `getByText` en toda la página también cuenta texto oculto que no
+        // es de la orden (scripts en línea del documento).
+        const orden = tecnicoPage.getByRole('article')
+        await expect(orden).toHaveCount(1)
+        await expect(orden.getByText(/\$/)).toHaveCount(0)
+        await expect(orden.getByText(/Total/)).toHaveCount(0)
+        expect(tecnicoErrors).toEqual([])
+      } finally {
+        await tecnicoContext.close()
+      }
     },
   )
 })

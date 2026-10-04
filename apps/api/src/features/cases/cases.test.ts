@@ -13,9 +13,15 @@ import {
 } from '../../test/setup.ts'
 
 describe('/api/trabajos', () => {
-  // Fecha de negocio de hoy con el reloj del sistema (el de `createApp` sin `clock`): un envío
-  // o una recogida no pueden programarse para antes de hoy.
+  // Fecha de negocio de hoy, fijada una vez para todo el archivo e inyectada como `clock.today`
+  // en `app`: un envío o una recogida no pueden programarse para antes de hoy, y si el test y la
+  // API leyeran cada uno el reloj del sistema, una corrida que cruza la medianoche los separaría.
   const hoy = toIsoDate(new Date())
+  const ayer = (() => {
+    const d = new Date(`${hoy}T12:00:00`)
+    d.setDate(d.getDate() - 1)
+    return toIsoDate(d)
+  })()
   const adminPwd = testPassword()
   const recepcionPwd = testPassword()
   const tecnicoPwd = testPassword()
@@ -40,6 +46,7 @@ describe('/api/trabajos', () => {
       db: ctx.db,
       webOrigin: ctx.config.WEB_ORIGIN,
       storage: ctx.storage,
+      clock: { today: () => hoy, now: () => new Date() },
     })
   })
   afterAll(async () => {
@@ -825,8 +832,6 @@ describe('/api/trabajos', () => {
 
     // Iteración 4, Tarea 4 (ENT-3, ENT-4): enviar con mensajero y entregar con constancia.
     describe('envío y entrega', () => {
-      const ayer = toIsoDate(new Date(Date.now() - 24 * 60 * 60 * 1000))
-
       async function crearTerminado() {
         const { id } = await crearTrabajoEnProceso()
         await app.request(
@@ -1468,42 +1473,43 @@ describe('/api/trabajos', () => {
     })
   })
 
+  // Helpers de repeticiones: los usan `/repetir` y `/repeticiones`.
+  async function avanzarAEntregado(id: string) {
+    await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'aceptar' }))
+    await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' }))
+    await app.request(
+      `/api/trabajos/${id}/acciones`,
+      req(admin, 'POST', {
+        accion: 'marcar_enviado',
+        envio: { mensajeroId, fecha: hoy },
+      }),
+    )
+    await app.request(
+      `/api/trabajos/${id}/acciones`,
+      req(admin, 'POST', { accion: 'marcar_entregado', constanciaId: await adjuntoDe(id) }),
+    )
+  }
+
+  async function crearTrabajoEntregado() {
+    const id = await createOne(recepcion, {
+      dueDate: '2026-12-01',
+      prescription: 'Corona completa disilicato',
+      items: [{ productId: zr, quantity: 1, teeth: [11, 12] }],
+    })
+    await avanzarAEntregado(id)
+    return { id }
+  }
+
+  function remakeBody(overrides: Record<string, unknown> = {}) {
+    return {
+      motivo: 'Fractura en cerámica al probar',
+      responsabilidad: 'laboratorio',
+      cobroPct: 0,
+      ...overrides,
+    }
+  }
+
   describe('POST /api/trabajos/:id/repetir', () => {
-    async function avanzarAEntregado(id: string) {
-      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'aceptar' }))
-      await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' }))
-      await app.request(
-        `/api/trabajos/${id}/acciones`,
-        req(admin, 'POST', {
-          accion: 'marcar_enviado',
-          envio: { mensajeroId, fecha: hoy },
-        }),
-      )
-      await app.request(
-        `/api/trabajos/${id}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_entregado', constanciaId: await adjuntoDe(id) }),
-      )
-    }
-
-    async function crearTrabajoEntregado() {
-      const id = await createOne(recepcion, {
-        dueDate: '2026-12-01',
-        prescription: 'Corona completa disilicato',
-        items: [{ productId: zr, quantity: 1, teeth: [11, 12] }],
-      })
-      await avanzarAEntregado(id)
-      return { id }
-    }
-
-    function remakeBody(overrides: Record<string, unknown> = {}) {
-      return {
-        motivo: 'Fractura en cerámica al probar',
-        responsabilidad: 'laboratorio',
-        cobroPct: 0,
-        ...overrides,
-      }
-    }
-
     it('repite un trabajo entregado (201): código nuevo, hijo enlazado al padre y líneas copiadas', async () => {
       const { id } = await crearTrabajoEntregado()
       const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
@@ -1736,82 +1742,79 @@ describe('/api/trabajos', () => {
       expect(fichaHijo.case.prescription).toBeNull()
       expect(fichaHijo.missing).toContain('Prescripción (texto o documento)')
     })
+  })
 
-    // #96, Tarea 9: desde la ficha del padre no había forma de ver sus repeticiones. El
-    // endpoint es un bloque de la ficha (`requireAuth`, no `requireRole`: cualquier rol
-    // autenticado lo lee), sin dinero.
-    describe('GET /api/trabajos/:id/repeticiones', () => {
-      it('lista las repeticiones directas, de la más reciente a la más antigua', async () => {
-        const { id } = await crearTrabajoEntregado()
-        const primero = (await (
-          await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
-        ).json()) as { case: { id: string; code: string } }
-        const segundo = (await (
-          await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
-        ).json()) as { case: { id: string; code: string } }
-
-        const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(admin, 'GET'))
-        expect(res.status).toBe(200)
-        const { repeticiones } = (await res.json()) as {
-          repeticiones: { id: string; code: string; status: string; remakeReason: string }[]
-        }
-        expect(repeticiones.map((r) => r.id)).toEqual([segundo.case.id, primero.case.id])
-        expect(repeticiones[0]).toMatchObject({
-          code: segundo.case.code,
-          status: 'nuevo',
-          remakeReason: 'Fractura en cerámica al probar',
-        })
-      })
-
-      it('no incluye al nieto, solo a los hijos directos', async () => {
-        const { id } = await crearTrabajoEntregado()
-        const hijoRes = await app.request(
-          `/api/trabajos/${id}/repetir`,
-          req(admin, 'POST', remakeBody()),
-        )
-        const { case: hijo } = (await hijoRes.json()) as { case: { id: string } }
-        await avanzarAEntregado(hijo.id)
-        await app.request(`/api/trabajos/${hijo.id}/repetir`, req(admin, 'POST', remakeBody()))
-
-        const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(admin, 'GET'))
-        const { repeticiones } = (await res.json()) as { repeticiones: { id: string }[] }
-        expect(repeticiones.map((r) => r.id)).toEqual([hijo.id])
-      })
-
-      it('un trabajo sin repeticiones devuelve la lista vacía', async () => {
-        const { id } = await crearTrabajoEntregado()
-        const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(admin, 'GET'))
-        const { repeticiones } = (await res.json()) as { repeticiones: unknown[] }
-        expect(repeticiones).toEqual([])
-      })
-
-      it('un técnico ve la lista, sin ningún campo de dinero', async () => {
-        const { id } = await crearTrabajoEntregado()
+  // #96, Tarea 9: desde la ficha del padre no había forma de ver sus repeticiones. El
+  // endpoint es un bloque de la ficha (`requireAuth`, no `requireRole`: cualquier rol
+  // autenticado lo lee), sin dinero.
+  describe('GET /api/trabajos/:id/repeticiones', () => {
+    it('lista las repeticiones directas, de la más reciente a la más antigua', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const primero = (await (
         await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      ).json()) as { case: { id: string; code: string } }
+      const segundo = (await (
+        await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+      ).json()) as { case: { id: string; code: string } }
 
-        const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(tecnico, 'GET'))
-        expect(res.status).toBe(200)
-        const { repeticiones } = (await res.json()) as { repeticiones: Record<string, unknown>[] }
-        expect(repeticiones).toHaveLength(1)
-        expect(Object.keys(repeticiones[0]!).sort()).toEqual(
-          ['code', 'id', 'receivedAt', 'remakeReason', 'status'].sort(),
-        )
+      const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(admin, 'GET'))
+      expect(res.status).toBe(200)
+      const { repeticiones } = (await res.json()) as {
+        repeticiones: { id: string; code: string; status: string; remakeReason: string }[]
+      }
+      expect(repeticiones.map((r) => r.id)).toEqual([segundo.case.id, primero.case.id])
+      expect(repeticiones[0]).toMatchObject({
+        code: segundo.case.code,
+        status: 'nuevo',
+        remakeReason: 'Fractura en cerámica al probar',
       })
+    })
 
-      it('responde 404 si el trabajo no existe', async () => {
-        const res = await app.request(
-          `/api/trabajos/${randomUUID()}/repeticiones`,
-          req(admin, 'GET'),
-        )
-        expect(res.status).toBe(404)
-        expect(await res.json()).toEqual({ message: 'No encontrado' })
-      })
+    it('no incluye al nieto, solo a los hijos directos', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const hijoRes = await app.request(
+        `/api/trabajos/${id}/repetir`,
+        req(admin, 'POST', remakeBody()),
+      )
+      const { case: hijo } = (await hijoRes.json()) as { case: { id: string } }
+      await avanzarAEntregado(hijo.id)
+      await app.request(`/api/trabajos/${hijo.id}/repetir`, req(admin, 'POST', remakeBody()))
 
-      it('401 sin sesión', async () => {
-        const { id } = await crearTrabajoEntregado()
-        const res = await app.request(`/api/trabajos/${id}/repeticiones`, req('', 'GET'))
-        expect(res.status).toBe(401)
-      })
+      const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(admin, 'GET'))
+      const { repeticiones } = (await res.json()) as { repeticiones: { id: string }[] }
+      expect(repeticiones.map((r) => r.id)).toEqual([hijo.id])
+    })
+
+    it('un trabajo sin repeticiones devuelve la lista vacía', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(admin, 'GET'))
+      const { repeticiones } = (await res.json()) as { repeticiones: unknown[] }
+      expect(repeticiones).toEqual([])
+    })
+
+    it('un técnico ve la lista, sin ningún campo de dinero', async () => {
+      const { id } = await crearTrabajoEntregado()
+      await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+
+      const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(tecnico, 'GET'))
+      expect(res.status).toBe(200)
+      const { repeticiones } = (await res.json()) as { repeticiones: Record<string, unknown>[] }
+      expect(repeticiones).toHaveLength(1)
+      expect(Object.keys(repeticiones[0]!).sort()).toEqual(
+        ['code', 'id', 'receivedAt', 'remakeReason', 'status'].sort(),
+      )
+    })
+
+    it('responde 404 si el trabajo no existe', async () => {
+      const res = await app.request(`/api/trabajos/${randomUUID()}/repeticiones`, req(admin, 'GET'))
+      expect(res.status).toBe(404)
+      expect(await res.json()).toEqual({ message: 'No encontrado' })
+    })
+
+    it('401 sin sesión', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(`/api/trabajos/${id}/repeticiones`, req('', 'GET'))
+      expect(res.status).toBe(401)
     })
   })
 

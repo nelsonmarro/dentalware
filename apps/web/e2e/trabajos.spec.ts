@@ -1,9 +1,9 @@
-import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import {
   createClinicWithDoctor,
   createCourier,
   createProduct,
+  FOTO_PATH,
   login,
   loginAsAdmin,
   testPassword,
@@ -11,8 +11,6 @@ import {
   trackConsoleErrors,
   uniqueSuffix,
 } from './helpers'
-
-const FOTO_PATH = path.join(import.meta.dirname, 'fixtures', 'foto.png')
 
 /** Crea un trabajo mínimo por API (sesión admin ya iniciada en `page`). Sin `dueDate` ni
  * `prescription` a propósito: varios tests de esta suite comparten la misma BD sin reset
@@ -237,25 +235,27 @@ test.describe('Trabajos', () => {
     expect(createdUser.ok()).toBe(true)
 
     const tecnicoContext = await browser.newContext()
-    const tecnicoPage = await tecnicoContext.newPage()
-    await login(tecnicoPage, { email, password })
-    await expect(tecnicoPage).toHaveURL('/')
+    try {
+      const tecnicoPage = await tecnicoContext.newPage()
+      await login(tecnicoPage, { email, password })
+      await expect(tecnicoPage).toHaveURL('/')
 
-    await tecnicoPage.goto(`/trabajos/${created.id}`)
-    const bodyText = await tecnicoPage.locator('body').innerText()
-    expect(bodyText).not.toContain('$')
-    expect(bodyText).not.toContain('Total')
+      await tecnicoPage.goto(`/trabajos/${created.id}`)
+      const bodyText = await tecnicoPage.locator('body').innerText()
+      expect(bodyText).not.toContain('$')
+      expect(bodyText).not.toContain('Total')
 
-    const comentario = `Comentario técnico E2E ${uniqueSuffix()}`
-    await tecnicoPage.getByRole('tab', { name: /^Historial/ }).click()
-    await tecnicoPage.getByLabel('Comentario').fill(comentario)
-    await tecnicoPage.getByRole('button', { name: 'Comentar' }).click()
-    await expect(tecnicoPage.getByText(comentario)).toBeVisible()
+      const comentario = `Comentario técnico E2E ${uniqueSuffix()}`
+      await tecnicoPage.getByRole('tab', { name: /^Historial/ }).click()
+      await tecnicoPage.getByLabel('Comentario').fill(comentario)
+      await tecnicoPage.getByRole('button', { name: 'Comentar' }).click()
+      await expect(tecnicoPage.getByText(comentario)).toBeVisible()
 
-    await tecnicoPage.goto(`/trabajos/${created.id}/editar`)
-    await expect(tecnicoPage).toHaveURL(`/trabajos/${created.id}`)
-
-    await tecnicoContext.close()
+      await tecnicoPage.goto(`/trabajos/${created.id}/editar`)
+      await expect(tecnicoPage).toHaveURL(`/trabajos/${created.id}`)
+    } finally {
+      await tecnicoContext.close()
+    }
   })
 
   test('importa dos trabajos desde CSV', { tag: '@clave' }, async ({ page }) => {
@@ -620,26 +620,30 @@ test.describe('Trabajos', () => {
       await expect(page.getByLabel('Técnico responsable')).toHaveValue(tecnico.id)
 
       const tecnicoContext = await browser.newContext()
-      const tecnicoPage = await tecnicoContext.newPage()
-      const tecnicoErrors = trackConsoleErrors(tecnicoPage)
-      await login(tecnicoPage, { email, password })
+      try {
+        const tecnicoPage = await tecnicoContext.newPage()
+        const tecnicoErrors = trackConsoleErrors(tecnicoPage)
+        await login(tecnicoPage, { email, password })
 
-      await expect(tecnicoPage.getByRole('heading', { name: 'Mis trabajos' })).toBeVisible()
-      await tecnicoPage.getByRole('link', { name: new RegExp(trabajo.code) }).click()
-      await expect(tecnicoPage).toHaveURL(`/trabajos/${trabajo.id}`)
-      await expect(tecnicoPage.getByText(trabajo.code)).toBeVisible()
+        await expect(tecnicoPage.getByRole('heading', { name: 'Mis trabajos' })).toBeVisible()
+        await tecnicoPage.getByRole('link', { name: new RegExp(trabajo.code) }).click()
+        await expect(tecnicoPage).toHaveURL(`/trabajos/${trabajo.id}`)
+        await expect(tecnicoPage.getByText(trabajo.code)).toBeVisible()
 
-      // FIC-2/FIC-3 son historias del técnico: con su sesión real (no un rol simulado) abre la
-      // ficha corta del QR y avanza la fase desde el puesto (hallazgo I-2 de la revisión final
-      // del PR 3). Primera fase del seed: "Recepción" → "Modelo".
-      await tecnicoPage.goto(`/t/${trabajo.code}`)
-      await expect(tecnicoPage.getByRole('heading', { level: 1, name: trabajo.code })).toBeVisible()
-      await tecnicoPage.getByRole('button', { name: 'Avanzar a Modelo' }).click()
-      await expect(toasts(tecnicoPage).getByText('Fase: Modelo')).toBeVisible()
-      await expect(tecnicoPage.getByText('Modelo', { exact: true })).toBeVisible()
-      expect(tecnicoErrors).toEqual([])
-
-      await tecnicoContext.close()
+        // FIC-2/FIC-3 son historias del técnico: con su sesión real (no un rol simulado) abre la
+        // ficha corta del QR y avanza la fase desde el puesto (hallazgo I-2 de la revisión final
+        // del PR 3). Primera fase del seed: "Recepción" → "Modelo".
+        await tecnicoPage.goto(`/t/${trabajo.code}`)
+        await expect(
+          tecnicoPage.getByRole('heading', { level: 1, name: trabajo.code }),
+        ).toBeVisible()
+        await tecnicoPage.getByRole('button', { name: 'Avanzar a Modelo' }).click()
+        await expect(toasts(tecnicoPage).getByText('Fase: Modelo')).toBeVisible()
+        await expect(tecnicoPage.getByText('Modelo', { exact: true })).toBeVisible()
+        expect(tecnicoErrors).toEqual([])
+      } finally {
+        await tecnicoContext.close()
+      }
     },
   )
 })

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { toIsoDate } from '@dentalware/shared'
 import { expect, type Locator, type Page } from '@playwright/test'
 
 export const ADMIN = {
@@ -256,10 +257,10 @@ export async function createCourier(page: Page) {
 export const FOTO_PATH = path.join(import.meta.dirname, 'fixtures', 'foto.png')
 
 /** Hoy como fecha de negocio `YYYY-MM-DD`, en la zona del proceso de Playwright (la misma
- * máquina que la API en local y en CI). */
+ * máquina que la API en local y en CI). `toIsoDate` de `shared`: la misma regla que la web y la
+ * API (`systemClock`), sin una copia propia. */
 export function todayIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return toIsoDate(new Date())
 }
 
 /** Lleva por API un trabajo `terminado` a `enviado` con `courierId` y a `entregado` con una
