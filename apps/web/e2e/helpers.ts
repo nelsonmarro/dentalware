@@ -127,6 +127,18 @@ export async function expectTouchTargets(
   opts: { minHeight?: number; minWidth?: number } = {},
 ) {
   const { minHeight = 44, minWidth = 44 } = opts
+  // Un diálogo recién abierto se mide durante su animación de entrada (`zoom-in-95`): a escala
+  // 0,95 un botón de 44 px mide ~42 px y el barrido fallaba a ratos (M-5, revisión final del
+  // PR 1 de la Iteración 4). Se espera a que terminen las animaciones finitas; las infinitas
+  // (spinners, `animate-pulse`) no terminan nunca y no cambian el tamaño de los controles.
+  const page = 'page' in target ? target.page() : target
+  await page.waitForFunction(() =>
+    document
+      .getAnimations()
+      .every(
+        (a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity,
+      ),
+  )
   const items = target.locator(selector)
   const count = await items.count()
   let measured = 0
