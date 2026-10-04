@@ -49,6 +49,10 @@ export const ATTACHMENT_UPLOAD_ROLES = [
  * devuelve en el 422 y la web lo muestra tal cual. */
 export const CONSTANCIA_INVALIDA = 'La foto de constancia no es de este trabajo.'
 
+/** Mensaje del 409 cuando `fail` actúa sobre una entrega que ya no está pendiente (ruling de
+ * la Tarea 6): literal único para que la web la reconozca con `useConflictAwareError`. */
+export const DELIVERY_NOT_PENDING_MESSAGE = 'Esta entrega ya no está pendiente.'
+
 /** Una entrega/recogida está atrasada si sigue pendiente y su fecha programada ya pasó
  * (decisión 7 del plan: el día de hoy también muestra las pendientes atrasadas). */
 export function isOverdueDelivery(

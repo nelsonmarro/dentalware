@@ -32,6 +32,8 @@ export const deliveries = pgTable(
       .notNull()
       .references(() => users.id),
     scheduledFor: date('scheduled_for', { mode: 'string' }).notNull(),
+    // También es el momento en que se cerró una entrega `fallida` (antes de reprogramar), no
+    // solo cuándo se completó una `hecha`: `markFailed` y `markDone` escriben aquí.
     doneAt: timestamp('done_at', { withTimezone: true }),
     proofAttachmentId: uuid('proof_attachment_id').references(() => attachments.id, {
       onDelete: 'set null',

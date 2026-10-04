@@ -3,6 +3,7 @@ import {
   ATTACHMENT_UPLOAD_ROLES,
   CONSTANCIA_INVALIDA,
   DELIVERY_MANAGE_ROLES,
+  DELIVERY_NOT_PENDING_MESSAGE,
   DELIVERY_ROLES,
   DELIVERY_STATUS_LABEL,
   DELIVERY_TYPE_LABEL,
@@ -36,5 +37,8 @@ describe('entregas', () => {
   })
   it('mensaje de constancia inválida', () => {
     expect(CONSTANCIA_INVALIDA).toBe('La foto de constancia no es de este trabajo.')
+  })
+  it('mensaje de entrega ya no pendiente', () => {
+    expect(DELIVERY_NOT_PENDING_MESSAGE).toBe('Esta entrega ya no está pendiente.')
   })
 })

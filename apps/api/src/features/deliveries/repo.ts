@@ -3,7 +3,12 @@ import type { Db, Tx } from '../../db/index.ts'
 import { users } from '../../db/schema/auth.ts'
 import { cases } from '../cases/schema.ts'
 import { clinics } from '../clinics/schema.ts'
-import type { CouriersQuery, DeliveriesRepository } from './ports.ts'
+import type {
+  CaseEventLog,
+  CouriersQuery,
+  DeliveriesRepository,
+  DeliveriesUnitOfWork,
+} from './ports.ts'
 import { deliveries } from './schema.ts'
 
 /**
@@ -61,7 +66,9 @@ export function createDeliveriesRepo(db: Db | Tx) {
     async listForDay(q) {
       const conds = [
         q.includeOverdue
-          ? or(
+          ? // `or(...)` solo devuelve `undefined` sin condiciones; con las dos fijas de abajo
+            // siempre hay una `SQL` real, así que el `!` no oculta un caso posible.
+            or(
               eq(deliveries.scheduledFor, q.day),
               and(eq(deliveries.status, 'pendiente'), sql`${deliveries.scheduledFor} < ${q.day}`),
             )!
@@ -121,6 +128,20 @@ export function createDeliveriesRepo(db: Db | Tx) {
     },
   } satisfies DeliveriesRepository
 }
+
+/**
+ * Unidad de trabajo de `fail` (ADR 19): re-crea el repositorio de entregas sobre la misma
+ * `tx` y recibe el `CaseEventLog` ya adaptado a esa `tx` (`deps.events`), que llega de la raíz
+ * de composición como `createCasesRepo(tx).addEvent` (`app.ts`) — este archivo nunca importa
+ * `cases/repo.ts` (frontera entre features, `docs/architecture.md` §2).
+ */
+export const drizzleDeliveriesUnitOfWork = (
+  db: Db,
+  deps: { events: (tx: Tx) => CaseEventLog },
+): DeliveriesUnitOfWork => ({
+  run: (fn) =>
+    db.transaction((tx) => fn({ deliveries: createDeliveriesRepo(tx), events: deps.events(tx) })),
+})
 
 /** Puerto de OTRA feature (usuarios, ADR 24/29): mensajeros activos, mismo criterio que
  * `createUsersQuery` de `cases` (`activeTechnicians`). */

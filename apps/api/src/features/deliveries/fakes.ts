@@ -1,5 +1,12 @@
 import type { CasePriority, CaseStatus } from '@dentalware/shared'
-import type { CouriersQuery, DeliveriesRepository, DeliveryRow, Named } from './ports.ts'
+import type {
+  CaseEventLog,
+  CouriersQuery,
+  DeliveriesRepository,
+  DeliveriesUnitOfWork,
+  DeliveryRow,
+  Named,
+} from './ports.ts'
 
 /** Lo que `listForDay` necesita de un trabajo para construir su fila (ADR 24 en memoria: el
  * join que hace `repo.ts` contra `cases`/`clinics`, aquí resuelto por consulta a un mapa). */
@@ -103,3 +110,24 @@ export function fakeDeliveriesRepo(
 export const fakeCouriersQuery = (couriers: Named[] = []): CouriersQuery => ({
   activeCouriers: async () => couriers,
 })
+
+/** Evento del trabajo en memoria (para `service.test.ts` de `fail`, sin Postgres): guarda
+ * cada `delivery_failed` que escribe el servicio, visible para la aserción del test. */
+export function fakeCaseEventLog() {
+  const events: Parameters<CaseEventLog['addEvent']>[0][] = []
+  const log: CaseEventLog = {
+    async addEvent(e) {
+      events.push(e)
+    },
+  }
+  return { log, events }
+}
+
+/** `DeliveriesUnitOfWork` en memoria: sin transacción real, solo re-usa el mismo repo y log
+ * (mismo criterio que el `uow` en memoria de `cases/fakes.ts`). */
+export function fakeDeliveriesUnitOfWork(
+  repo: DeliveriesRepository,
+  events: CaseEventLog,
+): DeliveriesUnitOfWork {
+  return { run: (fn) => fn({ deliveries: repo, events }) }
+}

@@ -19,7 +19,11 @@ import { casesRoutes } from './features/cases/routes.ts'
 import { createCasesRepo, createUsersQuery, drizzleUnitOfWork } from './features/cases/repo.ts'
 import { createCasesService } from './features/cases/service.ts'
 import { clinicsRoutes } from './features/clinics/routes.ts'
-import { createCouriersQuery, createDeliveriesRepo } from './features/deliveries/repo.ts'
+import {
+  createCouriersQuery,
+  createDeliveriesRepo,
+  drizzleDeliveriesUnitOfWork,
+} from './features/deliveries/repo.ts'
 import { deliveriesRoutes } from './features/deliveries/routes.ts'
 import { createDeliveriesService } from './features/deliveries/service.ts'
 import { doctorsRoutes } from './features/doctors/routes.ts'
@@ -75,7 +79,18 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     uow: casesUow,
     clock: effectiveClock,
   })
-  const deliveriesService = createDeliveriesService({ couriers: couriersQuery })
+  // `uow` propio de `deliveries` (distinto del `casesUow`): compone `createDeliveriesRepo(tx)`
+  // con un `CaseEventLog` adaptado de `createCasesRepo(tx).addEvent`, sin que `deliveries/`
+  // importe nada de `cases/` (la frontera la cruza solo esta raíz de composición).
+  const deliveriesUow = drizzleDeliveriesUnitOfWork(db, {
+    events: (tx) => ({ addEvent: (e) => createCasesRepo(tx).addEvent(e) }),
+  })
+  const deliveriesService = createDeliveriesService({
+    deliveries: createDeliveriesRepo(db),
+    couriers: couriersQuery,
+    uow: deliveriesUow,
+    clock: effectiveClock,
+  })
   const importService = createImportService({
     catalog: createImportCatalog(db),
     uow: casesUow,
