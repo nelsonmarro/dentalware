@@ -16,9 +16,19 @@ export function CaseViewTabs({ value, onChange }: CaseViewTabsProps) {
   const today = toIsoDate(new Date())
 
   useEffect(() => {
-    listRef.current
-      ?.querySelector<HTMLElement>('[data-state=active]')
-      ?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
+    const reveal = () =>
+      listRef.current
+        ?.querySelector<HTMLElement>('[data-state=active]')
+        ?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
+    reveal()
+    // Al cargar la tipografía cambian los anchos de las pestañas: se vuelve a centrar una vez.
+    let cancelled = false
+    void document.fonts?.ready.then(() => {
+      if (!cancelled) reveal()
+    })
+    return () => {
+      cancelled = true
+    }
   }, [value])
 
   return (
