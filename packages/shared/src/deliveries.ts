@@ -216,3 +216,22 @@ export function courierNoActionReason(
   if (pending.courierId !== userId) return OTHER_COURIER_REASON[pending.type](pending.courierName)
   return null
 }
+
+/** Línea de la entrega pendiente en la ficha completa (UX4-09), por tipo; `when` lo formatea el
+ * cliente («hoy» o «el dd/mm/aaaa»). `Record` exhaustivo. */
+export const PENDING_DELIVERY_LINE: Record<
+  DeliveryType,
+  (when: string, courierName: string) => string
+> = {
+  recogida: (when, name) => `Recogida programada para ${when} con ${name}`,
+  entrega: (when, name) => `Sale ${when} con ${name}`,
+}
+
+export function pendingDeliveryLine(type: DeliveryType, when: string, courierName: string) {
+  return PENDING_DELIVERY_LINE[type](when, courierName)
+}
+
+/** «Entregado el 04/10/2026 por Mario» (UX4-09); `date` ya formateada por el cliente. */
+export function deliveredLine(date: string, courierName: string): string {
+  return `Entregado el ${date} por ${courierName}`
+}

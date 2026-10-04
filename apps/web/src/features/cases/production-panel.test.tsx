@@ -309,6 +309,29 @@ describe('ProductionPanel', () => {
 
   // M-5 (revisión de la Tarea 4): ids de `useId()`, no escritos a mano, para que dos paneles
   // (o una prueba que monta varios) no compartan el id del título.
+  // UX4-09: la entrega va en el mismo panel que su acción.
+  it('en un trabajo enviado dice con quién salió y para cuándo', async () => {
+    renderWithProviders(
+      <ProductionPanel
+        self={yo}
+        case={caso({
+          status: 'enviado',
+          currentStageId: null,
+          pendingDelivery: {
+            type: 'entrega',
+            courierId: 'm1',
+            courierName: 'Mario Mensajero',
+            scheduledFor: '2999-10-09',
+          },
+        })}
+        missing={[]}
+        role="recepcion"
+        stages={fases}
+      />,
+    )
+    expect(await screen.findByText('Sale el 09/10/2999 con Mario Mensajero')).toBeInTheDocument()
+  })
+
   it('dos paneles montados no comparten ids de título', async () => {
     renderWithProviders(
       <>

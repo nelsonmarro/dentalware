@@ -5,6 +5,7 @@ import type { Stage } from '@/features/stages/api'
 import { cn } from '@/lib/utils'
 import type { CaseDetail } from './api'
 import { CaseActions } from './case-actions'
+import { DeliverySummary } from './delivery-summary'
 import type { DeliverySelf } from './ship-dialog'
 import { isStageVisible } from './case-views'
 import { StageControl } from './stage-control'
@@ -59,6 +60,8 @@ export function ProductionPanel({
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
+        {/* UX4-09: la recogida o entrega va junto a su acción, arriba del panel. */}
+        <DeliverySummary pending={c.pendingDelivery} lastDelivered={c.lastDelivered} />
         <div
           className={cn(
             'grid grid-cols-1 gap-5',

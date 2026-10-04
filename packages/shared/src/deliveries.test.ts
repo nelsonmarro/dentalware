@@ -16,6 +16,8 @@ import {
   canActOnDelivery,
   cancelledDeliveryReason,
   courierTaskTitle,
+  deliveredLine,
+  pendingDeliveryLine,
   courierNoActionReason,
   actionsFor,
   isClosedByCancellation,
@@ -206,6 +208,23 @@ describe('entregas', () => {
         'marcar_entregado',
         'cancelar',
       ])
+    })
+  })
+
+  // UX4-09: la ficha completa dice con quién sale, para cuándo, y quién lo entregó.
+  describe('pendingDeliveryLine', () => {
+    it('la recogida dice para cuándo está programada y con quién', () => {
+      expect(pendingDeliveryLine('recogida', 'hoy', 'Mario')).toBe(
+        'Recogida programada para hoy con Mario',
+      )
+    })
+    it('la entrega dice cuándo sale y con quién', () => {
+      expect(pendingDeliveryLine('entrega', 'el 04/10/2026', 'Mario')).toBe(
+        'Sale el 04/10/2026 con Mario',
+      )
+    })
+    it('lo entregado dice cuándo y quién', () => {
+      expect(deliveredLine('04/10/2026', 'Mario')).toBe('Entregado el 04/10/2026 por Mario')
     })
   })
 })
