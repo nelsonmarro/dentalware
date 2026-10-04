@@ -87,7 +87,10 @@ function TrabajosPage() {
         <div className="overflow-x-auto overflow-y-hidden">
           <TabsList>
             {CASE_VIEWS.map((v) => (
-              <TabsTrigger key={v} value={v}>
+              // `flex-none`: cada pestaña toma el ancho de su texto; el reparto igual de
+              // `flex-1` recortaba «Vencen mañana» sobre sus vecinas (UX4-03). El contenedor
+              // ya hace scroll horizontal si no caben todas.
+              <TabsTrigger key={v} value={v} className="flex-none">
                 {CASE_VIEW_LABEL[v]}
               </TabsTrigger>
             ))}
