@@ -150,11 +150,15 @@ describe('schemas de configuración', () => {
   })
 
   it('createUser exige correo, contraseña de 8+ y rol válido', () => {
+    // No son contraseñas reales, solo datos de prueba para el esquema; `repeat` evita que
+    // parezcan una contraseña literal (GitGuardian marca "Generic Password" en ese patrón).
+    const validPassword = 'x'.repeat(10)
+    const shortPassword = 'x'.repeat(3)
     expect(
       createUserSchema.safeParse({
         name: 'Ana',
         email: 'ana@lab.local',
-        password: 'Secreta123',
+        password: validPassword,
         role: 'recepcion',
       }).success,
     ).toBe(true)
@@ -162,7 +166,7 @@ describe('schemas de configuración', () => {
       createUserSchema.safeParse({
         name: 'Ana',
         email: 'ana@lab.local',
-        password: '123',
+        password: shortPassword,
         role: 'recepcion',
       }).success,
     ).toBe(false)
@@ -170,7 +174,7 @@ describe('schemas de configuración', () => {
       createUserSchema.safeParse({
         name: 'Ana',
         email: 'ana@lab.local',
-        password: 'Secreta123',
+        password: validPassword,
         role: 'jefe',
       }).success,
     ).toBe(false)
