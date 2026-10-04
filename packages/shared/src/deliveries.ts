@@ -1,4 +1,5 @@
-import type { UserRole } from './roles.ts'
+import type { CaseAction } from './case-status.ts'
+import { hasRole, type UserRole } from './roles.ts'
 
 /** Tipo de entrega (Iteración 4): `recogida` trae el trabajo al laboratorio (ENT-1),
  * `entrega` lo lleva a la clínica (ENT-2). */
@@ -60,4 +61,43 @@ export function isOverdueDelivery(
   today: string,
 ): boolean {
   return d.status === 'pendiente' && d.scheduledFor < today
+}
+
+/** Qué entrega pendiente cierra cada acción de estado: `recibir` cierra la recogida (ENT-1) y
+ * `marcar_entregado` la entrega (ENT-4). `Record` exhaustivo: una acción nueva no compila sin
+ * decidir si cierra una entrega (y, con ella, si el mensajero solo la hace sobre la suya). */
+export const DELIVERY_CLOSED_BY_ACTION: Record<CaseAction, DeliveryType | null> = {
+  recibir: 'recogida',
+  aceptar: null,
+  pausar: null,
+  reanudar: null,
+  enviar_prueba: null,
+  recibir_prueba: null,
+  finalizar: null,
+  marcar_enviado: null,
+  marcar_entregado: 'entrega',
+  cancelar: null,
+}
+
+/** La entrega o recogida pendiente de un trabajo, tal como la ve quien decide si puede
+ * cerrarla: de qué tipo es y a qué mensajero está asignada. */
+export type PendingDelivery = { type: DeliveryType; courierId: string }
+
+/**
+ * ¿Puede `actor` hacer `action` sobre el trabajo cuya entrega pendiente es `pending`?
+ * (decisión 4 del plan, M-4 de la revisión final del PR 1). Solo restringe las acciones que
+ * cierran una entrega (`DELIVERY_CLOSED_BY_ACTION`): quien administra entregas actúa sobre
+ * cualquiera, y el resto solo sobre la pendiente del tipo que cierra la acción y asignada a él.
+ * Sin entrega pendiente (datos anteriores a la Iteración 4) solo admin y recepción. El rol
+ * para la acción en sí lo decide `canPerform`; esto es lo que se suma para las entregas.
+ * Una sola fuente para la API (`CasesService.action`, 403) y la web (no mostrar el botón).
+ */
+export function canActOnDelivery(
+  actor: { role: UserRole; userId: string },
+  action: CaseAction,
+  pending: PendingDelivery | null | undefined,
+): boolean {
+  const closes = DELIVERY_CLOSED_BY_ACTION[action]
+  if (closes === null || hasRole(DELIVERY_MANAGE_ROLES, actor.role)) return true
+  return pending?.type === closes && pending.courierId === actor.userId
 }

@@ -2,6 +2,7 @@ import {
   addBusinessDays,
   applyAction,
   ASSIGN_TECHNICIAN_ROLES,
+  canActOnDelivery,
   canAssignTechnician,
   canChangeStage,
   canPerform,
@@ -28,6 +29,7 @@ import {
   type CaseEventType,
   type CaseInput,
   type CaseListQuery,
+  type PendingDelivery,
   type RemakeInput,
   type StageChangeInput,
   type StageRef,
@@ -43,6 +45,7 @@ import type {
   CasesRepository,
   CaseTransitionPatch,
   CouriersLookup,
+  DeliveryLog,
   Named,
   StagesQuery,
   UnitOfWork,
@@ -135,6 +138,9 @@ export function createCasesService(deps: {
   stages: StagesQuery
   users: UsersQuery
   couriers: CouriersLookup
+  /** Solo lectura, fuera de la transacción: qué entrega está pendiente para la ficha (M-4).
+   * Las escrituras de entregas van siempre por `uow.run`. */
+  deliveries: Pick<DeliveryLog, 'pendingFor'>
   uow: UnitOfWork
   clock: Clock
 }) {
@@ -148,10 +154,21 @@ export function createCasesService(deps: {
    * `detailByCode` no duplica `stripPrices` ni el cálculo de `missing`. */
   const toDetail = async (found: CaseDetail, ctx: RequestContext) => {
     const hasDoc = await deps.attachments.hasDocument(found.id)
+    const masked = hidesPrices(ctx.role) ? stripPrices(found) : found
     return {
-      case: hidesPrices(ctx.role) ? stripPrices(found) : found,
+      case: { ...masked, pendingDelivery: await pendingDelivery(found.id) },
       missing: readiness(found, hasDoc),
     }
+  }
+  /** La recogida o entrega pendiente del trabajo (como mucho hay una: un trabajo está por
+   * recoger o enviado, no las dos cosas) con su mensajero (M-4): la web la usa con
+   * `canActOnDelivery` para no ofrecerle a un mensajero la acción de una entrega ajena. */
+  const pendingDelivery = async (caseId: string): Promise<PendingDelivery | null> => {
+    for (const type of DELIVERY_TYPES) {
+      const pending = await deps.deliveries.pendingFor(caseId, type)
+      if (pending) return { type, courierId: pending.courierId }
+    }
+    return null
   }
   return {
     async list(q: CaseListQuery, ctx: RequestContext) {
@@ -268,7 +285,7 @@ export function createCasesService(deps: {
             // la Iteración 4) se recibe igual —tolerancia deliberada, como `recibir_prueba`—,
             // pero solo quien administra entregas: a un mensajero no le consta como suya.
             const pending = await deliveries.pendingFor(id, 'recogida')
-            if (!hasRole(DELIVERY_MANAGE_ROLES, ctx.role) && pending?.courierId !== ctx.userId) {
+            if (!canActOnDelivery(ctx, 'recibir', pending && { type: 'recogida', ...pending })) {
               throw new CaseForbiddenError()
             }
             if (pending) await deliveries.markDone(pending.id, deps.clock.now(), null)
@@ -350,7 +367,9 @@ export function createCasesService(deps: {
             // El permiso va antes que la constancia (rol antes que datos, como `marcar_enviado`):
             // a otro mensajero se le responde 403 sin decirle nada de la foto.
             const pending = await deliveries.pendingFor(id, 'entrega')
-            if (!hasRole(DELIVERY_MANAGE_ROLES, ctx.role) && pending?.courierId !== ctx.userId) {
+            if (
+              !canActOnDelivery(ctx, 'marcar_entregado', pending && { type: 'entrega', ...pending })
+            ) {
               throw new CaseForbiddenError()
             }
             const proof = await deps.attachments.constancia(id, constanciaId)

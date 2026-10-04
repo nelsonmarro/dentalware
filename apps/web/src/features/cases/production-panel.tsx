@@ -36,9 +36,10 @@ export function ProductionPanel({
   /** Fases, activas o no: `StageControl` resuelve el nombre de una fase ya desactivada. */
   stages: Stage[]
   stagesError?: boolean
-  onRemakeCreated?: (created: CaseDetail) => void
-  /** Quien usa la app: el mensajero envía con él mismo (`ShipDialog`). */
-  self?: DeliverySelf
+  onRemakeCreated?: (created: { id: string }) => void
+  /** Quien usa la app: el mensajero envía con él mismo (`ShipDialog`). Obligatorio: la barra
+   * de acciones lo necesita para el envío y para saber qué entregas son suyas. */
+  self: DeliverySelf
 }) {
   const showStage = !!c.currentStageId && isStageVisible(c.status)
   const titleId = useId()

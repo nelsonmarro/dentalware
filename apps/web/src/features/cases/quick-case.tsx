@@ -1,6 +1,8 @@
 import {
   ATTACHMENT_UPLOAD_ROLES,
   canChangeStage,
+  DELIVERY_MANAGE_ROLES,
+  DELIVERY_ROLES,
   STAGE_CHANGE_BLOCKED_REASON,
   STAGE_CHANGE_ROLES,
   toIsoDate,
@@ -33,6 +35,14 @@ function canControlStage(role: UserRole): boolean {
   return hasRole(STAGE_CHANGE_ROLES, role)
 }
 
+/** Quien entrega sin administrar entregas (el mensajero, #105): actúa sobre entregas
+ * (`DELIVERY_ROLES`) pero no las programa (`DELIVERY_MANAGE_ROLES`). Su ficha corta es su
+ * acción de entrega. Predicado explícito sobre las constantes de entregas, no por descarte de
+ * quien cambia de fase; qué entregas son suyas lo decide `canActOnDelivery` en `CaseActions`. */
+function deliversOnly(role: UserRole): boolean {
+  return hasRole(DELIVERY_ROLES, role) && !hasRole(DELIVERY_MANAGE_ROLES, role)
+}
+
 /**
  * Ficha corta del trabajo (Tarea 15, FIC-2 #72 / FIC-3 #73): pantalla a la que llega un
  * técnico al escanear el QR de la orden impresa (ruta `/t/:code`, montada dentro de `_app`
@@ -56,8 +66,9 @@ export function QuickCase({
 }: {
   code: string
   role: UserRole
-  /** Quien usa la app: el mensajero envía con él mismo (`ShipDialog`). */
-  self?: DeliverySelf
+  /** Quien usa la app: el mensajero envía con él mismo (`ShipDialog`) y solo ve la acción de
+   * la entrega que tiene asignada (M-4). */
+  self: DeliverySelf
 }) {
   const q = useCaseByCode(code)
   const stages = useStages(true)
@@ -170,9 +181,10 @@ export function QuickCase({
             {next ? `Avanzar a ${next.name}` : 'Avanzar fase'}
           </Button>
         )}
-        {/* Quien no cambia de fase es quien entrega: su acción de entrega, en grande. Admin y
-            técnico producen y siguen con «Avanzar fase» (la ficha completa tiene el resto). */}
-        {!roleCanControl && (
+        {/* El mensajero: su acción de entrega, en grande, solo si la entrega es suya (M-4,
+            `canActOnDelivery` dentro de `CaseActions`). Admin, recepción y técnico producen y
+            siguen con «Avanzar fase» (la ficha completa tiene el resto). */}
+        {deliversOnly(role) && (
           <CaseActions case={c} missing={q.data.missing} role={role} self={self} size="large" />
         )}
         {canUpload && (

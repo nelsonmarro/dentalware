@@ -1057,6 +1057,24 @@ describe('/api/trabajos', () => {
       expect(eventos.events[1]).toMatchObject({ toValue: hoy, reason: 'Mensajero' })
     })
 
+    // M-4: la ficha dice de quién es la recogida pendiente, para que la web solo le ofrezca
+    // «Recibido» al mensajero que la tiene asignada.
+    it('GET /api/trabajos/:id trae la recogida pendiente y su mensajero; recibida, null', async () => {
+      const id = await crearPorRecoger()
+      const ficha = async () =>
+        (
+          (await (await app.request(`/api/trabajos/${id}`, req(mensajero, 'GET'))).json()) as {
+            case: { pendingDelivery: unknown }
+          }
+        ).case.pendingDelivery
+      expect(await ficha()).toEqual({ type: 'recogida', courierId: mensajeroId })
+      await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(mensajero, 'POST', { accion: 'recibir' }),
+      )
+      expect(await ficha()).toBeNull()
+    })
+
     it('responde 422 si el mensajero de la recogida no es un mensajero activo', async () => {
       const res = await app.request(
         '/api/trabajos',

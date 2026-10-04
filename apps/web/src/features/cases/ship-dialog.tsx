@@ -36,7 +36,8 @@ export function ShipDialog({
 }: {
   case: CaseDetail
   role: UserRole
-  self?: DeliverySelf
+  /** Obligatorio: el mensajero envía con él mismo; sin él el botón nunca se habilitaría. */
+  self: DeliverySelf
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -46,10 +47,10 @@ export function ShipDialog({
   const couriers = useCouriers(chooses)
   const form = useForm<ShipmentInput>({
     resolver: zodResolver(shipmentInputSchema),
-    defaultValues: { mensajeroId: chooses ? '' : (self?.id ?? ''), fecha: today },
+    defaultValues: { mensajeroId: chooses ? '' : self.id, fecha: today },
   })
   const [mensajeroId, fecha] = useWatch({ control: form.control, name: ['mensajeroId', 'fecha'] })
-  const courierName = chooses ? couriers.data?.find((m) => m.id === mensajeroId)?.name : self?.name
+  const courierName = chooses ? couriers.data?.find((m) => m.id === mensajeroId)?.name : self.name
 
   function submit(envio: ShipmentInput) {
     action.mutate(
@@ -110,7 +111,7 @@ export function ShipDialog({
           <Field>
             <FieldLabel htmlFor="ship-courier-self">Mensajero</FieldLabel>
             <p id="ship-courier-self" className="text-base font-medium">
-              {self?.name ?? 'Tú'}
+              {self.name}
             </p>
           </Field>
         )}

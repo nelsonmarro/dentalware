@@ -121,16 +121,20 @@ function caso(overrides: Partial<CaseDetail> = {}): CaseDetail {
     technician: null,
     stage: { id: 'f1', name: 'Modelado', color: '#0F766E' },
     items: [],
+    pendingDelivery: null,
     ...overrides,
   } as unknown as CaseDetail
 }
+
+/** Quien usa la app (`self`, obligatorio donde un mensajero llega al envío). */
+const yo = { id: 'u-yo', name: 'Yo' }
 
 describe('QuickCase', () => {
   it('muestra el código, el paciente y la fase actual', async () => {
     fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
     expect(await screen.findByRole('heading', { level: 1, name: '26-00123' })).toBeInTheDocument()
     expect(screen.getByText('Juan Pérez')).toBeInTheDocument()
@@ -146,7 +150,7 @@ describe('QuickCase', () => {
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
     const user = userEvent.setup()
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
     await screen.findByText('Modelado')
     await user.click(screen.getByRole('button', { name: 'Avanzar a Fresado' }))
@@ -165,7 +169,7 @@ describe('QuickCase', () => {
     })
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
     expect(
       await screen.findByText('El trabajo está en espera: reanúdalo para poder cambiar de fase.'),
@@ -177,7 +181,7 @@ describe('QuickCase', () => {
     fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="26-00123" role="mensajero" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="mensajero" />)
 
     await screen.findByText('Modelado')
     expect(screen.queryByRole('button', { name: /^Avanzar/ })).not.toBeInTheDocument()
@@ -189,7 +193,7 @@ describe('QuickCase', () => {
     fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'terminado' }), missing: [] })
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
     await screen.findByRole('heading', { level: 1, name: '26-00123' })
     expect(screen.queryByText('Fase:')).not.toBeInTheDocument()
@@ -200,7 +204,7 @@ describe('QuickCase', () => {
     fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'en_espera' }), missing: [] })
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
     expect(await screen.findByText('Modelado')).toBeInTheDocument()
   })
@@ -215,7 +219,7 @@ describe('QuickCase', () => {
       })
       vi.mocked(fetchStages).mockResolvedValue(fases)
 
-      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+      renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
       expect(await screen.findByText('Entrega: 04/03/2999')).toBeInTheDocument()
     })
@@ -227,7 +231,7 @@ describe('QuickCase', () => {
       })
       vi.mocked(fetchStages).mockResolvedValue(fases)
 
-      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+      renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
       expect(await screen.findByText('Entrega: 01/03/2999')).toBeInTheDocument()
     })
@@ -240,7 +244,7 @@ describe('QuickCase', () => {
       })
       vi.mocked(fetchStages).mockResolvedValue(fases)
 
-      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+      renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
       expect(await screen.findByText('Entrega: sin fecha')).toBeInTheDocument()
     })
@@ -252,7 +256,7 @@ describe('QuickCase', () => {
       })
       vi.mocked(fetchStages).mockResolvedValue(fases)
 
-      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+      renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
       expect(await screen.findByText('Urgente')).toBeInTheDocument()
     })
@@ -261,7 +265,7 @@ describe('QuickCase', () => {
       fetchCaseByCode.mockResolvedValue({ case: caso({ promisedDate: '2999-03-04' }), missing: [] })
       vi.mocked(fetchStages).mockResolvedValue(fases)
 
-      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+      renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
       await screen.findByText('Entrega: 04/03/2999')
       expect(screen.queryByText('Urgente')).not.toBeInTheDocument()
@@ -273,7 +277,7 @@ describe('QuickCase', () => {
       fetchCaseByCode.mockResolvedValue({ case: caso({ promisedDate: '2020-01-15' }), missing: [] })
       vi.mocked(fetchStages).mockResolvedValue(fases)
 
-      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+      renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
       expect(await screen.findByText('Atrasado')).toBeInTheDocument()
     })
@@ -297,7 +301,7 @@ describe('QuickCase', () => {
         })
         vi.mocked(fetchStages).mockResolvedValue(fases)
 
-        renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+        renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
         expect(await screen.findByText('Vence hoy')).toBeInTheDocument()
       })
@@ -310,7 +314,7 @@ describe('QuickCase', () => {
       })
       vi.mocked(fetchStages).mockResolvedValue(fases)
 
-      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+      renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
       await screen.findByText('Entrega: 15/01/2020')
       expect(screen.queryByText('Atrasado')).not.toBeInTheDocument()
@@ -321,7 +325,7 @@ describe('QuickCase', () => {
     fetchCaseByCode.mockRejectedValue(new ApiError('No encontrado', 404))
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="26-99999" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-99999" role="tecnico" />)
 
     // Pantalla completa: «No encontrado» es su h1 (un h1 por página, convenciones §5).
     expect(
@@ -333,7 +337,7 @@ describe('QuickCase', () => {
     fetchCaseByCode.mockRejectedValue(new ApiError('Datos inválidos', 422))
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="no-es-un-codigo" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="no-es-un-codigo" role="tecnico" />)
 
     expect(await screen.findByText('No encontrado')).toBeInTheDocument()
   })
@@ -342,7 +346,7 @@ describe('QuickCase', () => {
     fetchCaseByCode.mockResolvedValue({ case: caso({ total: '450.00' }), missing: [] })
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
     await screen.findByRole('heading', { level: 1, name: '26-00123' })
     expect(screen.queryByText(/\$/)).not.toBeInTheDocument()
@@ -355,7 +359,7 @@ describe('QuickCase', () => {
     fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
     expect(await screen.findByRole('button', { name: 'Avanzar a Fresado' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Añadir foto' })).toBeInTheDocument()
@@ -366,7 +370,7 @@ describe('QuickCase', () => {
     fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
     const link = await screen.findByRole('link', { name: 'Ver ficha completa' })
     expect(link).toHaveAttribute('href', '/trabajos/c1')
@@ -379,7 +383,7 @@ describe('QuickCase', () => {
     vi.mocked(fetchStages).mockResolvedValue(fases)
     uploadAttachment.mockResolvedValue({ attachment: { id: 'a1' } })
     const user = userEvent.setup()
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
     await screen.findByRole('heading', { level: 1, name: '26-00123' })
 
     const file = new File(['contenido'], 'foto.png', { type: 'image/png' })
@@ -402,7 +406,7 @@ describe('QuickCase', () => {
       { id: 'a5', kind: 'document', mime: 'image/jpeg' },
     ])
 
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
     expect(await screen.findByText('Fotos: 3')).toBeInTheDocument()
     expect(fetchAttachments).toHaveBeenCalledWith('c1')
@@ -418,7 +422,7 @@ describe('QuickCase', () => {
       .mockResolvedValue([{ id: 'a1', kind: 'photo', mime: 'image/webp' }])
     uploadAttachment.mockResolvedValue({ attachment: { id: 'a1' } })
     const user = userEvent.setup()
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
     expect(await screen.findByText('Fotos: 0')).toBeInTheDocument()
 
     const file = new File(['contenido'], 'foto.png', { type: 'image/png' })
@@ -431,7 +435,7 @@ describe('QuickCase', () => {
     fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
     vi.mocked(fetchStages).mockRejectedValue(new ApiError('Fallo', 500))
 
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
     expect(
       await screen.findByText('No se pudieron cargar las fases. Recarga la página.'),
@@ -447,7 +451,7 @@ describe('QuickCase', () => {
       stage({ id: 'f2', name: 'Fresado', sort: 1 }),
     ])
 
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
     expect(
       await screen.findByText(/La fase en la que estaba este trabajo ya no está activa/),
@@ -460,7 +464,7 @@ describe('QuickCase', () => {
     fetchCaseByCode.mockRejectedValue(new TypeError('Failed to fetch'))
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
     const retry = await screen.findByRole('button', { name: 'Reintentar' })
     expect(screen.queryByText('No encontrado')).not.toBeInTheDocument()
@@ -472,7 +476,7 @@ describe('QuickCase', () => {
     fetchCaseByCode.mockRejectedValue(new ApiError('Error interno', 500))
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
     expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
     expect(screen.queryByText('No encontrado')).not.toBeInTheDocument()
@@ -483,7 +487,7 @@ describe('QuickCase', () => {
     fetchCaseByCode.mockRejectedValue(new ApiError('No encontrado', 404))
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="26-99999" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-99999" role="tecnico" />)
 
     const link = await screen.findByRole('link', { name: 'Ir a trabajos' })
     expect(link).toHaveAttribute('href', '/trabajos')
@@ -493,7 +497,7 @@ describe('QuickCase', () => {
     fetchCaseByCode.mockRejectedValue(new ApiError('No encontrado', 404))
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
-    renderWithProviders(<QuickCase code="26-99999" role="tecnico" />)
+    renderWithProviders(<QuickCase self={yo} code="26-99999" role="tecnico" />)
 
     expect(await screen.findByText('No encontrado')).toBeInTheDocument()
     expect(screen.getByText(/Revisa el código impreso en la orden/)).toBeInTheDocument()
@@ -509,7 +513,14 @@ describe('QuickCase', () => {
       ['terminado', 'Marcar enviado'],
       ['enviado', 'Marcar entregado'],
     ] as const)('en «%s» ve «%s» grande y a todo el ancho', async (status, accion) => {
-      fetchCaseByCode.mockResolvedValue({ case: caso({ status }), missing: [] })
+      // La recogida o la entrega pendiente es suya (M-4); «Marcar enviado» no depende de ella.
+      const pendingDelivery =
+        status === 'por_recoger'
+          ? ({ type: 'recogida', courierId: mario.id } as const)
+          : status === 'enviado'
+            ? ({ type: 'entrega', courierId: mario.id } as const)
+            : null
+      fetchCaseByCode.mockResolvedValue({ case: caso({ status, pendingDelivery }), missing: [] })
       vi.mocked(fetchStages).mockResolvedValue(fases)
       renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
 
@@ -531,7 +542,13 @@ describe('QuickCase', () => {
     })
 
     it('«Recibido» se envía al primer toque', async () => {
-      fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'por_recoger' }), missing: [] })
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({
+          status: 'por_recoger',
+          pendingDelivery: { type: 'recogida', courierId: mario.id },
+        }),
+        missing: [],
+      })
       vi.mocked(fetchStages).mockResolvedValue(fases)
       postCaseAction.mockResolvedValue(caso({ status: 'nuevo' }))
       const user = userEvent.setup()
@@ -541,6 +558,19 @@ describe('QuickCase', () => {
       await waitFor(() =>
         expect(postCaseAction).toHaveBeenCalledWith('c1', { accion: 'recibir', motivo: null }),
       )
+    })
+
+    // M-4: una entrega asignada a otro mensajero no le ofrece la acción (la API daría 403).
+    it('no ve «Marcar entregado» de una entrega asignada a otro mensajero', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ status: 'enviado', pendingDelivery: { type: 'entrega', courierId: 'otro' } }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      expect(await screen.findByRole('heading', { name: '26-00123' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Marcar entregado' })).not.toBeInTheDocument()
     })
 
     it('técnico y admin no cambian: sin acciones de entrega en la ficha corta', async () => {

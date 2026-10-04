@@ -89,6 +89,7 @@ function caso(overrides: Partial<CaseDetail> = {}): CaseDetail {
     technician: null,
     stage: null,
     items: [],
+    pendingDelivery: null,
     ...overrides,
   } as unknown as CaseDetail
 }
@@ -99,6 +100,9 @@ function primarios(panel: HTMLElement) {
     .filter((b) => b.getAttribute('data-variant') === 'default')
     .map((b) => b.textContent)
 }
+
+/** Quien usa la app (`self`, obligatorio donde un mensajero llega al envío). */
+const yo = { id: 'u-yo', name: 'Yo' }
 
 describe('ProductionPanel', () => {
   // Tarea 5 (ENT-2): la ficha completa pasa quién usa la app hasta el diálogo de envío, para
@@ -119,7 +123,9 @@ describe('ProductionPanel', () => {
   })
 
   it('es una sección con encabezado «Producción» y la fase como subencabezado', async () => {
-    renderWithProviders(<ProductionPanel case={caso()} missing={[]} role="admin" stages={fases} />)
+    renderWithProviders(
+      <ProductionPanel self={yo} case={caso()} missing={[]} role="admin" stages={fases} />,
+    )
     expect(await screen.findByRole('region', { name: 'Producción' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Producción' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 3, name: 'Fase' })).toBeInTheDocument()
@@ -132,6 +138,7 @@ describe('ProductionPanel', () => {
     async (role) => {
       renderWithProviders(
         <ProductionPanel
+          self={yo}
           case={caso({ currentStageId: 'f1' })}
           missing={[]}
           role={role}
@@ -150,6 +157,7 @@ describe('ProductionPanel', () => {
   it('en la última fase el único primario es «Finalizar»', async () => {
     renderWithProviders(
       <ProductionPanel
+        self={yo}
         case={caso({ currentStageId: 'f3' })}
         missing={[]}
         role="tecnico"
@@ -164,6 +172,7 @@ describe('ProductionPanel', () => {
   it('mientras las fases cargan «Finalizar» no se adelanta como primario', async () => {
     renderWithProviders(
       <ProductionPanel
+        self={yo}
         case={caso({ currentStageId: 'f1' })}
         missing={[]}
         role="admin"
@@ -182,6 +191,7 @@ describe('ProductionPanel', () => {
   it('si las fases no se pudieron cargar el único primario es «Finalizar»', async () => {
     renderWithProviders(
       <ProductionPanel
+        self={yo}
         case={caso({ currentStageId: 'f1' })}
         missing={[]}
         role="admin"
@@ -196,6 +206,7 @@ describe('ProductionPanel', () => {
   it('si la fase actual fue desactivada el único primario es «Finalizar»', async () => {
     renderWithProviders(
       <ProductionPanel
+        self={yo}
         case={caso({ currentStageId: 'f2' })}
         missing={[]}
         role="tecnico"
@@ -214,6 +225,7 @@ describe('ProductionPanel', () => {
   it('mientras las fases cargan no hay ningún primario', async () => {
     renderWithProviders(
       <ProductionPanel
+        self={yo}
         case={caso({ currentStageId: 'f1' })}
         missing={[]}
         role="admin"
@@ -227,6 +239,7 @@ describe('ProductionPanel', () => {
   it('reúne la fase, el técnico responsable y las acciones de estado', async () => {
     renderWithProviders(
       <ProductionPanel
+        self={yo}
         case={caso({ currentStageId: 'f2' })}
         missing={[]}
         role="recepcion"
@@ -244,6 +257,7 @@ describe('ProductionPanel', () => {
   it('«Repetir» va en la barra de acciones como secundaria para recepción', async () => {
     renderWithProviders(
       <ProductionPanel
+        self={yo}
         case={caso({ status: 'entregado' })}
         missing={[]}
         role="recepcion"
@@ -262,6 +276,7 @@ describe('ProductionPanel', () => {
     // monta (I-3 de la revisión de la Tarea 9). La API ya lo rechaza; esto fija la UI.
     renderWithProviders(
       <ProductionPanel
+        self={yo}
         case={caso({ status: 'entregado' })}
         missing={[]}
         role="tecnico"
@@ -276,6 +291,7 @@ describe('ProductionPanel', () => {
   it('en un trabajo nuevo no deja hueco de fase ni de «Repetir»', async () => {
     renderWithProviders(
       <ProductionPanel
+        self={yo}
         case={caso({ status: 'nuevo', currentStageId: null })}
         missing={[]}
         role="admin"
@@ -295,8 +311,8 @@ describe('ProductionPanel', () => {
   it('dos paneles montados no comparten ids de título', async () => {
     renderWithProviders(
       <>
-        <ProductionPanel case={caso()} missing={[]} role="admin" stages={fases} />
-        <ProductionPanel case={caso()} missing={[]} role="admin" stages={fases} />
+        <ProductionPanel self={yo} case={caso()} missing={[]} role="admin" stages={fases} />
+        <ProductionPanel self={yo} case={caso()} missing={[]} role="admin" stages={fases} />
       </>,
     )
     const regiones = await screen.findAllByRole('region', { name: 'Producción' })

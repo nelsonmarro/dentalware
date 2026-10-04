@@ -27,10 +27,13 @@ beforeEach(() => {
 const terminado = { id: 'c1', status: 'terminado' } as unknown as CaseDetail
 const hoy = toIsoDate(new Date())
 
+/** Quien usa la app (`self`, obligatorio donde un mensajero llega al envío). */
+const yo = { id: 'u-yo', name: 'Yo' }
+
 describe('ShipDialog', () => {
   it('sin mensajero «Marcar enviado» está deshabilitado', async () => {
     renderWithProviders(
-      <ShipDialog case={terminado} role="recepcion" open onOpenChange={() => {}} />,
+      <ShipDialog self={yo} case={terminado} role="recepcion" open onOpenChange={() => {}} />,
     )
     const dialog = await screen.findByRole('dialog', { name: 'Marcar enviado' })
     expect(within(dialog).getByRole('button', { name: 'Marcar enviado' })).toBeDisabled()
@@ -39,7 +42,7 @@ describe('ShipDialog', () => {
   it('recepción elige mensajero y fecha: la descripción lo dice y envía el envío', async () => {
     const onOpenChange = vi.fn()
     const { user } = renderWithProviders(
-      <ShipDialog case={terminado} role="recepcion" open onOpenChange={onOpenChange} />,
+      <ShipDialog self={yo} case={terminado} role="recepcion" open onOpenChange={onOpenChange} />,
     )
     const dialog = await screen.findByRole('dialog', { name: 'Marcar enviado' })
     expect(within(dialog).getByLabelText('Fecha de entrega')).toHaveValue(hoy)

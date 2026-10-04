@@ -37,6 +37,7 @@ function build(seed = [caseDetailFixture()], hasDocument = false) {
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(),
     couriers: fakeCouriersLookup(),
+    deliveries: fakeDeliveryLog().log,
     uow: fakeUow(repo, fakeTryins()),
     clock: fixedClock(),
   })
@@ -62,6 +63,7 @@ function servicioCon(
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(),
     couriers: fakeCouriersLookup(overrides.couriers),
+    deliveries: fakeDeliveryLog().log,
     uow: fakeUow(repo, tryins),
     clock: fixedClock('2026-09-18'),
   })
@@ -78,6 +80,7 @@ function servicioConFases(stageIds: string[], overrides: Partial<CaseDetail>) {
     stages: fakeStagesQuery(stages),
     users: fakeUsersQuery(),
     couriers: fakeCouriersLookup(),
+    deliveries: fakeDeliveryLog().log,
     uow: fakeUow(repo, fakeTryins()),
     clock: fixedClock(),
   })
@@ -97,6 +100,7 @@ function servicioConTecnicos(
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(technicians.map((t) => ({ name: 'Técnico', ...t }))),
     couriers: fakeCouriersLookup(),
+    deliveries: fakeDeliveryLog().log,
     uow: fakeUow(repo, fakeTryins()),
     clock: fixedClock(),
   })
@@ -112,6 +116,7 @@ function servicioParaResumen(seed: CaseDetail[], today: string) {
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(),
     couriers: fakeCouriersLookup(),
+    deliveries: fakeDeliveryLog().log,
     uow: fakeUow(repo),
     clock: fixedClock(today),
   })
@@ -249,6 +254,7 @@ describe('acciones de estado', () => {
       cases: repo,
       attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery([{ id: 'f1', sort: 1, active: true }]),
+      deliveries: fakeDeliveryLog().log,
       uow: fakeUow(repo, fakeTryins()),
       clock: fixedClock('2026-09-18'),
     })
@@ -555,6 +561,7 @@ describe('técnico responsable', () => {
       ]),
       users: fakeUsersQuery([{ id: 't1', name: 'Técnico' }]),
       couriers: fakeCouriersLookup(),
+      deliveries: fakeDeliveryLog().log,
       uow: fakeUow(sinBloqueo),
       clock: fixedClock(),
     })
@@ -797,6 +804,7 @@ describe('repetición', () => {
       stages: fakeStagesQuery(),
       users: fakeUsersQuery(),
       couriers: fakeCouriersLookup(),
+      deliveries: fakeDeliveryLog().log,
       uow: uowQueFalla,
       clock: fixedClock('2026-09-18'),
     })
@@ -856,6 +864,7 @@ describe('recogida', () => {
       stages: fakeStagesQuery(),
       users: fakeUsersQuery(),
       couriers: fakeCouriersLookup([mario, luis]),
+      deliveries: deliveries.log,
       uow: fakeUow(repo, fakeTryins(), deliveries.log),
       clock: fixedClock('2026-10-03'),
     })
@@ -1045,6 +1054,7 @@ describe('envío y entrega', () => {
       stages: fakeStagesQuery(),
       users: fakeUsersQuery(),
       couriers: fakeCouriersLookup([mario, luis]),
+      deliveries: deliveries.log,
       uow: fakeUow(repo, fakeTryins(), deliveries.log),
       clock: fixedClock('2026-10-03'),
     })
@@ -1269,6 +1279,7 @@ describe('cancelar cierra la entrega pendiente', () => {
       stages: fakeStagesQuery(),
       users: fakeUsersQuery(),
       couriers: fakeCouriersLookup(),
+      deliveries: deliveries.log,
       uow: fakeUow(repo, fakeTryins(), deliveries.log),
       clock: fixedClock('2026-10-03'),
     })
@@ -1308,5 +1319,61 @@ describe('cancelar cierra la entrega pendiente', () => {
     await service.action('1', cancelar, admin)
     expect(rows.get('1')!.status).toBe('cancelado')
     expect([...deliveries.rows.values()].map((d) => d.status)).toEqual(['pendiente', 'pendiente'])
+  })
+})
+
+// M-4 (revisión final del PR 1 de la Iteración 4): la ficha dice qué entrega está pendiente y
+// de qué mensajero, para que la web no le muestre a un mensajero la acción de una entrega
+// ajena (la API la rechazaría con 403). El id del mensajero no es un dato sensible.
+describe('entrega pendiente en el detalle', () => {
+  const entrega = (
+    type: 'recogida' | 'entrega',
+    status: 'pendiente' | 'hecha' | 'fallida',
+    courierId = 'u3',
+  ) => ({
+    id: `d-${type}-${status}`,
+    caseId: '1',
+    type,
+    courierId,
+    scheduledFor: '2026-10-03',
+    status,
+    doneAt: null,
+    proofAttachmentId: null,
+  })
+
+  function servicio(status: CaseStatus, seed: ReturnType<typeof entrega>[]) {
+    const { repo } = fakeCasesRepo([completo({ id: '1', code: '26-00042', status })])
+    const deliveries = fakeDeliveryLog(seed)
+    return createCasesService({
+      cases: repo,
+      attachments: fakeAttachmentsQuery(true),
+      stages: fakeStagesQuery(),
+      users: fakeUsersQuery(),
+      couriers: fakeCouriersLookup(),
+      deliveries: deliveries.log,
+      uow: fakeUow(repo, fakeTryins(), deliveries.log),
+      clock: fixedClock('2026-10-03'),
+    })
+  }
+
+  it('un trabajo por recoger trae su recogida pendiente y el mensajero asignado', async () => {
+    const service = servicio('por_recoger', [entrega('recogida', 'pendiente', 'u9')])
+    const { case: found } = await service.detail('1', mensajero)
+    expect(found.pendingDelivery).toEqual({ type: 'recogida', courierId: 'u9' })
+  })
+
+  it('la ficha corta por código trae la entrega pendiente de un trabajo enviado', async () => {
+    const service = servicio('enviado', [
+      entrega('entrega', 'fallida'),
+      entrega('entrega', 'pendiente', 'u3'),
+    ])
+    const { case: found } = await service.detailByCode('26-00042', mensajero)
+    expect(found.pendingDelivery).toEqual({ type: 'entrega', courierId: 'u3' })
+  })
+
+  it('sin entrega pendiente trae null aunque haya entregas cerradas', async () => {
+    const service = servicio('entregado', [entrega('entrega', 'hecha')])
+    const { case: found } = await service.detail('1', admin)
+    expect(found.pendingDelivery).toBeNull()
   })
 })

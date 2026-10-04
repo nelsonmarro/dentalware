@@ -74,6 +74,9 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
       findActiveCourier: async (userId) =>
         (await couriersQuery.activeCouriers()).find((c) => c.id === userId),
     },
+    // Lectura de la entrega pendiente para la ficha (M-4), fuera de la transacción; las
+    // escrituras de entregas siguen dentro de `uow.run`.
+    deliveries: createDeliveriesRepo(db),
     // Sin `tryins` aquí: el servicio solo accede a pruebas en boca dentro de `uow.run`
     // (transaccional, ADR 19). Una instancia suelta invitaría a escribir fuera de la tx.
     uow: casesUow,
