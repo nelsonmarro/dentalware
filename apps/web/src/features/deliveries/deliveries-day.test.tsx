@@ -388,5 +388,31 @@ describe('DeliveriesDay', () => {
       )
       expect(await screen.findByText('Cancelado')).toBeInTheDocument()
     })
+    it('un 403 al subir la constancia (ya no es suya) refresca la lista y cierra el diálogo', async () => {
+      fetchDeliveries.mockResolvedValueOnce([entrega()])
+      fetchDeliveries.mockResolvedValue([
+        entrega({ courier: { id: 'm2', name: 'Otro Mensajero' } }),
+      ])
+      uploadAttachment.mockRejectedValue(new ApiError('Sin permiso', 403))
+      const { user } = renderWithQueryAndRouter(
+        <DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />,
+      )
+      const tarjeta = await screen.findByRole('listitem')
+      await user.click(within(tarjeta).getByRole('button', { name: 'Marcar entregado' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Marcar entregado' })
+      await user.upload(
+        within(dialog).getByLabelText('Foto de constancia'),
+        new File(['contenido'], 'foto.png', { type: 'image/png' }),
+      )
+      await user.click(within(dialog).getByRole('button', { name: 'Marcar entregado' }))
+
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Marcar entregado' })).not.toBeInTheDocument(),
+      )
+      await waitFor(() =>
+        expect(within(screen.getByRole('listitem')).queryByRole('button')).not.toBeInTheDocument(),
+      )
+      expect(postCaseAction).not.toHaveBeenCalled()
+    })
   })
 })

@@ -1,4 +1,3 @@
-import type { AttachmentKind } from '@dentalware/shared'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ApiError } from '@/lib/api-error'
@@ -16,14 +15,11 @@ import { useUploadAttachment } from './use-attachments'
  * maneja el error de cada archivo, ver `use-attachments.ts`). Al terminar, un solo aviso de
  * éxito con las que entraron (UX3-08: con guantes, sin él no se sabía si la foto subió).
  *
- * `kind` (Iteración 4, ENT-4): fija el tipo del adjunto, p. ej. `'constancia'` para la foto de
- * entrega; sin él la API lo decide por el archivo. `handleFiles` devuelve los adjuntos que
- * entraron, para que quien sube una sola foto con un fin (la constancia) sepa su id.
+ * La API decide el tipo del adjunto por el archivo. La constancia de entrega no pasa por aquí:
+ * la sube `useUploadProof` solo al confirmar, sin aviso propio (UX4-06, UX4-15).
+ * `handleFiles` devuelve los adjuntos que entraron.
  */
-export function usePhotoUpload(
-  caseId: string,
-  { onUploaded, kind }: { onUploaded?: () => void; kind?: AttachmentKind } = {},
-) {
+export function usePhotoUpload(caseId: string, { onUploaded }: { onUploaded?: () => void } = {}) {
   const upload = useUploadAttachment(caseId)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
 
@@ -39,7 +35,6 @@ export function usePhotoUpload(
         const compressed = await compressImage(file)
         const form = new FormData()
         form.append('file', compressed, file.name)
-        if (kind) form.append('kind', kind)
         uploaded.push(await upload.mutateAsync(form))
         if (isPhoto({ mime: file.type })) photos += 1
         else documents += 1

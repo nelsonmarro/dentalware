@@ -1,19 +1,26 @@
 import { Camera, RefreshCcw } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { FormDialog } from '@/components/form-dialog'
 import { Button } from '@/components/ui/button'
 import { ApiError } from '@/lib/api-error'
+import { useLocalFile } from '@/lib/use-local-file'
 import type { CaseDetail } from './api'
 import type { Attachment } from './attachments-api'
 import { useCaseAction } from './use-cases'
-import { usePhotoUpload } from './use-photo-upload'
+import { isProofRejected, useUploadProof } from './use-upload-proof'
 
 /**
  * «Marcar entregado» (ENT-4): la entrega se cierra con una foto de constancia, obligatoria
- * para todos los roles. Un botón grande abre la cámara trasera (`capture="environment"`); la
- * foto se comprime en el cliente y sube como adjunto `constancia` (`usePhotoUpload`), y solo
- * cuando terminó de subir se habilita «Marcar entregado» con su id. Un fallo de subida avisa
- * una vez (lo hace `usePhotoUpload`) y deja el botón como estaba: sin foto no hay entrega.
+ * para todos los roles. Un botón grande abre la cámara trasera (`capture="environment"`).
+ *
+ * La foto se sube **solo al confirmar** (UX4-06): elegirla muestra su miniatura local, y
+ * «Marcar entregado» la sube como adjunto `constancia` y después cierra la entrega con su id.
+ * Así «Volver», Escape o «Cambiar foto» no dejan constancias huérfanas, y la entrega avisa una
+ * sola vez (UX4-15). Si la acción falla después de subir (sin red), reintentar reutiliza la
+ * constancia ya subida de esa misma foto.
+ *
+ * Un 409 de la acción, o un 403/409 de la subida (la entrega ya no es suya o el trabajo cambió),
+ * avisa una vez y cierra el diálogo (UX4-05); cualquier otro fallo avisa y deja reintentar.
  */
 export function DeliverDialog({
   case: c,
@@ -27,17 +34,25 @@ export function DeliverDialog({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const action = useCaseAction(c.id)
-  const { handleFiles, progress } = usePhotoUpload(c.id, { kind: 'constancia' })
-  const [proof, setProof] = useState<Attachment | null>(null)
-  const uploading = progress !== null
+  const upload = useUploadProof(c.id)
+  const { file: photo, url: preview, choose } = useLocalFile()
+  // La constancia ya subida de la foto elegida: un reintento tras un fallo de la acción no
+  // vuelve a subirla.
+  const uploaded = useRef<{ photo: File; proof: Attachment } | null>(null)
+  const busy = upload.isPending || action.isPending
 
-  async function take(files: FileList | null) {
-    const [uploaded] = await handleFiles(files)
-    if (uploaded) setProof(uploaded)
-  }
-
-  function submit() {
-    if (!proof) return
+  async function submit() {
+    if (!photo || busy) return
+    let proof = uploaded.current?.photo === photo ? uploaded.current.proof : null
+    if (!proof) {
+      try {
+        proof = await upload.mutateAsync(photo)
+      } catch (err) {
+        if (isProofRejected(err)) onOpenChange(false)
+        return
+      }
+      uploaded.current = { photo, proof }
+    }
     action.mutate(
       { accion: 'marcar_entregado', motivo: null, constanciaId: proof.id },
       {
@@ -62,27 +77,32 @@ export function DeliverDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Volver
           </Button>
-          <Button type="button" disabled={!proof || uploading || action.isPending} onClick={submit}>
-            {action.isPending ? 'Guardando…' : 'Marcar entregado'}
+          <Button type="button" disabled={!photo || busy} onClick={() => void submit()}>
+            {busy ? 'Guardando…' : 'Marcar entregado'}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-3">
-        {proof ? (
+        {photo ? (
           <div className="flex items-center gap-4 rounded-xl border border-border bg-muted/40 p-3">
-            <img
-              src={proof.thumbUrl ?? proof.url}
-              alt="Foto de constancia"
-              className="size-24 shrink-0 rounded-lg object-cover"
-            />
+            {preview && (
+              <img
+                src={preview}
+                alt="Foto de constancia"
+                className="size-24 shrink-0 rounded-lg object-cover"
+              />
+            )}
             <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <p className="text-sm font-medium">Constancia lista</p>
+              <div>
+                <p className="text-sm font-medium">Foto lista</p>
+                <p className="text-sm text-muted-foreground">Se sube al marcar entregado.</p>
+              </div>
               <Button
                 type="button"
                 variant="outline"
                 className="w-full sm:w-auto"
-                disabled={uploading}
+                disabled={busy}
                 onClick={() => inputRef.current?.click()}
               >
                 <RefreshCcw /> Cambiar foto
@@ -94,14 +114,14 @@ export function DeliverDialog({
             type="button"
             variant="outline"
             className="h-24 w-full flex-col gap-1 border-2 border-dashed text-base"
-            disabled={uploading}
+            disabled={busy}
             onClick={() => inputRef.current?.click()}
           >
             <Camera className="size-6" />
             Tomar foto de constancia
           </Button>
         )}
-        {uploading && (
+        {upload.isPending && (
           <p role="status" className="text-sm text-muted-foreground">
             Subiendo foto…
           </p>
@@ -117,7 +137,8 @@ export function DeliverDialog({
           capture="environment"
           className="sr-only"
           onChange={(e) => {
-            void take(e.target.files)
+            const [chosen] = e.target.files ?? []
+            if (chosen) choose(chosen)
             e.target.value = ''
           }}
         />
