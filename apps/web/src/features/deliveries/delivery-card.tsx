@@ -66,39 +66,42 @@ export function DeliveryCard({
   return (
     <li
       className={cn(
-        'flex flex-col gap-3 rounded-lg border-l-4 bg-card p-3 ring-1 ring-foreground/10',
-        !pending && 'bg-muted/40 opacity-75',
+        'flex flex-col gap-3 rounded-lg border-l-4 bg-card p-3 ring-1 ring-foreground/10 md:flex-row md:items-center md:justify-between',
+        // Atenuada sin `opacity`: bajaría el texto por debajo de AA. Fondo apagado y sin sombra.
+        !pending && 'bg-muted/60 ring-foreground/5',
       )}
       style={{ borderLeftColor: DELIVERY_TYPE_COLOR[d.type] }}
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <DeliveryTypeChip type={d.type} />
-        <Link
-          to="/t/$code"
-          params={{ code: d.case.code }}
-          className="inline-flex min-h-11 items-center font-mono text-base font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          {d.case.code}
-        </Link>
-        {d.case.priority === 'urgente' && <AlertChip tone="destructive">Urgente</AlertChip>}
-        {overdue && <AlertChip tone="amber">Atrasada</AlertChip>}
-        {cancelled ? (
-          <StatusChip status="cancelado" />
-        ) : (
-          d.status !== 'pendiente' && <DeliveryStatusChip status={d.status} />
-        )}
-      </div>
-      <div className="flex flex-col gap-0.5">
-        {d.case.patientRef && <p className="text-sm">{d.case.patientRef}</p>}
-        {showCourier && (
-          <p className="text-sm text-muted-foreground">{`Mensajero: ${d.courier.name}`}</p>
-        )}
-        {d.status === 'fallida' && !cancelled && d.failedReason && (
-          <p className="text-sm text-muted-foreground">{`Motivo: ${d.failedReason}`}</p>
-        )}
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <DeliveryTypeChip type={d.type} />
+          <Link
+            to="/t/$code"
+            params={{ code: d.case.code }}
+            className="inline-flex min-h-11 items-center font-mono text-base font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            {d.case.code}
+          </Link>
+          {d.case.priority === 'urgente' && <AlertChip tone="destructive">Urgente</AlertChip>}
+          {overdue && <AlertChip tone="amber">Atrasada</AlertChip>}
+          {cancelled ? (
+            <StatusChip status="cancelado" />
+          ) : (
+            d.status !== 'pendiente' && <DeliveryStatusChip status={d.status} />
+          )}
+        </div>
+        <div className="flex flex-col gap-0.5">
+          {d.case.patientRef && <p className="text-sm">{d.case.patientRef}</p>}
+          {showCourier && (
+            <p className="text-sm text-muted-foreground">{`Mensajero: ${d.courier.name}`}</p>
+          )}
+          {d.status === 'fallida' && !cancelled && d.failedReason && (
+            <p className="text-sm text-muted-foreground">{`Motivo: ${d.failedReason}`}</p>
+          )}
+        </div>
       </div>
       {(canClose || canFail) && (
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
           {canClose && (
             <Button className="w-full sm:w-auto" disabled={action.isPending} onClick={close}>
               {CASE_ACTION_LABEL[closing]}

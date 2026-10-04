@@ -87,7 +87,7 @@ export function DeliveriesDay({
   const done = items.filter((d) => d.status === 'hecha')
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="flex max-w-4xl min-w-0 flex-col gap-4">
       {!compact && (
         <p className="text-sm text-muted-foreground">
           {[
