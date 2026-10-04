@@ -1,18 +1,11 @@
-import type { CaseView } from '@dentalware/shared'
-import {
-  CASE_VIEWS,
-  canWriteCases,
-  hasRole,
-  hidesPrices,
-  TECHNICIAN_FILTER_ROLES,
-} from '@dentalware/shared'
+import { canWriteCases, hasRole, hidesPrices, TECHNICIAN_FILTER_ROLES } from '@dentalware/shared'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useCallback, useState } from 'react'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { CaseListQueryInput } from '@/features/cases/api'
-import { CASE_VIEW_LABEL, parseCasesSearch } from '@/features/cases/case-views'
+import { parseCasesSearch } from '@/features/cases/case-views'
+import { CaseViewTabs } from '@/features/cases/case-view-tabs'
 import { CasesFilters } from '@/features/cases/cases-filters'
 import { CasesTable } from '@/features/cases/cases-table'
 import { ImportDialog } from '@/features/cases/import-dialog'
@@ -83,20 +76,7 @@ function TrabajosPage() {
           ) : undefined
         }
       />
-      <Tabs value={vista} onValueChange={(v) => updateSearch({ vista: v as CaseView })}>
-        <div className="overflow-x-auto overflow-y-hidden">
-          <TabsList>
-            {CASE_VIEWS.map((v) => (
-              // `flex-none`: cada pestaña toma el ancho de su texto; el reparto igual de
-              // `flex-1` recortaba «Vencen mañana» sobre sus vecinas (UX4-03). El contenedor
-              // ya hace scroll horizontal si no caben todas.
-              <TabsTrigger key={v} value={v} className="flex-none">
-                {CASE_VIEW_LABEL[v]}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
-      </Tabs>
+      <CaseViewTabs value={vista} onChange={(v) => updateSearch({ vista: v })} />
       <CasesFilters
         value={search}
         onChange={updateSearch}
