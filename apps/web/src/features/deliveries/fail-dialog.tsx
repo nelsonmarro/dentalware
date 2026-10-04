@@ -1,12 +1,13 @@
 import {
   addBusinessDays,
+  DELIVERY_FAIL_REASONS,
   deliveryFailSchema,
   toIsoDate,
   type DeliveryFailInput,
   type DeliveryType,
 } from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import type { z } from 'zod'
 import { FormDialog } from '@/components/form-dialog'
 import { Button } from '@/components/ui/button'
@@ -36,13 +37,22 @@ const DESCRIPTION: Record<DeliveryType, string> = {
  * siguiente día hábil (sin feriados, ADR 30). Una sola operación: cierra la entrega como
  * fallida y programa la siguiente; el estado del trabajo no cambia. La fecha mínima es hoy,
  * como valida la API.
+ *
+ * UX4-12: nombra el trabajo y la clínica, y ofrece los motivos frecuentes como chips de 44 px
+ * que rellenan el campo (editable después). Van antes del campo, así que el foco inicial cae en
+ * el primero y no abre el teclado del celular.
  */
 export function FailDialog({
   delivery,
   open,
   onOpenChange,
 }: {
-  delivery: { id: string; type: DeliveryType }
+  delivery: {
+    id: string
+    type: DeliveryType
+    case: { code: string }
+    clinic: { name: string }
+  }
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -50,12 +60,16 @@ export function FailDialog({
   const today = toIsoDate(now)
   const nextBusinessDay = toIsoDate(addBusinessDays(now, 1, []))
   const fail = useFailDelivery(delivery.id)
-  const { register, handleSubmit, formState } = useForm<FailFormValues, unknown, DeliveryFailInput>(
-    {
-      resolver: zodResolver(deliveryFailSchema),
-      defaultValues: { motivo: '', nuevaFecha: nextBusinessDay },
-    },
-  )
+  const { register, handleSubmit, formState, setValue, control } = useForm<
+    FailFormValues,
+    unknown,
+    DeliveryFailInput
+  >({
+    resolver: zodResolver(deliveryFailSchema),
+    defaultValues: { motivo: '', nuevaFecha: nextBusinessDay },
+  })
+
+  const motivo = useWatch({ control, name: 'motivo' })
 
   function submit(input: DeliveryFailInput) {
     fail.mutate(input, { onSuccess: () => onOpenChange(false) })
@@ -66,6 +80,7 @@ export function FailDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={TITLE[delivery.type]}
+      context={`${delivery.case.code} · ${delivery.clinic.name}`}
       description={DESCRIPTION[delivery.type]}
       footer={
         <>
@@ -86,6 +101,25 @@ export function FailDialog({
       >
         <Field data-invalid={!!formState.errors.motivo}>
           <FieldLabel htmlFor="fail-motivo">Motivo</FieldLabel>
+          <div role="group" aria-label="Motivos frecuentes" className="flex flex-wrap gap-2">
+            {DELIVERY_FAIL_REASONS.map((reason) => (
+              <Button
+                key={reason}
+                type="button"
+                variant={motivo === reason ? 'secondary' : 'outline'}
+                aria-pressed={motivo === reason}
+                className="min-h-11 rounded-full aria-pressed:border-primary aria-pressed:text-primary"
+                onClick={() =>
+                  setValue('motivo', reason, {
+                    shouldDirty: true,
+                    shouldValidate: formState.isSubmitted,
+                  })
+                }
+              >
+                {reason}
+              </Button>
+            ))}
+          </div>
           <Textarea
             {...register('motivo')}
             id="fail-motivo"

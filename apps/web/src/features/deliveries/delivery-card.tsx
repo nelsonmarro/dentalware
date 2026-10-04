@@ -138,7 +138,8 @@ export function DeliveryCard({
       )}
       {dialog === 'entregar' && (
         <DeliverDialog
-          case={d.case}
+          case={{ ...d.case, clinic: d.clinic }}
+          role={role}
           open
           onOpenChange={(open) => {
             if (!open) setDialog(null)

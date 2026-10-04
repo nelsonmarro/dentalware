@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/lib/api-error'
 import { renderWithProviders } from '@/test/render'
@@ -7,7 +7,12 @@ import { FailDialog } from './fail-dialog'
 const { failDelivery } = vi.hoisted(() => ({ failDelivery: vi.fn() }))
 vi.mock('./api', () => ({ failDelivery }))
 
-const entrega = { id: 'd1', type: 'entrega' } as const
+const entrega = {
+  id: 'd1',
+  type: 'entrega',
+  case: { code: '26-00087' },
+  clinic: { name: 'Clínica Sur' },
+} as const
 
 beforeEach(() => {
   failDelivery.mockReset()
@@ -28,7 +33,11 @@ describe('FailDialog', () => {
 
   it('el título dice qué no se pudo hacer según el tipo', () => {
     renderWithProviders(
-      <FailDialog delivery={{ id: 'd2', type: 'recogida' }} open onOpenChange={() => {}} />,
+      <FailDialog
+        delivery={{ ...entrega, id: 'd2', type: 'recogida' }}
+        open
+        onOpenChange={() => {}}
+      />,
     )
     expect(screen.getByRole('dialog', { name: 'No se pudo recoger' })).toBeInTheDocument()
   })
@@ -69,5 +78,57 @@ describe('FailDialog', () => {
     await user.type(screen.getByLabelText('Motivo'), 'Clínica cerrada')
     await user.click(screen.getByRole('button', { name: 'Reprogramar' }))
     await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['trabajos'] }))
+  })
+
+  // UX4-12: el diálogo tapa la lista; dice qué trabajo y de qué clínica se está cerrando.
+  it('nombra el trabajo y su clínica', () => {
+    renderWithProviders(<FailDialog delivery={entrega} open onOpenChange={() => {}} />)
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription(/^26-00087 · Clínica Sur/)
+  })
+
+  it('no abre el teclado al entrar: el motivo no recibe el foco', async () => {
+    renderWithProviders(<FailDialog delivery={entrega} open onOpenChange={() => {}} />)
+    await waitFor(() =>
+      expect(screen.getByRole('dialog')).toContainElement(document.activeElement as HTMLElement),
+    )
+    expect(screen.getByLabelText('Motivo')).not.toHaveFocus()
+  })
+
+  it('un motivo frecuente rellena el campo, se marca pulsado y se puede editar', async () => {
+    failDelivery.mockResolvedValue({ id: 'd9' })
+    const { user } = renderWithProviders(
+      <FailDialog delivery={entrega} open onOpenChange={() => {}} />,
+    )
+    const motivos = screen.getByRole('group', { name: 'Motivos frecuentes' })
+    expect(
+      within(motivos)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['Clínica cerrada', 'Nadie para recibir', 'Dirección incorrecta', 'Falta pago'])
+    const cerrada = within(motivos).getByRole('button', { name: 'Clínica cerrada' })
+    expect(cerrada).toHaveAttribute('aria-pressed', 'false')
+    await user.click(cerrada)
+    expect(screen.getByLabelText('Motivo')).toHaveValue('Clínica cerrada')
+    expect(cerrada).toHaveAttribute('aria-pressed', 'true')
+
+    await user.type(screen.getByLabelText('Motivo'), ' por la tarde')
+    expect(cerrada).toHaveAttribute('aria-pressed', 'false')
+    await user.click(screen.getByRole('button', { name: 'Reprogramar' }))
+    await waitFor(() =>
+      expect(failDelivery).toHaveBeenCalledWith('d1', {
+        motivo: 'Clínica cerrada por la tarde',
+        nuevaFecha: '2026-10-05',
+      }),
+    )
+  })
+
+  it('elegir un motivo frecuente quita el error de motivo vacío', async () => {
+    const { user } = renderWithProviders(
+      <FailDialog delivery={entrega} open onOpenChange={() => {}} />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Reprogramar' }))
+    expect(await screen.findByText('Escribe el motivo')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Falta pago' }))
+    await waitFor(() => expect(screen.queryByText('Escribe el motivo')).not.toBeInTheDocument())
   })
 })

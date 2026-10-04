@@ -1,3 +1,4 @@
+import { hidesPrices, type UserRole } from '@dentalware/shared'
 import { Camera, RefreshCcw } from 'lucide-react'
 import { useRef } from 'react'
 import { FormDialog } from '@/components/form-dialog'
@@ -24,11 +25,15 @@ import { isProofRejected, useUploadProof } from './use-upload-proof'
  */
 export function DeliverDialog({
   case: c,
+  role,
   open,
   onOpenChange,
 }: {
-  /** Solo el id: también la abre «Entregas» (ENT-5), que no carga la ficha completa. */
-  case: Pick<CaseDetail, 'id'>
+  /** Lo que el diálogo nombra (UX4-12): también la abre «Entregas» (ENT-5), que no carga la
+   * ficha completa. */
+  case: Pick<CaseDetail, 'id' | 'code'> & { clinic: Pick<CaseDetail['clinic'], 'name'> }
+  /** A quien no ve dinero (el mensajero) no se le habla de la cuenta de la clínica (UX4-12). */
+  role: UserRole
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -71,7 +76,12 @@ export function DeliverDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Marcar entregado"
-      description="Se registrará la entrega con la fecha de hoy y el trabajo pasará a la cuenta de la clínica. No hay ninguna acción para deshacerlo."
+      context={`${c.code} · ${c.clinic.name}`}
+      description={
+        hidesPrices(role)
+          ? 'Se registrará la entrega con la fecha de hoy. No hay ninguna acción para deshacerlo.'
+          : 'Se registrará la entrega con la fecha de hoy y el trabajo pasará a la cuenta de la clínica. No hay ninguna acción para deshacerlo.'
+      }
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

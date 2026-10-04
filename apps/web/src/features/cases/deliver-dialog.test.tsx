@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/lib/api-error'
 import { renderWithProviders } from '@/test/render'
+import type { UserRole } from '@dentalware/shared'
 import type { CaseDetail } from './api'
 import { DeliverDialog } from './deliver-dialog'
 
@@ -44,11 +45,21 @@ beforeEach(() => {
   URL.revokeObjectURL = revokeObjectURL
 })
 
-const enviado = { id: 'c1', status: 'enviado' } as unknown as CaseDetail
+const enviado = {
+  id: 'c1',
+  code: '26-00087',
+  status: 'enviado',
+  clinic: { name: 'Clínica Norte' },
+} as unknown as CaseDetail
 const foto = (name = 'foto.png') => new File(['contenido'], name, { type: 'image/png' })
 
-async function abrir(onOpenChange: (open: boolean) => void = () => {}) {
-  const r = renderWithProviders(<DeliverDialog case={enviado} open onOpenChange={onOpenChange} />)
+async function abrir(
+  onOpenChange: (open: boolean) => void = () => {},
+  role: UserRole = 'recepcion',
+) {
+  const r = renderWithProviders(
+    <DeliverDialog case={enviado} role={role} open onOpenChange={onOpenChange} />,
+  )
   const dialog = await screen.findByRole('dialog', { name: 'Marcar entregado' })
   const elegir = (file = foto()) =>
     r.user.upload(within(dialog).getByLabelText('Foto de constancia'), file)
@@ -64,6 +75,23 @@ describe('DeliverDialog', () => {
         'Se registrará la entrega con la fecha de hoy y el trabajo pasará a la cuenta de la clínica. No hay ninguna acción para deshacerlo.',
       ),
     ).toBeInTheDocument()
+  })
+
+  // UX4-12: con la lista tapada por el diálogo, quien entrega comprueba que eligió el trabajo
+  // bueno.
+  it('nombra el trabajo y su clínica', async () => {
+    const { dialog } = await abrir()
+    expect(dialog).toHaveAccessibleDescription(/^26-00087 · Clínica Norte/)
+  })
+
+  it('al mensajero no le habla de la cuenta de la clínica', async () => {
+    const { dialog } = await abrir(() => {}, 'mensajero')
+    expect(
+      within(dialog).getByText(
+        'Se registrará la entrega con la fecha de hoy. No hay ninguna acción para deshacerlo.',
+      ),
+    ).toBeInTheDocument()
+    expect(within(dialog).queryByText(/cuenta de la clínica/)).not.toBeInTheDocument()
   })
 
   it('«Marcar entregado» está deshabilitado hasta que se elige la foto', async () => {
