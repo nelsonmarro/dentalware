@@ -1,4 +1,5 @@
 import type { UserRole } from '@dentalware/shared'
+import { MyDeliveriesToday } from '@/features/deliveries/my-deliveries-today'
 import { MyCases } from './my-cases'
 import { SummaryCards } from './summary-cards'
 
@@ -8,8 +9,12 @@ import { SummaryCards } from './summary-cards'
  * (tercer criterio de aceptación de CIC-5) y antes que los contadores (UX3-28). Vive en `features/cases` (no en `routes/`, que no
  * tiene archivos de test en este proyecto) para poder probar la condición de rol como
  * cualquier otro componente de features, en vez de dejarla sin cubrir dentro de la ruta.
+ *
+ * El mensajero (INI-3, #105) ve sus entregas de hoy **en lugar de** los contadores: no le
+ * dicen qué hacer. `role === 'mensajero'` es identidad (quién es), no un permiso.
  */
 export function HomeSummary({ role, technicianId }: { role: UserRole; technicianId: string }) {
+  if (role === 'mensajero') return <MyDeliveriesToday />
   return (
     <>
       {/* UX3-28: el técnico abre su inicio con lo suyo; los contadores del laboratorio,

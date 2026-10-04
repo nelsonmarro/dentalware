@@ -67,9 +67,17 @@ export function DeliveriesDay({
     : q.data
   if (items.length === 0) {
     const mineToday = role === 'mensajero' && day === today
+    // En compacto, que no quede nada pendiente no es lo mismo que no haber tenido entregas.
+    const allDone = compact && q.data.length > 0
     return (
       <EmptyState
-        title={mineToday ? 'No tienes entregas hoy' : 'No hay entregas ni recogidas este día.'}
+        title={
+          allDone
+            ? 'Terminaste las entregas de hoy.'
+            : mineToday
+              ? 'No tienes entregas hoy'
+              : 'No hay entregas ni recogidas este día.'
+        }
       />
     )
   }
