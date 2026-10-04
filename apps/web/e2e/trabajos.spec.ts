@@ -6,6 +6,7 @@ import {
   createProduct,
   login,
   loginAsAdmin,
+  testPassword,
   toasts,
   trackConsoleErrors,
   uniqueSuffix,
@@ -229,7 +230,7 @@ test.describe('Trabajos', () => {
     })
 
     const email = `tecnico-e2e-${uniqueSuffix()}@t.local`
-    const password = 'Tecnico1234'
+    const password = testPassword()
     const createdUser = await page.request.post('/api/users', {
       data: { name: 'Técnico E2E', email, password, role: 'tecnico' },
     })
@@ -414,7 +415,7 @@ test.describe('Trabajos', () => {
 
       const email = `tecnico-e2e-${uniqueSuffix()}@t.local`
       const createdUser = await page.request.post('/api/users', {
-        data: { name: 'Técnico Repetición E2E', email, password: 'Tecnico1234', role: 'tecnico' },
+        data: { name: 'Técnico Repetición E2E', email, password: testPassword(), role: 'tecnico' },
       })
       expect(createdUser.ok()).toBe(true)
       const { user: tecnico } = (await createdUser.json()) as { user: { id: string; name: string } }
@@ -603,7 +604,7 @@ test.describe('Trabajos', () => {
 
       const suffix = uniqueSuffix()
       const email = `tecnico-inicio-e2e-${suffix}@t.local`
-      const password = 'Tecnico1234'
+      const password = testPassword()
       const createdUser = await page.request.post('/api/users', {
         data: { name: `Técnico Inicio E2E ${suffix}`, email, password, role: 'tecnico' },
       })

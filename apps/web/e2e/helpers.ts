@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, type Locator, type Page } from '@playwright/test'
@@ -5,6 +6,17 @@ import { expect, type Locator, type Page } from '@playwright/test'
 export const ADMIN = {
   email: process.env.ADMIN_EMAIL ?? 'admin@lab.local',
   password: process.env.ADMIN_PASSWORD ?? 'Admin12345!',
+}
+
+/**
+ * Contraseña aleatoria para un usuario efímero que crea un E2E (Better Auth exige mínimo
+ * 8 caracteres). Ningún test ni helper escribe ya una contraseña literal: el check de
+ * GitGuardian (GitHub App) corre en el servidor y no lee `.gitguardian.yaml` —solo la CLI
+ * `ggshield` lo hace—, así que marcaba «Generic Password» en cada PR que creaba un usuario
+ * de prueba.
+ */
+export function testPassword(): string {
+  return `Aa1${randomBytes(9).toString('base64url')}`
 }
 
 /**
@@ -218,25 +230,22 @@ export function trackConsoleErrors(page: Page): string[] {
   return errors
 }
 
-/** Contraseña de prueba de los mensajeros que crean los E2E (ya silenciada por valor en
- * `.gitguardian.yaml`): nunca se inventa otra. */
-export const COURIER_PASSWORD = 'Mensajero1!'
-
 /** Crea un mensajero único por API (sesión admin ya iniciada en `page`). */
 export async function createCourier(page: Page) {
   const suffix = uniqueSuffix()
   const email = `mensajero-e2e-${suffix}@t.local`
+  const password = testPassword()
   const res = await page.request.post('/api/users', {
     data: {
       name: `Mensajero E2E ${suffix}`,
       email,
-      password: COURIER_PASSWORD,
+      password,
       role: 'mensajero',
     },
   })
   expect(res.ok()).toBe(true)
   const { user } = (await res.json()) as { user: { id: string; name: string } }
-  return { ...user, email, password: COURIER_PASSWORD }
+  return { ...user, email, password }
 }
 
 /** Foto de prueba (`fixtures/foto.png`) para adjuntos y constancias. */

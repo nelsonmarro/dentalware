@@ -62,7 +62,10 @@ describe('use-users: invalidación de queryKeys.caseTechnicians', () => {
     result.current.mutate({
       name: 'Nuevo',
       email: 'nuevo@labo.test',
-      password: 'Nuevo12345',
+      // No es una contraseña real: `createUser` está mockeado arriba, nunca llega a la red.
+      // `repeat` evita que parezca una contraseña literal (GitGuardian marca "Generic
+      // Password" en esa forma).
+      password: 'x'.repeat(10),
       role: 'tecnico',
     })
 

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { login, loginAsAdmin, uniqueSuffix } from './helpers'
+import { login, loginAsAdmin, testPassword, uniqueSuffix } from './helpers'
 
 test.describe('Configuración', () => {
   test.beforeEach(async ({ page }) => {
@@ -104,7 +104,7 @@ test.describe('Configuración', () => {
 
   test('un técnico no ve Configuración', { tag: '@esencial' }, async ({ page, browser }) => {
     const email = `tecnico-e2e-${uniqueSuffix()}@t.local`
-    const password = 'Tecnico1234'
+    const password = testPassword()
     const created = await page.request.post('/api/users', {
       data: { name: 'Técnico E2E', email, password, role: 'tecnico' },
     })
