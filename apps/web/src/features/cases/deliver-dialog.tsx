@@ -2,6 +2,7 @@ import { Camera, RefreshCcw } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { FormDialog } from '@/components/form-dialog'
 import { Button } from '@/components/ui/button'
+import { ApiError } from '@/lib/api-error'
 import type { CaseDetail } from './api'
 import type { Attachment } from './attachments-api'
 import { useCaseAction } from './use-cases'
@@ -39,7 +40,14 @@ export function DeliverDialog({
     if (!proof) return
     action.mutate(
       { accion: 'marcar_entregado', motivo: null, constanciaId: proof.id },
-      { onSuccess: () => onOpenChange(false) },
+      {
+        onSuccess: () => onOpenChange(false),
+        // UX4-05: un 409 dice que otra persona canceló o cerró el trabajo. `useCaseAction` ya
+        // refrescó y avisó (una vez); el diálogo no sigue abierto sobre el estado nuevo.
+        onError: (err) => {
+          if (err instanceof ApiError && err.status === 409) onOpenChange(false)
+        },
+      },
     )
   }
 

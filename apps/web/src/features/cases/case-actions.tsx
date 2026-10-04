@@ -147,6 +147,11 @@ export function CaseActions({
   // revisión de la Tarea 9; la API responde 403 de todos modos).
   const showRemake = hasRole(REMAKE_ROLES, role) && canRemake(c.status)
 
+  // UX4-05: el diálogo de entrega o envío se cierra en cuanto su acción deja de estar disponible
+  // (otra persona canceló, envió o entregó el trabajo: lo trae el refresco tras un 409 o
+  // cualquier otro). Nunca queda abierto sobre el estado nuevo con su botón habilitado.
+  if (formAction && !actions.some((a) => a.action === formAction)) setFormAction(null)
+
   // Sin acciones ni «Repetir» no se monta nada: ni un contenedor vacío (UX3-25).
   if (actions.length === 0 && !showRemake) return null
 

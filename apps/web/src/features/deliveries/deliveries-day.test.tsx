@@ -1,16 +1,19 @@
 import { screen, waitFor, within } from '@testing-library/react'
+import { ApiError } from '@/lib/api-error'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithQueryAndRouter } from '@/test/render'
 import type { DeliveryItem } from './api'
 import { DeliveriesDay } from './deliveries-day'
 
-const { fetchDeliveries, failDelivery, postCaseAction } = vi.hoisted(() => ({
+const { fetchDeliveries, failDelivery, postCaseAction, uploadAttachment } = vi.hoisted(() => ({
   fetchDeliveries: vi.fn(),
   failDelivery: vi.fn(),
   postCaseAction: vi.fn(),
+  uploadAttachment: vi.fn(),
 }))
 vi.mock('./api', () => ({ fetchDeliveries, failDelivery, fetchCouriers: vi.fn() }))
 vi.mock('@/features/cases/api', () => ({ postCaseAction }))
+vi.mock('@/features/cases/attachments-api', () => ({ uploadAttachment }))
 
 function entrega(over: Partial<DeliveryItem> = {}): DeliveryItem {
   return {
@@ -44,6 +47,7 @@ beforeEach(() => {
   fetchDeliveries.mockReset()
   failDelivery.mockReset()
   postCaseAction.mockReset()
+  uploadAttachment.mockReset()
   // Sábado 2026-10-03, mediodía local: «hoy» de las pruebas de «Atrasada».
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-03T12:00:00'))
@@ -314,5 +318,75 @@ describe('DeliveriesDay', () => {
     renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
     expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
     expect(screen.queryByText('No tienes entregas hoy')).not.toBeInTheDocument()
+  })
+  // UX4-05: el diálogo que cierra una entrega no se queda abierto cuando la entrega deja de
+  // estar pendiente (otra persona canceló el trabajo o cerró la entrega).
+  describe('diálogos sobre una entrega que dejó de estar pendiente', () => {
+    const cancelada = () =>
+      entrega({
+        status: 'fallida',
+        failedReason: 'Trabajo cancelado: la clínica lo anuló',
+        case: { ...entrega().case, status: 'cancelado' },
+      })
+
+    it('«Marcar entregado» se cierra al refrescar si el trabajo se canceló', async () => {
+      fetchDeliveries.mockResolvedValue([entrega()])
+      const { user, client } = renderWithQueryAndRouter(
+        <DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />,
+      )
+      const tarjeta = await screen.findByRole('listitem')
+      await user.click(within(tarjeta).getByRole('button', { name: 'Marcar entregado' }))
+      await screen.findByRole('dialog', { name: 'Marcar entregado' })
+
+      fetchDeliveries.mockResolvedValue([cancelada()])
+      await client.invalidateQueries({ queryKey: ['trabajos'] })
+
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Marcar entregado' })).not.toBeInTheDocument(),
+      )
+    })
+
+    it('«No se pudo» se cierra al refrescar si otra persona cerró la entrega', async () => {
+      fetchDeliveries.mockResolvedValue([entrega()])
+      const { user, client } = renderWithQueryAndRouter(
+        <DeliveriesDay day="2026-10-03" role="recepcion" userId="r1" />,
+      )
+      const tarjeta = await screen.findByRole('listitem')
+      await user.click(within(tarjeta).getByRole('button', { name: 'No se pudo' }))
+      await screen.findByRole('dialog')
+
+      fetchDeliveries.mockResolvedValue([
+        entrega({ status: 'hecha', case: { ...entrega().case, status: 'entregado' } }),
+      ])
+      await client.invalidateQueries({ queryKey: ['trabajos'] })
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    })
+    it('un 409 al marcar entregado refresca la lista y cierra el diálogo', async () => {
+      fetchDeliveries.mockResolvedValueOnce([entrega()])
+      fetchDeliveries.mockResolvedValue([cancelada()])
+      uploadAttachment.mockResolvedValue({ id: 'a1', url: '/api/adjuntos/a1', thumbUrl: null })
+      postCaseAction.mockRejectedValue(
+        new ApiError('No se puede "Marcar entregado": el trabajo está en estado "Cancelado".', 409),
+      )
+      const { user } = renderWithQueryAndRouter(
+        <DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />,
+      )
+      const tarjeta = await screen.findByRole('listitem')
+      await user.click(within(tarjeta).getByRole('button', { name: 'Marcar entregado' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Marcar entregado' })
+      await user.upload(
+        within(dialog).getByLabelText('Foto de constancia'),
+        new File(['contenido'], 'foto.png', { type: 'image/png' }),
+      )
+      const marcar = within(dialog).getByRole('button', { name: 'Marcar entregado' })
+      await waitFor(() => expect(marcar).toBeEnabled())
+      await user.click(marcar)
+
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Marcar entregado' })).not.toBeInTheDocument(),
+      )
+      expect(await screen.findByText('Cancelado')).toBeInTheDocument()
+    })
   })
 })

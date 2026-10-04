@@ -64,6 +64,11 @@ export function DeliveryCard({
   // Quien administra entregas ve las de todos: el nombre del mensajero orienta a recepción.
   const showCourier = hasRole(DELIVERY_MANAGE_ROLES, role)
 
+  // UX4-05: cada diálogo vive mientras su acción siga disponible. Si la entrega deja de estar
+  // pendiente (otra persona canceló el trabajo o la cerró; lo trae el refresco tras un 409 o
+  // cualquier otro), se cierra en vez de quedar abierto sobre el estado nuevo.
+  if ((dialog === 'entregar' && !canClose) || (dialog === 'fallida' && !canFail)) setDialog(null)
+
   function close() {
     if (closing === 'marcar_entregado') setDialog('entregar')
     else action.mutate({ accion: closing, motivo: null })

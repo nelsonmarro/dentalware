@@ -34,8 +34,8 @@ beforeEach(() => {
 const enviado = { id: 'c1', status: 'enviado' } as unknown as CaseDetail
 const foto = () => new File(['contenido'], 'foto.png', { type: 'image/png' })
 
-async function abrir() {
-  const r = renderWithProviders(<DeliverDialog case={enviado} open onOpenChange={() => {}} />)
+async function abrir(onOpenChange: (open: boolean) => void = () => {}) {
+  const r = renderWithProviders(<DeliverDialog case={enviado} open onOpenChange={onOpenChange} />)
   const dialog = await screen.findByRole('dialog', { name: 'Marcar entregado' })
   return { ...r, dialog }
 }
@@ -101,5 +101,40 @@ describe('DeliverDialog', () => {
     )
     expect(within(dialog).getByRole('button', { name: 'Marcar entregado' })).toBeDisabled()
     expect(within(dialog).getByRole('button', { name: 'Tomar foto de constancia' })).toBeEnabled()
+  })
+  // UX4-05: otra persona canceló o cerró el trabajo mientras el diálogo seguía abierto. El 409
+  // avisa una sola vez (lo hace `useCaseAction`) y el diálogo se cierra.
+  it('un 409 al marcar entregado avisa una vez y cierra el diálogo', async () => {
+    uploadAttachment.mockResolvedValue(constancia)
+    postCaseAction.mockRejectedValue(
+      new ApiError('No se puede "Marcar entregado": el trabajo está en estado "Cancelado".', 409),
+    )
+    const onOpenChange = vi.fn()
+    const { user, dialog } = await abrir(onOpenChange)
+    await user.upload(within(dialog).getByLabelText('Foto de constancia'), foto())
+    const marcar = within(dialog).getByRole('button', { name: 'Marcar entregado' })
+    await waitFor(() => expect(marcar).toBeEnabled())
+    await user.click(marcar)
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error).toHaveBeenCalledWith(
+      'No se puede "Marcar entregado": el trabajo está en estado "Cancelado".',
+    )
+  })
+
+  it('otro fallo al marcar entregado avisa y deja el diálogo abierto para reintentar', async () => {
+    uploadAttachment.mockResolvedValue(constancia)
+    postCaseAction.mockRejectedValue(new TypeError('Failed to fetch'))
+    const onOpenChange = vi.fn()
+    const { user, dialog } = await abrir(onOpenChange)
+    await user.upload(within(dialog).getByLabelText('Foto de constancia'), foto())
+    const marcar = within(dialog).getByRole('button', { name: 'Marcar entregado' })
+    await waitFor(() => expect(marcar).toBeEnabled())
+    await user.click(marcar)
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    expect(onOpenChange).not.toHaveBeenCalled()
+    await waitFor(() => expect(marcar).toBeEnabled())
   })
 })

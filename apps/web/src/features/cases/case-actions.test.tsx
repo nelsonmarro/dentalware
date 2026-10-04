@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiError } from '@/lib/api-error'
 import { renderWithProviders } from '@/test/render'
 import type { CaseDetail } from './api'
 import { CaseActions } from './case-actions'
@@ -437,5 +438,57 @@ describe('CaseActions', () => {
 
     await waitFor(() => expect(finalizarBtn).not.toBeDisabled())
     expect(postCaseAction).toHaveBeenCalledTimes(1)
+  })
+  // UX4-05: el diálogo de entrega o de envío se cierra en cuanto su acción deja de estar
+  // disponible (otra persona canceló o cerró el trabajo); nunca queda abierto sobre el estado
+  // nuevo con su botón habilitado.
+  describe('diálogo de entrega sobre un estado que cambió', () => {
+    /** La ficha: la barra pinta el trabajo que trae `useCase`, como `CaseDetailTab`. */
+    function Ficha({ role }: { role: 'recepcion' | 'mensajero' }) {
+      const { data } = useCase('c1')
+      if (!data) return null
+      return <CaseActions self={yo} case={data.case} missing={[]} role={role} />
+    }
+
+    it('se cierra si al refrescar la acción ya no está disponible', async () => {
+      fetchCase.mockResolvedValueOnce({ case: caso({ status: 'terminado' }), missing: [] })
+      const { user, client } = renderWithProviders(<Ficha role="recepcion" />)
+      await user.click(await screen.findByRole('button', { name: 'Marcar enviado' }))
+      await screen.findByRole('dialog', { name: 'Marcar enviado' })
+
+      // Otra persona ya lo envió; la ficha se refresca (foco, otra mutación…) y la barra sigue
+      // montada con «Marcar entregado», pero «Marcar enviado» ya no existe.
+      fetchCase.mockResolvedValueOnce({
+        case: caso({ status: 'enviado', pendingDelivery: { type: 'entrega', courierId: 'm1' } }),
+        missing: [],
+      })
+      await client.invalidateQueries({ queryKey: ['trabajos'] })
+
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Marcar enviado' })).not.toBeInTheDocument(),
+      )
+    })
+
+    it('un 409 al marcar enviado refresca la ficha y cierra el diálogo', async () => {
+      fetchCase.mockResolvedValueOnce({ case: caso({ status: 'terminado' }), missing: [] })
+      fetchCase.mockResolvedValueOnce({
+        case: caso({ status: 'enviado', pendingDelivery: { type: 'entrega', courierId: yo.id } }),
+        missing: [],
+      })
+      postCaseAction.mockRejectedValueOnce(
+        new ApiError('No se puede "Marcar enviado": el trabajo está en estado "Enviado".', 409),
+      )
+      const { user } = renderWithProviders(<Ficha role="mensajero" />)
+      await user.click(await screen.findByRole('button', { name: 'Marcar enviado' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Marcar enviado' })
+      await user.click(within(dialog).getByRole('button', { name: 'Marcar enviado' }))
+
+      await waitFor(() => expect(postCaseAction).toHaveBeenCalled())
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Marcar enviado' })).not.toBeInTheDocument(),
+      )
+      // La barra sigue montada con la acción que sí toca ahora.
+      expect(screen.getByRole('button', { name: 'Marcar entregado' })).toBeInTheDocument()
+    })
   })
 })
