@@ -1,4 +1,4 @@
-import { canChangeStage, type UserRole } from '@dentalware/shared'
+import { CASE_PHASE, CASE_PHASE_TITLE, canChangeStage, type UserRole } from '@dentalware/shared'
 import { useId } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Stage } from '@/features/stages/api'
@@ -13,7 +13,7 @@ import { stageNavigation } from './stage-navigation'
 import { TechnicianSelect } from './technician-select'
 
 /**
- * Panel «Producción» de la ficha (UX3-05), bajo la cabecera y antes de las pestañas: la fase
+ * Panel «Recogida», «Producción» o «Entrega» de la ficha (UX3-05, UX4-24), bajo la cabecera y antes de las pestañas: la fase
  * con «Avanzar»/«Retroceder», el técnico responsable y la barra de acciones de estado (con
  * «Repetir»), juntos y alcanzables desde cualquier pestaña — antes la fase, el técnico y
  * «Repetir» vivían dentro de «Detalle» y desde «Historial» no se podía avanzar.
@@ -52,38 +52,59 @@ export function ProductionPanel({
   const hasNextStage =
     showStage && canChangeStage(c.status) && (nav.loading || nav.next !== undefined)
 
+  // UX4-24: el panel se llama por lo que toca hacer (recogida, producción o entrega). Al traer o
+  // llevar el trabajo, lo primero es su acción: la barra va antes que el técnico responsable,
+  // que sigue editable (CIC-5) pero ya no encabeza.
+  const phase = CASE_PHASE[c.status]
+  const actionsFirst = phase !== 'produccion'
+  const production = (
+    <div
+      className={cn(
+        'grid grid-cols-1 gap-5',
+        showStage && 'lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]',
+      )}
+    >
+      {showStage && <StageControl case={c} stages={stages} stagesError={stagesError} role={role} />}
+      <div className={cn(!showStage && 'max-w-sm')}>
+        <TechnicianSelect case={c} role={role} />
+      </div>
+    </div>
+  )
+  const actions = (
+    <CaseActions
+      case={c}
+      missing={missing}
+      role={role}
+      hasNextStage={hasNextStage}
+      onRemakeCreated={onRemakeCreated}
+      self={self}
+      className={cn(!actionsFirst && 'border-t border-border pt-4')}
+    />
+  )
+
   return (
     <Card role="region" aria-labelledby={titleId}>
       <CardHeader>
         <CardTitle asChild>
-          <h2 id={titleId}>Producción</h2>
+          <h2 id={titleId}>{CASE_PHASE_TITLE[phase]}</h2>
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         {/* UX4-09: la recogida o entrega va junto a su acción, arriba del panel. */}
         <DeliverySummary pending={c.pendingDelivery} lastDelivered={c.lastDelivered} />
-        <div
-          className={cn(
-            'grid grid-cols-1 gap-5',
-            showStage && 'lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]',
-          )}
-        >
-          {showStage && (
-            <StageControl case={c} stages={stages} stagesError={stagesError} role={role} />
-          )}
-          <div className={cn(!showStage && 'max-w-sm')}>
-            <TechnicianSelect case={c} role={role} />
-          </div>
-        </div>
-        <CaseActions
-          case={c}
-          missing={missing}
-          role={role}
-          hasNextStage={hasNextStage}
-          onRemakeCreated={onRemakeCreated}
-          self={self}
-          className="border-t border-border pt-4"
-        />
+        {actionsFirst ? (
+          <>
+            {actions}
+            <div className="border-t border-border pt-4 first:border-t-0 first:pt-0">
+              {production}
+            </div>
+          </>
+        ) : (
+          <>
+            {production}
+            {actions}
+          </>
+        )}
       </CardContent>
     </Card>
   )

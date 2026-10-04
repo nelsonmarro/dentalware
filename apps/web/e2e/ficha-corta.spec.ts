@@ -202,7 +202,7 @@ test.describe('Ficha corta del QR (/t/:code, FIC-2 #72 / FIC-3 #73)', () => {
 
       // UX4-09: en la ficha completa, recepción ve quién lo entregó y abre la constancia.
       await page.goto(`/trabajos/${trabajo.id}`)
-      const panel = page.getByRole('region', { name: 'Producción' })
+      const panel = page.getByRole('region', { name: 'Entrega' })
       await expect(
         panel.getByText(new RegExp(`^Entregado el \\d{2}/\\d{2}/\\d{4} por ${courier.name}$`)),
       ).toBeVisible()

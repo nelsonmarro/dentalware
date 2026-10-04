@@ -333,3 +333,29 @@ export const STAGE_MOVE_BLOCKED_REASON = {
   desconocida:
     'No se puede cambiar de fase: no se pudo determinar la fase actual del trabajo. Puede que esté desactivada.',
 } as const satisfies Record<'ultima' | 'primera' | 'desconocida', string>
+
+/** En qué parte del ciclo está el trabajo, para titular y ordenar el panel de la ficha (UX4-24):
+ * traerlo (`recogida`), hacerlo (`produccion`) o llevarlo (`entrega`). Un cancelado se queda en
+ * `produccion`: lo que queda por hacer con él es repetirlo. `Record` exhaustivo: un estado nuevo
+ * no compila sin decidir su fase. */
+export const CASE_PHASES = ['recogida', 'produccion', 'entrega'] as const
+export type CasePhase = (typeof CASE_PHASES)[number]
+
+export const CASE_PHASE: Record<CaseStatus, CasePhase> = {
+  por_recoger: 'recogida',
+  nuevo: 'produccion',
+  en_proceso: 'produccion',
+  en_espera: 'produccion',
+  en_prueba: 'produccion',
+  terminado: 'entrega',
+  enviado: 'entrega',
+  entregado: 'entrega',
+  cancelado: 'produccion',
+}
+
+/** Título del panel de la ficha por fase (UX4-24). `Record` exhaustivo. */
+export const CASE_PHASE_TITLE: Record<CasePhase, string> = {
+  recogida: 'Recogida',
+  produccion: 'Producción',
+  entrega: 'Entrega',
+}

@@ -284,7 +284,7 @@ describe('ProductionPanel', () => {
         stages={fases}
       />,
     )
-    await screen.findByRole('region', { name: 'Producción' })
+    await screen.findByRole('region', { name: 'Entrega' })
     expect(screen.queryByRole('button', { name: 'Repetir' })).not.toBeInTheDocument()
   })
 
@@ -330,6 +330,48 @@ describe('ProductionPanel', () => {
       />,
     )
     expect(await screen.findByText('Sale el 09/10/2999 con Mario Mensajero')).toBeInTheDocument()
+  })
+
+  // UX4-24: el panel se llama por lo que toca hacer y, al traer o llevar el trabajo, la acción
+  // va antes que el técnico responsable.
+  it.each([
+    ['por_recoger', 'Recogida', 'Recibido'],
+    ['terminado', 'Entrega', 'Marcar enviado'],
+    ['enviado', 'Entrega', 'Marcar entregado'],
+  ] as const)(
+    'en «%s» el panel se llama «%s» y «%s» va antes del técnico',
+    async (status, titulo, accion) => {
+      renderWithProviders(
+        <ProductionPanel
+          self={yo}
+          case={caso({ status, currentStageId: null })}
+          missing={[]}
+          role="recepcion"
+          stages={fases}
+        />,
+      )
+      const panel = await screen.findByRole('region', { name: titulo })
+      expect(within(panel).getByRole('heading', { level: 2, name: titulo })).toBeInTheDocument()
+      const boton = within(panel).getByRole('button', { name: accion })
+      const tecnico = within(panel).getByText('Técnico responsable')
+      expect(boton.compareDocumentPosition(tecnico) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    },
+  )
+
+  it('en producción el técnico va antes de las acciones', async () => {
+    renderWithProviders(
+      <ProductionPanel
+        self={yo}
+        case={caso({ status: 'nuevo', currentStageId: null })}
+        missing={[]}
+        role="recepcion"
+        stages={fases}
+      />,
+    )
+    const panel = await screen.findByRole('region', { name: 'Producción' })
+    const tecnico = within(panel).getByText('Técnico responsable')
+    const boton = within(panel).getByRole('button', { name: 'Aceptar' })
+    expect(tecnico.compareDocumentPosition(boton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('dos paneles montados no comparten ids de título', async () => {
