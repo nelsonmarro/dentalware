@@ -1,50 +1,21 @@
 # Configuración de GitGuardian (formato v2: sin `version: 2`, ggshield lo lee como v1 obsoleto).
 #
-# Falsos positivos conocidos: las contraseñas de los usuarios EFÍMEROS que crean los tests de
-# la API y los E2E en la BD de test (`dentalware_test`). No son secretos: no sirven fuera de esa
-# BD y el propio test las escribe. GitGuardian las marcaba como «Generic Password» en cada PR
-# que añadía un test con usuario (decidido por Nelson el 2026-09-28, PR #99).
+# Esto solo aplica a la CLI `ggshield` local (el hook de pre-commit). El check de GitGuardian
+# que corre en cada PR es su GitHub App del lado del servidor y NO lee este archivo —de ahí que
+# antes marcara «Generic Password» en cada PR que añadía un test con usuario pese a tener la
+# contraseña silenciada aquí (decidido por Nelson el 2026-10-03). La solución real está en el
+# código: ningún test, fixture ni helper de E2E escribe ya una contraseña literal; los usuarios
+# efímeros de prueba reciben una generada en tiempo de ejecución (`testPassword()`, en
+# `apps/api/src/test/passwords.ts` para la API y `apps/web/e2e/helpers.ts` para los E2E). Ver
+# `docs/conventions.md` §8.
 #
-# Se silencian POR VALOR (`ignored_matches`) y no por ruta, a propósito: excluir los archivos de
-# test enteros dejaría de ver un secreto real pegado en un test por error (p. ej. una clave de
-# Resend para probar el correo). Así los tests se siguen escaneando por completo y solo se
-# callan estos literales. Ojo: un valor de esta lista queda silenciado en TODO el repo, así que
-# solo entran contraseñas inventadas de prueba, nunca una que se use de verdad en algún sitio.
-#
-# Si un test nuevo necesita un usuario, reutiliza una de estas contraseñas. Si inventa otra,
-# GitGuardian la marcará: añádela aquí en el mismo PR, con su motivo.
+# Lo único que queda silenciado aquí es el valor de ejemplo de ADMIN_PASSWORD en
+# `apps/api/.env.example`/`.env.test` (y su fallback en `e2e/helpers.ts`): ya es público en el
+# repo, así que silenciarlo no oculta nada. Por eso mismo la contraseña real del admin en
+# producción NUNCA puede ser esta.
 version: 2
 
 secret:
   ignored_matches:
-    # También es el valor de ejemplo de ADMIN_PASSWORD en `apps/api/.env.example` y el de
-    # `.env.test`: ya es público en el repo, así que silenciarlo no oculta nada. Por eso mismo
-    # la contraseña real del admin en producción NUNCA puede ser esta.
-    - name: contraseña de prueba del admin (fallback de ADMIN en e2e/helpers.ts y tests de API)
+    - name: contraseña de ejemplo del admin (ADMIN_PASSWORD en .env.example/.env.test)
       match: Admin12345!
-    - name: contraseña de prueba de admin (auth.test.ts)
-      match: Admin1234!
-    - name: contraseña de prueba de técnico (tests de API)
-      match: Tecnico123!
-    - name: contraseña de prueba de técnico (E2E)
-      match: Tecnico1234
-    - name: contraseña de prueba de técnico (auth.test.ts)
-      match: Tecnico12!
-    - name: contraseña de prueba de recepción
-      match: Recep12345!
-    - name: contraseña de prueba de recepción (auth.test.ts)
-      match: Recepcion1!
-    - name: contraseña de prueba de mensajero
-      match: Mensajero1!
-    - name: contraseña de prueba (tests de usuarios)
-      match: Secreta123
-    - name: contraseña de prueba (tests de usuarios)
-      match: secreto123
-    - name: contraseña de prueba de alta de usuario
-      match: Nuevo12345
-    - name: contraseña de prueba de alta de usuario (auth.test.ts)
-      match: Nuevo1234!
-    - name: contraseña de prueba de alta de usuaria
-      match: Nueva12345
-    - name: contraseña de prueba de cambio de contraseña
-      match: Otra12345!

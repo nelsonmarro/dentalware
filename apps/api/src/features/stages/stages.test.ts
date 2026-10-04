@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
+import { testPassword } from '../../test/passwords.ts'
 import { createUser, loginAs, setupTestDb, truncateAll } from '../../test/setup.ts'
 
 describe('/api/config/fases', () => {
+  const adminPwd = testPassword()
+  const tecnicoPwd = testPassword()
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
   let app: ReturnType<typeof createApp>
   let admin: string
@@ -21,18 +24,18 @@ describe('/api/config/fases', () => {
     await truncateAll(ctx.db)
     await createUser(ctx.auth, ctx.db, {
       email: 'admin@t.local',
-      password: 'Admin12345!',
+      password: adminPwd,
       name: 'Admin',
       role: 'admin',
     })
     await createUser(ctx.auth, ctx.db, {
       email: 'tec@t.local',
-      password: 'Tecnico123!',
+      password: tecnicoPwd,
       name: 'Tec',
       role: 'tecnico',
     })
-    admin = await loginAs(app, 'admin@t.local', 'Admin12345!')
-    tecnico = await loginAs(app, 'tec@t.local', 'Tecnico123!')
+    admin = await loginAs(app, 'admin@t.local', adminPwd)
+    tecnico = await loginAs(app, 'tec@t.local', tecnicoPwd)
   })
   afterAll(async () => {
     await ctx.pool.end()

@@ -1,9 +1,12 @@
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
+import { testPassword } from '../../test/passwords.ts'
 import { createUser, loginAs, setupTestDb, truncateAll } from '../../test/setup.ts'
 
 describe('/api/config/clinicas', () => {
+  const adminPwd = testPassword()
+  const recepcionPwd = testPassword()
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
   let app: ReturnType<typeof createApp>
   let admin: string
@@ -22,18 +25,18 @@ describe('/api/config/clinicas', () => {
     await truncateAll(ctx.db)
     await createUser(ctx.auth, ctx.db, {
       email: 'admin@t.local',
-      password: 'Admin12345!',
+      password: adminPwd,
       name: 'Admin',
       role: 'admin',
     })
     await createUser(ctx.auth, ctx.db, {
       email: 'rec@t.local',
-      password: 'Recep12345!',
+      password: recepcionPwd,
       name: 'Rec',
       role: 'recepcion',
     })
-    admin = await loginAs(app, 'admin@t.local', 'Admin12345!')
-    recepcion = await loginAs(app, 'rec@t.local', 'Recep12345!')
+    admin = await loginAs(app, 'admin@t.local', adminPwd)
+    recepcion = await loginAs(app, 'rec@t.local', recepcionPwd)
   })
   afterAll(async () => {
     await ctx.pool.end()

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
+import { testPassword } from '../../test/passwords.ts'
 import {
   cleanupTestStorage,
   createUser,
@@ -9,6 +10,10 @@ import {
 } from '../../test/setup.ts'
 
 describe('/api/entregas', () => {
+  const adminPwd = testPassword()
+  const recepcionPwd = testPassword()
+  const tecnicoPwd = testPassword()
+  const mensajeroPwd = testPassword()
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
   let app: ReturnType<typeof createApp>
   let admin: string
@@ -36,39 +41,39 @@ describe('/api/entregas', () => {
     await truncateAll(ctx.db)
     await createUser(ctx.auth, ctx.db, {
       email: 'admin@t.local',
-      password: 'Admin12345!',
+      password: adminPwd,
       name: 'Admin',
       role: 'admin',
     })
     await createUser(ctx.auth, ctx.db, {
       email: 'recep@t.local',
-      password: 'Recep12345!',
+      password: recepcionPwd,
       name: 'Recepción',
       role: 'recepcion',
     })
     await createUser(ctx.auth, ctx.db, {
       email: 'tec@t.local',
-      password: 'Tecnico123!',
+      password: tecnicoPwd,
       name: 'Ana Técnico',
       role: 'tecnico',
     })
     // En orden inverso al alfabético: sin `orderBy`, Postgres los devolvería así.
     await createUser(ctx.auth, ctx.db, {
       email: 'zoila@t.local',
-      password: 'Mensajero1!',
+      password: mensajeroPwd,
       name: 'Zoila Mensajera',
       role: 'mensajero',
     })
     await createUser(ctx.auth, ctx.db, {
       email: 'bruno@t.local',
-      password: 'Mensajero1!',
+      password: mensajeroPwd,
       name: 'Bruno Mensajero',
       role: 'mensajero',
     })
-    admin = await loginAs(app, 'admin@t.local', 'Admin12345!')
-    recepcion = await loginAs(app, 'recep@t.local', 'Recep12345!')
-    tecnico = await loginAs(app, 'tec@t.local', 'Tecnico123!')
-    mensajero = await loginAs(app, 'zoila@t.local', 'Mensajero1!')
+    admin = await loginAs(app, 'admin@t.local', adminPwd)
+    recepcion = await loginAs(app, 'recep@t.local', recepcionPwd)
+    tecnico = await loginAs(app, 'tec@t.local', tecnicoPwd)
+    mensajero = await loginAs(app, 'zoila@t.local', mensajeroPwd)
   })
 
   describe('GET /api/entregas/mensajeros', () => {

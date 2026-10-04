@@ -6,6 +6,7 @@ import {
   createProduct,
   login,
   loginAsAdmin,
+  testPassword,
   trackConsoleErrors,
   uniqueSuffix,
 } from './helpers'
@@ -225,7 +226,7 @@ test.describe('Orden de trabajo imprimible', () => {
     async ({ page, browser }) => {
       const created = await createFourLineCase(page, 'normal')
       const email = `tecnico-e2e-${uniqueSuffix()}@t.local`
-      const password = 'Tecnico1234'
+      const password = testPassword()
       const user = await page.request.post('/api/users', {
         data: { name: 'Técnico E2E', email, password, role: 'tecnico' },
       })

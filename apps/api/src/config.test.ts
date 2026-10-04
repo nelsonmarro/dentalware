@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ConfigError, loadConfig } from './config.ts'
+import { testPassword } from './test/passwords.ts'
+
+const adminPassword = testPassword()
 
 describe('loadConfig', () => {
   it('lanza un error en español cuando el entorno está vacío', () => {
@@ -37,7 +40,7 @@ describe('loadConfig', () => {
       BETTER_AUTH_URL: 'http://localhost:3000',
       WEB_ORIGIN: 'http://localhost:5173',
       ADMIN_EMAIL: 'admin@lab.local',
-      ADMIN_PASSWORD: 'Admin12345!',
+      ADMIN_PASSWORD: adminPassword,
     })
 
     expect(config.PORT).toBe(3000)
@@ -54,7 +57,7 @@ describe('loadConfig', () => {
         BETTER_AUTH_URL: 'http://localhost:3000',
         WEB_ORIGIN: 'http://localhost:5173',
         ADMIN_EMAIL: 'admin@lab.local',
-        ADMIN_PASSWORD: 'Admin12345!',
+        ADMIN_PASSWORD: adminPassword,
         STORAGE_DRIVER: 'ftp',
       }),
     ).toThrow('STORAGE_DRIVER debe ser')

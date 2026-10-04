@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { caseListQuerySchema, caseInputSchema, type CaseInput } from '@dentalware/shared'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { testPassword } from '../../test/passwords.ts'
 import { createUser, setupTestDb, truncateAll } from '../../test/setup.ts'
 import { createDeliveriesRepo } from '../deliveries/repo.ts'
 import { CaseInputError, CaseStateError } from './errors.ts'
@@ -70,7 +71,7 @@ describe('features/cases/repo', () => {
     })
     actor = await createUser(ctx.auth, ctx.db, {
       email: 'admin@t.local',
-      password: 'Admin12345!',
+      password: testPassword(),
       name: 'Admin',
       role: 'admin',
     })

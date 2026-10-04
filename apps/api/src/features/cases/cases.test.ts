@@ -3,6 +3,7 @@ import { CASE_VIEWS, toIsoDate } from '@dentalware/shared'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
+import { testPassword } from '../../test/passwords.ts'
 import {
   cleanupTestStorage,
   createUser,
@@ -15,6 +16,10 @@ describe('/api/trabajos', () => {
   // Fecha de negocio de hoy con el reloj del sistema (el de `createApp` sin `clock`): un envío
   // o una recogida no pueden programarse para antes de hoy.
   const hoy = toIsoDate(new Date())
+  const adminPwd = testPassword()
+  const recepcionPwd = testPassword()
+  const tecnicoPwd = testPassword()
+  const mensajeroPwd = testPassword()
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
   let app: ReturnType<typeof createApp>
   let admin: string
@@ -45,32 +50,32 @@ describe('/api/trabajos', () => {
     await truncateAll(ctx.db)
     await createUser(ctx.auth, ctx.db, {
       email: 'admin@t.local',
-      password: 'Admin12345!',
+      password: adminPwd,
       name: 'Admin',
       role: 'admin',
     })
     await createUser(ctx.auth, ctx.db, {
       email: 'recep@t.local',
-      password: 'Recep12345!',
+      password: recepcionPwd,
       name: 'Recepción',
       role: 'recepcion',
     })
     tecnicoId = await createUser(ctx.auth, ctx.db, {
       email: 'tec@t.local',
-      password: 'Tecnico123!',
+      password: tecnicoPwd,
       name: 'Ana Técnico',
       role: 'tecnico',
     })
     mensajeroId = await createUser(ctx.auth, ctx.db, {
       email: 'mens@t.local',
-      password: 'Mensajero1!',
+      password: mensajeroPwd,
       name: 'Mensajero',
       role: 'mensajero',
     })
-    admin = await loginAs(app, 'admin@t.local', 'Admin12345!')
-    recepcion = await loginAs(app, 'recep@t.local', 'Recep12345!')
-    tecnico = await loginAs(app, 'tec@t.local', 'Tecnico123!')
-    mensajero = await loginAs(app, 'mens@t.local', 'Mensajero1!')
+    admin = await loginAs(app, 'admin@t.local', adminPwd)
+    recepcion = await loginAs(app, 'recep@t.local', recepcionPwd)
+    tecnico = await loginAs(app, 'tec@t.local', tecnicoPwd)
+    mensajero = await loginAs(app, 'mens@t.local', mensajeroPwd)
 
     const [clinic] = await ctx.db.insert(ctx.schema.clinics).values({ name: 'Sonrisa' }).returning()
     clinicId = clinic!.id
@@ -363,7 +368,7 @@ describe('/api/trabajos', () => {
   it('tecnicoId filtra solo los trabajos asignados a ese técnico', async () => {
     const otroTecnicoId = await createUser(ctx.auth, ctx.db, {
       email: 'tec2@t.local',
-      password: 'Tecnico123!',
+      password: tecnicoPwd,
       name: 'Beto Técnico',
       role: 'tecnico',
     })
@@ -843,11 +848,11 @@ describe('/api/trabajos', () => {
       async function otroMensajero() {
         const otroId = await createUser(ctx.auth, ctx.db, {
           email: 'mens2@t.local',
-          password: 'Mensajero1!',
+          password: mensajeroPwd,
           name: 'Otro mensajero',
           role: 'mensajero',
         })
-        return { otroId, otro: await loginAs(app, 'mens2@t.local', 'Mensajero1!') }
+        return { otroId, otro: await loginAs(app, 'mens2@t.local', mensajeroPwd) }
       }
 
       const entregasDe = (caseId: string) =>
@@ -1084,11 +1089,11 @@ describe('/api/trabajos', () => {
     it('otro mensajero no recibe una recogida que no es suya (403)', async () => {
       await createUser(ctx.auth, ctx.db, {
         email: 'mens2@t.local',
-        password: 'Mensajero1!',
+        password: mensajeroPwd,
         name: 'Otro mensajero',
         role: 'mensajero',
       })
-      const otro = await loginAs(app, 'mens2@t.local', 'Mensajero1!')
+      const otro = await loginAs(app, 'mens2@t.local', mensajeroPwd)
       const id = await crearPorRecoger()
       const res = await app.request(
         `/api/trabajos/${id}/acciones`,
@@ -1293,13 +1298,13 @@ describe('/api/trabajos', () => {
       // en orden de inserción.
       await createUser(ctx.auth, ctx.db, {
         email: 'zoila@t.local',
-        password: 'Tecnico123!',
+        password: tecnicoPwd,
         name: 'Zoila Técnico',
         role: 'tecnico',
       })
       await createUser(ctx.auth, ctx.db, {
         email: 'bruno@t.local',
-        password: 'Tecnico123!',
+        password: tecnicoPwd,
         name: 'Bruno Técnico',
         role: 'tecnico',
       })
@@ -1359,7 +1364,7 @@ describe('/api/trabajos', () => {
       const id = await createOne(recepcion)
       const otroId = await createUser(ctx.auth, ctx.db, {
         email: 'beto@t.local',
-        password: 'Tecnico123!',
+        password: tecnicoPwd,
         name: 'Beto Técnico',
         role: 'tecnico',
       })

@@ -7,6 +7,7 @@ import {
   login,
   loginAsAdmin,
   shipAndDeliver,
+  testPassword,
   todayIso,
   TOUCH_CONTROLS,
   TOUCH_SWITCHES,
@@ -523,7 +524,7 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
 
       const suffix = uniqueSuffix()
       const email = `tecnico-a11y-${suffix}@t.local`
-      const password = 'Tecnico1234'
+      const password = testPassword()
       const createdUser = await page.request.post('/api/users', {
         data: { name: `Técnico A11y ${suffix}`, email, password, role: 'tecnico' },
       })
