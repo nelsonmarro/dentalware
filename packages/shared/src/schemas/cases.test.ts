@@ -6,6 +6,7 @@ import {
   CASE_VIEWS,
   caseActionSchema,
   caseCodeParamSchema,
+  caseEditSchema,
   caseInputSchema,
   caseItemSchema,
   caseListQuerySchema,
@@ -118,6 +119,20 @@ describe('caseInputSchema', () => {
 })
 
 // Iteración 4, Tarea 1 (ENT-4): la constancia de entrega es un adjunto de tipo nuevo.
+// Revisión final del PR 1 de la Iteración 4 (M-2): una recogida se programa solo al crear
+// (ENT-1). `PUT /api/trabajos/:id` valida con `caseEditSchema`, que no la conoce: si un cliente
+// la manda, se descarta como cualquier clave desconocida y no llega al servicio.
+describe('caseEditSchema', () => {
+  it('acepta los mismos datos que caseInputSchema', () => {
+    expect(caseEditSchema.parse(base())).toEqual(caseInputSchema.parse(base()))
+  })
+  it('descarta la recogida: editar no programa ninguna', () => {
+    const r = caseEditSchema.parse({ ...base(), recogida: { mensajeroId, fecha: '2026-10-05' } })
+    expect(r).not.toHaveProperty('recogida')
+    expectTypeOf<z.output<typeof caseEditSchema>>().not.toHaveProperty('recogida')
+  })
+})
+
 describe('ATTACHMENT_KINDS', () => {
   it('la constancia es un tipo de adjunto', () => {
     expect(ATTACHMENT_KINDS).toEqual(['photo', 'document', 'scan', 'constancia'])

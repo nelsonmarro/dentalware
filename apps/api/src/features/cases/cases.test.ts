@@ -272,6 +272,23 @@ describe('/api/trabajos', () => {
     })
   })
 
+  // Revisión final del PR 1 de la Iteración 4 (M-2): la recogida solo se programa al crear
+  // (ENT-1). El PUT valida con `caseEditSchema`, que la descarta: editar no cambia el estado ni
+  // crea ninguna entrega.
+  it('PUT con recogida la descarta: el trabajo sigue nuevo y no se programa ninguna', async () => {
+    const id = await createOne(recepcion)
+    const put = await app.request(
+      `/api/trabajos/${id}`,
+      req(recepcion, 'PUT', caseInput({ recogida: { mensajeroId, fecha: hoy } })),
+    )
+    expect(put.status).toBe(200)
+    const { case: updated } = (await put.json()) as { case: { status: string } }
+    expect(updated.status).toBe('nuevo')
+    expect(
+      await ctx.db.select().from(ctx.schema.deliveries).where(eq(ctx.schema.deliveries.caseId, id)),
+    ).toEqual([])
+  })
+
   it('listado por vista y búsqueda; total de fila null para mensajero', async () => {
     const nuevoId = await createOne(recepcion, { patientRef: 'Ana Paciente' })
     const enProcesoId = await createOne(recepcion, { patientRef: 'Otro Paciente' })

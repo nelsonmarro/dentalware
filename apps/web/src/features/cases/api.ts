@@ -1,6 +1,7 @@
 import type {
   AssignTechnicianInput,
   CaseActionInput,
+  CaseEditInput,
   CaseInput,
   CaseListQuery,
   CaseSummary,
@@ -53,7 +54,8 @@ export async function createCase(input: CaseInput) {
   return (await (await throwIfNotOk(await trabajos.$post({ json: input }))).json()).case
 }
 
-export async function updateCase(id: string, input: CaseInput) {
+/** Sin `recogida`: solo se programa al crear (el formulario comparte tipo, la API la descarta). */
+export async function updateCase(id: string, input: CaseEditInput) {
   return (
     await (await throwIfNotOk(await trabajos[':id'].$put({ param: { id }, json: input }))).json()
   ).case

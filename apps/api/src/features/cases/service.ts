@@ -24,6 +24,7 @@ import {
   toIsoDate,
   type AssignTechnicianInput,
   type CaseActionInput,
+  type CaseEditInput,
   type CaseEventType,
   type CaseInput,
   type CaseListQuery,
@@ -220,7 +221,7 @@ export function createCasesService(deps: {
       })
       return mustGet(id)
     },
-    async update(id: string, input: CaseInput, ctx: RequestContext) {
+    async update(id: string, input: CaseEditInput, ctx: RequestContext) {
       const ok = await deps.uow.run(({ cases }) => cases.update(id, input, ctx.userId))
       if (!ok) throw new CaseNotFoundError()
       return mustGet(id)

@@ -1,6 +1,7 @@
 import type {
   AttachmentKind,
   CaseEventType,
+  CaseEditInput,
   CaseInput,
   CaseListQuery,
   CasePriority,
@@ -108,7 +109,7 @@ export interface CasesRepository {
     initialStatus?: InitialCaseStatus,
   ): Promise<{ id: string; code: string }>
   /** false si no existe; lanza CaseStateError si el estado no es editable; CaseInputError por producto. */
-  update(id: string, input: CaseInput, actorId: string): Promise<boolean>
+  update(id: string, input: CaseEditInput, actorId: string): Promise<boolean>
   byId(id: string): Promise<CaseDetail | undefined>
   /**
    * Mismo detalle que `byId`, con la fila del trabajo bloqueada (`SELECT … FOR UPDATE`) hasta

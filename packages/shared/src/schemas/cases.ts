@@ -117,6 +117,13 @@ export const caseInputSchema = z.object({
 })
 export type CaseInput = z.infer<typeof caseInputSchema>
 
+/** Editar un trabajo (`PUT /api/trabajos/:id`): los mismos datos sin `recogida`, que solo se
+ * programa al crear (ENT-1). Sin `.strict()`, igual que el resto de schemas: si un cliente la
+ * manda se descarta como cualquier clave desconocida (la web no la envía al editar), y el tipo
+ * de salida garantiza que el servicio nunca la ve. */
+export const caseEditSchema = caseInputSchema.omit({ recogida: true })
+export type CaseEditInput = z.infer<typeof caseEditSchema>
+
 /**
  * Bases de orden aceptadas por `GET /api/trabajos` (`orden`), cada una con su variante `-desc`.
  * En **todas** las ramas, la API antepone los trabajos urgentes antes de aplicar esta base
