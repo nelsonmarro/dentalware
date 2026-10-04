@@ -454,7 +454,52 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await expect(group.getByRole('button', { name: 'Marcar entregado' })).toBeVisible()
     await expect(group.getByRole('link', { name: /099 123 4567/ })).toBeVisible()
     await expectTouchTargets(page, TOUCH_CONTROLS)
+
+    // ENT-5: el diálogo «No se pudo» (motivo y nueva fecha).
+    await group.getByRole('button', { name: 'No se pudo' }).click()
+    const dialog = page.getByRole('dialog', { name: 'No se pudo entregar' })
+    await expect(dialog.getByLabel('Nueva fecha')).toBeVisible()
+    await expectTouchTargets(dialog, TOUCH_CONTROLS)
   })
+
+  // INI-3 (#105): el inicio del mensajero, con su ruta de hoy agrupada por clínica.
+  test(
+    'inicio del mensajero: entregas de hoy',
+    { tag: '@extendida' },
+    async ({ page, browser }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, created.id, accion)
+      }
+      const courier = await createCourier(page)
+      const shipped = await page.request.post(`/api/trabajos/${created.id}/acciones`, {
+        data: { accion: 'marcar_enviado', envio: { mensajeroId: courier.id, fecha: todayIso() } },
+      })
+      expect(shipped.ok()).toBe(true)
+
+      const courierContext = await browser.newContext()
+      try {
+        const courierPage = await courierContext.newPage()
+        await login(courierPage, { email: courier.email, password: courier.password })
+        const group = courierPage.getByRole('region', { name: clinic.name })
+        await expect(group.getByRole('button', { name: 'Marcar entregado' })).toBeVisible()
+        expect(
+          await courierPage.evaluate(
+            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+          ),
+        ).toBe(true)
+        await expectTouchTargets(courierPage, TOUCH_CONTROLS)
+      } finally {
+        await courierContext.close()
+      }
+    },
+  )
 
   test(
     'importar: enlace de plantilla y controles del diálogo',

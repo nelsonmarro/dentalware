@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { toIsoDate } from '@dentalware/shared'
+import { addBusinessDays, toIsoDate } from '@dentalware/shared'
 import { expect, type Locator, type Page } from '@playwright/test'
 
 export const ADMIN = {
@@ -235,22 +235,28 @@ export function trackConsoleErrors(page: Page): string[] {
   return errors
 }
 
-/** Crea un mensajero único por API (sesión admin ya iniciada en `page`). */
-export async function createCourier(page: Page) {
+/** Crea un usuario único del `role` dado por API (sesión admin ya iniciada en `page`), con una
+ * contraseña generada (`testPassword`, nunca un literal). */
+export async function createStaff(page: Page, role: 'recepcion' | 'mensajero') {
   const suffix = uniqueSuffix()
-  const email = `mensajero-e2e-${suffix}@t.local`
+  const email = `${role}-e2e-${suffix}@t.local`
   const password = testPassword()
   const res = await page.request.post('/api/users', {
     data: {
-      name: `Mensajero E2E ${suffix}`,
+      name: `${role === 'mensajero' ? 'Mensajero' : 'Recepción'} E2E ${suffix}`,
       email,
       password,
-      role: 'mensajero',
+      role,
     },
   })
   expect(res.ok()).toBe(true)
   const { user } = (await res.json()) as { user: { id: string; name: string } }
   return { ...user, email, password }
+}
+
+/** Crea un mensajero único por API (sesión admin ya iniciada en `page`). */
+export async function createCourier(page: Page) {
+  return createStaff(page, 'mensajero')
 }
 
 /** Foto de prueba (`fixtures/foto.png`) para adjuntos y constancias. */
@@ -261,6 +267,19 @@ export const FOTO_PATH = path.join(import.meta.dirname, 'fixtures', 'foto.png')
  * API (`systemClock`), sin una copia propia. */
 export function todayIso(): string {
   return toIsoDate(new Date())
+}
+
+/** Siguiente día hábil (`YYYY-MM-DD`): lo que la API llama «mañana» en «Vencen mañana» (CAL-2,
+ * ADR 30, sin feriados). Con `addBusinessDays` de `shared`, el de la propia vista. */
+export function nextBusinessDayIso(): string {
+  return toIsoDate(addBusinessDays(new Date(), 1, []))
+}
+
+/** Mañana de calendario (`YYYY-MM-DD`), p. ej. la nueva fecha de una entrega fallida. */
+export function tomorrowIso(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return toIsoDate(d)
 }
 
 /** Lleva por API un trabajo `terminado` a `enviado` con `courierId` y a `entregado` con una
