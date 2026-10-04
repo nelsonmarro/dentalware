@@ -157,10 +157,11 @@ export function QuickCase({
 
   return (
     <div className="flex flex-col gap-5">
+      {/* UX4-14: lo que se ajusta con un paciente largo es su texto (`min-w-0`), no el chip. */}
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="font-mono text-2xl font-semibold">{c.code}</h1>
-          <p className="text-lg">{c.patientRef}</p>
+          <p className="text-lg break-words">{c.patientRef}</p>
         </div>
         <StatusChip status={c.status} />
       </div>

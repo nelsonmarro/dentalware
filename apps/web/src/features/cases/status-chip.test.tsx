@@ -13,6 +13,14 @@ describe('StatusChip', () => {
     expect(chip).toHaveAttribute('data-status', 'en_proceso')
     expect(chip).toHaveStyle({ '--chip': '#0F766E' })
   })
+
+  // UX4-14: junto a un paciente largo (ficha corta a 360 px), «Por recoger» se partía en dos
+  // líneas. El chip no se encoge ni corta su texto: lo que se ajusta es lo de al lado.
+  it('no se parte ni se encoge junto a un texto largo', () => {
+    render(<StatusChip status="por_recoger" />)
+    const chip = screen.getByText('Por recoger')
+    expect(chip).toHaveClass('whitespace-nowrap', 'shrink-0')
+  })
 })
 
 /**
