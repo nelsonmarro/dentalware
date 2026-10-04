@@ -179,6 +179,18 @@ describe('CaseHeader', () => {
     expect(link).toHaveAttribute('href', '/trabajos/caso-padre')
   })
 
+  it('el enlace al padre mide 44 px de alto (objetivo táctil)', async () => {
+    renderWithRouter(
+      <CaseHeader
+        case={baseCase({ parentCaseId: 'caso-padre', parentCase: { code: '26-00099' } })}
+        missing={[]}
+        role="admin"
+      />,
+    )
+    const link = await screen.findByRole('link', { name: /Repetición de 26-00099/ })
+    expect(link).toHaveClass('min-h-11')
+  })
+
   it('muestra el enlace Imprimir para cualquier rol, incluso sin poder editar', async () => {
     renderWithRouter(
       <CaseHeader case={baseCase({ status: 'entregado' })} missing={[]} role="tecnico" />,

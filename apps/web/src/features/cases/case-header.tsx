@@ -73,7 +73,7 @@ export function CaseHeader({
               <Link
                 to="/trabajos/$caseId"
                 params={{ caseId: c.parentCaseId }}
-                className="text-sm text-primary underline underline-offset-2"
+                className="inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-2"
               >
                 Repetición de {c.parentCase.code}
               </Link>

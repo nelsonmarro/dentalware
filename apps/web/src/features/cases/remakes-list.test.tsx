@@ -61,6 +61,21 @@ describe('RemakesList', () => {
     expect(screen.getByText('Color equivocado')).toBeInTheDocument()
   })
 
+  it('el código enlazado mide 44 px de alto (objetivo táctil)', async () => {
+    fetchRemakes.mockResolvedValue([
+      {
+        id: 'hijo-2',
+        code: '26-00002',
+        status: 'nuevo',
+        receivedAt: '2026-09-20',
+        remakeReason: null,
+      },
+    ])
+    renderWithProviders(<RemakesList caseId="1" />)
+
+    expect(await screen.findByRole('link', { name: '26-00002' })).toHaveClass('min-h-11')
+  })
+
   it('lista varios hijos, cada uno con su propio enlace', async () => {
     fetchRemakes.mockResolvedValue([
       {

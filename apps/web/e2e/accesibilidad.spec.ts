@@ -332,6 +332,42 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // UX4-02 y UX4-25: los enlaces entre el original y su repetición (aviso «Repetido» y bloque
+  // «Repeticiones» en el original; «Repetición de …» en la ficha de la repetición).
+  test(
+    'ficha de un original y de su repetición: enlaces entre ambos',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, created.id, accion)
+      }
+      const courier = await createCourier(page)
+      await shipAndDeliver(page, created.id, courier.id)
+      const remake = await page.request.post(`/api/trabajos/${created.id}/repetir`, {
+        data: { motivo: 'Fractura (E2E)', responsabilidad: 'laboratorio', cobroPct: 0 },
+      })
+      expect(remake.ok()).toBe(true)
+      const { case: child } = (await remake.json()) as { case: { id: string; code: string } }
+
+      await page.goto(`/trabajos/${created.id}`)
+      await expect(page.getByRole('heading', { name: 'Repeticiones' })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+      await expectTouchTargets(page, 'a[href]:has-text("' + child.code + '")')
+
+      await page.goto(`/trabajos/${child.id}`)
+      const enlace = page.getByRole('link', { name: `Repetición de ${created.code}` })
+      await expect(enlace).toBeVisible()
+      await expectTouchTargets(page, 'a[href]:has-text("Repetición de")')
+    },
+  )
+
   // Iteración 4 (ENT-1): la sección plegable del formulario, abierta.
   test(
     'nuevo trabajo: sección «Programar recogida» abierta',
