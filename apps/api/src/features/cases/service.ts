@@ -90,6 +90,7 @@ function readiness(
 
 /** Evento que registra cada acción de estado (CIC-1/CIC-3). */
 const EVENT_TYPE_FOR_ACTION: Record<CaseActionInput['accion'], CaseEventType> = {
+  recibir: 'picked_up',
   aceptar: 'status_changed',
   pausar: 'hold',
   reanudar: 'resumed',

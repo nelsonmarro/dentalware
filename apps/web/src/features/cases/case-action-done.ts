@@ -4,6 +4,7 @@ import type { CaseAction } from '@dentalware/shared'
  * «Trabajo actualizado» genérico. `Record<CaseAction, …>` exhaustivo: una acción nueva en
  * `shared` no compila hasta que alguien escribe su confirmación. */
 export const CASE_ACTION_DONE: Record<CaseAction, string> = {
+  recibir: 'Trabajo recibido',
   aceptar: 'Trabajo aceptado',
   pausar: 'Trabajo en espera',
   reanudar: 'Trabajo reanudado',

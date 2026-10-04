@@ -10,6 +10,7 @@ export type ActionEmphasis = 'primary' | 'secondary' | 'destructive' | 'primary_
  * la barra de acciones y el botón que confirma el diálogo de motivo (M-5, revisión de la
  * Tarea 3), para que el que confirma nunca pese distinto del que abre. */
 export const ACTION_EMPHASIS: Record<CaseAction, ActionEmphasis> = {
+  recibir: 'primary',
   aceptar: 'primary',
   pausar: 'secondary',
   reanudar: 'primary',

@@ -634,11 +634,14 @@ describe('/api/trabajos', () => {
       await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' }))
       await app.request(
         `/api/trabajos/${id}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_enviado' }),
+        req(admin, 'POST', {
+          accion: 'marcar_enviado',
+          envio: { mensajeroId, fecha: '2026-10-05' },
+        }),
       )
       const res = await app.request(
         `/api/trabajos/${id}/acciones`,
-        req(mensajero, 'POST', { accion: 'marcar_entregado' }),
+        req(mensajero, 'POST', { accion: 'marcar_entregado', constanciaId: randomUUID() }),
       )
       expect(res.status).toBe(200)
       const body = (await res.json()) as {
@@ -682,11 +685,14 @@ describe('/api/trabajos', () => {
       )
       await app.request(
         `/api/trabajos/${padreId}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_enviado' }),
+        req(admin, 'POST', {
+          accion: 'marcar_enviado',
+          envio: { mensajeroId, fecha: '2026-10-05' },
+        }),
       )
       await app.request(
         `/api/trabajos/${padreId}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_entregado' }),
+        req(admin, 'POST', { accion: 'marcar_entregado', constanciaId: randomUUID() }),
       )
       const repetir = await app.request(
         `/api/trabajos/${padreId}/repetir`,
@@ -1039,11 +1045,14 @@ describe('/api/trabajos', () => {
       await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' }))
       await app.request(
         `/api/trabajos/${id}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_enviado' }),
+        req(admin, 'POST', {
+          accion: 'marcar_enviado',
+          envio: { mensajeroId, fecha: '2026-10-05' },
+        }),
       )
       await app.request(
         `/api/trabajos/${id}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_entregado' }),
+        req(admin, 'POST', { accion: 'marcar_entregado', constanciaId: randomUUID() }),
       )
     }
 

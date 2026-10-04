@@ -21,6 +21,27 @@ export const textoOpcional = (max: number) =>
     .nullish()
     .transform((v) => (v ? v : null))
 export const uuid = z.uuid({ error: 'Identificador inválido' })
+
+const ISO_DATE_FORMAT = 'Fecha inválida (AAAA-MM-DD)'
+/** Descarta fechas con formato correcto pero de calendario inexistente (31/02, 13º mes…)
+ * mediante ida y vuelta por `Date.UTC`: si el mes/día se desbordan, el resultado no
+ * coincide con los componentes originales.
+ *
+ * Vive en `config.ts` (no en `schemas/cases.ts`, donde nació) porque `schemas/deliveries.ts`
+ * (Iteración 4) también necesita fechas de negocio `YYYY-MM-DD`: `config.ts` es el módulo hoja
+ * del que ya importan ambos, y así se evita el ciclo `cases.ts` ↔ `deliveries.ts` (`cases.ts`
+ * necesita `pickupInputSchema` de `deliveries.ts` para `caseInputSchema.recogida`). `cases.ts`
+ * reexporta `isoDate` para no romper a quien ya lo importaba de ahí (`schemas/import.ts`). */
+function isRealCalendarDate(s: string): boolean {
+  const [y, m, d] = s.split('-').map(Number)
+  const dt = new Date(Date.UTC(y!, m! - 1, d!))
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m! - 1 && dt.getUTCDate() === d
+}
+
+export const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: ISO_DATE_FORMAT })
+  .refine(isRealCalendarDate, { error: ISO_DATE_FORMAT })
 export const priceString = z
   .string()
   .trim()

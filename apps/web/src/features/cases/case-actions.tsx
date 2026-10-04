@@ -55,6 +55,8 @@ const CONFIRM_DIALOG: Record<
   Exclude<CaseAction, ActionRequiringReason>,
   ActionDialogCopy | null
 > = {
+  // Reversible (se puede cancelar después) y lo hace el mensajero con guantes: sin confirmación.
+  recibir: null,
   aceptar: null,
   reanudar: null,
   enviar_prueba: null,
