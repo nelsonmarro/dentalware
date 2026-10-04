@@ -12,6 +12,8 @@ import type * as ApiModule from './api'
 import type { CaseDetail, CaseEvent } from './api'
 import { CaseHistory, historyTabLabel } from './case-history'
 
+// UX3-13: el historial no consulta la lista de técnicos (los nombres vienen con el evento);
+// si volviera a hacerlo, este mock lo delata en el test de abajo.
 const { fetchTechnicians } = vi.hoisted(() => ({ fetchTechnicians: vi.fn() }))
 vi.mock('./api', async (importOriginal) => ({
   ...(await importOriginal<typeof ApiModule>()),
@@ -40,6 +42,8 @@ function event(overrides: Partial<CaseEvent>): CaseEvent {
     toValue: null,
     reason: null,
     relatedCaseId: null,
+    fromName: null,
+    toName: null,
     actorId: 'u1',
     actor: { id: 'u1', name: 'Ana' },
     createdAt: new Date().toISOString(),
@@ -79,18 +83,16 @@ const STAGES = [
 
 beforeEach(() => {
   fetchTechnicians.mockReset()
-  // fetchTechnicians por defecto resuelve técnicos activos; los tests de rol técnico/
-  // mensajero verifican que ni siquiera se llama (useTechnicians con `enabled: false`).
-  fetchTechnicians.mockResolvedValue([{ id: 't1', name: 'Ana Técnica' }])
 })
 
 describe('CaseHistory', () => {
-  it('muestra el trabajo creado y un comentario con su texto y autor, en orden ascendente', async () => {
+  // UX3-26: en un trabajo largo lo último que pasó quedaba al fondo; la API entrega los
+  // eventos de más antiguo a más reciente y el historial los pinta al revés.
+  it('muestra el trabajo creado y un comentario con su texto y autor, lo más reciente primero', async () => {
     renderWithProviders(
       <CaseHistory
         case={caso()}
         stages={[]}
-        role="admin"
         events={[
           event({ id: 'e1', type: 'created', toValue: 'AA-00001' }),
           event({
@@ -104,14 +106,14 @@ describe('CaseHistory', () => {
     )
     const items = await screen.findAllByRole('listitem')
     expect(items).toHaveLength(2)
-    expect(items[0]).toHaveTextContent('Trabajo creado')
-    expect(items[1]).toHaveTextContent('Comentario')
-    expect(items[1]).toHaveTextContent('Beto')
-    expect(items[1]).toHaveTextContent('Todo listo para retirar')
+    expect(items[0]).toHaveTextContent('Comentario')
+    expect(items[0]).toHaveTextContent('Beto')
+    expect(items[0]).toHaveTextContent('Todo listo para retirar')
+    expect(items[1]).toHaveTextContent('Trabajo creado')
   })
 
   it('sin eventos muestra un mensaje de "sin actividad"', async () => {
-    renderWithProviders(<CaseHistory case={caso()} stages={[]} role="admin" events={[]} />)
+    renderWithProviders(<CaseHistory case={caso()} stages={[]} events={[]} />)
     expect(await screen.findByText('Sin actividad todavía.')).toBeInTheDocument()
   })
 
@@ -122,7 +124,6 @@ describe('CaseHistory', () => {
       <CaseHistory
         case={caso()}
         stages={[]}
-        role="admin"
         events={[
           event({ id: 'e1', type: 'status_changed', fromValue: 'nuevo', toValue: 'en_proceso' }),
           event({
@@ -135,8 +136,9 @@ describe('CaseHistory', () => {
       />,
     )
     const items = await screen.findAllByRole('listitem')
-    expect(items[0]).toHaveTextContent('Nuevo estado: En proceso')
-    expect(items[1]).toHaveTextContent('Nuevo estado: Terminado')
+    // Lo más reciente primero (UX3-26): finalizar, luego aceptar.
+    expect(items[0]).toHaveTextContent('Nuevo estado: Terminado')
+    expect(items[1]).toHaveTextContent('Nuevo estado: En proceso')
     // nunca la clave cruda
     expect(screen.queryByText(/en_proceso/)).not.toBeInTheDocument()
   })
@@ -146,7 +148,6 @@ describe('CaseHistory', () => {
       <CaseHistory
         case={caso()}
         stages={[]}
-        role="admin"
         events={[
           event({
             type: 'hold',
@@ -165,7 +166,6 @@ describe('CaseHistory', () => {
       <CaseHistory
         case={caso()}
         stages={[]}
-        role="admin"
         events={[
           event({
             type: 'cancelled',
@@ -184,7 +184,6 @@ describe('CaseHistory', () => {
       <CaseHistory
         case={caso()}
         stages={STAGES}
-        role="admin"
         events={[
           event({
             type: 'stage_changed',
@@ -199,29 +198,48 @@ describe('CaseHistory', () => {
     expect(screen.getByText('Motivo: Ajuste de oclusión')).toBeInTheDocument()
   })
 
-  it('una asignación de técnico resuelve nombres para quien puede consultar técnicos', async () => {
+  it('sin nombre en el evento, la asignación cae al técnico actual de la ficha', async () => {
     renderWithProviders(
       <CaseHistory
         case={caso({ technician: { id: 't1', name: 'Ana Técnica' } })}
         stages={[]}
-        role="recepcion"
         events={[event({ type: 'assigned', fromValue: null, toValue: 't1' })]}
       />,
     )
     expect(await screen.findByText('Sin asignar → Ana Técnica')).toBeInTheDocument()
   })
 
-  it('un técnico no dispara la consulta de técnicos y sigue viendo el nombre actual', async () => {
+  it('no consulta la lista de técnicos: el nombre del técnico actual sale de la ficha', async () => {
     renderWithProviders(
       <CaseHistory
         case={caso({ technician: { id: 't1', name: 'Ana Técnica' } })}
         stages={[]}
-        role="tecnico"
         events={[event({ type: 'assigned', fromValue: null, toValue: 't1' })]}
       />,
     )
     expect(await screen.findByText('Sin asignar → Ana Técnica')).toBeInTheDocument()
     expect(fetchTechnicians).not.toHaveBeenCalled()
+  })
+
+  // UX3-13: el técnico leía «Técnico UX It3 → Técnico» para uno anterior que seguía activo;
+  // los nombres llegan con el evento (`fromName`/`toName` de `/eventos`).
+  it('un técnico ve por nombre a un técnico anterior en una reasignación', async () => {
+    renderWithProviders(
+      <CaseHistory
+        case={caso({ technician: { id: 't1', name: 'Ana Técnica' } })}
+        stages={[]}
+        events={[
+          event({
+            type: 'assigned',
+            fromValue: 't0',
+            toValue: 't1',
+            fromName: 'Beto Técnico',
+            toName: 'Ana Técnica',
+          }),
+        ]}
+      />,
+    )
+    expect(await screen.findByText('Beto Técnico → Ana Técnica')).toBeInTheDocument()
   })
 
   // I-2 (ola de fixes del PR 1, lote B): en la ficha del padre, `remake_created` enlaza al
@@ -231,7 +249,6 @@ describe('CaseHistory', () => {
       <CaseHistory
         case={caso({ id: 'padre-1' })}
         stages={[]}
-        role="admin"
         events={[
           event({
             type: 'remake_created',
@@ -253,7 +270,6 @@ describe('CaseHistory', () => {
       <CaseHistory
         case={caso({ id: 'hijo-1' })}
         stages={[]}
-        role="admin"
         events={[
           event({
             type: 'remake_created',

@@ -2,11 +2,13 @@ import {
   CHECKLIST_KEYS,
   CHECKLIST_LABEL,
   FDI_QUADRANTS,
+  PRINT_COPY_LABEL,
+  printCopyShowsPrices,
   SHADE_SYSTEM_LABEL,
 } from '@dentalware/shared'
-import type { FdiTooth } from '@dentalware/shared'
+import type { FdiTooth, PrintCopy } from '@dentalware/shared'
 import type { LabSettings } from '@/features/config/api'
-import { formatMoney } from '@/features/products/pricing-unit-label'
+import { formatMoney } from '@/lib/format-money'
 import { cn } from '@/lib/utils'
 import type { CaseDetail } from './api'
 import { formatDate } from './date-format'
@@ -29,7 +31,7 @@ function money(value: string) {
 function PrintOdontogram({ teeth }: { teeth: ReadonlySet<number> }) {
   const arch = (label: string, right: readonly FdiTooth[], left: readonly FdiTooth[]) => (
     <div className="flex flex-col gap-1">
-      <span className="text-xs text-muted-foreground print:text-[8px]">{label}</span>
+      <span className="text-xs text-muted-foreground print:text-print-small">{label}</span>
       <div className="grid grid-cols-[repeat(16,minmax(0,1fr))] gap-1 print:gap-0.5">
         {[...right, ...left].map((n, i) => (
           <span
@@ -37,7 +39,7 @@ function PrintOdontogram({ teeth }: { teeth: ReadonlySet<number> }) {
             data-testid={`pieza-${n}`}
             data-marcada={teeth.has(n)}
             className={cn(
-              'flex aspect-square items-center justify-center rounded border font-mono text-[10px] print:text-[7px]',
+              'flex aspect-square items-center justify-center rounded border font-mono text-[10px] print:text-print-small',
               i === right.length && 'border-l-2 border-l-foreground',
               // I-1: la marca no depende del fondo (con «Gráficos de fondo» desactivado, que es
               // el valor por defecto de Chrome, `background-color` no se imprime pero el color
@@ -87,21 +89,28 @@ function DeliveryDate({
       </span>
     )
   }
-  return <>{formatDate(date)}</>
+  return <span className="font-bold">{formatDate(date)}</span>
 }
 
 /** Orden de trabajo imprimible (FIC-1, #71): reproduce los bloques y el orden de la hoja en
  * papel de Arte Dental (spec §5, "Orden de trabajo actual del laboratorio", y la foto
  * `docs/planilla de ingreso actual.jpeg`): (1) encabezado del laboratorio y código con QR,
  * (2) clínica/doctor/paciente/fechas, (3) color y odontograma marcado, (4) líneas,
- * (5) observaciones, (6) lista de verificación ("Importante"), (7) firmas. Sin precios ni
- * total con `hidePrices` (técnico y mensajero); las notas internas nunca se imprimen, para
- * nadie — el papel que sale del laboratorio no las tenía.
+ * (5) observaciones, (6) lista de verificación ("Importante"), (7) firmas. Cada hoja es una
+ * **copia** rotulada (UX3-21, spec §5): la «Copia laboratorio» va al banco del técnico y nunca
+ * lleva precios ni total; la «Copia clínica» sí (`printCopyShowsPrices`, shared). Quién puede
+ * imprimir cuál lo decide `printCopiesFor(role)` en `PrintCasePage`, no este componente. Las
+ * notas internas nunca se imprimen, para nadie — el papel que sale del laboratorio no las tenía.
  *
  * K-1 (ronda de fixes 1): densidad de impresión propia (`print:` en tipos, paddings y
  * separaciones) para que una orden de hasta 4 líneas quepa en **una** página en A4 y en A5
  * (ruling de la Tarea 14); con más líneas puede pasar a una segunda página, pero ningún bloque
  * se corte a la mitad (`break-inside-avoid`).
+ *
+ * UX3-20: en papel todo se mide en `rem` (tipos `print:text-print-*` de `index.css`, espaciados
+ * y el QR con `print:size-24`), nunca en `px`: la raíz de impresión vale 16 px en A5 y 20 px en
+ * hojas anchas (A4, Carta), así que la misma orden escala entera en A4 en vez de imprimir los
+ * tamaños de A5 en una hoja el doble de grande.
  *
  * `publicUrl` (I-2): resuelta **fuera** de este componente (`lib/public-url.ts`, inyectada por
  * quien monta `PrintOrder`) para que el QR no dependa de `window.location.origin` leído aquí
@@ -109,14 +118,20 @@ function DeliveryDate({
 export function PrintOrder({
   case: c,
   settings,
-  hidePrices,
+  copy,
   publicUrl,
+  primary = true,
 }: {
   case: CaseDetail
   settings: LabSettings
-  hidePrices: boolean
+  copy: PrintCopy
   publicUrl: string
+  /** Solo la primera hoja de la página lleva el `h1` (un `h1` por página, aunque se impriman
+   * dos copias); las siguientes rotulan el laboratorio con `h2`. */
+  primary?: boolean
 }) {
+  const LabTitle = primary ? 'h1' : 'h2'
+  const showPrices = printCopyShowsPrices(copy)
   // `/t/<código>` es la ruta de la ficha corta (`routes/_app/t.$code.tsx`, FIC-2): si se
   // renombra allí, cambia aquí también — el QR impreso apunta a esa URL.
   const url = `${publicUrl}/t/${c.code}`
@@ -130,7 +145,7 @@ export function PrintOrder({
     .join(', ')
 
   return (
-    <article className="print-order mx-auto flex max-w-[780px] flex-col gap-6 bg-background p-2 text-foreground print:max-w-none print:gap-1 print:p-0 print:text-[11px] print:leading-tight">
+    <article className="print-order mx-auto flex max-w-[780px] flex-col gap-6 bg-background p-2 text-foreground print:max-w-none print:gap-1 print:p-0 print:text-print-base print:leading-tight">
       {/* 1. Encabezado del laboratorio + código y QR */}
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4 print:gap-2 print:pb-1">
         <div className="flex items-start gap-3">
@@ -142,19 +157,42 @@ export function PrintOrder({
             />
           )}
           <div className="flex flex-col gap-1 print:gap-0">
-            <h1 className="text-2xl font-semibold print:text-base">{settings.name}</h1>
-            {settings.address && <p className="text-sm print:text-[10px]">{settings.address}</p>}
-            {settings.phone && <p className="text-sm print:text-[10px]">Cel.: {settings.phone}</p>}
+            <LabTitle className="text-2xl font-semibold print:text-base">{settings.name}</LabTitle>
+            {settings.address && (
+              <p className="text-sm print:text-print-body">{settings.address}</p>
+            )}
+            {settings.phone && (
+              <p className="text-sm print:text-print-body">Cel.: {settings.phone}</p>
+            )}
             {settings.ruc && (
-              <p className="text-sm text-muted-foreground print:text-[10px]">RUC: {settings.ruc}</p>
+              <p className="text-sm text-muted-foreground print:text-print-body">
+                RUC: {settings.ruc}
+              </p>
             )}
           </div>
         </div>
         <div className="flex flex-col items-end gap-2 text-right print:gap-1">
-          <h2 className="font-mono text-xl font-semibold print:text-sm">
-            Orden de trabajo {c.code}
-          </h2>
-          <QrCode value={url} size={96} />
+          {/* Rótulo de la copia: borde y texto, sin depender de color ni de fondo (en papel,
+           * «Gráficos de fondo» viene apagado en Chrome). */}
+          <p
+            data-testid="rotulo-copia"
+            className="rounded border border-foreground px-2 py-0.5 text-xs font-semibold tracking-wide print:text-print-small"
+          >
+            {PRINT_COPY_LABEL[copy]}
+          </p>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {/* UX3-07: la urgencia en texto y con borde negro de 2 px — nunca solo color, y en
+             * papel el fondo no se imprime por defecto. */}
+            {c.priority === 'urgente' && (
+              <span className="rounded border-2 border-foreground px-2 py-0.5 text-sm font-bold tracking-widest print:text-print-body">
+                URGENTE
+              </span>
+            )}
+            <h2 className="font-mono text-xl font-semibold print:text-sm">
+              Orden de trabajo {c.code}
+            </h2>
+          </div>
+          <QrCode value={url} size={96} className="print:size-24!" />
         </div>
       </header>
 
@@ -162,19 +200,19 @@ export function PrintOrder({
       <section className="flex flex-col gap-2 rounded-lg border border-border p-3 print:gap-1 print:p-1.5">
         <h2 className="font-medium print:text-xs">Paciente</h2>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 print:grid-cols-2 print:gap-1">
-          <p className="text-sm print:text-[10px]">
+          <p className="text-sm print:text-print-body">
             <span className="text-muted-foreground">Clínica / Doctor: </span>
             {c.clinic.name} / {c.doctor.name}
           </p>
-          <p className="text-sm print:text-[10px]">
+          <p className="text-sm print:text-print-body">
             <span className="text-muted-foreground">Paciente: </span>
             {patient}
           </p>
-          <p className="text-sm print:text-[10px]">
+          <p className="text-sm print:text-print-body">
             <span className="text-muted-foreground">Fecha ingreso: </span>
             {formatDate(c.receivedAt)}
           </p>
-          <p className="text-sm print:text-[10px]">
+          <p className="text-sm print:text-print-body">
             <span className="text-muted-foreground">Fecha entrega: </span>
             <DeliveryDate promisedDate={c.promisedDate} dueDate={c.dueDate} />
           </p>
@@ -185,15 +223,15 @@ export function PrintOrder({
       <section className="flex break-inside-avoid flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-start print:flex-row print:gap-3 print:p-1.5">
         <div className="flex flex-col gap-2 sm:w-56 print:w-40 print:gap-1">
           <h2 className="font-medium print:text-xs">Color y sistema</h2>
-          <p className="text-sm print:text-[10px]">
+          <p className="text-sm print:text-print-body">
             <span className="text-muted-foreground">Color: </span>
             {c.shade || '—'}
           </p>
-          <p className="text-sm print:text-[10px]">
+          <p className="text-sm print:text-print-body">
             <span className="text-muted-foreground">Sistema: </span>
             {c.shadeSystem ? SHADE_SYSTEM_LABEL[c.shadeSystem] : '—'}
           </p>
-          <p className="text-sm print:text-[10px]">
+          <p className="text-sm print:text-print-body">
             <span className="text-muted-foreground">Referencia: </span>
             {c.reference || '—'}
           </p>
@@ -213,26 +251,28 @@ export function PrintOrder({
             className="flex break-inside-avoid flex-wrap items-start justify-between gap-3 border-b border-dashed border-border pb-2 last:border-b-0 last:pb-0 print:gap-2 print:pb-1"
           >
             <div>
-              <p className="text-sm font-medium print:text-[10px]">
+              <p className="text-sm font-medium print:text-print-body">
                 {item.product?.name ?? item.description ?? 'Sin descripción'}
               </p>
               {item.teeth.length > 0 && (
-                <p className="font-mono text-xs text-muted-foreground print:text-[9px]">
+                <p className="font-mono text-xs text-muted-foreground print:text-print-small">
                   Piezas: {item.teeth.join(', ')}
                 </p>
               )}
               {item.material && (
-                <p className="text-xs text-muted-foreground print:text-[9px]">{item.material}</p>
+                <p className="text-xs text-muted-foreground print:text-print-small">
+                  {item.material}
+                </p>
               )}
             </div>
-            <div className="flex gap-4 text-sm print:gap-2 print:text-[10px]">
+            <div className="flex gap-4 text-sm print:gap-2 print:text-print-body">
               <span>Cant.: {item.quantity}</span>
-              {!hidePrices && <span className="font-mono">{money(item.lineTotal)}</span>}
+              {showPrices && <span className="font-mono">{money(item.lineTotal)}</span>}
             </div>
           </div>
         ))}
-        {!hidePrices && (
-          <p className="flex justify-end gap-2 pt-1 text-sm font-semibold print:text-[10px]">
+        {showPrices && (
+          <p className="flex justify-end gap-2 pt-1 text-sm font-semibold print:text-print-body">
             <span>Total:</span>
             <span className="font-mono">{money(c.total)}</span>
           </p>
@@ -242,16 +282,16 @@ export function PrintOrder({
       {/* 5. Observaciones */}
       <section className="flex flex-col gap-2 rounded-lg border border-border p-3 print:gap-1 print:p-1.5">
         <h2 className="font-medium print:text-xs">Observaciones</h2>
-        <p className="text-sm whitespace-pre-wrap print:text-[10px]">{c.observations || ' '}</p>
+        <p className="text-sm whitespace-pre-wrap print:text-print-body">{c.observations || ' '}</p>
         {c.prescription && (
-          <p className="text-sm whitespace-pre-wrap print:text-[10px]">{c.prescription}</p>
+          <p className="text-sm whitespace-pre-wrap print:text-print-body">{c.prescription}</p>
         )}
       </section>
 
       {/* 6. Importante: lista de verificación */}
       <section className="flex break-inside-avoid flex-col gap-2 rounded-lg border border-border p-3 print:gap-1 print:p-1.5">
         <h2 className="font-medium print:text-xs">Lista de verificación</h2>
-        <p className="flex flex-wrap gap-4 text-sm print:gap-2 print:text-[10px]">
+        <p className="flex flex-wrap gap-4 text-sm print:gap-2 print:text-print-body">
           {CHECKLIST_KEYS.map((key) => (
             <span key={key}>
               {c.checklist[key] ? '☑' : '☐'} {CHECKLIST_LABEL[key]}
@@ -265,12 +305,12 @@ export function PrintOrder({
         <h2 className="font-medium print:text-xs">Firmas</h2>
         <div className="flex flex-wrap justify-between gap-8 print:gap-6">
           <div className="flex flex-1 flex-col items-center gap-1">
-            <span className="w-full border-t border-foreground pt-1 text-center text-sm print:text-[10px]">
+            <span className="w-full border-t border-foreground pt-1 text-center text-sm print:text-print-body">
               Técnico responsable{c.technician ? ` (${c.technician.name})` : ''}
             </span>
           </div>
           <div className="flex flex-1 flex-col items-center gap-1">
-            <span className="w-full border-t border-foreground pt-1 text-center text-sm print:text-[10px]">
+            <span className="w-full border-t border-foreground pt-1 text-center text-sm print:text-print-body">
               Dr. / Cliente
             </span>
           </div>

@@ -1,16 +1,5 @@
-import type { CaseStatus } from '@dentalware/shared'
+import { CASE_STATUS_LABEL, type CaseStatus } from '@dentalware/shared'
 import type { CSSProperties } from 'react'
-
-export const STATUS_LABEL: Record<CaseStatus, string> = {
-  nuevo: 'Nuevo',
-  en_proceso: 'En proceso',
-  en_espera: 'En espera',
-  en_prueba: 'En prueba',
-  terminado: 'Terminado',
-  enviado: 'Enviado',
-  entregado: 'Entregado',
-  cancelado: 'Cancelado',
-}
 
 /**
  * Colores del spec §5 (chip + texto, nunca solo color). Cada color cumple contraste
@@ -38,7 +27,7 @@ export function StatusChip({ status }: { status: CaseStatus }) {
       className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--chip)]/40 bg-[color:var(--chip)]/10 px-2 py-0.5 text-xs font-medium text-[color:var(--chip)]"
     >
       <span aria-hidden className="size-1.5 rounded-full bg-[color:var(--chip)]" />
-      {STATUS_LABEL[status]}
+      {CASE_STATUS_LABEL[status]}
     </span>
   )
 }

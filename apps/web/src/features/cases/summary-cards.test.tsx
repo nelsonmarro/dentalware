@@ -44,6 +44,16 @@ const SUMMARY: CaseSummary = {
 }
 
 describe('SummaryCards', () => {
+  // UX3-02: antes, un fallo de red dejaba las tarjetas en "—" para siempre (un estado de carga
+  // permanente, no un error que se pueda reintentar).
+  it('un fallo de red ofrece reintentar, en vez de dejar los contadores en "—" para siempre', async () => {
+    fetchSummary.mockRejectedValue(new TypeError('Failed to fetch'))
+    renderWithProviders(<SummaryCards />)
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.queryByText('—')).not.toBeInTheDocument()
+  })
+
   it('muestra un contador por vista y enlaza a su lista', async () => {
     fetchSummary.mockResolvedValue(SUMMARY)
     renderWithProviders(<SummaryCards />)
@@ -67,14 +77,25 @@ describe('SummaryCards', () => {
     expect(screen.queryByRole('link', { name: /^Todos/ })).not.toBeInTheDocument()
   })
 
-  // M-6 (ronda de fixes 1, T12): el `aria-label` de "En curso" dejaba fuera la leyenda visual
-  // "Incluye en prueba" — justo la aclaración del doble conteo (ruling PR 2, T12, punto 4).
-  it('el nombre accesible de "En curso" incluye la aclaración de "en prueba"', async () => {
+  // UX3-17: «Incluye en prueba» no decía cuántos; la tarjeta dice «de ellos N en prueba» (el
+  // contador de la vista `en_prueba`, subconjunto de `en_curso`), visible y en el nombre
+  // accesible, sin desplazar el número respecto a las demás tarjetas.
+  it('«En curso» dice cuántos de ellos están en prueba', async () => {
     fetchSummary.mockResolvedValue(SUMMARY)
     renderWithProviders(<SummaryCards />)
 
-    expect(
-      await screen.findByRole('link', { name: /En curso 5.*incluye en prueba/i }),
-    ).toBeInTheDocument()
+    const card = await screen.findByRole('link', { name: 'En curso 5, de ellos 2 en prueba' })
+    expect(card).toHaveTextContent('de ellos 2 en prueba')
+    // El número es el último hijo de la tarjeta, como en las demás: la nota va arriba, con
+    // el rótulo, y `justify-between` deja el número abajo en todas.
+    expect(card.lastElementChild).toHaveTextContent(/^5$/)
+  })
+
+  it('con ninguno en prueba, «En curso» no dice «de ellos 0 en prueba»', async () => {
+    fetchSummary.mockResolvedValue({ ...SUMMARY, en_prueba: 0 })
+    renderWithProviders(<SummaryCards />)
+
+    const card = await screen.findByRole('link', { name: 'En curso 5' })
+    expect(card).not.toHaveTextContent(/en prueba/)
   })
 })

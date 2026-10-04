@@ -40,19 +40,24 @@ Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabaj
 ## 5. Web
 
 - **Estado de servidor** solo con TanStack Query, claves en `lib/query-keys.ts`. Cada mutación invalida lo que cambia; si cambia lo que pinta su propio botón, `onSuccess` hace `await invalidate()` (con `void`, un doble toque repite la acción). Sin store global: estado de UI en el componente o en la URL.
-- **Acciones de estado** derivadas de `shared` (`availableActions` + `canPerform`). Se confirman por **reversibilidad**: lo que no tiene vuelta (`finalizar`, `marcar_enviado`, `marcar_entregado`) abre un `ConfirmDialog` que nombra la consecuencia. Toda clasificación por acción o estado es un `Record` **exhaustivo**, para que lo nuevo no compile sin decidir.
+- **Acciones de estado** derivadas de `shared` (`availableActions` + `canPerform`). Se confirman por **reversibilidad**: lo que no tiene vuelta (`finalizar`, `marcar_enviado`, `marcar_entregado`) abre un `ConfirmDialog` que nombra la consecuencia. Todo diálogo de acción nombra la acción en su botón principal (nunca «Confirmar»), dice en una línea qué le pasa al trabajo y cierra con «Volver» (no «Cancelar», que se confunde con «Cancelar trabajo»); el toast de éxito dice qué pasó (`CASE_ACTION_DONE`), y los 409 nombran acción y estado con `CASE_ACTION_LABEL`/`CASE_STATUS_LABEL` de `shared`, nunca con la clave; ante un 409 el `onError` espera la invalidación de `['trabajos']` y después avisa, para que la ficha no siga mostrando el estado viejo (UX3-03/11/12). Toda clasificación por acción o estado es un `Record` **exhaustivo**, para que lo nuevo no compile sin decidir.
+- **Peso visual de las acciones** por `ACTION_EMPHASIS` (`features/cases/action-emphasis.ts`, `Record` exhaustivo): un solo primario por contexto (en el panel «Producción», «Avanzar fase» mientras haya fase siguiente conocida y «Finalizar» solo en la última), los secundarios después y lo destructivo al final y aparte; el botón que confirma el diálogo de una acción hereda su variante (cancelar confirma en destructivo) (UX3-04/05).
+- **Roles en la UI** desde `shared`: `hasRole(X_ROLES, role)`, `canWriteCases(role)` o `hidesPrices(role)`; nunca `role === 'admin' || role === 'recepcion'` para decidir un **permiso** (UX3-16). Comparar la identidad sí vale (`role === 'tecnico'` para mostrarle «Mis trabajos»): no concede nada.
 - **HTTP**: `hc<AppType>` en `api.ts` + `throwIfNotOk` → `ApiError`. `toastApiError` una sola vez por acción. Identidad solo por `getSession`/`signIn`/`signOut` (`features/auth/session.ts`) o `useSession`; `authClient` no sale de `features/auth/`.
+- **Un fallo de red nunca se muestra como dato**: `isNotFoundError` (`lib/api-error.ts`) separa «no existe» (404, o un status propio de la pantalla) de «no se pudo cargar», que se pinta con `LoadError` (`role="alert"` y «Reintentar»; `autoFocus` solo donde sustituye toda la pantalla, para no robar el foco a otros controles). Lo que no captura ninguna pantalla lo cubre el `defaultErrorComponent` del router (`RouterErrorFallback`), en español, con «Reintentar» que hace `router.invalidate()`. El login distingue credenciales (401), usuario bloqueado (403 con `code: 'BANNED_USER'`), demasiados intentos (429) y red: `signIn` devuelve un `SignInFailureReason` y `LoginForm` toma el texto de un `Record` exhaustivo.
 - **Formularios**: react-hook-form + `zodResolver` con `useForm<z.input<S>, unknown, z.output<S>>`; vacíos como `''` normalizados a `null` por el schema; error bajo el campo con `aria-invalid`; primario al pie y a ancho completo en móvil.
 - **Rutas**: `beforeLoad` para sesión y rol (redirigir, no renderizar y ocultar); `validateSearch` tolerante (`schema.partial().catch({})`); vista, filtros y página en la URL. Todo destino de redirección pasa por `safeRedirect` (solo rutas internas).
 - **Tablas** con `components/data-grid` declarando sus features, salvo listas simples (`docs/data-grid.md`).
-- **Selección**: `Combobox` para catálogos largos que se buscan (clínica, producto); `Select` para listas cortas o dependientes.
+- **Selección**: `Combobox` para catálogos largos que se buscan (clínica, producto); `Select` para listas cortas o dependientes. Un valor elegido que no está en la lista (inactivo o cargando) se rotula con lo que pasa («Clínica no disponible»), nunca con el placeholder.
 - **Diseño**:
   - Objetivo táctil de **44 px** (36 px solo en tablas densas de escritorio, 44 con `pointer-coarse`).
   - Chips con texto, nunca solo color; código y montos en monoespaciada.
   - `--wax-amber` es acento; el texto sobre ámbar usa `--wax-amber-ink`. El contraste se prueba en `theme-tokens.test.ts`.
+  - Sin modo oscuro en el MVP: nada aplica `.dark` (ni `prefers-color-scheme`); el bloque `.dark` de `index.css` queda en reserva y su contraste no se garantiza hasta que se diseñe y pruebe (UX3-15).
 - **Responsive**: una sola UI; tabla en ≥ `lg` y tarjetas en móvil, con una sola variante montada; sin scroll horizontal a 1280, 390 y 360 px.
 - **Accesibilidad**: un `h1` por página, labels o `aria-label`, `aria-pressed` en toggles, foco visible, teclado en diálogos y selects, contraste AA, `alt` e `inputmode`.
-- **Imágenes**: se comprimen en el cliente (≤ 1600 px), las miniaturas usan `loading="lazy"` y todo `createObjectURL` se revoca.
+- **Imágenes**: se comprimen en el cliente (≤ 1600 px), las miniaturas usan `loading="lazy"` y todo `createObjectURL` se revoca. «Foto» es todo adjunto `image/*` (`isPhoto`, una sola regla para la grilla, la pestaña y la ficha corta).
+- **Orden impresa**: en papel, todo en `rem` (la raíz escala por hoja: 16 px en A5 y por omisión, 20 px en A4/Carta); las copias salen de `printCopiesFor(role)` de shared, cada una en su hoja.
 
 ## 6. Shared
 
@@ -75,7 +80,7 @@ Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabaj
   - `@extendida`: barridos y recorridos largos.
 
   El PR corre `@esencial` y `@clave` en escritorio y android (`pnpm e2e:pr`). El push a `main` corre todo, `iphone` incluido.
-- **Barrido táctil**: toda pantalla nueva entra en `accesibilidad.spec.ts`. Cada barrido espera a un elemento propio de su pantalla, y `expectTouchTargets` falla si no mide nada. Los inputs nativos ocultos (`aria-hidden`, `tabIndex=-1`) no cuentan como objetivo táctil.
+- **Barrido táctil**: toda pantalla nueva entra en `accesibilidad.spec.ts`. Cada barrido espera a un elemento propio de su pantalla, y `expectTouchTargets` falla si no mide nada. Los inputs nativos ocultos (`aria-hidden`, `tabIndex=-1`) no cuentan como objetivo táctil. Lo que entra con animación (desplegable, diálogo) se mide al terminarla (`getAnimations()`): a mitad del `zoom-in-95`, 44 px miden ~42.
 - Los revisores no corren tests de BD ni E2E mientras haya un implementador activo.
 
 ## 8. Git y proceso

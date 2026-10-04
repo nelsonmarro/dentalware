@@ -1,5 +1,11 @@
 import type { CaseView } from '@dentalware/shared'
-import { CASE_VIEWS, hidesPrices } from '@dentalware/shared'
+import {
+  CASE_VIEWS,
+  canWriteCases,
+  hasRole,
+  hidesPrices,
+  TECHNICIAN_FILTER_ROLES,
+} from '@dentalware/shared'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useCallback, useState } from 'react'
 import { PageHeader } from '@/components/page-header'
@@ -29,9 +35,9 @@ function TrabajosPage() {
   const vista = search.vista ?? 'todos'
   const pagina = search.pagina ?? 1
   const hidePrices = hidesPrices(user.role)
-  const canWrite = user.role === 'admin' || user.role === 'recepcion'
-  // El listado de usuarios (para el filtro de técnico) es una ruta solo de admin en la API.
-  const canFilterByTechnician = user.role === 'admin'
+  const canWrite = canWriteCases(user.role)
+  // El filtro de técnico lee el listado de usuarios, que en la API es de `USER_ADMIN_ROLES`.
+  const canFilterByTechnician = hasRole(TECHNICIAN_FILTER_ROLES, user.role)
 
   const clinics = useClinics(false)
   const doctors = useDoctors(search.clinicId ?? '', false)
@@ -92,6 +98,7 @@ function TrabajosPage() {
         value={search}
         onChange={updateSearch}
         clinics={clinics.data ?? []}
+        clinicsLoading={clinics.isPending}
         doctors={doctors.data ?? []}
         technicians={technicians}
       />

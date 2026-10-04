@@ -1,14 +1,13 @@
 import type { UserRole } from '@dentalware/shared'
-import { hidesPrices, isEditableStatus } from '@dentalware/shared'
+import { hidesPrices, isEditableStatus, canWriteCases } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { Pencil, Printer } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { formatMoney } from '@/features/products/pricing-unit-label'
+import { formatMoney } from '@/lib/format-money'
 import type { CaseDetail, CaseEvent } from './api'
-import { isStageVisible } from './case-views'
 import { formatDate, formatTimestampDate } from './date-format'
 import { STATUS_COLOR, StatusChip } from './status-chip'
 
@@ -22,7 +21,8 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
 }
 
 /** Cabecera de la ficha: pestaña de color del estado, código, chip, prioridad, clínica
- * y doctor, datos del paciente, fechas, técnico/fase si existen, total (según rol),
+ * y doctor, datos del paciente, fechas, total (según rol) — la fase y el técnico van en el
+ * panel «Producción» justo debajo, no aquí (UX3-18) —,
  * el enlace al padre si es una repetición, el aviso de espera y el de datos faltantes
  * para aceptar el trabajo. */
 export function CaseHeader({
@@ -40,7 +40,7 @@ export function CaseHeader({
   events?: CaseEvent[]
 }) {
   const hidePrices = hidesPrices(role)
-  const canEdit = (role === 'admin' || role === 'recepcion') && isEditableStatus(c.status)
+  const canEdit = canWriteCases(role) && isEditableStatus(c.status)
   const patient = [
     c.patientRef,
     c.patientAge !== null ? `${c.patientAge} años` : null,
@@ -100,8 +100,6 @@ export function CaseHeader({
           <Field label="Ingreso" value={formatDate(c.receivedAt)} />
           <Field label="Deseada" value={formatDate(c.dueDate)} />
           <Field label="Comprometida" value={formatDate(c.promisedDate)} />
-          {c.technician && <Field label="Técnico" value={c.technician.name} />}
-          {c.stage && isStageVisible(c.status) && <Field label="Fase" value={c.stage.name} />}
           {!hidePrices && (
             <Field
               label="Total"

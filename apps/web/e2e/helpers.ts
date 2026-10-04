@@ -33,6 +33,13 @@ export function uniqueSuffix(): string {
   return `${Date.now()}-${Math.floor(Math.random() * 100_000)}`
 }
 
+/** Región de avisos (toasts de sonner, `<section aria-label="Notifications …">`). Desde UX3-11
+ * los toasts nombran lo que pasó («Fase: Modelo», «Trabajo en espera»), así que su texto puede
+ * repetir el de la página: se busca dentro de esta región y nunca en toda la página. */
+export function toasts(page: Page): Locator {
+  return page.getByRole('region', { name: /^Notifications/ })
+}
+
 /** Crea una clínica y un doctor únicos por API (sesión admin ya iniciada en `page`). */
 export async function createClinicWithDoctor(page: Page) {
   const suffix = uniqueSuffix()
@@ -183,6 +190,10 @@ export const TOUCH_SWITCHES = '[role=switch]'
  * capturar) y los `console.error` de `page` y devuelve la lista para comprobarla al final del
  * test con `expect(errors).toEqual([])`. Úsala en `beforeEach`/`afterEach` del spec; las
  * páginas de contextos nuevos (`browser.newContext()`) se registran aparte.
+ * Ruido conocido fuera de esta guarda: «Error in route match: /_app/» en el log del WebServer
+ * (Vite reenvía la consola del navegador al detectar un agente) es un `getSession()` del
+ * `beforeLoad` de `_app` abortado («Failed to fetch») al cerrar el contexto con una navegación en
+ * vuelo, ya terminado el test; no es un error de render ni de datos (Tarea 9, #101).
  */
 export function trackConsoleErrors(page: Page): string[] {
   const errors: string[] = []

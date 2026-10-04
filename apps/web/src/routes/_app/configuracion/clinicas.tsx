@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import type { Clinic } from '@/features/clinics/api'
 import { ClinicForm } from '@/features/clinics/clinic-form'
-import { ClinicsTable } from '@/features/clinics/clinics-table'
+import { ClinicsList } from '@/features/clinics/clinics-list'
 import { useClinics, useSaveClinic, useSetClinicActive } from '@/features/clinics/use-clinics'
 
 export const Route = createFileRoute('/_app/configuracion/clinicas')({ component: ClinicsRoute })
@@ -49,16 +49,12 @@ function ClinicsPage() {
         <Switch id="clinicas-inactivas" checked={showInactive} onCheckedChange={setShowInactive} />
         <Label htmlFor="clinicas-inactivas">Mostrar inactivas</Label>
       </div>
-      {clinics.isPending ? (
-        <p className="text-sm text-muted-foreground">Cargando…</p>
-      ) : (
-        <ClinicsTable
-          clinics={clinics.data ?? []}
-          onEdit={setEditing}
-          onToggle={(c, active) => toggle.mutate({ id: c.id, active })}
-          emptyAction={newButton}
-        />
-      )}
+      <ClinicsList
+        clinics={clinics}
+        onEdit={setEditing}
+        onToggle={(c, active) => toggle.mutate({ id: c.id, active })}
+        emptyAction={newButton}
+      />
       {editing !== null && (
         <ClinicForm
           key={editing === 'new' ? 'new' : editing.id}

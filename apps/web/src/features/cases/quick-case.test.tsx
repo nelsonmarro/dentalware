@@ -8,7 +8,7 @@ import {
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/lib/api-error'
 import type { Stage } from '@/features/stages/api'
 import type * as ApiModule from './api'
@@ -24,8 +24,11 @@ vi.mock('./api', async (importOriginal) => ({
   changeStage,
   fetchCaseByCode,
 }))
-const { uploadAttachment } = vi.hoisted(() => ({ uploadAttachment: vi.fn() }))
-vi.mock('./attachments-api', () => ({ uploadAttachment }))
+const { fetchAttachments, uploadAttachment } = vi.hoisted(() => ({
+  fetchAttachments: vi.fn(),
+  uploadAttachment: vi.fn(),
+}))
+vi.mock('./attachments-api', () => ({ fetchAttachments, uploadAttachment }))
 vi.mock('@/features/stages/api', () => ({ fetchStages: vi.fn() }))
 
 import { fetchStages } from '@/features/stages/api'
@@ -34,6 +37,8 @@ beforeEach(() => {
   changeStage.mockReset()
   fetchCaseByCode.mockReset()
   uploadAttachment.mockReset()
+  fetchAttachments.mockReset()
+  fetchAttachments.mockResolvedValue([])
   vi.mocked(fetchStages).mockReset()
   changeStage.mockResolvedValue({ id: 'c1', currentStageId: 'f2' })
 })
@@ -141,7 +146,7 @@ describe('QuickCase', () => {
     renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
 
     await screen.findByText('Modelado')
-    await user.click(screen.getByRole('button', { name: 'Avanzar fase' }))
+    await user.click(screen.getByRole('button', { name: 'Avanzar a Fresado' }))
 
     await waitFor(() =>
       expect(changeStage).toHaveBeenCalledWith('c1', { direccion: 'avanzar', motivo: null }),
@@ -162,7 +167,7 @@ describe('QuickCase', () => {
     expect(
       await screen.findByText('El trabajo está en espera: reanúdalo para poder cambiar de fase.'),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Avanzar fase' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Avanzar/ })).not.toBeInTheDocument()
   })
 
   it('un mensajero no ve el botón de avanzar fase (sin motivo: es por rol, no por estado)', async () => {
@@ -172,7 +177,141 @@ describe('QuickCase', () => {
     renderWithProviders(<QuickCase code="26-00123" role="mensajero" />)
 
     await screen.findByText('Modelado')
-    expect(screen.queryByRole('button', { name: 'Avanzar fase' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Avanzar/ })).not.toBeInTheDocument()
+  })
+
+  // UX3-23: `finalizar`/`cancelar` no limpian `currentStageId`, así que un trabajo terminado
+  // sigue trayendo fase; la ficha corta decía «Fase: Recepción» de un trabajo ya hecho.
+  it('un trabajo terminado no muestra la fase en la que quedó', async () => {
+    fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'terminado' }), missing: [] })
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+    await screen.findByRole('heading', { level: 1, name: '26-00123' })
+    expect(screen.queryByText('Fase:')).not.toBeInTheDocument()
+    expect(screen.queryByText('Modelado')).not.toBeInTheDocument()
+  })
+
+  it('un trabajo en espera sí muestra la fase en la que se quedó', async () => {
+    fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'en_espera' }), missing: [] })
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+    expect(await screen.findByText('Modelado')).toBeInTheDocument()
+  })
+
+  // UX3-22: lo que el técnico necesita saber en el banco es para cuándo es y si urge; antes
+  // solo lo decía la ficha completa.
+  describe('entrega y urgencia', () => {
+    it('dice la fecha de entrega comprometida', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ dueDate: '2999-03-01', promisedDate: '2999-03-04' }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      expect(await screen.findByText('Entrega: 04/03/2999')).toBeInTheDocument()
+    })
+
+    it('sin fecha comprometida dice la deseada', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ dueDate: '2999-03-01', promisedDate: null }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      expect(await screen.findByText('Entrega: 01/03/2999')).toBeInTheDocument()
+    })
+
+    // M-2 (revisión de la Tarea 5): «Entrega: —» no se lee; se dice con palabras.
+    it('sin ninguna fecha dice «Entrega: sin fecha»', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ dueDate: null, promisedDate: null }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      expect(await screen.findByText('Entrega: sin fecha')).toBeInTheDocument()
+    })
+
+    it('un trabajo urgente lo dice con texto', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ priority: 'urgente', promisedDate: '2999-03-04' }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      expect(await screen.findByText('Urgente')).toBeInTheDocument()
+    })
+
+    it('un trabajo normal a tiempo no muestra avisos', async () => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ promisedDate: '2999-03-04' }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      await screen.findByText('Entrega: 04/03/2999')
+      expect(screen.queryByText('Urgente')).not.toBeInTheDocument()
+      expect(screen.queryByText('Atrasado')).not.toBeInTheDocument()
+      expect(screen.queryByText('Vence hoy')).not.toBeInTheDocument()
+    })
+
+    it('con la entrega vencida dice «Atrasado»', async () => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ promisedDate: '2020-01-15' }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      expect(await screen.findByText('Atrasado')).toBeInTheDocument()
+    })
+
+    // M-4 (revisión de la Tarea 5): hora fija. Con el reloj real, entre la fecha del test y el
+    // `new Date()` del componente podía cambiar el día (medianoche) y el test fallaba al azar.
+    // Solo se falsea `Date`: los temporizadores reales siguen moviendo `findBy*` y React Query.
+    describe('con el reloj fijo', () => {
+      beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(new Date(2026, 9, 3, 23, 59, 59))
+      })
+      afterEach(() => {
+        vi.useRealTimers()
+      })
+
+      it('con la entrega hoy dice «Vence hoy»', async () => {
+        fetchCaseByCode.mockResolvedValue({
+          case: caso({ promisedDate: '2026-10-03' }),
+          missing: [],
+        })
+        vi.mocked(fetchStages).mockResolvedValue(fases)
+
+        renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+        expect(await screen.findByText('Vence hoy')).toBeInTheDocument()
+      })
+    })
+
+    it('un trabajo terminado con la fecha pasada no se marca atrasado (misma regla que la lista)', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ status: 'terminado', promisedDate: '2020-01-15' }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+
+      renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+      await screen.findByText('Entrega: 15/01/2020')
+      expect(screen.queryByText('Atrasado')).not.toBeInTheDocument()
+    })
   })
 
   it('un código inexistente muestra No encontrado', async () => {
@@ -181,7 +320,10 @@ describe('QuickCase', () => {
 
     renderWithProviders(<QuickCase code="26-99999" role="tecnico" />)
 
-    expect(await screen.findByText('No encontrado')).toBeInTheDocument()
+    // Pantalla completa: «No encontrado» es su h1 (un h1 por página, convenciones §5).
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'No encontrado' }),
+    ).toBeInTheDocument()
   })
 
   it('un código mal formado (422) también muestra No encontrado', async () => {
@@ -204,13 +346,15 @@ describe('QuickCase', () => {
     expect(screen.queryByText('450.00')).not.toBeInTheDocument()
   })
 
-  it('tiene los botones "Avanzar fase" y "Añadir foto"', async () => {
+  // UX3-27: el botón dice a qué fase lleva; un toque accidental solo se deshace desde la
+  // ficha completa y con motivo.
+  it('tiene los botones «Avanzar a {fase siguiente}» y «Añadir foto»', async () => {
     fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
     vi.mocked(fetchStages).mockResolvedValue(fases)
 
     renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
 
-    expect(await screen.findByRole('button', { name: 'Avanzar fase' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Avanzar a Fresado' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Añadir foto' })).toBeInTheDocument()
     expect(screen.getByLabelText('Añadir foto')).toHaveAttribute('capture', 'environment')
   })
@@ -241,6 +385,45 @@ describe('QuickCase', () => {
     await waitFor(() => expect(uploadAttachment).toHaveBeenCalledWith('c1', expect.any(FormData)))
   })
 
+  // UX3-08: «Fotos: N» confirma en la propia ficha que la foto entró (el aviso se va).
+  // I-1 (revisión de la Tarea 5): foto es lo que tiene MIME de imagen, la misma regla que la
+  // pestaña de la ficha completa; `kind` lo puede forzar el cliente (un escaneo es imagen).
+  it('cuenta las fotos por su MIME, no por `kind`: una imagen «scan» sí, un PDF no', async () => {
+    fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+    fetchAttachments.mockResolvedValue([
+      { id: 'a1', kind: 'photo', mime: 'image/jpeg' },
+      { id: 'a2', kind: 'scan', mime: 'image/png' },
+      { id: 'a3', kind: 'photo', mime: 'application/pdf' },
+      { id: 'a4', kind: 'document', mime: 'application/pdf' },
+      { id: 'a5', kind: 'document', mime: 'image/jpeg' },
+    ])
+
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+    expect(await screen.findByText('Fotos: 3')).toBeInTheDocument()
+    expect(fetchAttachments).toHaveBeenCalledWith('c1')
+    // Mientras el código se resuelve no hay id: no se piden adjuntos de un trabajo vacío.
+    expect(fetchAttachments).not.toHaveBeenCalledWith('')
+  })
+
+  it('tras subir una foto el contador sube', async () => {
+    fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+    fetchAttachments
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([{ id: 'a1', kind: 'photo', mime: 'image/webp' }])
+    uploadAttachment.mockResolvedValue({ attachment: { id: 'a1' } })
+    const user = userEvent.setup()
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+    expect(await screen.findByText('Fotos: 0')).toBeInTheDocument()
+
+    const file = new File(['contenido'], 'foto.png', { type: 'image/png' })
+    await user.upload(screen.getByLabelText('Añadir foto'), file)
+
+    expect(await screen.findByText('Fotos: 1')).toBeInTheDocument()
+  })
+
   it('si las fases no cargan lo dice, en vez de dejar el botón deshabilitado sin motivo', async () => {
     fetchCaseByCode.mockResolvedValue({ case: caso(), missing: [] })
     vi.mocked(fetchStages).mockRejectedValue(new ApiError('Fallo', 500))
@@ -250,6 +433,8 @@ describe('QuickCase', () => {
     expect(
       await screen.findByText('No se pudieron cargar las fases. Recarga la página.'),
     ).toBeInTheDocument()
+    // Sin la lista de fases no se sabe cuál sigue: el botón no inventa un destino.
+    expect(screen.getByRole('button', { name: 'Avanzar fase' })).toBeDisabled()
   })
 
   it('si la fase actual está desactivada explica cómo seguir', async () => {
@@ -264,6 +449,41 @@ describe('QuickCase', () => {
     expect(
       await screen.findByText(/La fase en la que estaba este trabajo ya no está activa/),
     ).toBeInTheDocument()
+  })
+
+  // UX3-02: un fallo de red o del servidor no es "no encontrado" — ese texto sugiere que el
+  // código no existe, cuando en realidad la petición ni llegó a resolverse.
+  it('un fallo de red no muestra "No encontrado": ofrece reintentar, ya enfocado', async () => {
+    fetchCaseByCode.mockRejectedValue(new TypeError('Failed to fetch'))
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+    const retry = await screen.findByRole('button', { name: 'Reintentar' })
+    expect(screen.queryByText('No encontrado')).not.toBeInTheDocument()
+    // Ronda de fixes 2 (I-1): este `LoadError` sustituye toda la ficha corta, así que enfoca.
+    expect(retry).toHaveFocus()
+  })
+
+  it('un error 500 del servidor tampoco muestra "No encontrado"', async () => {
+    fetchCaseByCode.mockRejectedValue(new ApiError('Error interno', 500))
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+
+    renderWithProviders(<QuickCase code="26-00123" role="tecnico" />)
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.queryByText('No encontrado')).not.toBeInTheDocument()
+  })
+
+  // UX3-27: el texto sugería buscar en la lista, pero no había cómo llegar a ella.
+  it('«No encontrado» ofrece ir a la lista de trabajos', async () => {
+    fetchCaseByCode.mockRejectedValue(new ApiError('No encontrado', 404))
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+
+    renderWithProviders(<QuickCase code="26-99999" role="tecnico" />)
+
+    const link = await screen.findByRole('link', { name: 'Ir a trabajos' })
+    expect(link).toHaveAttribute('href', '/trabajos')
   })
 
   it('«No encontrado» orienta a revisar el código impreso', async () => {

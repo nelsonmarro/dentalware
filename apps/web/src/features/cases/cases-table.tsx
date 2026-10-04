@@ -13,6 +13,7 @@ import {
   urlState,
   useDataGrid,
 } from '@/components/data-grid'
+import { AlertChip } from './alert-chip'
 import type { CaseListRow } from './api'
 import { dueBadge } from './case-views'
 import { formatDate } from './date-format'
@@ -48,11 +49,46 @@ function DueCell({ row, today }: { row: CaseListRow; today: string }) {
     <div className="flex items-center gap-1.5">
       <span>{formatDate(date)}</span>
       {badge === 'hoy' && (
-        <StatusIcon label="Vence hoy" Icon={Clock} className="text-[color:var(--wax-amber)]" />
+        // UX3-01: `--wax-amber` (#d99a16) da 2,45:1 sobre `--card`, por debajo del 3:1 que
+        // WCAG 1.4.11 exige a un icono (componente gráfico, no texto); `--wax-amber-ink` es
+        // la misma tinta que ya usan como texto los avisos ámbar de `case-header.tsx`/
+        // `my-cases.tsx` y aquí resuelve el icono (verificado en `theme-tokens.test.ts`).
+        <StatusIcon label="Vence hoy" Icon={Clock} className="text-[color:var(--wax-amber-ink)]" />
       )}
       {badge === 'atrasado' && (
         <StatusIcon label="Atrasado" Icon={CircleAlert} className="text-destructive" />
       )}
+    </div>
+  )
+}
+
+/** Variante de tarjeta móvil (UX3-01): no hay `title` al tacto, así que la señal necesita
+ * texto visible vía `AlertChip`, no solo el icono de `StatusIcon` que basta en la tabla de
+ * escritorio (ahí `title` responde al hover del mouse). */
+function CardCode({ row }: { row: CaseListRow }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Link
+        to="/trabajos/$caseId"
+        params={{ caseId: row.id }}
+        data-target-size="inline"
+        className="font-mono font-medium text-primary hover:underline"
+      >
+        {row.code}
+      </Link>
+      {row.priority === 'urgente' && <AlertChip tone="destructive">Urgente</AlertChip>}
+    </div>
+  )
+}
+
+function CardDue({ row, today }: { row: CaseListRow; today: string }) {
+  const date = row.promisedDate ?? row.dueDate
+  const badge = dueBadge(date, today, row.status)
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span>{formatDate(date)}</span>
+      {badge === 'atrasado' && <AlertChip tone="destructive">Atrasado</AlertChip>}
+      {badge === 'hoy' && <AlertChip tone="amber">Vence hoy</AlertChip>}
     </div>
   )
 }
@@ -215,7 +251,7 @@ export function CasesTable({
           style={{ borderLeftColor: STATUS_COLOR[r.status] }}
         >
           <div className="flex items-center justify-between">
-            <CodeCell row={r} />
+            <CardCode row={r} />
             <StatusChip status={r.status} />
           </div>
           <p className="text-sm">
@@ -224,7 +260,7 @@ export function CasesTable({
           <p className="text-sm text-muted-foreground">{r.patientRef}</p>
           <p className="text-sm text-muted-foreground">{r.itemsSummary ?? '—'}</p>
           <div className="flex items-center justify-between">
-            <DueCell row={r} today={today} />
+            <CardDue row={r} today={today} />
             {!hidePrices && <span className="font-mono font-medium">{money(r.total)}</span>}
           </div>
         </div>

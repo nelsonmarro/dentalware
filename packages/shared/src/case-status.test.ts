@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   ACTIONS_REQUIRING_REASON,
+  type ActionRequiringReason,
   ACTIVE_FOR_DATES_STATUSES,
   applyAction,
   ASSIGN_TECHNICIAN_ROLES,
@@ -9,19 +10,28 @@ import {
   canChangeStage,
   canPerform,
   canRemake,
+  CASE_ACTION_LABEL,
   CASE_ACTION_ROLES,
   CASE_ACTIONS,
+  CASE_STATUS_LABEL,
   CASE_STATUSES,
   CASE_TRANSITIONS,
   CASE_WRITE_ROLES,
+  ATTACHMENT_DELETE_ROLES,
+  canWriteCases,
   EDITABLE_CASE_STATUSES,
   EN_CURSO_STATUSES,
   isActiveForDates,
   isEditableStatus,
+  notEditableMessage,
+  requiresReason,
+  notReassignableMessage,
+  notRemakeableMessage,
   isEnCurso,
   REMAKE_ROLES,
   REMAKEABLE_STATUSES,
   STAGE_CHANGE_BLOCKED_REASON,
+  STAGE_MOVE_BLOCKED_REASON,
   STAGE_CHANGE_ROLES,
 } from './case-status.ts'
 
@@ -104,13 +114,83 @@ describe('applyAction — camino feliz', () => {
 })
 
 describe('applyAction — transiciones inválidas', () => {
-  it('rechaza con motivo legible', () => {
+  // UX3-03: el 409 llega tal cual al toast; con las claves internas («marcar_entregado»,
+  // «en_proceso») recepción leía jerga del código. Literales, no derivados de los rótulos.
+  it('rechaza con los rótulos de la acción y del estado, no con las claves', () => {
     expect(applyAction('nuevo', 'finalizar')).toEqual({
       ok: false,
-      reason: 'No se puede "finalizar" un trabajo en estado "nuevo"',
+      reason:
+        'No se puede "Finalizar": el trabajo está en estado "Nuevo". Puede que otra persona lo haya cambiado.',
+    })
+    expect(applyAction('en_proceso', 'marcar_entregado')).toEqual({
+      ok: false,
+      reason:
+        'No se puede "Marcar entregado": el trabajo está en estado "En proceso". Puede que otra persona lo haya cambiado.',
     })
     expect(applyAction('entregado', 'aceptar').ok).toBe(false)
     expect(applyAction('cancelado', 'reanudar').ok).toBe(false)
+  })
+})
+
+describe('applyAction — ningún motivo de rechazo lleva una clave interna', () => {
+  it('ninguna combinación inválida de estado y acción deja un guion bajo en el texto', () => {
+    for (const s of CASE_STATUSES) {
+      for (const a of CASE_ACTIONS) {
+        const result = applyAction(s, a)
+        if (!result.ok) expect(result.reason).not.toMatch(/_/)
+      }
+    }
+  })
+})
+
+// M-3 (revisión de la Tarea 3): todos los 409 por estado tienen la misma forma — «No se puede
+// {qué}: el trabajo está en estado "{rótulo}".» más la causa probable. Literales a propósito.
+describe('mensajes de 409 por estado', () => {
+  it('editar', () => {
+    expect(notEditableMessage('en_espera')).toBe(
+      'No se puede editar: el trabajo está en estado "En espera". Puede que otra persona lo haya cambiado.',
+    )
+  })
+
+  it('repetir', () => {
+    expect(notRemakeableMessage('en_proceso')).toBe(
+      'No se puede repetir: el trabajo está en estado "En proceso". Puede que otra persona lo haya cambiado.',
+    )
+  })
+
+  it('reasignar el técnico', () => {
+    expect(notReassignableMessage('entregado')).toBe(
+      'No se puede reasignar el técnico: el trabajo está en estado "Entregado". Puede que otra persona lo haya cambiado.',
+    )
+  })
+})
+
+describe('rótulos de estado y de acción', () => {
+  it('nombra cada estado como lo ve recepción', () => {
+    expect(CASE_STATUS_LABEL).toEqual({
+      nuevo: 'Nuevo',
+      en_proceso: 'En proceso',
+      en_espera: 'En espera',
+      en_prueba: 'En prueba',
+      terminado: 'Terminado',
+      enviado: 'Enviado',
+      entregado: 'Entregado',
+      cancelado: 'Cancelado',
+    })
+  })
+
+  it('nombra cada acción como el botón que la dispara', () => {
+    expect(CASE_ACTION_LABEL).toEqual({
+      aceptar: 'Aceptar',
+      pausar: 'Pausar',
+      reanudar: 'Reanudar',
+      enviar_prueba: 'Enviar a prueba',
+      recibir_prueba: 'Recibir de prueba',
+      finalizar: 'Finalizar',
+      marcar_enviado: 'Marcar enviado',
+      marcar_entregado: 'Marcar entregado',
+      cancelar: 'Cancelar trabajo',
+    })
   })
 })
 
@@ -128,6 +208,16 @@ describe('availableActions', () => {
 describe('motivo obligatorio y permisos por rol', () => {
   it('pausar y cancelar exigen motivo', () => {
     expect([...ACTIONS_REQUIRING_REASON].sort()).toEqual(['cancelar', 'pausar'])
+  })
+
+  // M-4 (revisión de la Tarea 3): el tipo estrecho deja a la web exigir un texto de diálogo
+  // para cada acción con motivo en un `Record<ActionRequiringReason, …>` sin caer a un vacío.
+  it('requiresReason estrecha el tipo a las acciones con motivo', () => {
+    expect(requiresReason('pausar')).toBe(true)
+    expect(requiresReason('cancelar')).toBe(true)
+    expect(requiresReason('finalizar')).toBe(false)
+    expect(requiresReason('aceptar')).toBe(false)
+    expectTypeOf<ActionRequiringReason>().toEqualTypeOf<'pausar' | 'cancelar'>()
   })
 
   it('aplica la tabla de roles del spec', () => {
@@ -155,6 +245,19 @@ describe('roles por acción sobre el trabajo (I-5 + M-5 + M-9, fuente única en 
     expect([...ASSIGN_TECHNICIAN_ROLES].sort()).toEqual(['admin', 'recepcion'])
     expect([...REMAKE_ROLES].sort()).toEqual(['admin', 'recepcion'])
   })
+
+  it('ATTACHMENT_DELETE_ROLES es admin y recepción (UX3-16)', () => {
+    expect([...ATTACHMENT_DELETE_ROLES].sort()).toEqual(['admin', 'recepcion'])
+  })
+
+  it.each([
+    ['admin', true],
+    ['recepcion', true],
+    ['tecnico', false],
+    ['mensajero', false],
+  ] as const)('canWriteCases(%s) es %s (UX3-16)', (role, expected) => {
+    expect(canWriteCases(role)).toBe(expected)
+  })
 })
 
 describe('canChangeStage', () => {
@@ -180,6 +283,18 @@ describe('STAGE_CHANGE_BLOCKED_REASON', () => {
       expect(typeof STAGE_CHANGE_BLOCKED_REASON[s]).toBe('string')
       expect(STAGE_CHANGE_BLOCKED_REASON[s]!.length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('STAGE_MOVE_BLOCKED_REASON', () => {
+  it('fija el texto de los 409 de fase: última, primera y fase actual indeterminada', () => {
+    expect(STAGE_MOVE_BLOCKED_REASON).toEqual({
+      ultima:
+        'No se puede avanzar: el trabajo ya está en la última fase. Usa "Finalizar" para terminarlo.',
+      primera: 'No se puede retroceder: el trabajo ya está en la primera fase.',
+      desconocida:
+        'No se puede cambiar de fase: no se pudo determinar la fase actual del trabajo. Puede que esté desactivada.',
+    })
   })
 })
 

@@ -5,6 +5,7 @@ import {
   idParamSchema,
   productCategorySchema,
   productSchema,
+  SETTINGS_ROLES,
 } from '@dentalware/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
@@ -35,7 +36,7 @@ const priceParams = z.object({
 })
 const clinicParam = z.object({ clinicId: z.uuid({ error: 'Identificador inválido' }) })
 const canRead = requireRole('admin', 'recepcion') // los precios nunca llegan a técnico ni mensajero
-const canWrite = requireRole('admin')
+const canWrite = requireRole(...SETTINGS_ROLES)
 
 async function assertCategory(db: Db, id: string) {
   if (!(await categoryExists(db, id)))

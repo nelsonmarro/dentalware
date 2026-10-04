@@ -93,18 +93,25 @@ describe('CaseHeader', () => {
     expect(screen.queryByRole('link', { name: /Editar/ })).not.toBeInTheDocument()
   })
 
-  it('un trabajo en proceso con fase asignada muestra la fase', async () => {
+  // UX3-18: la fase y el técnico viven en el panel «Producción», justo debajo; la cabecera no
+  // los repite.
+  it('no repite la fase ni el técnico, que van en el panel «Producción»', async () => {
     renderWithRouter(
       <CaseHeader
         case={baseCase({
           status: 'en_proceso',
           stage: { id: 'f1', name: 'Modelo', color: '#000' },
+          assignedTechnicianId: 't1',
+          technician: { id: 't1', name: 'Ana Técnica' },
         })}
         missing={[]}
         role="admin"
       />,
     )
-    expect(await screen.findByText('Modelo')).toBeInTheDocument()
+    await screen.findByText('26-00001')
+    expect(screen.queryByText('Modelo')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ana Técnica')).not.toBeInTheDocument()
+    expect(screen.queryByText('Técnico')).not.toBeInTheDocument()
   })
 
   // M-3, ola de fixes del PR 1 (lote B): `finalizar` no limpia `currentStageId`/`stage` en la

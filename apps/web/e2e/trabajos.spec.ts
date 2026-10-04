@@ -5,6 +5,7 @@ import {
   createProduct,
   login,
   loginAsAdmin,
+  toasts,
   trackConsoleErrors,
   uniqueSuffix,
 } from './helpers'
@@ -163,7 +164,7 @@ test.describe('Trabajos', () => {
     await expect(commentEvent).toBeVisible()
     await expect(commentEvent.getByText('Administrador')).toBeVisible()
 
-    await page.getByRole('tab', { name: /^Fotos/ }).click()
+    await page.getByRole('tab', { name: /^Adjuntos/ }).click()
     await page.getByLabel('Subir archivo').setInputFiles(FOTO_PATH)
     await expect(page.getByRole('img', { name: 'foto.png' })).toBeVisible()
 
@@ -186,13 +187,18 @@ test.describe('Trabajos', () => {
       // primeras filas sin ordenar (`column_getAutoSortDir`, `@tanstack/table-core`) — si
       // ninguna trae un valor no nulo, cae a "desc" por defecto en vez de "asc". Con una fecha
       // real en la fila que este test crea, el primer clic es determinísticamente ascendente.
+      // Otro trabajo de la misma clínica sin fecha: con `nulls last` tiene que quedar detrás.
+      await createCase(page, { clinicId: clinic.id, doctorId: doctor.id, productId: product.id })
       const created = await createCase(page, {
         clinicId: clinic.id,
         doctorId: doctor.id,
         productId: product.id,
         dueDate: '2030-01-15',
       })
-      await page.goto('/trabajos?vista=nuevos')
+      // Filtrado por la clínica de este test: la BD es compartida y los urgentes van primero en
+      // toda la lista, así que un trabajo urgente de otro test (p. ej. `impresion.spec.ts`)
+      // adelantaba al nuestro sin que el orden por entrega estuviera mal.
+      await page.goto(`/trabajos?vista=nuevos&clinicId=${clinic.id}`)
       const header = page.getByRole('columnheader', { name: /Entrega/ })
       await page.getByRole('button', { name: 'Ordenar por Entrega' }).click()
       await expect(page).toHaveURL(/orden=entrega(?!-desc)/)
@@ -201,10 +207,11 @@ test.describe('Trabajos', () => {
       await expect(page).toHaveURL(/orden=entrega-desc/)
       await expect(header).toHaveAttribute('aria-sort', 'descending')
       // El aria-sort y la URL solo prueban la cabecera; con `nulls last` en ambas direcciones
-      // (`repo.ts:orderFor`) nuestro trabajo, el único con `dueDate` explícita entre los que
-      // crea este archivo, queda primero de la lista real tras el segundo clic — confirma que
+      // (`repo.ts:orderFor`) nuestro trabajo, el único con `dueDate` explícita de su clínica,
+      // queda primero de la lista real tras el segundo clic — confirma que
       // la web mandó `orden` a la API y que la tabla renderizó la fila que corresponde, no solo
       // que la cabecera cambió de aspecto.
+      await expect(page.locator('tbody').getByRole('link')).toHaveCount(2)
       const primerCodigo = page.locator('tbody').getByRole('link').first()
       await expect(primerCodigo).toHaveText(created.code)
     },
@@ -336,10 +343,12 @@ test.describe('Trabajos', () => {
       await expect(page.getByText('En proceso')).toBeVisible()
 
       // Primera fase activa sembrada por `seed-data.ts` (`STAGES`): "Recepción"; un clic de
-      // "Avanzar fase" la mueve a la siguiente, "Modelo". `.first()`: el nombre aparece dos
-      // veces (el campo "Fase" de `CaseHeader` y el propio `StageControl`).
+      // "Avanzar fase" la mueve a la siguiente, "Modelo". Acotado al panel «Producción»: el toast
+      // «Fase: Modelo» también contiene el nombre.
       await page.getByRole('button', { name: 'Avanzar fase' }).click()
-      await expect(page.getByText('Modelo').first()).toBeVisible()
+      await expect(
+        page.getByRole('region', { name: 'Producción' }).getByText('Modelo', { exact: true }),
+      ).toBeVisible()
 
       // El diálogo de confirmación de "Finalizar" (Tarea 8) deja dos botones con el mismo
       // nombre en pantalla: el de la barra de acciones y el de confirmar dentro del diálogo.
@@ -350,6 +359,43 @@ test.describe('Trabajos', () => {
       await page.getByRole('button', { name: 'Finalizar' }).click()
       await page.getByRole('alertdialog').getByRole('button', { name: 'Finalizar' }).click()
       await expect(page.getByText('Terminado', { exact: true })).toBeVisible()
+    },
+  )
+
+  // UX3-05: fase, técnico y acciones viven en el panel «Producción», sobre las pestañas, así
+  // que se avanza la fase sin salir de «Historial» y el evento aparece ahí mismo.
+  test(
+    'avanza la fase desde el panel «Producción» con la pestaña «Historial» abierta',
+    { tag: '@clave' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const trabajo = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      const aceptado = await page.request.post(`/api/trabajos/${trabajo.id}/acciones`, {
+        data: { accion: 'aceptar' },
+      })
+      expect(aceptado.ok()).toBe(true)
+
+      await page.goto(`/trabajos/${trabajo.id}`)
+      const historialTab = page.getByRole('tab', { name: /^Historial/ })
+      await historialTab.click()
+      const historial = page.getByRole('tabpanel', { name: /^Historial/ })
+      await expect(historial).toBeVisible()
+
+      const produccion = page.getByRole('region', { name: 'Producción' })
+      // Primera fase del seed: "Recepción" → "Modelo".
+      await produccion.getByRole('button', { name: 'Avanzar fase' }).click()
+      await expect(toasts(page).getByText('Fase: Modelo')).toBeVisible()
+      await expect(produccion.getByText('Modelo', { exact: true })).toBeVisible()
+
+      await expect(historialTab).toHaveAttribute('aria-selected', 'true')
+      await expect(
+        historial.getByRole('listitem').filter({ hasText: 'Recepción → Modelo' }),
+      ).toBeVisible()
     },
   )
 
@@ -424,13 +470,13 @@ test.describe('Trabajos', () => {
 
     // `pausar` está en `ACTIONS_REQUIRING_REASON` (shared): sin motivo, `caseActionSchema`
     // rechaza y el diálogo no se cierra ni dispara la mutación.
-    await dialog.getByRole('button', { name: 'Confirmar' }).click()
+    await dialog.getByRole('button', { name: 'Pausar trabajo' }).click()
     await expect(dialog.getByText('Escribe el motivo')).toBeVisible()
     await expect(page.getByText('En proceso', { exact: true })).toBeVisible()
 
     const motivo = `Falta antagonista E2E ${uniqueSuffix()}`
     await dialog.getByLabel('Motivo').fill(motivo)
-    await dialog.getByRole('button', { name: 'Confirmar' }).click()
+    await dialog.getByRole('button', { name: 'Pausar trabajo' }).click()
     await expect(page.getByText('En espera', { exact: true })).toBeVisible()
     // El motivo queda visible en la ficha (CaseHeader: "En espera desde …: <motivo>").
     await expect(page.getByText(motivo)).toBeVisible()
@@ -439,14 +485,16 @@ test.describe('Trabajos', () => {
     // también dice "En espera" mientras el trabajo siga en ese estado, y coincidiría con el
     // evento del historial en modo estricto.
     await page.getByRole('tab', { name: /^Historial/ }).click()
-    await expect(page.getByRole('listitem').filter({ hasText: 'En espera' })).toBeVisible()
+    // Dentro del panel: el toast «Trabajo en espera» (UX3-11) también es un `listitem`.
+    const historial = page.getByRole('tabpanel', { name: /^Historial/ })
+    await expect(historial.getByRole('listitem').filter({ hasText: 'En espera' })).toBeVisible()
 
     await page.getByRole('tab', { name: 'Detalle' }).click()
     await page.getByRole('button', { name: 'Reanudar' }).click()
     await expect(page.getByText('En proceso', { exact: true })).toBeVisible()
 
     await page.getByRole('tab', { name: /^Historial/ }).click()
-    await expect(page.getByRole('listitem').filter({ hasText: 'Reanudado' })).toBeVisible()
+    await expect(historial.getByRole('listitem').filter({ hasText: 'Reanudado' })).toBeVisible()
   })
 
   test('envía a prueba y recibe la prueba de vuelta', { tag: '@clave' }, async ({ page }) => {
@@ -486,17 +534,17 @@ test.describe('Trabajos', () => {
 
     // `cancelar` está en `ACTIONS_REQUIRING_REASON`: el motivo obligatorio es la confirmación
     // de esta acción (conventions §5: la reversibilidad manda la fricción, no un "¿estás
-    // seguro?" aparte); no hay `ConfirmDialog` adicional (`CONFIRM_DESCRIPTIONS.cancelar` es
-    // `null` en `case-actions.tsx`).
+    // seguro?" aparte); no hay `ConfirmDialog` adicional: el texto de `REASON_DIALOG.cancelar`
+    // (`case-actions.tsx`) va en el propio diálogo de motivo.
     await page.getByRole('button', { name: 'Cancelar trabajo' }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
-    await dialog.getByRole('button', { name: 'Confirmar' }).click()
+    await dialog.getByRole('button', { name: 'Cancelar trabajo' }).click()
     await expect(dialog.getByText('Escribe el motivo')).toBeVisible()
 
     const motivo = `Clínica desistió E2E ${uniqueSuffix()}`
     await dialog.getByLabel('Motivo').fill(motivo)
-    await dialog.getByRole('button', { name: 'Confirmar' }).click()
+    await dialog.getByRole('button', { name: 'Cancelar trabajo' }).click()
     await expect(page.getByText('Cancelado', { exact: true })).toBeVisible()
 
     // `availableActions('cancelado')` es vacío (`CASE_TRANSITIONS`, shared): ningún botón de
@@ -518,7 +566,12 @@ test.describe('Trabajos', () => {
     // `getByRole('listitem')`: el chip de estado también dice "Cancelado" y coincidiría en
     // modo estricto con el evento del historial.
     await page.getByRole('tab', { name: /^Historial/ }).click()
-    await expect(page.getByRole('listitem').filter({ hasText: 'Cancelado' })).toBeVisible()
+    await expect(
+      page
+        .getByRole('tabpanel', { name: /^Historial/ })
+        .getByRole('listitem')
+        .filter({ hasText: 'Cancelado' }),
+    ).toBeVisible()
     await expect(page.getByText(motivo)).toBeVisible()
   })
 
@@ -566,8 +619,8 @@ test.describe('Trabajos', () => {
       // del PR 3). Primera fase del seed: "Recepción" → "Modelo".
       await tecnicoPage.goto(`/t/${trabajo.code}`)
       await expect(tecnicoPage.getByRole('heading', { level: 1, name: trabajo.code })).toBeVisible()
-      await tecnicoPage.getByRole('button', { name: 'Avanzar fase' }).click()
-      await expect(tecnicoPage.getByText('Fase actualizada')).toBeVisible()
+      await tecnicoPage.getByRole('button', { name: 'Avanzar a Modelo' }).click()
+      await expect(toasts(tecnicoPage).getByText('Fase: Modelo')).toBeVisible()
       await expect(tecnicoPage.getByText('Modelo', { exact: true })).toBeVisible()
       expect(tecnicoErrors).toEqual([])
 

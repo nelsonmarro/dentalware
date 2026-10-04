@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import type { Stage } from '@/features/stages/api'
 import { StageForm } from '@/features/stages/stage-form'
-import { StagesTable } from '@/features/stages/stages-table'
+import { StagesList } from '@/features/stages/stages-list'
 import {
   useReorderStages,
   useSaveStage,
@@ -60,17 +60,13 @@ function StagesPage() {
         <Switch id="fases-inactivas" checked={showInactive} onCheckedChange={setShowInactive} />
         <Label htmlFor="fases-inactivas">Mostrar inactivas</Label>
       </div>
-      {stages.isPending ? (
-        <p className="text-sm text-muted-foreground">Cargando…</p>
-      ) : (
-        <StagesTable
-          stages={stages.data ?? []}
-          onEdit={setEditing}
-          onToggle={(s, active) => toggle.mutate({ id: s.id, active })}
-          onMove={move}
-          emptyAction={newButton}
-        />
-      )}
+      <StagesList
+        stages={stages}
+        onEdit={setEditing}
+        onToggle={(s, active) => toggle.mutate({ id: s.id, active })}
+        onMove={move}
+        emptyAction={newButton}
+      />
       {editing !== null && (
         <StageForm
           key={editing === 'new' ? 'new' : editing.id}

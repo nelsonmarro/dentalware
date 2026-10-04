@@ -1,3 +1,4 @@
+import { canWriteCases } from '@dentalware/shared'
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { PageHeader } from '@/components/page-header'
@@ -6,7 +7,7 @@ import { useCreateCase } from '@/features/cases/use-cases'
 
 export const Route = createFileRoute('/_app/trabajos/nuevo')({
   beforeLoad: ({ context }) => {
-    if (context.user.role !== 'admin' && context.user.role !== 'recepcion') {
+    if (!canWriteCases(context.user.role)) {
       throw redirect({ to: '/trabajos' })
     }
   },

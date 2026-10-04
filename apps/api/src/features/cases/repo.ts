@@ -8,12 +8,14 @@ import {
   formatCaseCode,
   fromCents,
   isEditableStatus,
+  notEditableMessage,
+  notRemakeableMessage,
   lineTotalCents,
   remakeDueDate,
   sumCents,
   toCents,
 } from '@dentalware/shared'
-import { and, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import type { Db, Tx } from '../../db/index.ts'
 import { users } from '../../db/schema/auth.ts'
 import { clinics } from '../clinics/schema.ts'
@@ -284,7 +286,7 @@ export function createCasesRepo(db: Db | Tx) {
         .for('update')
       if (!current) return false
       if (!isEditableStatus(current.status)) {
-        throw new CaseStateError(`No se puede editar un trabajo en estado "${current.status}"`)
+        throw new CaseStateError(notEditableMessage(current.status))
       }
       const before = await db
         .select({ productId: caseItems.productId, unitPrice: caseItems.unitPrice })
@@ -383,10 +385,32 @@ export function createCasesRepo(db: Db | Tx) {
             .where(inArray(cases.code, codes))
         : []
       const idByCode = new Map(related.map((c) => [c.code, c.id]))
+      // UX3-13: nombres de origen y destino de cada `assigned`, con un join de solo lectura
+      // sobre `users` (como `actor`). Sin filtrar por `banned`: un técnico que ya no está
+      // activo sigue teniendo nombre en el historial.
+      const userIds = [
+        ...new Set(
+          rows
+            .filter((r) => r.type === 'assigned')
+            .flatMap((r) => [r.fromValue, r.toValue])
+            .filter((v): v is string => !!v),
+        ),
+      ]
+      const named = userIds.length
+        ? await db
+            .select({ id: users.id, name: users.name })
+            .from(users)
+            .where(inArray(users.id, userIds))
+        : []
+      const nameById = new Map(named.map((u) => [u.id, u.name]))
+      const nameOf = (r: (typeof rows)[number], id: string | null) =>
+        r.type === 'assigned' && id ? (nameById.get(id) ?? null) : null
       return rows.map((r) => ({
         ...r,
         relatedCaseId:
           r.type === 'remake_created' && r.toValue ? (idByCode.get(r.toValue) ?? null) : null,
+        fromName: nameOf(r, r.fromValue),
+        toName: nameOf(r, r.toValue),
       }))
     },
 
@@ -418,7 +442,7 @@ export function createCasesRepo(db: Db | Tx) {
       const [parent] = await db.select().from(cases).where(eq(cases.id, parentId)).for('update')
       if (!parent) throw new CaseNotFoundError()
       if (!canRemake(parent.status)) {
-        throw new CaseStateError(`No se puede repetir un trabajo en estado "${parent.status}"`)
+        throw new CaseStateError(notRemakeableMessage(parent.status))
       }
       const parentItems = await db
         .select()
@@ -538,6 +562,7 @@ export function createUsersQuery(db: Db | Tx): UsersQuery {
         .select({ id: users.id, name: users.name })
         .from(users)
         .where(and(eq(users.role, 'tecnico'), or(eq(users.banned, false), isNull(users.banned))))
+        .orderBy(asc(users.name))
     },
   }
 }

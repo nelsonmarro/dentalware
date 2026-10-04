@@ -15,7 +15,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import type { Product } from './api'
-import { formatMoney, PRICING_UNIT_LABEL } from './pricing-unit-label'
+import { formatMoney } from '@/lib/format-money'
+import { PRICING_UNIT_LABEL } from './pricing-unit-label'
 
 const FEATURES = [
   filtering({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fromCents, lineTotalCents, sumCents, toCents } from './money.ts'
+import { fromCents, lineTotalCents, percentOfCents, sumCents, toCents } from './money.ts'
 
 describe('money', () => {
   it('convierte cadenas a centavos y de vuelta', () => {
@@ -24,5 +24,21 @@ describe('money', () => {
   it('suma centavos', () => {
     expect(sumCents([100, 250, 5])).toBe(355)
     expect(sumCents([])).toBe(0)
+  })
+})
+
+describe('percentOfCents', () => {
+  it('calcula el porcentaje de un monto en centavos', () => {
+    expect(percentOfCents(8000, 50)).toBe(4000)
+    expect(percentOfCents(8000, 0)).toBe(0)
+    expect(percentOfCents(8000, 100)).toBe(8000)
+  })
+
+  it('redondea half-up al centavo', () => {
+    // 1 × 50 % = 0,5 centavos → 1; 3 × 50 % = 1,5 → 2; 1005 × 10 % = 100,5 → 101
+    expect(percentOfCents(1, 50)).toBe(1)
+    expect(percentOfCents(3, 50)).toBe(2)
+    expect(percentOfCents(1005, 10)).toBe(101)
+    expect(percentOfCents(1004, 10)).toBe(100)
   })
 })

@@ -10,10 +10,12 @@ import {
   hidesPrices,
   isLastStage,
   missingForAccept,
+  notReassignableMessage,
   nextStage,
   previousStage,
   REMAKE_ROLES,
   STAGE_CHANGE_BLOCKED_REASON,
+  STAGE_MOVE_BLOCKED_REASON,
   STAGE_CHANGE_ROLES,
   toIsoDate,
   type AssignTechnicianInput,
@@ -288,16 +290,12 @@ export function createCasesService(deps: {
             : previousStage(activeStages, found.currentStageId)
         if (!target) {
           if (!stagePositionKnown(activeStages, found.currentStageId)) {
-            throw new CaseStateError(
-              'No se pudo determinar la fase actual del trabajo: puede que esté desactivada',
-            )
+            throw new CaseStateError(STAGE_MOVE_BLOCKED_REASON.desconocida)
           }
           if (input.direccion === 'avanzar' && isLastStage(activeStages, found.currentStageId)) {
-            throw new CaseStateError(
-              'El trabajo ya está en la última fase: usa "finalizar" para terminarlo',
-            )
+            throw new CaseStateError(STAGE_MOVE_BLOCKED_REASON.ultima)
           }
-          throw new CaseStateError('El trabajo ya está en la primera fase')
+          throw new CaseStateError(STAGE_MOVE_BLOCKED_REASON.primera)
         }
         await cases.applyTransition(id, { status: found.status, currentStageId: target.id })
         await cases.addEvent({
@@ -329,9 +327,7 @@ export function createCasesService(deps: {
         const found = await cases.byId(id)
         if (!found) throw new CaseNotFoundError()
         if (!canAssignTechnician(found.status)) {
-          throw new CaseStateError(
-            `No se puede reasignar el técnico de un trabajo en estado "${found.status}"`,
-          )
+          throw new CaseStateError(notReassignableMessage(found.status))
         }
         if (input.tecnicoId) {
           const technicians = await deps.users.activeTechnicians()

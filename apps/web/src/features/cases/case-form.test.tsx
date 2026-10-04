@@ -10,6 +10,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { fetchClinics } from '@/features/clinics/api'
+import { fetchProducts } from '@/features/products/api'
 import { setMatchMedia } from '@/test/match-media'
 import type { CaseDetail } from './api'
 import { CaseForm } from './case-form'
@@ -145,6 +147,41 @@ async function fillMinimalCase(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('CaseForm', () => {
+  // Ronda de fixes 1 (UX3-02, punto 3): sin catálogo de clínicas o de productos el formulario
+  // es inutilizable (no hay con qué elegir); un fallo de red en cualquiera de los dos se
+  // presentaba como un formulario vacío, no como un error que se pueda reintentar.
+  it('un fallo al cargar clínicas muestra "Reintentar" en vez de un formulario sin catálogo', async () => {
+    vi.mocked(fetchClinics).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument()
+  })
+
+  it('un fallo al cargar productos también muestra "Reintentar"', async () => {
+    vi.mocked(fetchProducts).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument()
+  })
+
+  // M-3 (ronda de fixes 2): `onRetry` reintenta clínicas y productos de forma condicional
+  // (solo la que falló) — un test que solo comprueba que aparece "Reintentar" no prueba que
+  // el botón sirva de algo. Aquí ambos catálogos fallan la primera vez; al pulsar
+  // "Reintentar" los dos se resuelven y el formulario aparece.
+  it('"Reintentar" recupera el formulario cuando el segundo intento sí carga los catálogos', async () => {
+    vi.mocked(fetchClinics).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    vi.mocked(fetchProducts).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
+
+    const retry = await screen.findByRole('button', { name: 'Reintentar' })
+    await user.click(retry)
+
+    expect(await screen.findByRole('button', { name: 'Guardar' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument()
+  })
+
   it('enviar vacío muestra los errores obligatorios y no llama a onSubmit', async () => {
     const onSubmit = vi.fn()
     const { user } = renderForm(<CaseForm role="admin" pending={false} onSubmit={onSubmit} />)
@@ -468,6 +505,22 @@ describe('CaseForm', () => {
     expect(screen.queryByRole('spinbutton', { name: 'Precio unitario' })).not.toBeInTheDocument()
     expect(screen.getByRole('spinbutton', { name: 'Cantidad' })).toBeInTheDocument()
   })
+
+  it.each([
+    { role: 'recepcion' as const, editaPrecio: true },
+    { role: 'mensajero' as const, editaPrecio: false },
+  ])(
+    'el precio unitario lo edita quien escribe trabajos ($role: $editaPrecio)',
+    async ({ role, editaPrecio }) => {
+      const { user } = renderForm(<CaseForm role={role} pending={false} onSubmit={vi.fn()} />)
+
+      await user.click(await screen.findByRole('button', { name: 'Agregar línea' }))
+
+      expect(screen.queryByRole('spinbutton', { name: 'Precio unitario' }) !== null).toBe(
+        editaPrecio,
+      )
+    },
+  )
 
   it('"Guardar y nuevo" llama a onSubmit(input, true) con las piezas elegidas en el diálogo', async () => {
     const onSubmit = vi.fn()

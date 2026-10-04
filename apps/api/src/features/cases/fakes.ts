@@ -5,6 +5,8 @@ import {
   fromCents,
   isActiveForDates,
   isEditableStatus,
+  notEditableMessage,
+  notRemakeableMessage,
   isEnCurso,
   remakeDueDate,
   sumCents,
@@ -204,8 +206,7 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
     async update(id, input, actorId) {
       const cur = rows.get(id)
       if (!cur) return false
-      if (!isEditableStatus(cur.status))
-        throw new CaseStateError(`No se puede editar un trabajo en estado "${cur.status}"`)
+      if (!isEditableStatus(cur.status)) throw new CaseStateError(notEditableMessage(cur.status))
       rows.set(id, { ...cur, ...caseFields(input) })
       await repo.addEvent({ caseId: id, type: 'edited', actorId })
       return true
@@ -275,6 +276,10 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
         // Placeholder: `events()` lo recalcula por código en cada lectura (ver arriba), igual
         // que `repo.ts` lo resuelve con un `select` al leer en vez de guardarlo.
         relatedCaseId: null,
+        // El fake no conoce nombres de usuarios: los nombres de `assigned` (UX3-13) son un
+        // `select` sobre `users` en `repo.ts`, probado contra Postgres en `cases.test.ts`.
+        fromName: null,
+        toName: null,
       })
     },
     async applyTransition(id, patch) {
@@ -289,7 +294,7 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
       const parent = rows.get(parentId)
       if (!parent) throw new CaseNotFoundError()
       if (!canRemake(parent.status)) {
-        throw new CaseStateError(`No se puede repetir un trabajo en estado "${parent.status}"`)
+        throw new CaseStateError(notRemakeableMessage(parent.status))
       }
       seq += 1
       const id = `c${seq}`

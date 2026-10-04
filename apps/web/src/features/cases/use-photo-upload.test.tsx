@@ -13,6 +13,7 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 beforeEach(() => {
   uploadAttachment.mockReset()
   vi.mocked(toast.error).mockReset()
+  vi.mocked(toast.success).mockReset()
 })
 
 function fileList(files: File[]): FileList {
@@ -84,6 +85,94 @@ describe('usePhotoUpload', () => {
     })
 
     expect(onUploaded).toHaveBeenCalledTimes(1)
+  })
+
+  // UX3-08: con guantes, el técnico no sabía si la foto había entrado.
+  it('al subir una foto avisa «Foto añadida»', async () => {
+    uploadAttachment.mockResolvedValue({ id: 'a1' })
+    const { result } = renderHook(() => usePhotoUpload('caso-1'), { wrapper })
+    const file = new File(['contenido'], 'foto.png', { type: 'image/png' })
+
+    await act(async () => {
+      await result.current.handleFiles(fileList([file]))
+    })
+
+    expect(toast.success).toHaveBeenCalledTimes(1)
+    expect(toast.success).toHaveBeenCalledWith('Foto añadida')
+  })
+
+  it('con varias fotos avisa una sola vez cuántas entraron', async () => {
+    uploadAttachment
+      .mockResolvedValueOnce({ id: 'a1' })
+      .mockRejectedValueOnce(new ApiError('Formato no permitido', 415))
+      .mockResolvedValueOnce({ id: 'a3' })
+    const { result } = renderHook(() => usePhotoUpload('caso-1'), { wrapper })
+    const files = ['a.png', 'b.png', 'c.png'].map(
+      (n) => new File(['contenido'], n, { type: 'image/png' }),
+    )
+
+    await act(async () => {
+      await result.current.handleFiles(fileList(files))
+    })
+
+    expect(toast.success).toHaveBeenCalledTimes(1)
+    expect(toast.success).toHaveBeenCalledWith('2 fotos añadidas')
+    expect(toast.error).toHaveBeenCalledTimes(1)
+  })
+
+  // M-1 (revisión de la Tarea 5): desde la ficha completa también se sube la orden en PDF, y
+  // avisar «Foto añadida» de un documento es falso.
+  it('un PDF avisa «Documento añadido»', async () => {
+    uploadAttachment.mockResolvedValue({ id: 'a1' })
+    const { result } = renderHook(() => usePhotoUpload('caso-1'), { wrapper })
+    const file = new File(['%PDF-'], 'orden.pdf', { type: 'application/pdf' })
+
+    await act(async () => {
+      await result.current.handleFiles(fileList([file]))
+    })
+
+    expect(toast.success).toHaveBeenCalledTimes(1)
+    expect(toast.success).toHaveBeenCalledWith('Documento añadido')
+  })
+
+  it('varios PDF avisan cuántos documentos entraron', async () => {
+    uploadAttachment.mockResolvedValue({ id: 'a1' })
+    const { result } = renderHook(() => usePhotoUpload('caso-1'), { wrapper })
+    const files = ['a.pdf', 'b.pdf'].map((n) => new File(['%PDF-'], n, { type: 'application/pdf' }))
+
+    await act(async () => {
+      await result.current.handleFiles(fileList(files))
+    })
+
+    expect(toast.success).toHaveBeenCalledWith('2 documentos añadidos')
+  })
+
+  it('una foto y un PDF juntos avisan «2 archivos añadidos»', async () => {
+    uploadAttachment.mockResolvedValue({ id: 'a1' })
+    const { result } = renderHook(() => usePhotoUpload('caso-1'), { wrapper })
+    const files = [
+      new File(['contenido'], 'foto.png', { type: 'image/png' }),
+      new File(['%PDF-'], 'orden.pdf', { type: 'application/pdf' }),
+    ]
+
+    await act(async () => {
+      await result.current.handleFiles(fileList(files))
+    })
+
+    expect(toast.success).toHaveBeenCalledTimes(1)
+    expect(toast.success).toHaveBeenCalledWith('2 archivos añadidos')
+  })
+
+  it('si ninguna foto entra no avisa éxito', async () => {
+    uploadAttachment.mockRejectedValue(new ApiError('Formato no permitido', 415))
+    const { result } = renderHook(() => usePhotoUpload('caso-1'), { wrapper })
+    const file = new File(['contenido'], 'foto.png', { type: 'image/png' })
+
+    await act(async () => {
+      await result.current.handleFiles(fileList([file]))
+    })
+
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('sin archivos no llama a la mutación ni a onUploaded', async () => {

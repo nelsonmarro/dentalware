@@ -4,17 +4,19 @@ import {
   toIsoDate,
   type CaseInput,
   type UserRole,
+  canWriteCases,
 } from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import type { z } from 'zod'
+import { LoadError } from '@/components/load-error'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useClinics } from '@/features/clinics/use-clinics'
 import { useDoctors } from '@/features/doctors/use-doctors'
-import { formatMoney } from '@/features/products/pricing-unit-label'
+import { formatMoney } from '@/lib/format-money'
 import { useClinicPrices, useProducts } from '@/features/products/use-products'
 import type { CaseDetail } from './api'
 import { CaseItemsEditor } from './case-items-editor'
@@ -117,7 +119,8 @@ export function CaseForm({
   pending: boolean
   role: UserRole
 }) {
-  const canEditPrice = role === 'admin' || role === 'recepcion'
+  // Quién escribe el trabajo edita el precio (no «quién lo ve»): hoy coinciden, pero son reglas distintas.
+  const canEditPrice = canWriteCases(role)
   const isEdit = initial !== undefined
   // `initial` no cambia durante la vida del formulario (cada edición monta una instancia
   // nueva de la página), así que calcular los valores iniciales una sola vez es seguro.
@@ -195,6 +198,25 @@ export function CaseForm({
 
   function submit(andNew: boolean) {
     return handleSubmit((data) => onSubmit(data, andNew))
+  }
+
+  // Ronda de fixes 1 (UX3-02, punto 3): sin el catálogo de clínicas o el de productos el
+  // formulario no se puede llenar — un fallo de red se mostraba como un formulario vacío
+  // (sin clínicas ni productos entre los que elegir), no como un error que se pueda
+  // reintentar. `doctors`/`clinicPrices` no bloquean: dependen de la clínica elegida y su
+  // fallo ya se explica dentro de `ClinicPatientFields`/`CaseItemsEditor` con datos vacíos
+  // (el combo de doctor, deshabilitado hasta elegir clínica, no finge que no hay ninguno).
+  if (clinics.isError || products.isError) {
+    return (
+      <LoadError
+        description="No se pudieron cargar los catálogos del formulario (clínicas o productos)."
+        onRetry={() => {
+          if (clinics.isError) void clinics.refetch()
+          if (products.isError) void products.refetch()
+        }}
+        autoFocus
+      />
+    )
   }
 
   return (

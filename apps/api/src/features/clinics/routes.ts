@@ -3,6 +3,7 @@ import {
   activeQuerySchema,
   clinicSchema,
   idParamSchema,
+  SETTINGS_ROLES,
 } from '@dentalware/shared'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
@@ -28,12 +29,12 @@ export const clinicsRoutes = (db: Db) =>
       if (!clinic) throw new HTTPException(404, { message: 'La clínica no existe' })
       return c.json({ clinic }, 200)
     })
-    .post('/', requireRole('admin'), validate('json', clinicSchema), async (c) =>
+    .post('/', requireRole(...SETTINGS_ROLES), validate('json', clinicSchema), async (c) =>
       c.json({ clinic: await createClinic(db, c.req.valid('json')) }, 201),
     )
     .put(
       '/:id',
-      requireRole('admin'),
+      requireRole(...SETTINGS_ROLES),
       validate('param', idParamSchema),
       validate('json', clinicSchema),
       async (c) => {
@@ -44,7 +45,7 @@ export const clinicsRoutes = (db: Db) =>
     )
     .patch(
       '/:id/activo',
-      requireRole('admin'),
+      requireRole(...SETTINGS_ROLES),
       validate('param', idParamSchema),
       validate('json', activeBodySchema),
       async (c) => {

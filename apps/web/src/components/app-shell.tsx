@@ -1,18 +1,19 @@
 import type { UserRole } from '@dentalware/shared'
+import { ACCOUNTS_ROLES, hasRole, SETTINGS_ROLES } from '@dentalware/shared'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ClipboardList, Home, LogOut, Settings, Truck, Wallet } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { signOut } from '@/features/auth/session'
 
-type NavItem = { to: string; label: string; icon: typeof Home; roles?: UserRole[] }
+type NavItem = { to: string; label: string; icon: typeof Home; roles?: readonly UserRole[] }
 
 const NAV: NavItem[] = [
   { to: '/', label: 'Inicio', icon: Home },
   { to: '/trabajos', label: 'Trabajos', icon: ClipboardList },
   { to: '/entregas', label: 'Entregas', icon: Truck },
-  { to: '/cuentas', label: 'Cuentas', icon: Wallet, roles: ['admin', 'recepcion'] },
-  { to: '/configuracion', label: 'Configuración', icon: Settings, roles: ['admin'] },
+  { to: '/cuentas', label: 'Cuentas', icon: Wallet, roles: ACCOUNTS_ROLES },
+  { to: '/configuracion', label: 'Configuración', icon: Settings, roles: SETTINGS_ROLES },
 ]
 
 const NAV_LINK_BASE =
@@ -33,7 +34,7 @@ export function AppShell({
   children: ReactNode
 }) {
   const navigate = useNavigate()
-  const items = NAV.filter((i) => !i.roles || i.roles.includes(user.role))
+  const items = NAV.filter((i) => !i.roles || hasRole(i.roles, user.role))
 
   async function logout() {
     await signOut()

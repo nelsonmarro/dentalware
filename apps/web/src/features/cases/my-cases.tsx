@@ -1,8 +1,10 @@
-import { toIsoDate } from '@dentalware/shared'
+import { CASE_STATUS_LABEL, toIsoDate } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
+import { LoadError } from '@/components/load-error'
+import { AlertChip } from './alert-chip'
 import { dueBadge } from './case-views'
 import { formatDate } from './date-format'
-import { STATUS_COLOR, STATUS_LABEL } from './status-chip'
+import { STATUS_COLOR } from './status-chip'
 import { useCases } from './use-cases'
 
 /**
@@ -31,6 +33,10 @@ export function MyCases({ technicianId }: { technicianId: string }) {
       <h2 className="font-heading text-lg font-medium">Mis trabajos</h2>
       {cases.isPending ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
+      ) : cases.isError ? (
+        // UX3-02: sin esta rama, un fallo de red se leía como "no tienes trabajos
+        // asignados" — un dato falso, no un error que se pueda reintentar.
+        <LoadError onRetry={() => void cases.refetch()} />
       ) : rows.length === 0 ? (
         <p className="rounded-xl bg-card p-4 text-sm text-muted-foreground ring-1 ring-foreground/10">
           No tienes trabajos asignados.
@@ -50,26 +56,18 @@ export function MyCases({ technicianId }: { technicianId: string }) {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono font-medium">{r.code}</span>
-                    {badge === 'atrasado' && (
-                      <span className="rounded-lg border border-destructive/40 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                        Atrasado
-                      </span>
-                    )}
-                    {badge === 'hoy' && (
-                      <span className="rounded-lg border border-[color:var(--wax-amber)]/40 bg-[color:var(--wax-amber)]/10 px-2 py-0.5 text-xs font-medium text-[color:var(--wax-amber-ink)]">
-                        Vence hoy
-                      </span>
-                    )}
+                    {badge === 'atrasado' && <AlertChip tone="destructive">Atrasado</AlertChip>}
+                    {badge === 'hoy' && <AlertChip tone="amber">Vence hoy</AlertChip>}
                   </div>
                   <p className="text-sm">{r.patientRef}</p>
                   <p className="text-sm text-muted-foreground">
-                    {r.stage ? r.stage.name : STATUS_LABEL[r.status]}
+                    {r.stage ? r.stage.name : CASE_STATUS_LABEL[r.status]}
                     {/* I-3: en_espera/en_prueba conservan su fase, así que el borde de color
                         (`STATUS_COLOR` de arriba) no basta para distinguirlos de en_proceso
                         (conventions.md §5, nunca solo color) — se repite el rótulo del estado
-                        con texto. Si no hay fase, `STATUS_LABEL` ya salió arriba: no se repite. */}
-                    {r.stage && r.status !== 'en_proceso' && ` · ${STATUS_LABEL[r.status]}`} ·{' '}
-                    {formatDate(date)}
+                        con texto. Si no hay fase, `CASE_STATUS_LABEL` ya salió arriba: no se repite. */}
+                    {r.stage && r.status !== 'en_proceso' && ` · ${CASE_STATUS_LABEL[r.status]}`} ·
+                    Entrega {formatDate(date)}
                   </p>
                 </Link>
               </li>

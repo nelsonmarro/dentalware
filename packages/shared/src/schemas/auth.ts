@@ -8,6 +8,7 @@ export const loginSchema = z.object({
     .string()
     .trim()
     .toLowerCase()
+    .min(1, { error: 'Escribe tu correo' })
     .pipe(z.email({ error: 'Correo inválido' })),
   password: z.string().min(8, { error: 'La contraseña debe tener al menos 8 caracteres' }),
 })

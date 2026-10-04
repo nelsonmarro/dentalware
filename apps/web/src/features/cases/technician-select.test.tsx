@@ -144,4 +144,32 @@ describe('TechnicianSelect', () => {
     expect(select).toHaveValue('t9')
     expect(option).toHaveValue('t9')
   })
+
+  // Revisión de la Tarea 3: con la lista de técnicos todavía en vuelo el `<select>` decía
+  // «Sin asignar» aunque el trabajo ya traía su técnico en el detalle.
+  it('mientras carga la lista de técnicos muestra el técnico que ya trae el trabajo', async () => {
+    fetchTechnicians.mockReturnValue(new Promise(() => {}))
+    renderWithProviders(
+      <TechnicianSelect
+        case={caso({ assignedTechnicianId: 't1', technician: { id: 't1', name: 'Ana Técnica' } })}
+        role="admin"
+      />,
+    )
+    const select = await screen.findByLabelText('Técnico responsable')
+    expect(select).toHaveValue('t1')
+    expect(screen.getByRole('option', { name: 'Ana Técnica' })).toHaveValue('t1')
+    expect(screen.queryByRole('option', { name: /inactivo/ })).not.toBeInTheDocument()
+  })
+
+  it('al cargar la lista no repite la opción del técnico asignado activo', async () => {
+    renderWithProviders(
+      <TechnicianSelect
+        case={caso({ assignedTechnicianId: 't1', technician: { id: 't1', name: 'Ana Técnica' } })}
+        role="admin"
+      />,
+    )
+    await screen.findByRole('option', { name: 'Beto Técnico' })
+    expect(screen.getAllByRole('option', { name: /Ana Técnica/ })).toHaveLength(1)
+    expect(screen.getByLabelText('Técnico responsable')).toHaveValue('t1')
+  })
 })

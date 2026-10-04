@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithProviders } from '@/test/render'
 import type { Stage } from '@/features/stages/api'
@@ -111,6 +111,24 @@ describe('StageControl', () => {
     expect(await screen.findByLabelText('Motivo')).toBeRequired()
   })
 
+  // UX3-12: el diálogo nombra la acción en su botón y dice a qué fase vuelve el trabajo.
+  it('el diálogo de retroceder nombra la fase a la que vuelve y cierra con «Volver»', async () => {
+    const { user } = renderWithProviders(
+      <StageControl
+        case={caso({ status: 'en_proceso', currentStageId: 'f2' })}
+        stages={fases}
+        role="tecnico"
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Retroceder fase' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('El trabajo vuelve a "Modelado".')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Retroceder fase' })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Volver' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
   it('retroceder envía el motivo escrito', async () => {
     const { user } = renderWithProviders(
       <StageControl
@@ -121,7 +139,9 @@ describe('StageControl', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Retroceder fase' }))
     await user.type(await screen.findByLabelText('Motivo'), 'Falla de encaje')
-    await user.click(screen.getByRole('button', { name: 'Confirmar' }))
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Retroceder fase' }),
+    )
     await waitFor(() =>
       expect(changeStage).toHaveBeenCalledWith('c1', {
         direccion: 'retroceder',
@@ -186,7 +206,9 @@ describe('StageControl', () => {
       />,
     )
     await user.click(await screen.findByRole('button', { name: 'Retroceder fase' }))
-    const confirmar = screen.getByRole('button', { name: 'Confirmar' })
+    const confirmar = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Retroceder fase',
+    })
     await user.click(confirmar)
     expect(await screen.findByText('Escribe el motivo')).toBeInTheDocument()
     // Lo que de verdad importa: el `toBeRequired()` del textarea no bloquea nada en

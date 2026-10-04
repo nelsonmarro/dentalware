@@ -239,6 +239,11 @@ describe('/api/trabajos', () => {
       .where(eq(ctx.schema.cases.id, id))
     const conflict = await app.request(`/api/trabajos/${id}`, req(recepcion, 'PUT', caseInput()))
     expect(conflict.status).toBe(409)
+    // UX3-03: el mensaje llega tal cual al toast; con el rótulo del estado, no la clave.
+    expect(await conflict.json()).toEqual({
+      message:
+        'No se puede editar: el trabajo está en estado "Terminado". Puede que otra persona lo haya cambiado.',
+    })
   })
 
   it('listado por vista y búsqueda; total de fila null para mensajero', async () => {
@@ -549,6 +554,10 @@ describe('/api/trabajos', () => {
         req(admin, 'POST', { accion: 'finalizar' }),
       )
       expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({
+        message:
+          'No se puede "Finalizar": el trabajo está en estado "Nuevo". Puede que otra persona lo haya cambiado.',
+      })
     })
 
     it('responde 403 sin sesión y con rol técnico', async () => {
@@ -762,8 +771,13 @@ describe('/api/trabajos', () => {
         req(admin, 'PUT', { direccion: 'avanzar' }),
       )
       expect(res.status).toBe(200)
-      const body = (await res.json()) as { case: { id: string; currentStageId: string } }
+      const body = (await res.json()) as {
+        case: { id: string; currentStageId: string; stage: { id: string; name: string } | null }
+      }
       expect(body.case.currentStageId).toBe(stage2)
+      // UX3-11: el toast dice a qué fase pasó («Fase: Cerámica»); la web no tiene que
+      // resolver el id contra la lista de fases para nombrarla.
+      expect(body.case.stage).toEqual({ id: stage2, name: 'Cerámica' })
 
       const eventos = (await (
         await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
@@ -779,6 +793,10 @@ describe('/api/trabajos', () => {
         req(admin, 'PUT', { direccion: 'avanzar' }),
       )
       expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({
+        message:
+          'No se puede avanzar: el trabajo ya está en la última fase. Usa "Finalizar" para terminarlo.',
+      })
     })
 
     it('responde 409 en un trabajo en espera', async () => {
@@ -858,6 +876,30 @@ describe('/api/trabajos', () => {
       expect(body.technicians).toContainEqual({ id: tecnicoId, name: 'Ana Técnico' })
     })
 
+    it('devuelve los técnicos ordenados por nombre', async () => {
+      // Se insertan en orden inverso al alfabético: sin `orderBy`, Postgres los devuelve
+      // en orden de inserción.
+      await createUser(ctx.auth, ctx.db, {
+        email: 'zoila@t.local',
+        password: 'Tecnico123!',
+        name: 'Zoila Técnico',
+        role: 'tecnico',
+      })
+      await createUser(ctx.auth, ctx.db, {
+        email: 'bruno@t.local',
+        password: 'Tecnico123!',
+        name: 'Bruno Técnico',
+        role: 'tecnico',
+      })
+      const res = await app.request('/api/trabajos/tecnicos', req(admin, 'GET'))
+      const body = (await res.json()) as { technicians: { name: string }[] }
+      expect(body.technicians.map((t) => t.name)).toEqual([
+        'Ana Técnico',
+        'Bruno Técnico',
+        'Zoila Técnico',
+      ])
+    })
+
     it('no expone correo, rol ni estado de baneo', async () => {
       const res = await app.request('/api/trabajos/tecnicos', req(recepcion, 'GET'))
       const body = (await res.json()) as { technicians: Record<string, unknown>[] }
@@ -897,6 +939,40 @@ describe('/api/trabajos', () => {
         await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
       ).json()) as { events: { type: string }[] }
       expect(eventos.events.some((e) => e.type === 'assigned')).toBe(true)
+    })
+
+    // UX3-13: el técnico y el mensajero no consultan la lista de técnicos, así que la web
+    // pintaba «Técnico» genérico para uno anterior (activo o no). `/eventos` trae los nombres.
+    it('/eventos trae los nombres de origen y destino de cada asignación, también al técnico', async () => {
+      const id = await createOne(recepcion)
+      const otroId = await createUser(ctx.auth, ctx.db, {
+        email: 'beto@t.local',
+        password: 'Tecnico123!',
+        name: 'Beto Técnico',
+        role: 'tecnico',
+      })
+      await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId }))
+      await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId: otroId }))
+      // Beto deja el laboratorio: su nombre sigue en el historial.
+      await ctx.db
+        .update(ctx.schema.users)
+        .set({ banned: true })
+        .where(eq(ctx.schema.users.id, otroId))
+      await app.request(`/api/trabajos/${id}/tecnico`, req(admin, 'PUT', { tecnicoId }))
+
+      const eventos = (await (
+        await app.request(`/api/trabajos/${id}/eventos`, req(tecnico, 'GET'))
+      ).json()) as { events: { type: string; fromName: string | null; toName: string | null }[] }
+      expect(
+        eventos.events.filter((e) => e.type === 'assigned').map((e) => [e.fromName, e.toName]),
+      ).toEqual([
+        [null, 'Ana Técnico'],
+        ['Ana Técnico', 'Beto Técnico'],
+        ['Beto Técnico', 'Ana Técnico'],
+      ])
+      // Los demás eventos no llevan nombres.
+      const created = eventos.events.find((e) => e.type === 'created')
+      expect([created?.fromName, created?.toName]).toEqual([null, null])
     })
 
     it('responde 422 si el técnico no existe o no está activo', async () => {
@@ -1149,6 +1225,10 @@ describe('/api/trabajos', () => {
       const id = await createOne(recepcion)
       const res = await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
       expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({
+        message:
+          'No se puede repetir: el trabajo está en estado "Nuevo". Puede que otra persona lo haya cambiado.',
+      })
     })
 
     it('responde 404 si el trabajo no existe', async () => {

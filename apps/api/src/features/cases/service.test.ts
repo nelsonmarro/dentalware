@@ -285,6 +285,16 @@ describe('acciones de estado', () => {
     )
   })
 
+  // UX3-03: el mensaje del 409 llega tal cual al toast de quien tenía la ficha abierta.
+  it('una transición inválida explica la acción y el estado con sus rótulos', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'en_proceso' }))
+    await expect(
+      service.action('1', { accion: 'marcar_entregado', motivo: null }, admin),
+    ).rejects.toThrow(
+      'No se puede "Marcar entregado": el trabajo está en estado "En proceso". Puede que otra persona lo haya cambiado.',
+    )
+  })
+
   it('cancelar registra el motivo en el evento', async () => {
     const service = servicioCon(completo({ id: '1', status: 'en_proceso' }))
     await service.action('1', { accion: 'cancelar', motivo: 'Paciente desistió' }, admin)
@@ -380,7 +390,9 @@ describe('cambio de fase', () => {
     const service = servicioConFases(['f1'], { status: 'en_proceso', currentStageId: 'f1' })
     await expect(
       service.changeStage('1', { direccion: 'avanzar', motivo: null }, admin),
-    ).rejects.toThrow(CaseStateError)
+    ).rejects.toThrow(
+      'No se puede avanzar: el trabajo ya está en la última fase. Usa "Finalizar" para terminarlo.',
+    )
   })
 
   it('un trabajo en espera o en prueba no cambia de fase', async () => {
@@ -476,7 +488,7 @@ describe('cambio de fase', () => {
     const service = servicioConFases(['f1', 'f2'], { status: 'en_proceso', currentStageId: 'f1' })
     await expect(
       service.changeStage('1', { direccion: 'retroceder', motivo: 'Se rompió' }, admin),
-    ).rejects.toThrow(CaseStateError)
+    ).rejects.toThrow('No se puede retroceder: el trabajo ya está en la primera fase.')
   })
 
   it('un trabajo inexistente lanza CaseNotFoundError', async () => {
@@ -534,6 +546,13 @@ describe('técnico responsable', () => {
         CaseStateError,
       )
     }
+  })
+
+  it('el 409 de reasignar nombra el estado con su rótulo', async () => {
+    const service = servicioConTecnicos([{ id: 't1' }], { status: 'entregado' })
+    await expect(service.assignTechnician('1', { tecnicoId: 't1' }, admin)).rejects.toThrow(
+      'No se puede reasignar el técnico: el trabajo está en estado "Entregado". Puede que otra persona lo haya cambiado.',
+    )
   })
 
   it('sí se puede reasignar el técnico mientras el trabajo se sigue moviendo por el laboratorio', async () => {

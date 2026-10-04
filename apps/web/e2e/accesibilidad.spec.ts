@@ -103,6 +103,49 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
 
+  // UX3-14: el filtro de clínica pasó a `Combobox`. En móvil los filtros van plegados en
+  // «Filtros», así que el barrido de la lista no los veía: se despliegan y se mide también el
+  // desplegable (buscador y opciones), que es lo que se toca con guantes.
+  test(
+    'trabajos: filtros desplegados y buscador de clínica',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic } = await createClinicWithDoctor(page)
+      await page.goto('/trabajos')
+      await expect(page.getByRole('heading', { name: 'Trabajos' })).toBeVisible()
+      await page.getByText('Filtros', { exact: true }).click()
+      const clinicFilter = page.getByRole('combobox', { name: 'Clínica' })
+      await expect(clinicFilter).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+
+      await clinicFilter.click()
+      await page.getByPlaceholder('Buscar clínica').fill(clinic.name)
+      await expect(page.getByRole('option', { name: clinic.name })).toBeVisible()
+      // El desplegable entra con `zoom-in-95`: medido a mitad de la animación, una opción de
+      // 44 px mide ~42,6. Se espera a que termine antes de medir.
+      const popover = page.getByRole('dialog', { name: 'Elegir clínica' })
+      await popover.evaluate((el) =>
+        Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)),
+      )
+      await expectTouchTargets(popover, '[role=option]')
+    },
+  )
+
+  // UX3-19: el login al que lleva el QR dice qué trabajo se abrirá. Se mide sin sesión (contexto
+  // aparte: el `beforeEach` ya abrió la de admin, que rebotaría el login a «Inicio»).
+  test(
+    'login desde el QR: aviso del trabajo y controles',
+    { tag: '@extendida' },
+    async ({ browser }) => {
+      const anon = await browser.newContext()
+      const anonPage = await anon.newPage()
+      await anonPage.goto('/login?redirect=%2Ft%2F26-00001')
+      await expect(anonPage.getByText('Inicia sesión para abrir el trabajo')).toBeVisible()
+      await expectTouchTargets(anonPage, TOUCH_CONTROLS)
+      await anon.close()
+    },
+  )
+
   test('nuevo trabajo: selects y diálogo de piezas', { tag: '@extendida' }, async ({ page }) => {
     const { clinic, doctor } = await createClinicWithDoctor(page)
     const product = await createProduct(page)
@@ -146,11 +189,13 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     // cero controles y pasaba en vacío (lo destapó `expectTouchTargets` al exigir medir algo).
     await expect(page.getByRole('heading', { name: created.code, level: 1 })).toBeVisible()
     await expect(page.getByRole('tab', { name: 'Detalle' })).toBeVisible()
+    // UX3-05: el panel «Producción» (técnico y acciones) va sobre las pestañas y entra en la medida.
+    await expect(page.getByRole('region', { name: 'Producción' })).toBeVisible()
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
 
   // M-6 (ola de fixes del PR 1, lote B): un trabajo `nuevo` (el único caso que cubría el test
-  // de arriba) no monta la tarjeta de fase (`StageControl`) ni el `<select>` de técnico
+  // de arriba) no monta la fase del panel «Producción» (`StageControl`) ni el `<select>` de técnico
   // (`TechnicianSelect`, de solo lectura mientras no hay sesión de trabajo en curso) ni sus
   // diálogos ("Retroceder fase", "Repetir"); y `TOUCH_CONTROLS` no medía `<select>` nativos
   // (ver el comentario de `TOUCH_CONTROLS` en `helpers.ts`). Dos trabajos por API: uno
@@ -239,6 +284,17 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
 
       await page.goto(`/t/${created.code}`)
       await expect(page.getByRole('heading', { level: 1, name: created.code })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+    },
+  )
+
+  // UX3-27: «No encontrado» ganó la salida «Ir a trabajos»; con guantes también debe medir 44 px.
+  test(
+    'ficha corta del QR (/t/:code): código que no existe',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      await page.goto('/t/26-99999')
+      await expect(page.getByRole('link', { name: 'Ir a trabajos' })).toBeVisible()
       await expectTouchTargets(page, TOUCH_CONTROLS)
     },
   )
@@ -400,10 +456,11 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
   )
 
   // M-5 (ronda de fixes 1, Tarea 14, #71): la orden imprimible es pantalla nueva y no estaba en
-  // el barrido. Solo mide los controles en pantalla ("Volver al trabajo", "Imprimir"): el resto
-  // de la orden es contenido para papel, sin objetivos táctiles que probar.
+  // el barrido. Solo mide los controles en pantalla ("Volver al trabajo", "Imprimir" y, para
+  // admin, las pestañas «Copia a imprimir», UX3-21): el resto de la orden es contenido para
+  // papel, sin objetivos táctiles que probar.
   test(
-    'orden de trabajo imprimible: "Volver al trabajo" e "Imprimir"',
+    'orden de trabajo imprimible: "Volver al trabajo", "Imprimir" y las pestañas de copia',
     { tag: '@extendida' },
     async ({ page }) => {
       const { clinic, doctor } = await createClinicWithDoctor(page)

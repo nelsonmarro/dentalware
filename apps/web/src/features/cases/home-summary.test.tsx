@@ -66,4 +66,16 @@ describe('HomeSummary', () => {
 
     expect(await screen.findByRole('heading', { name: 'Mis trabajos' })).toBeInTheDocument()
   })
+
+  // UX3-28: a 390 px, las seis tarjetas del laboratorio empujaban «Mis trabajos» bajo el
+  // pliegue; el técnico abre su inicio con lo suyo.
+  it('técnico ve "Mis trabajos" antes que los contadores del laboratorio', async () => {
+    fetchSummary.mockResolvedValue(SUMMARY)
+    fetchCases.mockResolvedValue({ cases: [], total: null })
+    renderWithProviders(<HomeSummary role="tecnico" technicianId="tec-1" />)
+
+    const mine = await screen.findByRole('heading', { name: 'Mis trabajos' })
+    const counter = await screen.findByRole('link', { name: /Nuevos 1/ })
+    expect(mine.compareDocumentPosition(counter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
 })

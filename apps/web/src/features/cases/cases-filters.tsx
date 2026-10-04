@@ -1,6 +1,7 @@
 import type { CaseStatus } from '@dentalware/shared'
-import { CASE_STATUSES } from '@dentalware/shared'
+import { CASE_STATUS_LABEL, CASE_STATUSES } from '@dentalware/shared'
 import { useEffect, useState } from 'react'
+import { Combobox } from '@/components/combobox'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,7 +17,6 @@ import type { Doctor } from '@/features/doctors/api'
 import type { User } from '@/features/users/api'
 import { useMediaQuery } from '@/lib/use-media-query'
 import type { CaseListQueryInput } from './api'
-import { STATUS_LABEL } from './status-chip'
 
 // Tailwind `lg` empieza en 1024px; los filtros se pliegan por debajo de ese ancho.
 const DESKTOP_QUERY = '(min-width: 1024px)'
@@ -26,12 +26,14 @@ export function CasesFilters({
   value,
   onChange,
   clinics,
+  clinicsLoading = false,
   doctors,
   technicians,
 }: {
   value: CaseListQueryInput
   onChange: (patch: Partial<CaseListQueryInput>) => void
   clinics: Clinic[]
+  clinicsLoading?: boolean
   doctors: Doctor[]
   technicians?: User[]
 }) {
@@ -68,28 +70,37 @@ export function CasesFilters({
     })
   }
 
+  // Un `?clinicId=` que no está en la lista (clínica inactiva, o la lista aún cargando) no deja
+  // el disparador en «Elegir clínica» con el filtro activo: se rotula con lo que pasa.
+  const clinicUnresolved =
+    value.clinicId !== undefined && !clinics.some((c) => c.id === value.clinicId)
+  const clinicItems = [
+    { value: ALL, label: 'Todas' },
+    ...clinics.map((c) => ({ value: c.id, label: c.name })),
+    ...(clinicUnresolved && value.clinicId
+      ? [
+          {
+            value: value.clinicId,
+            label: clinicsLoading ? 'Cargando clínicas…' : 'Clínica no disponible',
+          },
+        ]
+      : []),
+  ]
+
   const fields = (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="filtro-clinica">Clínica</Label>
-        <Select
+        <Combobox
+          id="filtro-clinica"
+          aria-label="Clínica"
+          className="w-full"
           value={value.clinicId ?? ALL}
-          onValueChange={(v) =>
-            onChange({ clinicId: v === ALL ? undefined : v, doctorId: undefined })
-          }
-        >
-          <SelectTrigger id="filtro-clinica" className="h-11 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Todas</SelectItem>
-            {clinics.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onChange={(v) => onChange({ clinicId: v === ALL ? undefined : v, doctorId: undefined })}
+          items={clinicItems}
+          placeholder="Elegir clínica"
+          searchPlaceholder="Buscar clínica"
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="filtro-doctor">Doctor</Label>
@@ -124,7 +135,7 @@ export function CasesFilters({
             <SelectItem value={ALL}>Todos</SelectItem>
             {CASE_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
-                {STATUS_LABEL[s]}
+                {CASE_STATUS_LABEL[s]}
               </SelectItem>
             ))}
           </SelectContent>

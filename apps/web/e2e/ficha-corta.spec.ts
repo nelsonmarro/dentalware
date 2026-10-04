@@ -1,12 +1,16 @@
+import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import {
   ADMIN,
   createClinicWithDoctor,
   createProduct,
   loginAsAdmin,
+  toasts,
   trackConsoleErrors,
   uniqueSuffix,
 } from './helpers'
+
+const FOTO_PATH = path.join(import.meta.dirname, 'fixtures', 'foto.png')
 
 /**
  * Trabajo aceptado y en producción (`en_proceso`, primera fase activa de `seed-data.ts`:
@@ -69,11 +73,37 @@ test.describe('Ficha corta del QR (/t/:code, FIC-2 #72 / FIC-3 #73)', () => {
       await page.goto(`/t/${trabajo.code}`)
       await expect(page.getByRole('heading', { level: 1, name: trabajo.code })).toBeVisible()
 
-      // Primera fase activa sembrada por `seed-data.ts` (`STAGES`): "Recepción"; "Avanzar
-      // fase" la mueve a la siguiente, "Modelo" (mismo criterio que `trabajos.spec.ts`).
-      await page.getByRole('button', { name: 'Avanzar fase' }).click()
-      await expect(page.getByText('Fase actualizada')).toBeVisible()
-      await expect(page.getByText('Modelo')).toBeVisible()
+      // Primera fase activa sembrada por `seed-data.ts` (`STAGES`): "Recepción"; el botón
+      // nombra la siguiente, "Modelo" (UX3-27; mismo criterio que `trabajos.spec.ts`).
+      await page.getByRole('button', { name: 'Avanzar a Modelo' }).click()
+      // UX3-11: el toast nombra la fase nueva; `exact` para no chocar con «Fase: Modelo».
+      await expect(toasts(page).getByText('Fase: Modelo')).toBeVisible()
+      await expect(page.getByText('Modelo', { exact: true })).toBeVisible()
+    },
+  )
+
+  // UX3-08 / UX3-22: con guantes, el técnico necesita ver que la foto entró y para cuándo es.
+  test(
+    'dice la entrega y confirma la foto subida con el contador',
+    { tag: '@clave' },
+    async ({ page }) => {
+      await loginAsAdmin(page)
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const trabajo = await createAcceptedCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+
+      await page.goto(`/t/${trabajo.code}`)
+      await expect(page.getByRole('heading', { level: 1, name: trabajo.code })).toBeVisible()
+      await expect(page.getByText(/^Entrega: \d{2}\/\d{2}\/\d{4}$/)).toBeVisible()
+      await expect(page.getByText('Fotos: 0')).toBeVisible()
+
+      await page.getByLabel('Añadir foto').setInputFiles(FOTO_PATH)
+      await expect(toasts(page).getByText('Foto añadida')).toBeVisible()
+      await expect(page.getByText('Fotos: 1')).toBeVisible()
     },
   )
 

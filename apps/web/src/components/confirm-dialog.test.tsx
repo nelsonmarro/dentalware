@@ -31,4 +31,23 @@ describe('ConfirmDialog', () => {
     )
     expect(screen.getByRole('button', { name: 'Guardando…' })).toBeDisabled()
   })
+
+  // UX3-12: todos los diálogos cierran con «Volver»; «Cancelar» se confundía con
+  // «Cancelar trabajo».
+  it('cierra con «Volver»', async () => {
+    const onOpenChange = vi.fn()
+    render(
+      <ConfirmDialog
+        open
+        onOpenChange={onOpenChange}
+        title="Bloquear acceso"
+        description="Se cerrará la sesión."
+        confirmLabel="Bloquear"
+        onConfirm={() => {}}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Volver' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
 })

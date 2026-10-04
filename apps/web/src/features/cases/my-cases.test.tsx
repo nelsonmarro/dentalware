@@ -78,7 +78,8 @@ describe('MyCases', () => {
     expect(fila).toHaveTextContent('26-00001')
     expect(fila).toHaveTextContent('Juan Pérez')
     expect(fila).toHaveTextContent('Cerámica')
-    expect(fila).toHaveTextContent('20/09/2026')
+    // UX3-28: la fecha dice de qué es.
+    expect(fila).toHaveTextContent('Entrega 20/09/2026')
   })
 
   // M-1 (ronda de fixes 1, T12): con `total: null` (como llega realmente para el rol técnico,
@@ -132,6 +133,16 @@ describe('MyCases', () => {
     const fila = await screen.findByRole('link', { name: /26-00001/ })
     expect(fila).toHaveTextContent('Cerámica')
     expect(fila).not.toHaveTextContent('En proceso')
+  })
+
+  // UX3-02: un fallo de red no debe leerse como "no tienes trabajos asignados" — eso es un
+  // dato falso; aquí la petición ni se resolvió.
+  it('un fallo de red no muestra el vacío: ofrece reintentar', async () => {
+    fetchCases.mockRejectedValue(new TypeError('Failed to fetch'))
+    renderWithProviders(<MyCases technicianId="tec-1" />)
+
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.queryByText('No tienes trabajos asignados.')).not.toBeInTheDocument()
   })
 
   it('sin trabajos asignados muestra un vacío con texto propio', async () => {

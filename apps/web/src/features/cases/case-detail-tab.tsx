@@ -1,21 +1,17 @@
 import {
   CHECKLIST_KEYS,
   CHECKLIST_LABEL,
-  REMAKE_ROLES,
   SHADE_SYSTEM_LABEL,
   type UserRole,
+  hidesPrices,
 } from '@dentalware/shared'
 import { Check, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { Stage } from '@/features/stages/api'
-import { formatMoney } from '@/features/products/pricing-unit-label'
+import { formatMoney } from '@/lib/format-money'
 import { cn } from '@/lib/utils'
 import type { CaseDetail } from './api'
 import { Odontogram } from './odontogram'
-import { RemakeDialog } from './remake-dialog'
-import { StageControl } from './stage-control'
-import { TechnicianSelect } from './technician-select'
 
 function money(value: string | null) {
   return value === null ? '—' : formatMoney(value)
@@ -91,48 +87,25 @@ function CaseLineRow({
 
 /** Pestaña "Detalle": líneas del trabajo (con odontograma de solo lectura por línea),
  * color/sistema/referencia, lista de verificación, observaciones, prescripción y notas
- * internas (solo admin|recepción). */
+ * internas (solo admin|recepción). Cada tarjeta titula con un `h2` (UX3-25). La fase, el
+ * técnico y «Repetir» viven en `ProductionPanel`, sobre las pestañas (UX3-05). */
 export function CaseDetailTab({
   case: c,
   hidePrices,
   role,
-  stages = [],
-  stagesError = false,
-  onRemakeCreated,
 }: {
   case: CaseDetail
   hidePrices: boolean
   role: UserRole
-  /** Fases (todas, activas o no: `STAGE_CHANGE_BLOCKED_REASON`/`current?.name` en `StageControl`
-   * necesitan resolver el nombre aunque la fase actual se haya desactivado después). Vacío
-   * por defecto: un trabajo sin fase (`currentStageId: null`) no necesita la lista. */
-  stages?: Stage[]
-  /** La consulta de fases falló: `StageControl` lo dice en vez de quedarse en "Cargando…". */
-  stagesError?: boolean
-  /** Adónde ir tras crear una repetición (Tarea 9): el hijo puede nacer incompleto, así que
-   * quien monta esta pestaña navega a su ficha en vez de quedarse en la del padre. */
-  onRemakeCreated?: (created: CaseDetail) => void
 }) {
-  const canSeeInternal = role === 'admin' || role === 'recepcion'
+  const canSeeInternal = !hidesPrices(role)
   return (
     <div className="flex flex-col gap-6">
-      <StageControl case={c} stages={stages} stagesError={stagesError} role={role} />
-
-      <Card>
-        <CardContent>
-          <TechnicianSelect case={c} role={role} />
-        </CardContent>
-      </Card>
-
-      {(REMAKE_ROLES as readonly UserRole[]).includes(role) && (
-        <div className="flex justify-end">
-          <RemakeDialog case={c} onCreated={onRemakeCreated} />
-        </div>
-      )}
-
       <Card>
         <CardHeader>
-          <CardTitle>Líneas</CardTitle>
+          <CardTitle asChild>
+            <h2>Líneas</h2>
+          </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {c.items.map((item) => (
@@ -143,7 +116,9 @@ export function CaseDetailTab({
 
       <Card>
         <CardHeader>
-          <CardTitle>Color y sistema</CardTitle>
+          <CardTitle asChild>
+            <h2>Color y sistema</h2>
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
@@ -163,7 +138,9 @@ export function CaseDetailTab({
 
       <Card>
         <CardHeader>
-          <CardTitle>Lista de verificación</CardTitle>
+          <CardTitle asChild>
+            <h2>Lista de verificación</h2>
+          </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           {CHECKLIST_KEYS.map((key) => (
@@ -175,7 +152,9 @@ export function CaseDetailTab({
       {c.observations && (
         <Card>
           <CardHeader>
-            <CardTitle>Observaciones</CardTitle>
+            <CardTitle asChild>
+              <h2>Observaciones</h2>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm whitespace-pre-wrap">{c.observations}</p>
@@ -186,7 +165,9 @@ export function CaseDetailTab({
       {c.prescription && (
         <Card>
           <CardHeader>
-            <CardTitle>Prescripción</CardTitle>
+            <CardTitle asChild>
+              <h2>Prescripción</h2>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm whitespace-pre-wrap">{c.prescription}</p>
@@ -197,7 +178,9 @@ export function CaseDetailTab({
       {canSeeInternal && c.internalNotes && (
         <Card>
           <CardHeader>
-            <CardTitle>Notas internas</CardTitle>
+            <CardTitle asChild>
+              <h2>Notas internas</h2>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm whitespace-pre-wrap">{c.internalNotes}</p>

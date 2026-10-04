@@ -36,6 +36,11 @@ export type CaseEventRow = typeof caseEvents.$inferSelect & {
   // hijo, su propio id (no enlazable a sí mismo, la web lo ignora ahí). `null` para el resto
   // de tipos de evento y si el código no se pudo resolver.
   relatedCaseId: string | null
+  // Nombres de los usuarios de `fromValue`/`toValue` en un evento `assigned` (UX3-13): el
+  // técnico y el mensajero no consultan la lista de técnicos, y un técnico anterior puede ya no
+  // estar activo. `null` en el resto de tipos y cuando el lado es «sin asignar».
+  fromName: string | null
+  toName: string | null
 }
 export type TryinRow = typeof caseTryins.$inferSelect
 export type CaseListRow = {
@@ -165,6 +170,7 @@ export interface StagesQuery {
  * y, con `id` y `name`, alimenta el combobox de `TechnicianSelect` en la web (Tarea 9) sin
  * exponer correo, rol ni estado de baneo. */
 export interface UsersQuery {
+  /** Técnicos activos ordenados por nombre (recepción busca por nombre en el selector). */
   activeTechnicians(): Promise<Named[]>
 }
 

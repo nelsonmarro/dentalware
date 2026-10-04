@@ -118,7 +118,7 @@ describe('PrintOrder', () => {
       <PrintOrder
         case={casoCompleto()}
         settings={settings()}
-        hidePrices={false}
+        copy="clinica"
         publicUrl={PUBLIC_URL}
       />,
     )
@@ -136,25 +136,58 @@ describe('PrintOrder', () => {
     ])
   })
 
-  it('no muestra precios ni el total cuando la imprime un técnico', async () => {
+  it('la copia laboratorio no lleva precios ni total (UX3-21)', async () => {
     renderWithProviders(
-      <PrintOrder case={casoCompleto()} settings={settings()} hidePrices publicUrl={PUBLIC_URL} />,
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings()}
+        copy="laboratorio"
+        publicUrl={PUBLIC_URL}
+      />,
     )
     await screen.findByRole('heading', { name: /Orden de trabajo 26-00123/ })
     expect(screen.queryByText(/\$/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Total/)).not.toBeInTheDocument()
   })
 
-  it('muestra los precios y el total para recepción', async () => {
+  it('la copia clínica lleva los precios de cada línea y el total (UX3-21)', async () => {
     renderWithProviders(
       <PrintOrder
         case={casoCompleto()}
         settings={settings()}
-        hidePrices={false}
+        copy="clinica"
         publicUrl={PUBLIC_URL}
       />,
     )
-    expect(await screen.findByText('$ 147.00')).toBeInTheDocument()
+    expect(await screen.findByText('$ 100.00')).toBeInTheDocument()
+    expect(screen.getByText('$ 47.00')).toBeInTheDocument()
+    expect(screen.getByText('$ 147.00')).toBeInTheDocument()
+  })
+
+  it('rotula la copia laboratorio en el papel (UX3-21)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings()}
+        copy="laboratorio"
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    expect(await screen.findByText('Copia laboratorio')).toBeInTheDocument()
+    expect(screen.queryByText('Copia clínica')).not.toBeInTheDocument()
+  })
+
+  it('rotula la copia clínica en el papel (UX3-21)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings()}
+        copy="clinica"
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    expect(await screen.findByText('Copia clínica')).toBeInTheDocument()
+    expect(screen.queryByText('Copia laboratorio')).not.toBeInTheDocument()
   })
 
   it('marca en el odontograma solo las piezas del trabajo', async () => {
@@ -162,7 +195,7 @@ describe('PrintOrder', () => {
       <PrintOrder
         case={casoCompleto()}
         settings={settings()}
-        hidePrices={false}
+        copy="clinica"
         publicUrl={PUBLIC_URL}
       />,
     )
@@ -180,7 +213,7 @@ describe('PrintOrder', () => {
       <PrintOrder
         case={casoCompleto()}
         settings={settings()}
-        hidePrices={false}
+        copy="clinica"
         publicUrl={PUBLIC_URL}
       />,
     )
@@ -200,7 +233,7 @@ describe('PrintOrder', () => {
       <PrintOrder
         case={casoCompleto()}
         settings={settings()}
-        hidePrices={false}
+        copy="clinica"
         publicUrl={PUBLIC_URL}
       />,
     )
@@ -249,7 +282,7 @@ describe('PrintOrder', () => {
       <PrintOrder
         case={casoCompleto()}
         settings={settings()}
-        hidePrices={false}
+        copy="clinica"
         publicUrl={PUBLIC_URL}
       />,
     )
@@ -262,7 +295,7 @@ describe('PrintOrder', () => {
       <PrintOrder
         case={casoCompleto()}
         settings={settings()}
-        hidePrices={false}
+        copy="clinica"
         publicUrl={PUBLIC_URL}
       />,
     )
@@ -275,7 +308,7 @@ describe('PrintOrder', () => {
       <PrintOrder
         case={casoCompleto()}
         settings={settings({ logoUrl: 'https://cdn.example/logo.png' })}
-        hidePrices={false}
+        copy="clinica"
         publicUrl={PUBLIC_URL}
       />,
     )
@@ -290,7 +323,7 @@ describe('PrintOrder', () => {
       <PrintOrder
         case={casoCompleto()}
         settings={settings({ logoUrl: null })}
-        hidePrices={false}
+        copy="clinica"
         publicUrl={PUBLIC_URL}
       />,
     )
@@ -323,11 +356,52 @@ describe('PrintOrder', () => {
           ],
         })}
         settings={settings()}
-        hidePrices={false}
+        copy="clinica"
         publicUrl={PUBLIC_URL}
       />,
     )
     expect(await screen.findByText('Corona provisional (sin catálogo)')).toBeInTheDocument()
+  })
+
+  // UX3-07: el papel que acompaña al trabajo avisa la urgencia con texto y borde negro, no solo
+  // con color (en papel, «Gráficos de fondo» viene apagado por defecto en Chrome).
+  it('marca «URGENTE» con texto y borde junto al código cuando el trabajo es urgente (UX3-07)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto({ priority: 'urgente' })}
+        settings={settings()}
+        copy="laboratorio"
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    const marca = await screen.findByText('URGENTE')
+    expect(marca.className).toMatch(/border-2/)
+    expect(marca.className).toMatch(/border-foreground/)
+  })
+
+  it('no marca urgencia en un trabajo normal (UX3-07)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto()}
+        settings={settings()}
+        copy="laboratorio"
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    await screen.findByRole('heading', { name: /Orden de trabajo 26-00123/ })
+    expect(screen.queryByText(/urgente/i)).not.toBeInTheDocument()
+  })
+
+  it('la fecha de entrega va en negrita (UX3-07)', async () => {
+    renderWithProviders(
+      <PrintOrder
+        case={casoCompleto({ promisedDate: '2026-02-20' })}
+        settings={settings()}
+        copy="laboratorio"
+        publicUrl={PUBLIC_URL}
+      />,
+    )
+    expect((await screen.findByText('20/02/2026')).className).toMatch(/font-bold/)
   })
 
   // M-7: "Fecha entrega" es la comprometida (`promisedDate`) si existe; si no, la deseada
@@ -337,7 +411,7 @@ describe('PrintOrder', () => {
       <PrintOrder
         case={casoCompleto({ promisedDate: '2026-02-20', dueDate: '2026-02-10' })}
         settings={settings()}
-        hidePrices={false}
+        copy="clinica"
         publicUrl={PUBLIC_URL}
       />,
     )
@@ -349,7 +423,7 @@ describe('PrintOrder', () => {
       <PrintOrder
         case={casoCompleto({ promisedDate: null, dueDate: '2026-02-10' })}
         settings={settings()}
-        hidePrices={false}
+        copy="clinica"
         publicUrl={PUBLIC_URL}
       />,
     )
@@ -361,7 +435,7 @@ describe('PrintOrder', () => {
       <PrintOrder
         case={casoCompleto({ promisedDate: null, dueDate: null })}
         settings={settings()}
-        hidePrices={false}
+        copy="clinica"
         publicUrl={PUBLIC_URL}
       />,
     )
