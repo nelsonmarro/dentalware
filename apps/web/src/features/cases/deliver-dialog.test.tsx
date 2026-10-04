@@ -107,6 +107,33 @@ describe('DeliverDialog', () => {
     )
   })
 
+  // I-1 (revisión de la Tarea 3): la constancia se comprime en el cliente antes de subir. En
+  // jsdom no hay `createImageBitmap`; se sustituye como en `image-compress.test.ts`.
+  it('comprime la foto a JPEG antes de subirla', async () => {
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn().mockResolvedValue({ width: 3000, height: 2000, close: vi.fn() }),
+    )
+    const toBlob = vi
+      .spyOn(HTMLCanvasElement.prototype, 'toBlob')
+      .mockImplementation((callback: BlobCallback) =>
+        callback(new Blob(['comprimida'], { type: 'image/jpeg' })),
+      )
+    try {
+      const { user, elegir, marcar } = await abrir()
+      await elegir()
+      await user.click(marcar())
+
+      await waitFor(() => expect(uploadAttachment).toHaveBeenCalledTimes(1))
+      const subida = (uploadAttachment.mock.calls[0]![1] as FormData).get('file') as File
+      expect(subida.type).toBe('image/jpeg')
+      expect(subida.name).toBe('foto.png')
+    } finally {
+      toBlob.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('mientras sube y guarda, el botón dice «Guardando…» y no se puede repetir', async () => {
     let resolver!: (v: unknown) => void
     uploadAttachment.mockReturnValue(new Promise((r) => (resolver = r)))
