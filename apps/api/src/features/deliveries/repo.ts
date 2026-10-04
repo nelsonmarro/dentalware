@@ -43,18 +43,26 @@ export function createDeliveriesRepo(db: Db | Tx) {
       return row
     },
 
+    // Cierres condicionales (I-1 de la revisión final del PR 2): solo cierran una entrega que
+    // sigue `pendiente`. Si dos transacciones cierran la misma a la vez, la segunda espera el
+    // bloqueo de fila de la primera, Postgres re-evalúa el `WHERE` sobre la fila confirmada y no
+    // actualiza nada: devuelve `false` en vez de pisar «hecha» con «fallida» (o al revés).
     async markDone(id, doneAt, proofAttachmentId) {
-      await db
+      const rows = await db
         .update(deliveries)
         .set({ status: 'hecha', doneAt, proofAttachmentId })
-        .where(eq(deliveries.id, id))
+        .where(and(eq(deliveries.id, id), eq(deliveries.status, 'pendiente')))
+        .returning({ id: deliveries.id })
+      return rows.length > 0
     },
 
     async markFailed(id, reason, at) {
-      await db
+      const rows = await db
         .update(deliveries)
         .set({ status: 'fallida', failedReason: reason, doneAt: at })
-        .where(eq(deliveries.id, id))
+        .where(and(eq(deliveries.id, id), eq(deliveries.status, 'pendiente')))
+        .returning({ id: deliveries.id })
+      return rows.length > 0
     },
 
     /**

@@ -243,9 +243,11 @@ export interface DeliveryLog {
     caseId: string,
     type: DeliveryType,
   ): Promise<{ id: string; courierId: string } | undefined>
-  markDone(id: string, doneAt: Date, proofAttachmentId: string | null): Promise<void>
-  /** Cierra sin hacerla una entrega o recogida pendiente (p. ej. al cancelar el trabajo). */
-  markFailed(id: string, reason: string, at: Date): Promise<void>
+  /** Cierra como hecha solo si sigue `pendiente`; `false` si otra operación la cerró antes. */
+  markDone(id: string, doneAt: Date, proofAttachmentId: string | null): Promise<boolean>
+  /** Cierra sin hacerla una entrega o recogida pendiente (p. ej. al cancelar el trabajo), solo si
+   * sigue `pendiente`; `false` si otra operación la cerró antes. */
+  markFailed(id: string, reason: string, at: Date): Promise<boolean>
 }
 
 /** Pruebas en boca (`case_tryins`): abiertas por trabajo, cerradas al recibirlas de vuelta. */

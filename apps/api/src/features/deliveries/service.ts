@@ -59,7 +59,15 @@ export function createDeliveriesService(deps: {
         if (input.nuevaFecha < deps.clock.today()) {
           throw new DeliveryInputError('La nueva fecha no puede ser anterior a hoy', 'nuevaFecha')
         }
-        await deliveries.markFailed(found.id, input.motivo, deps.clock.now())
+        // El cierre es condicional (I-1 de la revisión final del PR 2): si entre `byId` y aquí
+        // otra petición la cerró («Entregado», «Recibido», «Cancelar» u otro «No se pudo»),
+        // no se pisa su estado ni se reprograma una pendiente fantasma: mismo 409 uniforme.
+        // Tras un cierre que sí cambió la fila, `create` no puede chocar con el índice único de
+        // pendientes: la única pendiente de este trabajo y tipo era esta, y quien crea otra
+        // (`marcar_enviado`, `create` del trabajo) no puede hacerlo mientras esta existe.
+        if (!(await deliveries.markFailed(found.id, input.motivo, deps.clock.now()))) {
+          throw new DeliveryNotPendingError()
+        }
         const next = await deliveries.create({
           caseId: found.caseId,
           type: found.type,

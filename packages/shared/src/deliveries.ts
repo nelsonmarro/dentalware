@@ -54,6 +54,12 @@ export const CONSTANCIA_INVALIDA = 'La foto de constancia no es de este trabajo.
  * la Tarea 6): literal único para que la web la reconozca con `useConflictAwareError`. */
 export const DELIVERY_NOT_PENDING_MESSAGE = 'Esta entrega ya no está pendiente.'
 
+/** Mensaje del 409 cuando `recibir`, `marcar_entregado` o `cancelar` van a cerrar la entrega
+ * pendiente que acaban de leer y otra petición la cerró antes (p. ej. «No se pudo» a la vez,
+ * I-1 de la revisión final del PR 2): el cierre es condicional y no pisa el de la otra. */
+export const DELIVERY_ALREADY_CLOSED_MESSAGE =
+  'La entrega ya no está pendiente. Puede que otra persona la haya cerrado.'
+
 /** Una entrega/recogida está atrasada si sigue pendiente y su fecha programada ya pasó
  * (decisión 7 del plan: el día de hoy también muestra las pendientes atrasadas). */
 export function isOverdueDelivery(

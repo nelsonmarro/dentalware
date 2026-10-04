@@ -1,5 +1,6 @@
 import { caseInputSchema, type CaseInput } from '@dentalware/shared'
-import { eq } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
+import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
 import { testPassword } from '../../test/passwords.ts'
@@ -11,7 +12,8 @@ import {
   truncateAll,
 } from '../../test/setup.ts'
 import { createCasesRepo } from '../cases/repo.ts'
-import { createDeliveriesRepo } from './repo.ts'
+import { createCouriersQuery, createDeliveriesRepo, drizzleDeliveriesUnitOfWork } from './repo.ts'
+import { createDeliveriesService } from './service.ts'
 
 // Reloj fijo (I-1 de ADR 32: "hoy" nunca sale de `new Date()`): "hoy" es 2026-10-10 en toda
 // esta suite, así se puede fijar lo atrasado, lo de hoy y lo de otro día sin sincronizar con
@@ -379,6 +381,137 @@ describe('/api/entregas', () => {
         nuevaFecha: '2026-10-12',
       })
       expect(res.status).toBe(403)
+    })
+
+    // I-1 de la revisión final del PR 2: «No se pudo» compite con las acciones que cierran o
+    // anulan la misma entrega. Gane quien gane, nunca un 500, nunca dos pendientes del mismo
+    // tipo y nunca un trabajo entregado con su entrega aún pendiente.
+    describe('concurrencia', () => {
+      /** Un trabajo `enviado` con su entrega pendiente asignada al mensajero y una constancia
+       * lista, como lo deja `marcar_enviado` (se arma en la BD para no depender de esa ruta). */
+      async function enviadoConEntrega() {
+        const caseId = await createCase()
+        await ctx.db
+          .update(ctx.schema.cases)
+          .set({ status: 'enviado' })
+          .where(eq(ctx.schema.cases.id, caseId))
+        const entrega = await createDeliveriesRepo(ctx.db).create({
+          caseId,
+          type: 'entrega',
+          courierId: mensajeroId,
+          scheduledFor: '2026-10-10',
+        })
+        const constanciaId = randomUUID()
+        await ctx.db.insert(ctx.schema.attachments).values({
+          id: constanciaId,
+          caseId,
+          kind: 'constancia',
+          filename: 'constancia.jpg',
+          mime: 'image/jpeg',
+          size: 10,
+          storagePath: `${caseId}/${constanciaId}.jpg`,
+          uploadedBy: mensajeroId,
+        })
+        return { caseId, entregaId: entrega.id, constanciaId }
+      }
+
+      const pendientesDe = (caseId: string) =>
+        ctx.db
+          .select()
+          .from(ctx.schema.deliveries)
+          .where(
+            and(
+              eq(ctx.schema.deliveries.caseId, caseId),
+              eq(ctx.schema.deliveries.status, 'pendiente'),
+            ),
+          )
+
+      it('«No se pudo» y «Entregado» a la vez: nunca 500 ni una pendiente fantasma', async () => {
+        let conflictos = 0
+        for (let i = 0; i < 10; i++) {
+          const { caseId, entregaId, constanciaId } = await enviadoConEntrega()
+          const [fallida, entregado] = await Promise.all([
+            post(`/api/entregas/${entregaId}/fallida`, mensajero, {
+              motivo: 'No había nadie',
+              nuevaFecha: '2026-10-12',
+            }),
+            post(`/api/trabajos/${caseId}/acciones`, admin, {
+              accion: 'marcar_entregado',
+              constanciaId,
+            }),
+          ])
+          expect([fallida.status, entregado.status].sort()).not.toContain(500)
+          if (fallida.status === 409) {
+            conflictos++
+            expect(await fallida.json()).toEqual({ message: 'Esta entrega ya no está pendiente.' })
+          }
+          if (entregado.status === 409) {
+            conflictos++
+            expect(await entregado.json()).toEqual({
+              message: 'La entrega ya no está pendiente. Puede que otra persona la haya cerrado.',
+            })
+          }
+          expect([200, 409]).toContain(fallida.status)
+          expect([200, 409]).toContain(entregado.status)
+          // Al menos una gana; si gana «Entregado», no queda ninguna entrega pendiente.
+          expect(fallida.status === 200 || entregado.status === 200).toBe(true)
+          const pendientes = await pendientesDe(caseId)
+          expect(pendientes.length).toBeLessThanOrEqual(1)
+          const [trabajo] = await ctx.db
+            .select()
+            .from(ctx.schema.cases)
+            .where(eq(ctx.schema.cases.id, caseId))
+          if (trabajo!.status === 'entregado') expect(pendientes).toEqual([])
+          else expect(pendientes).toHaveLength(1)
+        }
+        // Si las dos peticiones nunca se cruzaran, la prueba no probaría la carrera.
+        expect(conflictos).toBeGreaterThan(0)
+      })
+
+      // M-8: `fail` cierra, reprograma y escribe el evento en una sola transacción. Si el
+      // evento falla (el último paso), Postgres deshace el cierre y la nueva pendiente.
+      it('si el evento del historial falla, la entrega sigue pendiente y no se reprograma', async () => {
+        const { caseId, entregaId } = await enviadoConEntrega()
+        const service = createDeliveriesService({
+          deliveries: createDeliveriesRepo(ctx.db),
+          couriers: createCouriersQuery(ctx.db),
+          uow: drizzleDeliveriesUnitOfWork(ctx.db, {
+            events: () => ({
+              addEvent: () => Promise.reject(new Error('el historial no está disponible')),
+            }),
+          }),
+          clock: CLOCK,
+        })
+        await expect(
+          service.fail(
+            entregaId,
+            { motivo: 'No había nadie', nuevaFecha: '2026-10-12' },
+            { userId: mensajeroId, role: 'mensajero' },
+          ),
+        ).rejects.toThrow('el historial no está disponible')
+        const filas = await ctx.db
+          .select()
+          .from(ctx.schema.deliveries)
+          .where(eq(ctx.schema.deliveries.caseId, caseId))
+        expect(filas).toEqual([
+          expect.objectContaining({ id: entregaId, status: 'pendiente', failedReason: null }),
+        ])
+      })
+
+      it('dos «No se pudo» a la vez sobre la misma entrega: un 200 y un 409, nunca 500', async () => {
+        for (let i = 0; i < 10; i++) {
+          const { caseId, entregaId } = await enviadoConEntrega()
+          const body = { motivo: 'No había nadie', nuevaFecha: '2026-10-12' }
+          const res = await Promise.all([
+            post(`/api/entregas/${entregaId}/fallida`, mensajero, body),
+            post(`/api/entregas/${entregaId}/fallida`, admin, body),
+          ])
+          expect(res.map((r) => r.status).sort()).toEqual([200, 409])
+          const conflicto = res.find((r) => r.status === 409)!
+          expect(await conflicto.json()).toEqual({ message: 'Esta entrega ya no está pendiente.' })
+          expect(await pendientesDe(caseId)).toHaveLength(1)
+        }
+      })
     })
 
     it('sin sesión responde 403', async () => {

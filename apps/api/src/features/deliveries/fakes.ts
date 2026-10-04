@@ -59,15 +59,18 @@ export function fakeDeliveriesRepo(
         (r) => r.caseId === caseId && r.type === type && r.status === 'pendiente',
       )
     },
+    // Mismo contrato condicional que `repo.ts`: solo cierra una entrega `pendiente`.
     async markDone(id, doneAt, proofAttachmentId) {
       const cur = rows.get(id)
-      if (!cur) return
+      if (cur?.status !== 'pendiente') return false
       rows.set(id, { ...cur, status: 'hecha', doneAt, proofAttachmentId })
+      return true
     },
     async markFailed(id, reason, at) {
       const cur = rows.get(id)
-      if (!cur) return
+      if (cur?.status !== 'pendiente') return false
       rows.set(id, { ...cur, status: 'fallida', failedReason: reason, doneAt: at })
+      return true
     },
     async listForDay(q) {
       const matches = [...rows.values()].filter((r) => {

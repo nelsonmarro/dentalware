@@ -171,6 +171,31 @@ describe('features/deliveries/service', () => {
       ).rejects.toThrow(DELIVERY_NOT_PENDING_MESSAGE)
     })
 
+    it('si otra persona la cierra entre la lectura y el cierre responde 409 y no reprograma', async () => {
+      const { service, rows, events } = makeService({ seed: [makeRow({ id: 'd1' })] })
+      // `byId` la ve pendiente, pero «Entregado» la cierra antes de que `fail` la marque.
+      const original = rows.get.bind(rows)
+      let leida = false
+      rows.get = (id: string) => {
+        const row = original(id)
+        if (row && !leida) {
+          leida = true
+          rows.set(id, { ...row, status: 'hecha' })
+        }
+        return row
+      }
+      await expect(
+        service.fail(
+          'd1',
+          { motivo: 'x', nuevaFecha: '2026-10-12' },
+          { userId: 'mensajero-1', role: 'mensajero' },
+        ),
+      ).rejects.toThrow(DELIVERY_NOT_PENDING_MESSAGE)
+      expect(original('d1')!.status).toBe('hecha')
+      expect(rows.size).toBe(1)
+      expect(events).toEqual([])
+    })
+
     it('de otro mensajero responde 403', async () => {
       const { service } = makeService({
         seed: [makeRow({ id: 'd1', courierId: 'mensajero-1' })],

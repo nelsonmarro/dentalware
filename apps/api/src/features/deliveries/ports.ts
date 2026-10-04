@@ -40,8 +40,10 @@ export interface DeliveriesRepository {
   byId(id: string): Promise<DeliveryRow | undefined>
   /** La entrega pendiente de un tipo para un trabajo (como mucho una). */
   pendingFor(caseId: string, type: DeliveryType): Promise<DeliveryRow | undefined>
-  markDone(id: string, doneAt: Date, proofAttachmentId: string | null): Promise<void>
-  markFailed(id: string, reason: string, at: Date): Promise<void>
+  /** Cierra como hecha solo si sigue `pendiente`; `false` si otra operación la cerró antes. */
+  markDone(id: string, doneAt: Date, proofAttachmentId: string | null): Promise<boolean>
+  /** Cierra como fallida solo si sigue `pendiente`; `false` si otra operación la cerró antes. */
+  markFailed(id: string, reason: string, at: Date): Promise<boolean>
   /** Las del día; con `includeOverdue`, también las pendientes de días anteriores. */
   listForDay(q: {
     day: string

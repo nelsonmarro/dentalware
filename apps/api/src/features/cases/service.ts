@@ -8,6 +8,7 @@ import {
   canPerform,
   CASE_WRITE_ROLES,
   CONSTANCIA_INVALIDA,
+  DELIVERY_ALREADY_CLOSED_MESSAGE,
   DELIVERY_MANAGE_ROLES,
   DELIVERY_TYPES,
   firstStage,
@@ -261,7 +262,10 @@ export function createCasesService(deps: {
      * en vez de pisarla. `marcar_enviado` programa la entrega pendiente (ENT-3) y
      * `marcar_entregado` la cierra con la foto de constancia (ENT-4). Devuelve el detalle
      * enmascarado por rol (técnico y mensajero pueden ejecutar acciones sin ver precios:
-     * `finalizar`, `recibir`, `marcar_enviado`/`marcar_entregado`).
+     * `finalizar`, `recibir`, `marcar_enviado`/`marcar_entregado`). El bloqueo del trabajo no
+     * cubre «No se pudo» (`deliveries`, que no lo toma): por eso `recibir`, `marcar_entregado` y
+     * `cancelar` cierran la entrega con un cierre condicional y, si otra petición la cerró
+     * antes, responden 409 con `DELIVERY_ALREADY_CLOSED_MESSAGE` (I-1 del PR 2).
      */
     async action(id: string, input: CaseActionInput, ctx: RequestContext) {
       await deps.uow.run(async ({ cases, tryins, deliveries }) => {
@@ -288,7 +292,9 @@ export function createCasesService(deps: {
             if (!canActOnDelivery(ctx, 'recibir', pending && { type: 'recogida', ...pending })) {
               throw new CaseForbiddenError()
             }
-            if (pending) await deliveries.markDone(pending.id, deps.clock.now(), null)
+            if (pending && !(await deliveries.markDone(pending.id, deps.clock.now(), null))) {
+              throw new CaseStateError(DELIVERY_ALREADY_CLOSED_MESSAGE)
+            }
             break
           }
           case 'aceptar': {
@@ -377,7 +383,9 @@ export function createCasesService(deps: {
               throw new CaseInputError(CONSTANCIA_INVALIDA, 'constanciaId')
             }
             const now = deps.clock.now()
-            if (pending) await deliveries.markDone(pending.id, now, constanciaId)
+            if (pending && !(await deliveries.markDone(pending.id, now, constanciaId))) {
+              throw new CaseStateError(DELIVERY_ALREADY_CLOSED_MESSAGE)
+            }
             patch.deliveredAt = now
             event.toValue = constanciaId
             break
@@ -390,8 +398,15 @@ export function createCasesService(deps: {
             const now = deps.clock.now()
             for (const type of DELIVERY_TYPES) {
               const pending = await deliveries.pendingFor(id, type)
-              if (pending) {
-                await deliveries.markFailed(pending.id, `Trabajo cancelado: ${input.motivo}`, now)
+              if (
+                pending &&
+                !(await deliveries.markFailed(
+                  pending.id,
+                  `Trabajo cancelado: ${input.motivo}`,
+                  now,
+                ))
+              ) {
+                throw new CaseStateError(DELIVERY_ALREADY_CLOSED_MESSAGE)
               }
             }
             break

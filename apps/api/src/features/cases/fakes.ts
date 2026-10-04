@@ -504,13 +504,18 @@ export function fakeDeliveryLog(seed: FakeDelivery[] = []) {
         (r) => r.caseId === caseId && r.type === type && r.status === 'pendiente',
       )
     },
+    // Mismo contrato condicional que `deliveries/repo.ts`: solo cierra una entrega `pendiente`.
     async markDone(id, doneAt, proofAttachmentId) {
       const cur = rows.get(id)
-      if (cur) rows.set(id, { ...cur, status: 'hecha', doneAt, proofAttachmentId })
+      if (cur?.status !== 'pendiente') return false
+      rows.set(id, { ...cur, status: 'hecha', doneAt, proofAttachmentId })
+      return true
     },
     async markFailed(id, reason, at) {
       const cur = rows.get(id)
-      if (cur) rows.set(id, { ...cur, status: 'fallida', doneAt: at, failedReason: reason })
+      if (cur?.status !== 'pendiente') return false
+      rows.set(id, { ...cur, status: 'fallida', doneAt: at, failedReason: reason })
+      return true
     },
   }
   return { log, rows }
