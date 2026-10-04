@@ -49,11 +49,14 @@ export function DeliveriesDay({
   day,
   courierId,
   role,
+  userId,
   compact = false,
 }: {
   day: string
   courierId?: string
   role: UserRole
+  /** Quien usa la app: el mensajero solo ve acciones sobre sus propias entregas. */
+  userId: string
   compact?: boolean
 }) {
   const today = toIsoDate(new Date())
@@ -106,6 +109,7 @@ export function DeliveriesDay({
           clinic={g.clinic}
           deliveries={g.deliveries}
           role={role}
+          userId={userId}
           today={today}
         />
       ))}

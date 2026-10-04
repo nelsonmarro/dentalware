@@ -55,6 +55,7 @@ function EntregasPage() {
         day={day}
         courierId={manages ? search.mensajeroId : undefined}
         role={user.role}
+        userId={user.id}
       />
     </div>
   )

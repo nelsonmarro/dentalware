@@ -60,7 +60,7 @@ const SUMMARY = {
 describe('HomeSummary', () => {
   it.each(['admin', 'recepcion'] as const)('%s no ve "Mis trabajos"', async (role) => {
     fetchSummary.mockResolvedValue(SUMMARY)
-    renderWithProviders(<HomeSummary role={role} technicianId="u-1" />)
+    renderWithProviders(<HomeSummary role={role} userId="u-1" />)
 
     await screen.findByRole('link', { name: /Nuevos 1/ })
     expect(screen.queryByRole('heading', { name: 'Mis trabajos' })).not.toBeInTheDocument()
@@ -72,7 +72,7 @@ describe('HomeSummary', () => {
     async (role) => {
       fetchSummary.mockResolvedValue(SUMMARY)
       fetchCases.mockResolvedValue({ cases: [], total: null })
-      renderWithProviders(<HomeSummary role={role} technicianId="u-1" />)
+      renderWithProviders(<HomeSummary role={role} userId="u-1" />)
 
       await screen.findByRole('link', { name: /Nuevos 1/ })
       expect(screen.queryByRole('heading', { name: 'Entregas de hoy' })).not.toBeInTheDocument()
@@ -85,7 +85,7 @@ describe('HomeSummary', () => {
   it('el mensajero ve «Entregas de hoy» y no los contadores', async () => {
     fetchSummary.mockResolvedValue(SUMMARY)
     fetchDeliveries.mockResolvedValue([])
-    renderWithProviders(<HomeSummary role="mensajero" technicianId="m-1" />)
+    renderWithProviders(<HomeSummary role="mensajero" userId="m-1" />)
 
     expect(await screen.findByRole('heading', { name: 'Entregas de hoy' })).toBeInTheDocument()
     expect(await screen.findByText('No tienes entregas hoy')).toBeInTheDocument()
@@ -97,7 +97,7 @@ describe('HomeSummary', () => {
   it('técnico ve "Mis trabajos"', async () => {
     fetchSummary.mockResolvedValue(SUMMARY)
     fetchCases.mockResolvedValue({ cases: [], total: null })
-    renderWithProviders(<HomeSummary role="tecnico" technicianId="tec-1" />)
+    renderWithProviders(<HomeSummary role="tecnico" userId="tec-1" />)
 
     expect(await screen.findByRole('heading', { name: 'Mis trabajos' })).toBeInTheDocument()
   })
@@ -107,7 +107,7 @@ describe('HomeSummary', () => {
   it('técnico ve "Mis trabajos" antes que los contadores del laboratorio', async () => {
     fetchSummary.mockResolvedValue(SUMMARY)
     fetchCases.mockResolvedValue({ cases: [], total: null })
-    renderWithProviders(<HomeSummary role="tecnico" technicianId="tec-1" />)
+    renderWithProviders(<HomeSummary role="tecnico" userId="tec-1" />)
 
     const mine = await screen.findByRole('heading', { name: 'Mis trabajos' })
     const counter = await screen.findByRole('link', { name: /Nuevos 1/ })

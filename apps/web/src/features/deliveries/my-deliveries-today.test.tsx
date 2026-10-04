@@ -38,7 +38,7 @@ afterEach(() => {
 describe('MyDeliveriesToday', () => {
   it('pide las de hoy y enlaza a «Entregas»', async () => {
     fetchDeliveries.mockResolvedValue([base])
-    renderWithQueryAndRouter(<MyDeliveriesToday />)
+    renderWithQueryAndRouter(<MyDeliveriesToday userId="m1" />)
 
     expect(await screen.findByRole('heading', { name: 'Entregas de hoy' })).toBeInTheDocument()
     await waitFor(() => expect(fetchDeliveries).toHaveBeenCalledWith({ dia: '2026-10-03' }))
@@ -56,7 +56,7 @@ describe('MyDeliveriesToday', () => {
         case: { ...base.case, id: 'c2', code: '26-00002', status: 'entregado' },
       },
     ])
-    renderWithQueryAndRouter(<MyDeliveriesToday />)
+    renderWithQueryAndRouter(<MyDeliveriesToday userId="m1" />)
 
     const grupo = await screen.findByRole('region', { name: 'Clínica Sonrisa' })
     expect(within(grupo).getByRole('link', { name: '26-00001' })).toBeInTheDocument()
@@ -67,7 +67,7 @@ describe('MyDeliveriesToday', () => {
     fetchDeliveries.mockResolvedValue([
       { ...base, status: 'hecha', case: { ...base.case, status: 'entregado' } },
     ])
-    renderWithQueryAndRouter(<MyDeliveriesToday />)
+    renderWithQueryAndRouter(<MyDeliveriesToday userId="m1" />)
 
     expect(await screen.findByText('Terminaste las entregas de hoy.')).toBeInTheDocument()
     expect(screen.queryByText('No tienes entregas hoy')).not.toBeInTheDocument()

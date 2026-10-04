@@ -13,13 +13,13 @@ import { SummaryCards } from './summary-cards'
  * El mensajero (INI-3, #105) ve sus entregas de hoy **en lugar de** los contadores: no le
  * dicen qué hacer. `role === 'mensajero'` es identidad (quién es), no un permiso.
  */
-export function HomeSummary({ role, technicianId }: { role: UserRole; technicianId: string }) {
-  if (role === 'mensajero') return <MyDeliveriesToday />
+export function HomeSummary({ role, userId }: { role: UserRole; userId: string }) {
+  if (role === 'mensajero') return <MyDeliveriesToday userId={userId} />
   return (
     <>
       {/* UX3-28: el técnico abre su inicio con lo suyo; los contadores del laboratorio,
           después (a 390 px empujaban «Mis trabajos» bajo el pliegue). */}
-      {role === 'tecnico' && <MyCases technicianId={technicianId} />}
+      {role === 'tecnico' && <MyCases technicianId={userId} />}
       <SummaryCards />
     </>
   )

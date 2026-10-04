@@ -1,5 +1,6 @@
 import {
   availableActions,
+  canActOnDelivery,
   canPerform,
   CASE_ACTION_LABEL,
   DELIVERY_MANAGE_ROLES,
@@ -40,10 +41,13 @@ const CLOSING_ACTION: Record<DeliveryItem['type'], CaseAction> = {
 export function DeliveryCard({
   delivery: d,
   role,
+  userId,
   today,
 }: {
   delivery: DeliveryItem
   role: UserRole
+  /** Quien usa la app: el mensajero solo actúa sobre sus propias entregas. */
+  userId: string
   today: string
 }) {
   const [dialog, setDialog] = useState<'entregar' | 'fallida' | null>(null)
@@ -51,9 +55,14 @@ export function DeliveryCard({
   const cancelled = d.case.status === 'cancelado'
   const pending = d.status === 'pendiente' && !cancelled
   const closing = CLOSING_ACTION[d.type]
+  // Misma regla que la API y la ficha (`canActOnDelivery`, M-3): una sola fuente para «el
+  // mensajero solo actúa sobre lo suyo»; admin y recepción, sobre cualquiera.
+  const own = canActOnDelivery({ role, userId }, closing, { type: d.type, courierId: d.courier.id })
   const canClose =
-    pending && availableActions(d.case.status).includes(closing) && canPerform(role, closing)
-  const canFail = pending && hasRole(DELIVERY_ROLES, role)
+    pending && own && availableActions(d.case.status).includes(closing) && canPerform(role, closing)
+  // «No se pudo»: quien puede cerrar la entrega también puede reprogramarla (la API exige lo
+  // mismo en `POST /api/entregas/:id/fallida`).
+  const canFail = pending && own && hasRole(DELIVERY_ROLES, role)
   const overdue = !cancelled && isOverdueDelivery(d, today)
   // Quien administra entregas ve las de todos: el nombre del mensajero orienta a recepción.
   const showCourier = hasRole(DELIVERY_MANAGE_ROLES, role)

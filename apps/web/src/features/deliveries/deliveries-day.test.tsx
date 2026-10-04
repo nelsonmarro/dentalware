@@ -55,7 +55,9 @@ afterEach(() => {
 describe('DeliveriesDay', () => {
   it('pide las entregas del día y del mensajero elegido', async () => {
     fetchDeliveries.mockResolvedValue([])
-    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-05" courierId="m1" role="admin" />)
+    renderWithQueryAndRouter(
+      <DeliveriesDay day="2026-10-05" courierId="m1" role="admin" userId="a1" />,
+    )
     await waitFor(() =>
       expect(fetchDeliveries).toHaveBeenCalledWith({ dia: '2026-10-05', mensajeroId: 'm1' }),
     )
@@ -68,7 +70,7 @@ describe('DeliveriesDay', () => {
       entrega({ id: 'd3', clinic: clinica('k3', 'Clínica Sonrisa') }),
       entrega({ id: 'd4', clinic: clinica('k2', 'Bella Dental') }),
     ])
-    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="admin" />)
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="admin" userId="a1" />)
 
     await screen.findByRole('region', { name: 'Bella Dental' })
     expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
@@ -82,7 +84,7 @@ describe('DeliveriesDay', () => {
 
   it('enlaza el teléfono con tel: y la dirección con el mapa en otra pestaña', async () => {
     fetchDeliveries.mockResolvedValue([entrega()])
-    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" />)
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
 
     const grupo = await screen.findByRole('region', { name: 'Clínica Sonrisa' })
     const tel = within(grupo).getByRole('link', { name: /099 123 4567/ })
@@ -98,7 +100,7 @@ describe('DeliveriesDay', () => {
 
   it('cada tarjeta dice el tipo con texto, enlaza el código a la ficha corta y muestra el paciente', async () => {
     fetchDeliveries.mockResolvedValue([entrega()])
-    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" />)
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
 
     const tarjeta = await screen.findByRole('listitem')
     expect(within(tarjeta).getByText('Entrega')).toBeInTheDocument()
@@ -113,7 +115,7 @@ describe('DeliveriesDay', () => {
     fetchDeliveries.mockResolvedValue([
       entrega({ case: { ...entrega().case, priority: 'urgente' } }),
     ])
-    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" />)
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
     expect(await screen.findByText('Urgente')).toBeInTheDocument()
   })
 
@@ -125,7 +127,9 @@ describe('DeliveriesDay', () => {
       }),
     ])
     postCaseAction.mockResolvedValue({})
-    const { user } = renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" />)
+    const { user } = renderWithQueryAndRouter(
+      <DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />,
+    )
 
     const tarjeta = await screen.findByRole('listitem')
     expect(within(tarjeta).getByText('Recogida')).toBeInTheDocument()
@@ -141,7 +145,9 @@ describe('DeliveriesDay', () => {
 
   it('una entrega pendiente ofrece «Marcar entregado», que abre el diálogo de la constancia', async () => {
     fetchDeliveries.mockResolvedValue([entrega()])
-    const { user } = renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" />)
+    const { user } = renderWithQueryAndRouter(
+      <DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />,
+    )
 
     const tarjeta = await screen.findByRole('listitem')
     expect(within(tarjeta).queryByRole('button', { name: 'Recibido' })).not.toBeInTheDocument()
@@ -153,9 +159,30 @@ describe('DeliveriesDay', () => {
     expect(postCaseAction).not.toHaveBeenCalled()
   })
 
+  // M-3 (revisión de la Tarea 7): la tarjeta usa la misma regla que la API y la ficha
+  // (`canActOnDelivery`): a un mensajero no se le ofrece cerrar una entrega ajena.
+  it('a un mensajero no le ofrece las acciones de una entrega asignada a otro', async () => {
+    fetchDeliveries.mockResolvedValue([entrega({ courier: { id: 'm2', name: 'Otro Mensajero' } })])
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
+
+    const tarjeta = await screen.findByRole('listitem')
+    expect(within(tarjeta).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('recepción sí actúa sobre la entrega de cualquier mensajero', async () => {
+    fetchDeliveries.mockResolvedValue([entrega({ courier: { id: 'm2', name: 'Otro Mensajero' } })])
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="recepcion" userId="r1" />)
+
+    const tarjeta = await screen.findByRole('listitem')
+    expect(within(tarjeta).getByRole('button', { name: 'Marcar entregado' })).toBeInTheDocument()
+    expect(within(tarjeta).getByRole('button', { name: 'No se pudo' })).toBeInTheDocument()
+  })
+
   it('«No se pudo» abre el diálogo de motivo y nueva fecha', async () => {
     fetchDeliveries.mockResolvedValue([entrega()])
-    const { user } = renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" />)
+    const { user } = renderWithQueryAndRouter(
+      <DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />,
+    )
 
     await user.click(await screen.findByRole('button', { name: 'No se pudo' }))
     const dialog = await screen.findByRole('dialog', { name: 'No se pudo entregar' })
@@ -173,7 +200,7 @@ describe('DeliveriesDay', () => {
       }),
       entrega({ id: 'd2', case: { ...entrega().case, id: 'c2', code: '26-00002' } }),
     ])
-    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" />)
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
 
     await screen.findByRole('region', { name: 'Clínica Sonrisa' })
     const [primera, segunda] = screen.getAllByRole('listitem')
@@ -186,7 +213,7 @@ describe('DeliveriesDay', () => {
     fetchDeliveries.mockResolvedValue([
       entrega({ status: 'fallida', failedReason: 'Clínica cerrada' }),
     ])
-    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" />)
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
 
     const tarjeta = await screen.findByRole('listitem')
     expect(within(tarjeta).getByText('Fallida')).toBeInTheDocument()
@@ -205,7 +232,7 @@ describe('DeliveriesDay', () => {
         case: { ...entrega().case, status: 'cancelado' },
       }),
     ])
-    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" />)
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
 
     const tarjeta = await screen.findByRole('listitem')
     expect(within(tarjeta).getByText('Cancelado')).toBeInTheDocument()
@@ -227,7 +254,7 @@ describe('DeliveriesDay', () => {
         case: { ...entrega().case, id: 'c2', code: '26-00002' },
       }),
     ])
-    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" />)
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
 
     const ayer = (await screen.findByRole('link', { name: '26-00001' })).closest('li')!
     const hoy = screen.getByRole('link', { name: '26-00002' }).closest('li')!
@@ -237,19 +264,19 @@ describe('DeliveriesDay', () => {
 
   it('sin entregas lo dice', async () => {
     fetchDeliveries.mockResolvedValue([])
-    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-05" role="admin" />)
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-05" role="admin" userId="a1" />)
     expect(await screen.findByText('No hay entregas ni recogidas este día.')).toBeInTheDocument()
   })
 
   it('al mensajero, hoy sin entregas, le habla a él', async () => {
     fetchDeliveries.mockResolvedValue([])
-    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" />)
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
     expect(await screen.findByText('No tienes entregas hoy')).toBeInTheDocument()
   })
 
   it('un fallo al cargar no se muestra como vacío: ofrece reintentar', async () => {
     fetchDeliveries.mockRejectedValue(new TypeError('Failed to fetch'))
-    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" />)
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
     expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
     expect(screen.queryByText('No tienes entregas hoy')).not.toBeInTheDocument()
   })

@@ -9,7 +9,7 @@ import { DeliveriesDay } from './deliveries-day'
  * «Entregas» y un enlace a la pantalla completa. Sustituye a los contadores del laboratorio,
  * que al mensajero no le dicen qué hacer. La API ya le devuelve solo las suyas.
  */
-export function MyDeliveriesToday() {
+export function MyDeliveriesToday({ userId }: { userId: string }) {
   const today = toIsoDate(new Date())
   return (
     <section className="flex flex-col gap-3">
@@ -23,7 +23,7 @@ export function MyDeliveriesToday() {
           <ArrowRight aria-hidden className="size-4" />
         </Link>
       </div>
-      <DeliveriesDay day={today} role="mensajero" compact />
+      <DeliveriesDay day={today} role="mensajero" userId={userId} compact />
     </section>
   )
 }
