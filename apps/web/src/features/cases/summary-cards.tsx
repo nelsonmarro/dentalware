@@ -1,6 +1,7 @@
 import type { CaseView } from '@dentalware/shared'
 import { CASE_VIEWS, toIsoDate } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 import { LoadError } from '@/components/load-error'
 import { caseViewLabel } from './case-views'
 import { STATUS_COLOR } from './status-chip'
@@ -27,7 +28,9 @@ const VIEW_COLOR: Record<CaseView, string> = {
 
 const SUMMARY_VIEWS = CASE_VIEWS.filter((v): v is Exclude<CaseView, 'todos'> => v !== 'todos')
 
-export function SummaryCards() {
+/** `extra`: una tarjeta más al final de la rejilla (las entregas del día de recepción,
+ * UX4-22), que la compone quien sabe del rol (`HomeSummary`). */
+export function SummaryCards({ extra }: { extra?: ReactNode } = {}) {
   const summary = useSummary()
   const today = toIsoDate(new Date())
 
@@ -38,7 +41,9 @@ export function SummaryCards() {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    // UX4-22: cuatro columnas en escritorio. Con seis, las siete tarjetas dejaban «Listos» sola
+    // en la segunda fila; con cuatro, 4 + 3 (técnico) o 4 + 4 con las entregas de recepción.
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
       {SUMMARY_VIEWS.map((vista) => {
         const count = summary.data?.[vista]
         // "En curso" ya incluye los trabajos "en prueba" (ruling PR 2, T12: `viewCondition` en
@@ -74,6 +79,7 @@ export function SummaryCards() {
           </Link>
         )
       })}
+      {extra}
     </div>
   )
 }

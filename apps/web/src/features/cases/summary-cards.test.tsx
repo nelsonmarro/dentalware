@@ -121,4 +121,17 @@ describe('SummaryCards', () => {
     const card = await screen.findByRole('link', { name: 'En curso 5' })
     expect(card).not.toHaveTextContent(/en prueba/)
   })
+
+  // UX4-22: siete tarjetas en seis columnas dejaban «Listos» sola en otra fila. Con cuatro
+  // columnas las filas quedan parejas, y una tarjeta extra (las entregas de recepción) cierra la
+  // segunda fila.
+  it('acomoda las tarjetas en filas de cuatro y añade al final la que le pasen', async () => {
+    fetchSummary.mockResolvedValue(SUMMARY)
+    renderWithProviders(<SummaryCards extra={<a href="/extra">Extra</a>} />)
+    const listos = await screen.findByRole('link', { name: /^Listos/ })
+    const grid = listos.parentElement!
+    expect(grid).toHaveClass('lg:grid-cols-4')
+    expect(grid).not.toHaveClass('lg:grid-cols-6')
+    expect(grid.lastElementChild).toHaveTextContent('Extra')
+  })
 })
