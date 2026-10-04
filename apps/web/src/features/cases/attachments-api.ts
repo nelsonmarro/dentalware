@@ -21,6 +21,10 @@ export type Attachment = {
   linkedToDelivery: boolean
 }
 
+/** Dónde se sirve el original de un adjunto (el mismo `url` que trae su DTO), para enlazarlo
+ * desde lo que solo conoce el id, como el evento `delivered` del historial (UX4-16). */
+export const attachmentUrl = (id: string) => `/api/adjuntos/${id}`
+
 export async function fetchAttachments(caseId: string): Promise<Attachment[]> {
   return (
     await (await throwIfNotOk(await adjuntos.trabajo[':caseId'].$get({ param: { caseId } }))).json()

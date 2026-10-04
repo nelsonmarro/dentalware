@@ -1,8 +1,11 @@
 import {
   CASE_STATUS_LABEL,
   CASE_STATUSES,
+  DELIVERY_FAILED_LABEL,
+  DELIVERY_TYPES,
   type CaseEventType,
   type CaseStatus,
+  type DeliveryType,
 } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import {
@@ -29,6 +32,7 @@ import {
 } from 'lucide-react'
 import type { Stage } from '@/features/stages/api'
 import type { CaseDetail, CaseEvent } from './api'
+import { attachmentUrl } from './attachments-api'
 import { formatDate } from './date-format'
 
 export const EVENT_LABEL: Record<CaseEventType, string> = {
@@ -52,6 +56,18 @@ export const EVENT_LABEL: Record<CaseEventType, string> = {
   remake_created: 'Repetición creada',
   edited: 'Datos editados',
   price_changed: 'Precio modificado',
+}
+
+/** Rótulo de un evento: `delivery_failed` nombra lo que falló con el tipo que guarda en
+ * `fromValue` (UX4-16); los anteriores, sin tipo, siguen con el texto genérico. */
+function eventLabel(e: CaseEvent): string {
+  if (
+    e.type === 'delivery_failed' &&
+    (DELIVERY_TYPES as readonly string[]).includes(e.fromValue ?? '')
+  ) {
+    return DELIVERY_FAILED_LABEL[e.fromValue as DeliveryType]
+  }
+  return EVENT_LABEL[e.type]
 }
 
 const EVENT_ICON: Record<CaseEventType, LucideIcon> = {
@@ -157,8 +173,19 @@ function EventDetail({
     case 'delivered':
       // Desde la Iteración 4 `toValue` es el id de la constancia; antes era el estado
       // (`entregado`) y no había foto: solo se nombra la foto cuando la hay.
+      // UX4-16: la foto se abre aparte, con el mismo endpoint que «Abrir original» en «Adjuntos».
       return e.toValue && !(CASE_STATUSES as readonly string[]).includes(e.toValue) ? (
-        <p className="text-sm text-muted-foreground">Con foto de constancia</p>
+        <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+          Con foto de constancia
+          <a
+            href={attachmentUrl(e.toValue)}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-11 items-center text-primary underline underline-offset-2"
+          >
+            Ver constancia
+          </a>
+        </p>
       ) : null
     case 'delivery_failed':
       return e.reason && e.toValue ? (
@@ -235,7 +262,7 @@ export function CaseHistory({
             </span>
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
-                <span className="font-medium">{EVENT_LABEL[e.type]}</span>
+                <span className="font-medium">{eventLabel(e)}</span>
                 <span className="text-muted-foreground">{e.actor?.name ?? 'Sistema'}</span>
                 <span
                   className="text-xs text-muted-foreground"

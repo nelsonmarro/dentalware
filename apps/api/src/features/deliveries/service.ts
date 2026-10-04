@@ -85,6 +85,7 @@ export function createDeliveriesService(deps: {
         await events.addEvent({
           caseId: found.caseId,
           type: 'delivery_failed',
+          fromValue: found.type,
           toValue: input.nuevaFecha,
           reason: input.motivo,
           actorId: ctx.userId,

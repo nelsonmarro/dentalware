@@ -301,7 +301,11 @@ describe('/api/entregas', () => {
 
       const eventos = await createCasesRepo(ctx.db).events(caseId)
       const evento = eventos.find((e) => e.type === 'delivery_failed')
-      expect(evento).toMatchObject({ toValue: '2026-10-12', reason: 'No había nadie' })
+      expect(evento).toMatchObject({
+        fromValue: 'entrega',
+        toValue: '2026-10-12',
+        reason: 'No había nadie',
+      })
     })
 
     it('admin reprograma la de cualquier mensajero', async () => {

@@ -72,6 +72,8 @@ export interface CaseEventLog {
   addEvent(e: {
     caseId: string
     type: 'delivery_failed'
+    /** El tipo de lo que falló (`recogida`/`entrega`), para que el historial lo nombre (UX4-16). */
+    fromValue: DeliveryType
     toValue: string
     reason: string
     actorId: string

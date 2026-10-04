@@ -10,6 +10,7 @@ import {
   DELIVERY_ALREADY_CLOSED_MESSAGE,
   DELIVERY_CLOSED_BY_ACTION,
   DELIVERY_CLOSING_ACTION,
+  DELIVERY_FAILED_LABEL,
   DELIVERY_PROOF_LOCKED_MESSAGE,
   DELIVERY_TYPES,
   canActOnDelivery,
@@ -50,6 +51,12 @@ describe('entregas', () => {
     expect(DELIVERY_PROOF_LOCKED_MESSAGE).toBe(
       'Es la constancia de la entrega: no se puede borrar.',
     )
+  })
+  it('rótulo del historial de lo que no se pudo hacer, por tipo (UX4-16)', () => {
+    expect(DELIVERY_FAILED_LABEL).toEqual({
+      recogida: 'Recogida fallida',
+      entrega: 'Entrega fallida',
+    })
   })
   it('mensaje de entrega ya no pendiente', () => {
     expect(DELIVERY_NOT_PENDING_MESSAGE).toBe('Esta entrega ya no está pendiente.')

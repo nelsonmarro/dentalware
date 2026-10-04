@@ -17,6 +17,13 @@ export const DELIVERY_TYPE_LABEL: Record<DeliveryType, string> = {
   entrega: 'Entrega',
 }
 
+/** Rótulo del evento `delivery_failed` en el historial según el tipo que guarda en `fromValue`
+ * (UX4-16). `Record` exhaustivo: un tipo nuevo no compila sin su rótulo. */
+export const DELIVERY_FAILED_LABEL: Record<DeliveryType, string> = {
+  recogida: 'Recogida fallida',
+  entrega: 'Entrega fallida',
+}
+
 /** `Record` exhaustivo: un estado de entrega nuevo no compila sin su rótulo. */
 export const DELIVERY_STATUS_LABEL: Record<DeliveryStatus, string> = {
   pendiente: 'Pendiente',
