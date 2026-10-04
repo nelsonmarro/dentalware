@@ -845,6 +845,22 @@ describe('resumen del día', () => {
     expect(r.en_curso).toBe(0)
     expect(r.todos).toBe(1)
   })
+
+  // CAL-2 (#80, Tarea 8): "vencen mañana" es el siguiente día hábil (ADR 30), no el día
+  // de calendario siguiente. '2026-09-18' es viernes: "mañana" es el lunes '2026-09-21',
+  // nunca el sábado '2026-09-19'.
+  it('"vencen mañana" cuenta el siguiente día hábil, saltando el fin de semana', async () => {
+    const service = servicioParaResumen(
+      [
+        completo({ id: '1', status: 'en_proceso', promisedDate: '2026-09-21', dueDate: null }),
+        completo({ id: '2', status: 'en_proceso', promisedDate: '2026-09-19', dueDate: null }),
+        completo({ id: '3', status: 'terminado', promisedDate: '2026-09-21', dueDate: null }),
+      ],
+      '2026-09-18',
+    )
+    const r = await service.summary()
+    expect(r.vencen_manana).toBe(1)
+  })
 })
 
 // Iteración 4, Tarea 3 (ENT-1, ENT-2): programar la recogida al crear el trabajo y recibirlo.

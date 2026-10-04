@@ -32,6 +32,7 @@ export const CASE_VIEWS = [
   'nuevos',
   'en_curso',
   'vencen_hoy',
+  'vencen_manana',
   'atrasados',
   'en_prueba',
   'listos',

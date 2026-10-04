@@ -1,6 +1,7 @@
 import type { CaseInput, CaseListQuery, CaseSummary, CaseView } from '@dentalware/shared'
 import {
   ACTIVE_FOR_DATES_STATUSES,
+  addBusinessDays,
   CASE_PAGE_SIZE,
   CASE_VIEWS,
   canRemake,
@@ -14,6 +15,7 @@ import {
   remakeDueDate,
   sumCents,
   toCents,
+  toIsoDate,
 } from '@dentalware/shared'
 import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import type { Db, Tx } from '../../db/index.ts'
@@ -141,12 +143,20 @@ const ORDER_COLUMNS = {
  * total de su lista; dos definiciones podrían divergir en silencio).
  */
 function viewCondition(view: CaseView, today: string): SQL | undefined {
+  // CAL-2 (#80): "mañana" es el siguiente día *hábil* (ADR 30), calculado en JS con el mismo
+  // helper que usa `promisedDate` al aceptar un trabajo — nunca en SQL, para no duplicar la
+  // regla de fin de semana/feriados en dos lenguajes.
+  const siguienteDiaHabil = toIsoDate(addBusinessDays(new Date(`${today}T00:00:00`), 1, []))
   const conditionByView: Record<CaseView, SQL | undefined> = {
     nuevos: eq(cases.status, 'nuevo'),
     en_curso: inArray(cases.status, [...EN_CURSO_STATUSES]),
     vencen_hoy: and(
       inArray(cases.status, [...ACTIVE_FOR_DATES_STATUSES]),
       sql`${effectiveDate} = ${today}::date`,
+    ),
+    vencen_manana: and(
+      inArray(cases.status, [...ACTIVE_FOR_DATES_STATUSES]),
+      sql`${effectiveDate} = ${siguienteDiaHabil}::date`,
     ),
     atrasados: and(
       inArray(cases.status, [...ACTIVE_FOR_DATES_STATUSES]),

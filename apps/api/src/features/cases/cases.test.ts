@@ -1929,6 +1929,69 @@ describe('/api/trabajos', () => {
     })
   })
 
+  // CAL-2 (#80, Tarea 8): "vencen mañana" es el siguiente día *hábil* tras hoy (ADR 30), no el
+  // día de calendario siguiente. Reloj fijo en viernes para que "mañana" salte el fin de
+  // semana: un trabajo que vence el sábado no debe contar, y uno que vence el lunes (el
+  // siguiente día hábil real) sí. Con la mutación "+1 día natural" en vez de `addBusinessDays`,
+  // el lunes dejaría de contar (mañana sería el sábado) y este test lo detecta.
+  describe('vencen_manana (CAL-2)', () => {
+    const VIERNES = '2026-10-02'
+    let vencenMananaApp: ReturnType<typeof createApp>
+
+    beforeAll(() => {
+      vencenMananaApp = createApp({
+        auth: ctx.auth,
+        db: ctx.db,
+        webOrigin: ctx.config.WEB_ORIGIN,
+        storage: ctx.storage,
+        clock: { today: () => VIERNES, now: () => new Date(`${VIERNES}T12:00:00Z`) },
+      })
+    })
+
+    it('el lunes (siguiente día hábil) cuenta; el sábado y un trabajo terminado no', async () => {
+      const lunesId = await createOne(recepcion, { patientRef: 'Vence el lunes' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_proceso', promisedDate: '2026-10-05' })
+        .where(eq(ctx.schema.cases.id, lunesId))
+
+      const sabadoId = await createOne(recepcion, { patientRef: 'Vence el sábado' })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'en_proceso', promisedDate: '2026-10-03' })
+        .where(eq(ctx.schema.cases.id, sabadoId))
+
+      const terminadoLunesId = await createOne(recepcion, {
+        patientRef: 'Terminado, vencía el lunes',
+      })
+      await ctx.db
+        .update(ctx.schema.cases)
+        .set({ status: 'terminado', promisedDate: '2026-10-05' })
+        .where(eq(ctx.schema.cases.id, terminadoLunesId))
+
+      const listaRes = await vencenMananaApp.request(
+        '/api/trabajos?vista=vencen_manana',
+        req(admin, 'GET'),
+      )
+      expect(listaRes.status).toBe(200)
+      const { cases: lista, total } = (await listaRes.json()) as {
+        cases: { id: string }[]
+        total: number
+      }
+      const ids = lista.map((c) => c.id)
+
+      expect(ids).toContain(lunesId)
+      expect(ids).not.toContain(sabadoId)
+      expect(ids).not.toContain(terminadoLunesId)
+      expect(total).toBe(1)
+
+      // ADR 32: el contador del resumen coincide con el total de la lista de su misma vista.
+      const resumenRes = await vencenMananaApp.request('/api/trabajos/resumen', req(admin, 'GET'))
+      const { resumen } = (await resumenRes.json()) as { resumen: Record<string, number> }
+      expect(resumen.vencen_manana).toBe(total)
+    })
+  })
+
   // Tarea 15 (FIC-2 #72, FIC-3 #73): ficha corta del QR, entra por código en vez de uuid.
   describe('GET /api/trabajos/codigo/:code', () => {
     it('devuelve el trabajo con la misma forma que GET /api/trabajos/:id', async () => {

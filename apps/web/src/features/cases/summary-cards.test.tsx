@@ -37,6 +37,7 @@ const SUMMARY: CaseSummary = {
   nuevos: 3,
   en_curso: 5,
   vencen_hoy: 1,
+  vencen_manana: 6,
   atrasados: 0,
   en_prueba: 2,
   listos: 4,
@@ -67,6 +68,15 @@ describe('SummaryCards', () => {
     renderWithProviders(<SummaryCards />)
 
     expect(await screen.findByRole('link', { name: /Atrasados 0/ })).toBeInTheDocument()
+  })
+
+  // CAL-2 (#80, Tarea 8): la tarjeta «Vencen mañana» enlaza a su vista, como las demás.
+  it('muestra la tarjeta «Vencen mañana» y enlaza a su lista', async () => {
+    fetchSummary.mockResolvedValue(SUMMARY)
+    renderWithProviders(<SummaryCards />)
+
+    const card = await screen.findByRole('link', { name: /Vencen mañana 6/ })
+    expect(card).toHaveAttribute('href', expect.stringContaining('vista=vencen_manana'))
   })
 
   it('no arma una tarjeta para "todos" (ruling PR 2, T12: no es un conteo del día)', async () => {

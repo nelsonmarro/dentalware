@@ -1,4 +1,5 @@
 import {
+  addBusinessDays,
   CASE_VIEWS,
   caseInputSchema,
   canRemake,
@@ -11,6 +12,7 @@ import {
   remakeDueDate,
   sumCents,
   toCents,
+  toIsoDate,
 } from '@dentalware/shared'
 import type {
   AttachmentKind,
@@ -187,6 +189,12 @@ function matchesView(view: CaseView | undefined, today: string, r: CaseDetail): 
       return isEnCurso(r.status)
     case 'vencen_hoy':
       return activeForDates && effectiveDate === today
+    case 'vencen_manana': {
+      // Mismo cálculo que `viewCondition` (`repo.ts`, CAL-2): el siguiente día *hábil*, no el
+      // día de calendario siguiente.
+      const siguienteDiaHabil = toIsoDate(addBusinessDays(new Date(`${today}T00:00:00`), 1, []))
+      return activeForDates && effectiveDate === siguienteDiaHabil
+    }
     case 'atrasados':
       return activeForDates && effectiveDate !== null && effectiveDate < today
     case 'en_prueba':
