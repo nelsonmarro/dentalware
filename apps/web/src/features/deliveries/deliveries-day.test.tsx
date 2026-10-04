@@ -24,6 +24,7 @@ function entrega(over: Partial<DeliveryItem> = {}): DeliveryItem {
     scheduledFor: '2026-10-03',
     doneAt: null,
     failedReason: null,
+    rescheduledFor: null,
     case: {
       id: 'c1',
       code: '26-00001',
@@ -35,6 +36,7 @@ function entrega(over: Partial<DeliveryItem> = {}): DeliveryItem {
       id: 'k1',
       name: 'Clínica Sonrisa',
       address: 'Av. Amazonas N34-120, Quito',
+      city: null,
       phone: '099 123 4567',
     },
     courier: { id: 'm1', name: 'Mario Mensajero' },
@@ -42,7 +44,7 @@ function entrega(over: Partial<DeliveryItem> = {}): DeliveryItem {
   }
 }
 
-const clinica = (id: string, name: string) => ({ id, name, address: null, phone: null })
+const clinica = (id: string, name: string) => ({ id, name, address: null, city: null, phone: null })
 
 beforeEach(() => {
   fetchDeliveries.mockReset()

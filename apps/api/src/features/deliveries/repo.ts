@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { aliasedTable, and, asc, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { Db, Tx } from '../../db/index.ts'
 import { users } from '../../db/schema/auth.ts'
 import { cases } from '../cases/schema.ts'
@@ -99,6 +99,20 @@ export function createDeliveriesRepo(db: Db | Tx) {
       ]
       if (q.courierId) conds.push(eq(deliveries.courierId, q.courierId))
 
+      // UX4-18: la fecha a la que se reprogramó una fallida es la de la siguiente entrega del
+      // mismo trabajo y tipo (la que creó «No se pudo» en la misma transacción). La cerrada por
+      // la cancelación no tiene siguiente: queda `null`.
+      const next = aliasedTable(deliveries, 'next_delivery')
+      const nextFrom = sql`${deliveries} as ${sql.identifier('next_delivery')}`
+      const rescheduledFor = sql<string | null>`case when ${deliveries.status} = 'fallida' then (
+        select ${next.scheduledFor} from ${nextFrom}
+        where ${next.caseId} = ${deliveries.caseId}
+          and ${next.type} = ${deliveries.type}
+          and ${next.createdAt} > ${deliveries.createdAt}
+        order by ${next.createdAt} asc
+        limit 1
+      ) end`
+
       const rows = await db
         .select({
           id: deliveries.id,
@@ -107,6 +121,7 @@ export function createDeliveriesRepo(db: Db | Tx) {
           scheduledFor: deliveries.scheduledFor,
           doneAt: deliveries.doneAt,
           failedReason: deliveries.failedReason,
+          rescheduledFor,
           caseId: cases.id,
           caseCode: cases.code,
           casePatientRef: cases.patientRef,
@@ -115,6 +130,7 @@ export function createDeliveriesRepo(db: Db | Tx) {
           clinicId: clinics.id,
           clinicName: clinics.name,
           clinicAddress: clinics.address,
+          clinicCity: clinics.city,
           clinicPhone: clinics.phone,
           courierId: users.id,
           courierName: users.name,
@@ -133,6 +149,7 @@ export function createDeliveriesRepo(db: Db | Tx) {
         scheduledFor: r.scheduledFor,
         doneAt: r.doneAt,
         failedReason: r.failedReason,
+        rescheduledFor: r.rescheduledFor,
         case: {
           id: r.caseId,
           code: r.caseCode,
@@ -144,6 +161,7 @@ export function createDeliveriesRepo(db: Db | Tx) {
           id: r.clinicId,
           name: r.clinicName,
           address: r.clinicAddress,
+          city: r.clinicCity,
           phone: r.clinicPhone,
         },
         courier: { id: r.courierId, name: r.courierName },

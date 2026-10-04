@@ -30,6 +30,9 @@ export type DeliveryListItem = {
    * fallida antes de reprogramar (`fallida`) — no solo la de una entrega completada. */
   doneAt: Date | null
   failedReason: string | null
+  /** Fallida: la fecha a la que «No se pudo» la reprogramó (UX4-18); `null` en el resto y en
+   * la que cerró la cancelación del trabajo, que no se reprograma. */
+  rescheduledFor: string | null
   case: {
     id: string
     code: string
@@ -37,7 +40,14 @@ export type DeliveryListItem = {
     status: CaseStatus
     priority: CasePriority
   }
-  clinic: { id: string; name: string; address: string | null; phone: string | null }
+  clinic: {
+    id: string
+    name: string
+    address: string | null
+    /** Para que el mapa busque la dirección en su ciudad (UX4-21). */
+    city: string | null
+    phone: string | null
+  }
   courier: { id: string; name: string }
 }
 

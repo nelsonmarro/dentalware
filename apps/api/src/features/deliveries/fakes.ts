@@ -15,7 +15,13 @@ export type DeliveryCaseRef = {
   patientRef: string | null
   status: CaseStatus
   priority: CasePriority
-  clinic: { id: string; name: string; address: string | null; phone: string | null }
+  clinic: {
+    id: string
+    name: string
+    address: string | null
+    city: string | null
+    phone: string | null
+  }
 }
 
 /**
@@ -85,6 +91,14 @@ export function fakeDeliveriesRepo(
         if (r.scheduledFor === q.day) return true
         return q.includeOverdue && r.status === 'pendiente' && r.scheduledFor < q.day
       })
+      // Mismo criterio que `repo.ts` (UX4-18): la siguiente del mismo trabajo y tipo, creada
+      // después (aquí, el orden de inserción del mapa).
+      const all = [...rows.values()]
+      const rescheduledFor = (r: DeliveryRow) =>
+        r.status === 'fallida'
+          ? (all.slice(all.indexOf(r) + 1).find((n) => n.caseId === r.caseId && n.type === r.type)
+              ?.scheduledFor ?? null)
+          : null
       return matches
         .map((r) => {
           const c = cases.get(r.caseId)
@@ -96,6 +110,7 @@ export function fakeDeliveriesRepo(
             scheduledFor: r.scheduledFor,
             doneAt: r.doneAt,
             failedReason: r.failedReason,
+            rescheduledFor: rescheduledFor(r),
             case: {
               id: r.caseId,
               code: c.code,

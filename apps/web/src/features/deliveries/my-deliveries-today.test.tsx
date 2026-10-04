@@ -15,6 +15,7 @@ const base: DeliveryItem = {
   scheduledFor: '2026-10-03',
   doneAt: null,
   failedReason: null,
+  rescheduledFor: null,
   case: {
     id: 'c1',
     code: '26-00001',
@@ -22,7 +23,7 @@ const base: DeliveryItem = {
     status: 'enviado',
     priority: 'normal',
   },
-  clinic: { id: 'k1', name: 'Clínica Sonrisa', address: null, phone: null },
+  clinic: { id: 'k1', name: 'Clínica Sonrisa', address: null, city: null, phone: null },
   courier: { id: 'm1', name: 'Mario Mensajero' },
 }
 

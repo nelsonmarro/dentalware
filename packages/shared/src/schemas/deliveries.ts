@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { CANCELLED_DELIVERY_REASON_PREFIX } from '../deliveries.ts'
 import { isoDate } from './config.ts'
 
 /** Id de usuario (mensajero): Better Auth no genera UUID (su id por omisión es una cadena
@@ -26,13 +27,17 @@ export const deliveryListQuerySchema = z.object({
 export type DeliveryListQuery = z.infer<typeof deliveryListQuerySchema>
 
 /** `POST /api/entregas/:id/fallida` (ENT-5): cierra la entrega como fallida y reprograma una
- * nueva pendiente en una sola operación. */
+ * nueva pendiente en una sola operación. El motivo no puede empezar con el prefijo de la
+ * cancelación del trabajo (UX4-17): la web vería la entrega como anulada. */
 export const deliveryFailSchema = z.object({
   motivo: z
     .string()
     .trim()
     .min(1, { error: 'Escribe el motivo' })
-    .max(500, { error: 'Máximo 500 caracteres' }),
+    .max(500, { error: 'Máximo 500 caracteres' })
+    .refine((m) => !m.startsWith(CANCELLED_DELIVERY_REASON_PREFIX.trim()), {
+      error: 'El motivo no puede empezar por «Trabajo cancelado:»',
+    }),
   nuevaFecha: isoDate,
 })
 export type DeliveryFailInput = z.infer<typeof deliveryFailSchema>

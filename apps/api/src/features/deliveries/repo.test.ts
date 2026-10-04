@@ -24,7 +24,12 @@ describe('features/deliveries/repo', () => {
     await truncateAll(ctx.db)
     const [clinic] = await ctx.db
       .insert(ctx.schema.clinics)
-      .values({ name: 'Sonrisa', address: 'Av. Amazonas 123', phone: '099-000-0000' })
+      .values({
+        name: 'Sonrisa',
+        address: 'Av. Amazonas 123',
+        city: 'Quito',
+        phone: '099-000-0000',
+      })
       .returning()
     clinicId = clinic!.id
     const [doctor] = await ctx.db
@@ -335,9 +340,53 @@ describe('features/deliveries/repo', () => {
           status: 'nuevo',
           priority: 'normal',
         },
-        clinic: { name: 'Sonrisa', address: 'Av. Amazonas 123', phone: '099-000-0000' },
+        clinic: {
+          name: 'Sonrisa',
+          address: 'Av. Amazonas 123',
+          city: 'Quito',
+          phone: '099-000-0000',
+        },
+        rescheduledFor: null,
         courier: { name: 'Beto Mensajero' },
       })
+    })
+
+    // UX4-18: la fallida dice para cuándo se reprogramó: la fecha de la siguiente entrega del
+    // mismo trabajo y tipo (la que creó «No se pudo»), no la de otra posterior.
+    it('una fallida trae la fecha a la que se reprogramó; la cerrada por cancelación, ninguna', async () => {
+      const repo = createDeliveriesRepo(ctx.db)
+      const caseId = await createCase()
+      const primera = await repo.create({
+        caseId,
+        type: 'entrega',
+        courierId,
+        scheduledFor: '2026-09-10',
+      })
+      await repo.markFailed(primera.id, 'Clínica cerrada', new Date('2026-09-10T15:00:00Z'))
+      // Otro tipo del mismo trabajo, creado antes de la reprogramación, no cuenta como tal.
+      await repo.create({ caseId, type: 'recogida', courierId, scheduledFor: '2026-09-11' })
+      const segunda = await repo.create({
+        caseId,
+        type: 'entrega',
+        courierId,
+        scheduledFor: '2026-09-14',
+      })
+      await repo.markFailed(segunda.id, 'Nadie para recibir', new Date('2026-09-14T15:00:00Z'))
+      await repo.create({ caseId, type: 'entrega', courierId, scheduledFor: '2026-09-16' })
+      const otro = await createCase()
+      const cancelada = await repo.create({
+        caseId: otro,
+        type: 'entrega',
+        courierId,
+        scheduledFor: '2026-09-10',
+      })
+      await repo.markFailed(cancelada.id, 'Trabajo cancelado: x', new Date('2026-09-10T16:00:00Z'))
+
+      const dia10 = await repo.listForDay({ day: '2026-09-10', includeOverdue: false })
+      expect(dia10.find((d) => d.id === primera.id)?.rescheduledFor).toBe('2026-09-14')
+      expect(dia10.find((d) => d.id === cancelada.id)?.rescheduledFor).toBeNull()
+      const dia14 = await repo.listForDay({ day: '2026-09-14', includeOverdue: false })
+      expect(dia14.find((d) => d.id === segunda.id)?.rescheduledFor).toBe('2026-09-16')
     })
 
     it('no devuelve ningún campo de dinero', async () => {
@@ -353,6 +402,7 @@ describe('features/deliveries/repo', () => {
           'scheduledFor',
           'doneAt',
           'failedReason',
+          'rescheduledFor',
           'case',
           'clinic',
           'courier',
