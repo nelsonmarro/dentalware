@@ -1040,7 +1040,7 @@ describe('/api/trabajos', () => {
       it('GET /api/trabajos/:id trae la entrega pendiente, la última hecha y la clínica con dirección', async () => {
         await ctx.db
           .update(ctx.schema.clinics)
-          .set({ address: 'Av. Amazonas N34-12', phone: '02 255 1234' })
+          .set({ address: 'Av. Amazonas N34-12', city: 'Quito', phone: '02 255 1234' })
           .where(eq(ctx.schema.clinics.id, clinicId))
         const id = await crearEnviado()
         type Ficha = {
@@ -1069,6 +1069,8 @@ describe('/api/trabajos', () => {
           id: clinicId,
           name: 'Sonrisa',
           address: 'Av. Amazonas N34-12',
+          // UX4-21: el mapa busca la dirección en su ciudad.
+          city: 'Quito',
           phone: '02 255 1234',
         })
         expect(enviado.total).toBeNull()

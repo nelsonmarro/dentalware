@@ -35,8 +35,8 @@ function entrega(over: Partial<DeliveryItem> = {}): DeliveryItem {
     clinic: {
       id: 'k1',
       name: 'Clínica Sonrisa',
-      address: 'Av. Amazonas N34-120, Quito',
-      city: null,
+      address: 'Av. Amazonas N34-120',
+      city: 'Quito',
       phone: '099 123 4567',
     },
     courier: { id: 'm1', name: 'Mario Mensajero' },
@@ -96,13 +96,15 @@ describe('DeliveriesDay', () => {
     const grupo = await screen.findByRole('region', { name: 'Clínica Sonrisa' })
     const tel = within(grupo).getByRole('link', { name: /099 123 4567/ })
     expect(tel).toHaveAttribute('href', 'tel:0991234567')
-    const mapa = within(grupo).getByRole('link', { name: /Av\. Amazonas N34-120, Quito/ })
+    const mapa = within(grupo).getByRole('link', {
+      name: 'Abrir en el mapa: Av. Amazonas N34-120, Quito (se abre en otra pestaña)',
+    })
     expect(mapa).toHaveAttribute(
       'href',
       'https://www.google.com/maps/search/?api=1&query=Av.%20Amazonas%20N34-120%2C%20Quito',
     )
     expect(mapa).toHaveAttribute('target', '_blank')
-    expect(mapa).toHaveAttribute('rel', 'noreferrer')
+    expect(mapa).toHaveAttribute('rel', 'noopener noreferrer')
   })
 
   it('cada tarjeta dice el tipo con texto, enlaza el código a la ficha corta y muestra el paciente', async () => {

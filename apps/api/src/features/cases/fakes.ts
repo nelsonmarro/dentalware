@@ -91,6 +91,7 @@ export function caseDetailFixture(over: Partial<CaseDetail> = {}): CaseDetail {
       id: CLINIC_ID,
       name: 'Sonrisa',
       address: 'Av. Amazonas N34-12',
+      city: 'Quito',
       phone: '02 255 1234',
     },
     doctor: { id: DOCTOR_ID, name: 'Dr. Pérez' },

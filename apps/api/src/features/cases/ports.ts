@@ -23,7 +23,7 @@ export type CaseDetail = typeof cases.$inferSelect & {
   // docs/architecture.md §3). `technician`/`stage` sí son opcionales de verdad.
   // Dirección y teléfono (UX4-07): la ficha corta del mensajero lleva a la clínica (mapa y
   // llamada). No son dinero: los ve cualquier rol, igual que en «Entregas».
-  clinic: Named & { address: string | null; phone: string | null }
+  clinic: Named & { address: string | null; city: string | null; phone: string | null }
   doctor: Named
   technician: Named | null
   stage: { id: string; name: string; color: string } | null

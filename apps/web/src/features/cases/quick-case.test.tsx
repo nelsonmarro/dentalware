@@ -121,6 +121,7 @@ function caso(overrides: Partial<CaseDetail> = {}): CaseDetail {
       id: 'clinica-1',
       name: 'Clínica Uno',
       address: 'Av. 6 de Diciembre N24-1',
+      city: 'Quito',
       phone: '02 222 3344',
     },
     doctor: { id: 'doctor-1', name: 'Dr. Gómez' },
@@ -651,7 +652,7 @@ describe('QuickCase', () => {
       expect(await screen.findByText('Entregar hoy en Clínica Uno')).toBeInTheDocument()
       expect(screen.getByRole('link', { name: /Av\. 6 de Diciembre N24-1/ })).toHaveAttribute(
         'href',
-        'https://www.google.com/maps/search/?api=1&query=Av.%206%20de%20Diciembre%20N24-1',
+        'https://www.google.com/maps/search/?api=1&query=Av.%206%20de%20Diciembre%20N24-1%2C%20Quito',
       )
       expect(screen.getByRole('link', { name: /02 222 3344/ })).toHaveAttribute(
         'href',
@@ -695,7 +696,7 @@ describe('QuickCase', () => {
       fetchCaseByCode.mockResolvedValue({
         case: caso({
           status: 'enviado',
-          clinic: { id: 'clinica-1', name: 'Clínica Uno', address: null, phone: null },
+          clinic: { id: 'clinica-1', name: 'Clínica Uno', address: null, city: null, phone: null },
           pendingDelivery: pendiente('entrega', mario.id),
         }),
         missing: [],
@@ -704,7 +705,11 @@ describe('QuickCase', () => {
       renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
 
       await screen.findByText('Entregar hoy en Clínica Uno')
-      expect(screen.queryByRole('link', { name: /maps|02/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /^Abrir en el mapa/ })).not.toBeInTheDocument()
+      expect(
+        screen.queryAllByRole('link').filter((a) => a.getAttribute('href')?.startsWith('tel:')),
+      ).toEqual([])
+      expect(screen.getByText('Sin dirección registrada')).toBeInTheDocument()
     })
 
     it('técnico y admin no cambian: sin acciones de entrega en la ficha corta', async () => {

@@ -1601,6 +1601,7 @@ describe('entrega pendiente en el detalle', () => {
       id: expect.any(String),
       name: 'Sonrisa',
       address: 'Av. Amazonas N34-12',
+      city: 'Quito',
       phone: '02 255 1234',
     })
   })

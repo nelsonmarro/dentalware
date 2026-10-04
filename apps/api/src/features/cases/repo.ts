@@ -280,7 +280,7 @@ export function createCasesRepo(db: Db | Tx) {
     db.query.cases.findFirst({
       where: { id },
       with: {
-        clinic: { columns: { id: true, name: true, address: true, phone: true } },
+        clinic: { columns: { id: true, name: true, address: true, city: true, phone: true } },
         doctor: { columns: { id: true, name: true } },
         technician: { columns: { id: true, name: true } },
         stage: { columns: { id: true, name: true, color: true } },
@@ -377,7 +377,7 @@ export function createCasesRepo(db: Db | Tx) {
       db.query.cases.findFirst({
         where: { code },
         with: {
-          clinic: { columns: { id: true, name: true, address: true, phone: true } },
+          clinic: { columns: { id: true, name: true, address: true, city: true, phone: true } },
           doctor: { columns: { id: true, name: true } },
           technician: { columns: { id: true, name: true } },
           stage: { columns: { id: true, name: true, color: true } },

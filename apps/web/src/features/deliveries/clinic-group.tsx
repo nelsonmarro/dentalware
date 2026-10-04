@@ -1,7 +1,7 @@
 import type { UserRole } from '@dentalware/shared'
 import { useId } from 'react'
 import type { DeliveryItem } from './api'
-import { ClinicContact } from './clinic-contact'
+import { ClinicContact } from '@/components/clinic-contact'
 import { DeliveryCard } from './delivery-card'
 
 /**
