@@ -7,6 +7,7 @@ import type {
   AttachmentsRepository,
   CaseEventLog,
   CasesQuery,
+  DeliveryProofLookup,
   ImageProcessor,
   NewAttachment,
   PendingDeliveryLookup,
@@ -113,9 +114,13 @@ export function recordingEvents() {
   return { log, events }
 }
 
-/** Entregas pendientes en memoria: como mucho una por trabajo y tipo, igual que la BD. */
+/** Entregas en memoria: las pendientes (como mucho una por trabajo y tipo, igual que la BD) y
+ * las constancias que referencian una entrega hecha. */
 export const pendingDeliveriesWith = (
   rows: { caseId: string; type: DeliveryType; courierId: string }[],
-): PendingDeliveryLookup => ({
+  proofs: { caseId: string; attachmentId: string }[] = [],
+): PendingDeliveryLookup & DeliveryProofLookup => ({
   pendingFor: async (caseId, type) => rows.find((r) => r.caseId === caseId && r.type === type),
+  linkedProofIds: async (caseId) =>
+    proofs.filter((p) => p.caseId === caseId).map((p) => p.attachmentId),
 })

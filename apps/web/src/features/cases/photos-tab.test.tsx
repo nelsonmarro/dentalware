@@ -10,7 +10,7 @@ vi.mock('./attachments-api', () => ({
   deleteAttachment: vi.fn(),
 }))
 
-function adjunto(id: string, kind: string, mime: string) {
+function adjunto(id: string, kind: string, mime: string, linkedToDelivery = false) {
   return {
     id,
     caseId: 'c1',
@@ -24,6 +24,7 @@ function adjunto(id: string, kind: string, mime: string) {
     uploadedBy: null,
     url: `/api/adjuntos/${id}`,
     thumbUrl: null,
+    linkedToDelivery,
   }
 }
 
@@ -57,6 +58,25 @@ describe('PhotosTab', () => {
     renderWithProviders(<PhotosTab caseId="c1" role={role} />)
     await screen.findByRole('img', { name: 'foto.png' })
     expect(Boolean(screen.queryByRole('button', { name: 'Eliminar foto.png' }))).toBe(visible)
+  })
+
+  // UX4-06: la constancia que cerró la entrega se distingue de una sin usar y no se borra.
+  it('rotula las constancias y no ofrece borrar la de la entrega', async () => {
+    fetchAttachments.mockResolvedValue([
+      adjunto('buena', 'constancia', 'image/png', true),
+      adjunto('sobrante', 'constancia', 'image/png', false),
+      adjunto('foto', 'photo', 'image/png'),
+    ])
+    renderWithProviders(<PhotosTab caseId="c1" role="admin" />)
+    await screen.findByRole('img', { name: 'buena.png' })
+
+    const tiles = screen.getAllByRole('listitem')
+    expect(tiles[0]).toHaveTextContent('Constancia de entrega')
+    expect(tiles[1]).toHaveTextContent('Constancia sin usar')
+    expect(tiles[2]).not.toHaveTextContent('Constancia')
+    expect(screen.queryByRole('button', { name: 'Eliminar buena.png' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Eliminar sobrante.png' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Eliminar foto.png' })).toBeInTheDocument()
   })
 
   // Decisión 11 del plan + revisión de la Tarea 4: la foto del mensajero es la constancia,

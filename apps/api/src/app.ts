@@ -103,8 +103,8 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     attachments: attachmentsRepo,
     cases: { exists: async (id) => (await casesRepo.byId(id)) !== undefined },
     events: { add: (e) => casesRepo.addEvent(e) },
-    // `PendingDeliveryLookup` lo declara `attachments`; aquí se cumple con el repo de
-    // `deliveries` (ADR 34), sin que una feature importe el `repo.ts` de la otra.
+    // `PendingDeliveryLookup` y `DeliveryProofLookup` los declara `attachments`; aquí se cumplen
+    // con el repo de `deliveries` (ADR 34), sin que una feature importe el `repo.ts` de la otra.
     deliveries: createDeliveriesRepo(db),
     storage,
     images: sharpImages,

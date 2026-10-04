@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { DELIVERY_PROOF_LOCKED_MESSAGE } from '@dentalware/shared'
 import {
   AttachmentForbiddenError,
+  AttachmentInUseError,
   AttachmentNotFoundError,
   CaseNotFoundError,
   FileTooLargeError,
@@ -25,8 +27,9 @@ const recepcion = { userId: 'u4', role: 'recepcion' } as const
 const otroMensajero = { userId: 'u5', role: 'mensajero' } as const
 
 type PendingSeed = Parameters<typeof pendingDeliveriesWith>[0]
+type ProofSeed = Parameters<typeof pendingDeliveriesWith>[1]
 
-function build(ids: string[] = ['id-1'], pending: PendingSeed = []) {
+function build(ids: string[] = ['id-1'], pending: PendingSeed = [], proofs: ProofSeed = []) {
   const attachments = fakeAttachmentsRepo()
   const cases = casesQueryWith(['c1'])
   const { log: events, events: eventLog } = recordingEvents()
@@ -35,7 +38,7 @@ function build(ids: string[] = ['id-1'], pending: PendingSeed = []) {
     attachments,
     cases,
     events,
-    deliveries: pendingDeliveriesWith(pending),
+    deliveries: pendingDeliveriesWith(pending, proofs),
     storage,
     images: fakeImages,
     ids: fixedIds(ids),
@@ -198,6 +201,56 @@ describe('createAttachmentsService', () => {
     const list = await service.list('c1')
 
     expect(list).toHaveLength(2)
+  })
+
+  // UX4-06: la constancia que cerró una entrega se distingue de una sin usar y no se borra.
+  describe('constancia ligada a una entrega', () => {
+    const constancia = { kind: 'constancia' as const, filename: 'constancia.jpg' }
+
+    it('la lista marca como ligada solo la constancia que referencia una entrega hecha', async () => {
+      const { service } = build(['id-1', 'id-2'], [], [{ caseId: 'c1', attachmentId: 'id-1' }])
+      await service.upload(uploadOf(constancia), admin)
+      await service.upload(uploadOf(constancia), admin)
+
+      const list = await service.list('c1')
+
+      expect(list.map((a) => [a.id, a.linkedToDelivery])).toEqual([
+        ['id-1', true],
+        ['id-2', false],
+      ])
+    })
+
+    it('una recién subida no está ligada', async () => {
+      const { service } = build()
+      const row = await service.upload(uploadOf(constancia), admin)
+      expect(row.linkedToDelivery).toBe(false)
+    })
+
+    it('borrar una constancia ligada lanza AttachmentInUseError y no borra nada', async () => {
+      const { service, storage, eventLog } = build(
+        ['id-1'],
+        [],
+        [{ caseId: 'c1', attachmentId: 'id-1' }],
+      )
+      await service.upload(uploadOf(constancia), admin)
+
+      const err = await service.remove('id-1', admin).catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(AttachmentInUseError)
+      expect((err as Error).message).toBe(DELIVERY_PROOF_LOCKED_MESSAGE)
+      expect(await storage.exists('c1/id-1.jpg')).toBe(true)
+      expect(await service.list('c1')).toHaveLength(1)
+      expect(eventLog.some((e) => e.type === 'attachment_removed')).toBe(false)
+    })
+
+    it('una constancia sin usar se borra', async () => {
+      const { service, storage } = build(['id-1'], [], [{ caseId: 'c1', attachmentId: 'otra' }])
+      await service.upload(uploadOf(constancia), admin)
+
+      await service.remove('id-1', admin)
+
+      expect(await storage.exists('c1/id-1.jpg')).toBe(false)
+    })
   })
 
   // Iteración 4, decisión 5 del plan: el mensajero solo sube la constancia de entrega.

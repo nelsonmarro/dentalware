@@ -17,6 +17,8 @@ export type Attachment = {
   uploadedBy: { id: string; name: string } | null
   url: string
   thumbUrl: string | null
+  /** La constancia que cerró una entrega hecha (UX4-06): no se puede borrar. */
+  linkedToDelivery: boolean
 }
 
 export async function fetchAttachments(caseId: string): Promise<Attachment[]> {

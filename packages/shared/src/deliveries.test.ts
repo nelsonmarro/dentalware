@@ -10,6 +10,7 @@ import {
   DELIVERY_ALREADY_CLOSED_MESSAGE,
   DELIVERY_CLOSED_BY_ACTION,
   DELIVERY_CLOSING_ACTION,
+  DELIVERY_PROOF_LOCKED_MESSAGE,
   DELIVERY_TYPES,
   canActOnDelivery,
   cancelledDeliveryReason,
@@ -44,6 +45,11 @@ describe('entregas', () => {
   })
   it('mensaje de constancia inválida', () => {
     expect(CONSTANCIA_INVALIDA).toBe('La foto de constancia no es de este trabajo.')
+  })
+  it('mensaje al borrar la constancia de una entrega hecha (UX4-06)', () => {
+    expect(DELIVERY_PROOF_LOCKED_MESSAGE).toBe(
+      'Es la constancia de la entrega: no se puede borrar.',
+    )
   })
   it('mensaje de entrega ya no pendiente', () => {
     expect(DELIVERY_NOT_PENDING_MESSAGE).toBe('Esta entrega ya no está pendiente.')

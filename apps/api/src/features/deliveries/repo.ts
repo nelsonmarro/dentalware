@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { Db, Tx } from '../../db/index.ts'
 import { users } from '../../db/schema/auth.ts'
 import { cases } from '../cases/schema.ts'
@@ -41,6 +41,20 @@ export function createDeliveriesRepo(db: Db | Tx) {
         )
         .limit(1)
       return row
+    },
+
+    async linkedProofIds(caseId) {
+      const rows = await db
+        .select({ id: deliveries.proofAttachmentId })
+        .from(deliveries)
+        .where(
+          and(
+            eq(deliveries.caseId, caseId),
+            eq(deliveries.status, 'hecha'),
+            isNotNull(deliveries.proofAttachmentId),
+          ),
+        )
+      return rows.flatMap((r) => (r.id ? [r.id] : []))
     },
 
     // Cierres condicionales (I-1 de la revisión final del PR 2): solo cierran una entrega que

@@ -50,6 +50,10 @@ export const ATTACHMENT_UPLOAD_ROLES = [
  * devuelve en el 422 y la web lo muestra tal cual. */
 export const CONSTANCIA_INVALIDA = 'La foto de constancia no es de este trabajo.'
 
+/** Mensaje del 409 al borrar una constancia que referencia una entrega hecha (UX4-06): la
+ * entrega quedaría «Hecha» sin foto. Una constancia sin usar sí se borra. */
+export const DELIVERY_PROOF_LOCKED_MESSAGE = 'Es la constancia de la entrega: no se puede borrar.'
+
 /** Mensaje del 409 cuando `fail` actúa sobre una entrega que ya no está pendiente (ruling de
  * la Tarea 6). La web no lo compara: `useConflictAwareError` reacciona al status 409 (refresca
  * y muestra este texto tal cual); el literal es el contrato de la API y de sus pruebas. */

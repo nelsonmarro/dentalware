@@ -1,9 +1,10 @@
 import { ATTACHMENT_DELETE_ROLES, ATTACHMENT_UPLOAD_ROLES, hasRole } from '@dentalware/shared'
 import type { UserRole } from '@dentalware/shared'
-import { FileText, Trash2 } from 'lucide-react'
+import { CircleCheck, CircleDashed, FileText, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { EmptyState } from '@/components/empty-state'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -17,9 +18,29 @@ import type { Attachment } from './attachments-api'
 import { PhotoUploader } from './photo-uploader'
 import { useAttachments, useDeleteAttachment } from './use-attachments'
 
+/** Rótulo de una constancia (UX4-06): la que cerró una entrega hecha frente a una que se subió y
+ * no se usó (p. ej. tras «Cambiar foto» o un fallo al marcar entregado). */
+function ProofBadge({ attachment: a }: { attachment: Attachment }) {
+  if (a.kind !== 'constancia') return null
+  return a.linkedToDelivery ? (
+    <Badge className="pointer-events-none absolute bottom-1.5 left-1.5 h-6 max-w-[calc(100%-0.75rem)] shadow-sm">
+      <CircleCheck aria-hidden />
+      Constancia de entrega
+    </Badge>
+  ) : (
+    <Badge
+      variant="outline"
+      className="pointer-events-none absolute bottom-1.5 left-1.5 h-6 max-w-[calc(100%-0.75rem)] bg-background shadow-sm"
+    >
+      <CircleDashed aria-hidden />
+      Constancia sin usar
+    </Badge>
+  )
+}
+
 /** Grilla de miniaturas (clic abre el original en un diálogo) y lista de documentos
- * PDF; "Eliminar" con confirmación solo para admin|recepción y subir solo para
- * `ATTACHMENT_UPLOAD_ROLES`. */
+ * PDF; "Eliminar" con confirmación solo para `ATTACHMENT_DELETE_ROLES` y nunca en la constancia
+ * de una entrega hecha (la API responde 409, UX4-06); subir solo para `ATTACHMENT_UPLOAD_ROLES`. */
 export function PhotosTab({ caseId, role }: { caseId: string; role: UserRole }) {
   const attachments = useAttachments(caseId)
   const del = useDeleteAttachment(caseId)
@@ -43,9 +64,9 @@ export function PhotosTab({ caseId, role }: { caseId: string; role: UserRole }) 
       )}
 
       {photos.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
           {photos.map((a) => (
-            <div
+            <li
               key={a.id}
               className="relative aspect-square overflow-hidden rounded-lg border border-border"
             >
@@ -62,7 +83,8 @@ export function PhotosTab({ caseId, role }: { caseId: string; role: UserRole }) 
                 />
                 <span className="sr-only">Ver {a.filename}</span>
               </button>
-              {canDelete && (
+              <ProofBadge attachment={a} />
+              {canDelete && !a.linkedToDelivery && (
                 <Button
                   type="button"
                   variant="secondary"
@@ -74,9 +96,9 @@ export function PhotosTab({ caseId, role }: { caseId: string; role: UserRole }) 
                   <Trash2 />
                 </Button>
               )}
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       {documents.length > 0 && (
@@ -95,7 +117,7 @@ export function PhotosTab({ caseId, role }: { caseId: string; role: UserRole }) 
                 <FileText className="size-4 shrink-0" aria-hidden />
                 <span className="truncate">{a.filename}</span>
               </a>
-              {canDelete && (
+              {canDelete && !a.linkedToDelivery && (
                 <Button
                   type="button"
                   variant="ghost"

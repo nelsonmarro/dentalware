@@ -10,16 +10,18 @@ import type { RequestContext } from '../../lib/request-context.ts'
 import type { Storage } from '../../lib/storage.ts'
 import {
   AttachmentForbiddenError,
+  AttachmentInUseError,
   AttachmentNotFoundError,
   CaseNotFoundError,
   FileTooLargeError,
   UnsupportedFileError,
 } from './errors.ts'
 import type {
-  AttachmentRecord,
   AttachmentsRepository,
+  AttachmentView,
   CaseEventLog,
   CasesQuery,
+  DeliveryProofLookup,
   ImageProcessor,
   OpenedFile,
   PendingDeliveryLookup,
@@ -38,7 +40,7 @@ export function createAttachmentsService(deps: {
   attachments: AttachmentsRepository
   cases: CasesQuery
   events: CaseEventLog
-  deliveries: PendingDeliveryLookup
+  deliveries: PendingDeliveryLookup & DeliveryProofLookup
   storage: Storage
   images: ImageProcessor
   ids: IdGenerator
@@ -50,8 +52,14 @@ export function createAttachmentsService(deps: {
   }
 
   return {
-    list(caseId: string): Promise<AttachmentRecord[]> {
-      return deps.attachments.byCase(caseId)
+    /** Los adjuntos del trabajo, con `linkedToDelivery` en la constancia que cerró una entrega
+     * (UX4-06): la web la distingue de una sin usar y no ofrece borrarla. */
+    async list(caseId: string): Promise<AttachmentView[]> {
+      const [rows, linked] = await Promise.all([
+        deps.attachments.byCase(caseId),
+        deps.deliveries.linkedProofIds(caseId),
+      ])
+      return rows.map((r) => ({ ...r, linkedToDelivery: linked.includes(r.id) }))
     },
 
     /**
@@ -61,7 +69,7 @@ export function createAttachmentsService(deps: {
      * normalizar imagen (o validar la firma del PDF), guardar original + miniatura y
      * registrar el evento `attachment_added`.
      */
-    async upload(input: UploadInput, ctx: RequestContext): Promise<AttachmentRecord> {
+    async upload(input: UploadInput, ctx: RequestContext): Promise<AttachmentView> {
       // La constancia de entrega la sube quien entrega (`DELIVERY_ROLES`, mensajero incluido);
       // cualquier otro tipo, o sin tipo, solo `ATTACHMENT_UPLOAD_ROLES` (decisión 5 del plan).
       const isProof = input.kind === 'constancia'
@@ -139,7 +147,8 @@ export function createAttachmentsService(deps: {
         toValue: row.filename,
         actorId: ctx.userId,
       })
-      return row
+      // Recién subida, ninguna entrega la referencia todavía.
+      return { ...row, linkedToDelivery: false }
     },
 
     async open(id: string): Promise<OpenedFile> {
@@ -159,6 +168,11 @@ export function createAttachmentsService(deps: {
 
     async remove(id: string, ctx: RequestContext): Promise<void> {
       const a = await mustGetAttachment(id)
+      // UX4-06: la constancia de una entrega hecha no se borra (la FK es `ON DELETE SET NULL`:
+      // la entrega quedaría «Hecha» sin foto, sin ninguna señal). Una sin usar, sí.
+      if ((await deps.deliveries.linkedProofIds(a.caseId)).includes(a.id)) {
+        throw new AttachmentInUseError()
+      }
       await deps.attachments.remove(a.id)
       await deps.storage.remove(a.storagePath)
       if (a.thumbPath) await deps.storage.remove(a.thumbPath)

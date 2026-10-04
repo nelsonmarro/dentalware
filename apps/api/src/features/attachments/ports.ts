@@ -43,6 +43,16 @@ export interface PendingDeliveryLookup {
   pendingFor(caseId: string, type: DeliveryType): Promise<{ courierId: string } | undefined>
 }
 
+/** Puerto de OTRA feature (entregas, ADR 34), de solo lectura: los ids de las constancias de un
+ * trabajo que referencia una entrega hecha (`proof_attachment_id`). Esas son «de la entrega» y
+ * no se borran; el resto son constancias sin usar (UX4-06). */
+export interface DeliveryProofLookup {
+  linkedProofIds(caseId: string): Promise<string[]>
+}
+
+/** Un adjunto con lo que la web necesita saber de su papel en las entregas (UX4-06). */
+export type AttachmentView = AttachmentRecord & { linkedToDelivery: boolean }
+
 export type UploadInput = {
   caseId: string
   filename: string

@@ -59,6 +59,13 @@ export function fakeDeliveriesRepo(
         (r) => r.caseId === caseId && r.type === type && r.status === 'pendiente',
       )
     },
+    async linkedProofIds(caseId) {
+      return [...rows.values()].flatMap((r) =>
+        r.caseId === caseId && r.status === 'hecha' && r.proofAttachmentId
+          ? [r.proofAttachmentId]
+          : [],
+      )
+    },
     // Mismo contrato condicional que `repo.ts`: solo cierra una entrega `pendiente`.
     async markDone(id, doneAt, proofAttachmentId) {
       const cur = rows.get(id)

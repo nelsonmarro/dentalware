@@ -197,6 +197,46 @@ describe('features/deliveries/repo', () => {
     })
   })
 
+  // UX4-06: el puerto `DeliveryProofLookup` de adjuntos.
+  describe('linkedProofIds', () => {
+    async function proof(caseId: string, name: string) {
+      const [a] = await ctx.db
+        .insert(ctx.schema.attachments)
+        .values({
+          caseId,
+          kind: 'constancia',
+          filename: name,
+          mime: 'image/jpeg',
+          size: 100,
+          storagePath: `x/${name}`,
+          uploadedBy: courierId,
+        })
+        .returning()
+      return a!.id
+    }
+
+    it('devuelve solo las constancias de entregas hechas del trabajo', async () => {
+      const repo = createDeliveriesRepo(ctx.db)
+      const caseId = await createCase()
+      const otherCase = await createCase()
+      const hecha = await proof(caseId, 'hecha.jpg')
+      const fallida = await proof(caseId, 'fallida.jpg')
+      const ajena = await proof(otherCase, 'ajena.jpg')
+      await proof(caseId, 'sin-usar.jpg')
+      const base = { courierId, scheduledFor: '2026-09-10' }
+      await ctx.db.insert(ctx.schema.deliveries).values([
+        { ...base, caseId, type: 'entrega', status: 'hecha', proofAttachmentId: hecha },
+        // Una fallida no cierra con foto, pero si la tuviera no sería «de la entrega».
+        { ...base, caseId, type: 'recogida', status: 'fallida', proofAttachmentId: fallida },
+        { ...base, caseId: otherCase, type: 'entrega', status: 'hecha', proofAttachmentId: ajena },
+        { ...base, caseId: otherCase, type: 'recogida', status: 'hecha' },
+      ])
+
+      expect(await repo.linkedProofIds(caseId)).toEqual([hecha])
+      expect(await repo.linkedProofIds(otherCase)).toEqual([ajena])
+    })
+  })
+
   describe('listForDay', () => {
     it('filtra por día y por mensajero', async () => {
       const repo = createDeliveriesRepo(ctx.db)
