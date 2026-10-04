@@ -30,12 +30,13 @@ export function createDeliveriesService(deps: {
     },
 
     /**
-     * «Mis entregas del día» (ENT-3, decisión 7 del plan): el mensajero siempre ve las suyas
-     * — se fuerza `courierId = ctx.userId` aunque pida otro `mensajeroId` — y admin/recepción
-     * pueden ver todas o filtrar por uno. El día de hoy suma las pendientes atrasadas.
+     * «Mis entregas del día» (ENT-3, decisión 7 del plan): quien no administra entregas (el
+     * mensajero) siempre ve las suyas — se fuerza `courierId = ctx.userId` aunque pida otro
+     * `mensajeroId` — y admin/recepción (`DELIVERY_MANAGE_ROLES`) pueden ver todas o filtrar
+     * por uno. El día de hoy suma las pendientes atrasadas.
      */
     list(q: DeliveryListQuery, ctx: RequestContext): Promise<DeliveryListItem[]> {
-      const courierId = ctx.role === 'mensajero' ? ctx.userId : q.mensajeroId
+      const courierId = hasRole(DELIVERY_MANAGE_ROLES, ctx.role) ? q.mensajeroId : ctx.userId
       const includeOverdue = q.dia === deps.clock.today()
       return deps.deliveries.listForDay({ day: q.dia, courierId, includeOverdue })
     },

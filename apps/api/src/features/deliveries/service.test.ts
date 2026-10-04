@@ -91,6 +91,34 @@ describe('features/deliveries/service', () => {
       expect(result.map((d) => d.id)).toEqual(['d1'])
     })
 
+    // M-1 de la revisión final del PR 2: el filtro forzado es un permiso y se decide con
+    // `DELIVERY_MANAGE_ROLES`, no con `role === 'mensajero'`: cualquier rol que no administra
+    // entregas (aquí un técnico, si la ruta se aflojara) solo ve las suyas.
+    it('un rol que no administra entregas solo ve las suyas aunque pida otro mensajeroId', async () => {
+      const { service } = makeService({
+        seed: [
+          makeRow({ id: 'd1', courierId: 'yo' }),
+          makeRow({ id: 'd2', courierId: 'otro-mensajero' }),
+        ],
+      })
+      const result = await service.list(
+        { dia: '2026-10-10', mensajeroId: 'otro-mensajero' },
+        { userId: 'yo', role: 'tecnico' },
+      )
+      expect(result.map((d) => d.id)).toEqual(['d1'])
+    })
+
+    it('recepción filtra por el mensajero que pide', async () => {
+      const { service } = makeService({
+        seed: [makeRow({ id: 'd1', courierId: 'uno' }), makeRow({ id: 'd2', courierId: 'dos' })],
+      })
+      const result = await service.list(
+        { dia: '2026-10-10', mensajeroId: 'dos' },
+        { userId: 'recep1', role: 'recepcion' },
+      )
+      expect(result.map((d) => d.id)).toEqual(['d2'])
+    })
+
     it('admin puede ver las de cualquier mensajero', async () => {
       const { service } = makeService({
         seed: [makeRow({ id: 'd1', courierId: 'uno' }), makeRow({ id: 'd2', courierId: 'dos' })],
