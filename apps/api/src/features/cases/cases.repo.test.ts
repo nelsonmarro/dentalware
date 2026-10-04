@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { caseListQuerySchema, caseInputSchema, type CaseInput } from '@dentalware/shared'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createUser, setupTestDb, truncateAll } from '../../test/setup.ts'
 import { createDeliveriesRepo } from '../deliveries/repo.ts'
@@ -345,5 +345,28 @@ describe('features/cases/repo', () => {
     const id = (await createCasesRepo(ctx.db).create(input(), actor)).id
     await uowDe(ctx.db).run(({ tryins }) => tryins.create(id, '2026-09-10', null))
     expect(await createTryinsRepo(ctx.db).open(id)).toMatchObject({ caseId: id })
+  })
+
+  // Revisión final del PR 1 de la Iteración 4 (M-3): `byIdForUpdate` serializa las acciones
+  // sobre el trabajo, pero no debe bloquear a quien solo lo referencia por FK (un comentario,
+  // una foto, un evento de otra transacción toman `FOR KEY SHARE` sobre la fila). Con
+  // `FOR UPDATE` ese insert esperaría; con `FOR NO KEY UPDATE`, no. `lock_timeout` lo vuelve
+  // determinista: si el insert tuviera que esperar, fallaría en vez de colgarse.
+  it('byIdForUpdate no bloquea un evento de otra transacción que referencia el trabajo', async () => {
+    const id = (await createCasesRepo(ctx.db).create(input(), actor)).id
+    await uowDe(ctx.db).run(async ({ cases }) => {
+      expect(await cases.byIdForUpdate(id)).toMatchObject({ id })
+      await ctx.db.transaction(async (otra) => {
+        await otra.execute(sql`set local lock_timeout = '1s'`)
+        await otra
+          .insert(ctx.schema.caseEvents)
+          .values({ caseId: id, type: 'comment', actorId: actor })
+      })
+    })
+    const eventos = await ctx.db
+      .select({ type: ctx.schema.caseEvents.type })
+      .from(ctx.schema.caseEvents)
+      .where(eq(ctx.schema.caseEvents.caseId, id))
+    expect(eventos.map((e) => e.type)).toContain('comment')
   })
 })

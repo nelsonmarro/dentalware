@@ -344,14 +344,18 @@ export function createCasesRepo(db: Db | Tx) {
     byId,
 
     // #97: bloquea la fila del trabajo hasta el fin de la transacción y después lee el detalle
-    // con `byId`. Las consultas relacionales de Drizzle (`db.query`) no admiten `.for('update')`,
-    // así que el bloqueo va en un `select` aparte sobre la misma conexión (`tx`).
+    // con `byId`. Las consultas relacionales de Drizzle (`db.query`) no admiten `.for(...)`,
+    // así que el bloqueo va en un `select` aparte sobre la misma conexión (`tx`). Es
+    // `FOR NO KEY UPDATE`, no `FOR UPDATE`: sigue serializando acciones, fase y técnico (y choca
+    // con el `FOR UPDATE` de `update`/`createRemake`), pero no hace esperar a los inserts de
+    // otras transacciones que solo referencian el trabajo por FK (comentarios, adjuntos,
+    // eventos), que toman `FOR KEY SHARE`.
     async byIdForUpdate(id) {
       const [locked] = await db
         .select({ id: cases.id })
         .from(cases)
         .where(eq(cases.id, id))
-        .for('update')
+        .for('no key update')
       if (!locked) return undefined
       return byId(id)
     },
