@@ -12,18 +12,19 @@ import {
   useCase,
   useCaseAction,
   useChangeStage,
+  useCreateCase,
   useCreateRemake,
 } from './use-cases'
 
-const { postCaseAction, changeStage, assignTechnician, createRemake, fetchCase } = vi.hoisted(
-  () => ({
+const { postCaseAction, changeStage, assignTechnician, createRemake, fetchCase, createCase } =
+  vi.hoisted(() => ({
+    createCase: vi.fn(),
     postCaseAction: vi.fn(),
     fetchCase: vi.fn(),
     changeStage: vi.fn(),
     assignTechnician: vi.fn(),
     createRemake: vi.fn(),
-  }),
-)
+  }))
 vi.mock('./api', async (importOriginal) => ({
   ...(await importOriginal<typeof ApiModule>()),
   postCaseAction,
@@ -31,6 +32,7 @@ vi.mock('./api', async (importOriginal) => ({
   assignTechnician,
   createRemake,
   fetchCase,
+  createCase,
 }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 
@@ -230,5 +232,29 @@ describe('use-cases: un 409 refresca la ficha', () => {
     await expect(run()).rejects.toBe(error)
     expect(client.getQueryState(queryKeys.case('c1'))?.isInvalidated).toBe(false)
     expect(toast.error).toHaveBeenCalledOnce()
+  })
+})
+
+describe('useCreateCase: aviso según si hay recogida', () => {
+  const base = { clinicId: 'c', doctorId: 'd', patientRef: 'P' } as unknown as Parameters<
+    ReturnType<typeof useCreateCase>['mutateAsync']
+  >[0]
+
+  it('sin recogida avisa «Trabajo creado»', async () => {
+    createCase.mockResolvedValue({ id: 'c1' })
+    const { result } = renderHook(() => useCreateCase(), { wrapper: wrapperFor(makeClient()) })
+    await result.current.mutateAsync(base)
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Trabajo creado'))
+  })
+
+  it('con recogida avisa «Recogida programada»', async () => {
+    createCase.mockResolvedValue({ id: 'c1' })
+    const { result } = renderHook(() => useCreateCase(), { wrapper: wrapperFor(makeClient()) })
+    await result.current.mutateAsync({
+      ...base,
+      recogida: { mensajeroId: 'm1', fecha: '2026-10-03' },
+    })
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Recogida programada'))
+    expect(toast.success).toHaveBeenCalledTimes(1)
   })
 })

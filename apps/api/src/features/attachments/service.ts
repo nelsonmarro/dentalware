@@ -1,8 +1,10 @@
+import { ATTACHMENT_UPLOAD_ROLES, DELIVERY_ROLES, hasRole } from '@dentalware/shared'
 import { ALLOWED_MIME, isImage, MAX_UPLOAD_BYTES } from '../../lib/upload-policy.ts'
 import type { IdGenerator } from '../../lib/ids.ts'
 import type { RequestContext } from '../../lib/request-context.ts'
 import type { Storage } from '../../lib/storage.ts'
 import {
+  AttachmentForbiddenError,
   AttachmentNotFoundError,
   CaseNotFoundError,
   FileTooLargeError,
@@ -46,17 +48,27 @@ export function createAttachmentsService(deps: {
     },
 
     /**
-     * Reproduce el flujo previo de la ruta: comprobar trabajo, tamaño, MIME permitido,
+     * Comprueba que el rol puede subir este tipo de adjunto y reproduce el flujo previo de la
+     * ruta: comprobar trabajo, tamaño, MIME permitido (una constancia solo puede ser imagen),
      * normalizar imagen (o validar la firma del PDF), guardar original + miniatura y
      * registrar el evento `attachment_added`.
      */
     async upload(input: UploadInput, ctx: RequestContext): Promise<AttachmentRecord> {
+      // La constancia de entrega la sube quien entrega (`DELIVERY_ROLES`, mensajero incluido);
+      // cualquier otro tipo, o sin tipo, solo `ATTACHMENT_UPLOAD_ROLES` (decisión 5 del plan).
+      const isProof = input.kind === 'constancia'
+      if (!hasRole(isProof ? DELIVERY_ROLES : ATTACHMENT_UPLOAD_ROLES, ctx.role)) {
+        throw new AttachmentForbiddenError()
+      }
       if (!(await deps.cases.exists(input.caseId))) throw new CaseNotFoundError()
       if (input.size > MAX_UPLOAD_BYTES) {
         throw new FileTooLargeError('El archivo supera los 25 MB')
       }
       if (!(ALLOWED_MIME as readonly string[]).includes(input.mime)) {
         throw new UnsupportedFileError('Solo se admiten imágenes JPEG, PNG, WebP o PDF')
+      }
+      if (isProof && !isImage(input.mime)) {
+        throw new UnsupportedFileError('La constancia debe ser una foto')
       }
 
       const id = deps.ids.next()

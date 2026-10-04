@@ -67,6 +67,7 @@ function CasePage() {
         case={q.data.case}
         missing={q.data.missing}
         role={user.role}
+        self={{ id: user.id, name: user.name }}
         stages={stages.data ?? []}
         stagesError={stages.isError}
         onRemakeCreated={(created) =>

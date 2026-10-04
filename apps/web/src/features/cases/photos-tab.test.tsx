@@ -58,4 +58,21 @@ describe('PhotosTab', () => {
     await screen.findByRole('img', { name: 'foto.png' })
     expect(Boolean(screen.queryByRole('button', { name: 'Eliminar foto.png' }))).toBe(visible)
   })
+
+  // Decisión 11 del plan + revisión de la Tarea 4: la foto del mensajero es la constancia,
+  // dentro del diálogo de entrega; la API le responde 403 a cualquier otro adjunto.
+  it('el mensajero no ve «Añadir foto» ni «Subir archivo»; técnico, recepción y admin sí', async () => {
+    fetchAttachments.mockResolvedValue([])
+    const { unmount } = renderWithProviders(<PhotosTab caseId="c1" role="mensajero" />)
+    expect(await screen.findByText('Sin fotos ni documentos todavía')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Añadir foto' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Subir archivo' })).not.toBeInTheDocument()
+    unmount()
+
+    for (const role of ['tecnico', 'recepcion', 'admin'] as const) {
+      const r = renderWithProviders(<PhotosTab caseId="c1" role={role} />)
+      expect(screen.getByRole('button', { name: 'Añadir foto' })).toBeInTheDocument()
+      r.unmount()
+    }
+  })
 })

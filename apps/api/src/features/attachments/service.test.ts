@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AttachmentForbiddenError,
   AttachmentNotFoundError,
   CaseNotFoundError,
   FileTooLargeError,
@@ -17,6 +18,8 @@ import { createAttachmentsService } from './service.ts'
 import type { UploadInput } from './ports.ts'
 
 const admin = { userId: 'u1', role: 'admin' } as const
+const tecnico = { userId: 'u2', role: 'tecnico' } as const
+const mensajero = { userId: 'u3', role: 'mensajero' } as const
 
 function build(ids: string[] = ['id-1']) {
   const attachments = fakeAttachmentsRepo()
@@ -189,5 +192,55 @@ describe('createAttachmentsService', () => {
     const list = await service.list('c1')
 
     expect(list).toHaveLength(2)
+  })
+
+  // Iteración 4, decisión 5 del plan: el mensajero solo sube la constancia de entrega.
+  describe('subida por rol', () => {
+    it.each([
+      ['una foto', 'photo' as const],
+      ['un adjunto sin tipo', null],
+    ])('el mensajero no puede subir %s', async (_caso, kind) => {
+      const { service, storage } = build()
+      await expect(service.upload(uploadOf({ kind }), mensajero)).rejects.toBeInstanceOf(
+        AttachmentForbiddenError,
+      )
+      expect(await storage.exists('c1/id-1.jpg')).toBe(false)
+    })
+
+    it('el mensajero sube una constancia que es una imagen', async () => {
+      const { service } = build()
+      const row = await service.upload(uploadOf({ kind: 'constancia' }), mensajero)
+      expect(row).toMatchObject({ kind: 'constancia', mime: 'image/jpeg', uploadedBy: 'u3' })
+    })
+
+    it('el técnico sigue subiendo fotos', async () => {
+      const { service } = build()
+      const row = await service.upload(uploadOf({ kind: 'photo' }), tecnico)
+      expect(row.kind).toBe('photo')
+    })
+
+    it('el técnico no sube constancias de entrega', async () => {
+      const { service } = build()
+      await expect(
+        service.upload(uploadOf({ kind: 'constancia' }), tecnico),
+      ).rejects.toBeInstanceOf(AttachmentForbiddenError)
+    })
+
+    it('una constancia que no es imagen se rechaza con UnsupportedFileError', async () => {
+      const { service } = build()
+      const pdf = new TextEncoder().encode('%PDF-1.4\ncontenido')
+      await expect(
+        service.upload(
+          uploadOf({
+            kind: 'constancia',
+            filename: 'constancia.pdf',
+            mime: 'application/pdf',
+            size: pdf.byteLength,
+            bytes: pdf,
+          }),
+          mensajero,
+        ),
+      ).rejects.toThrow(new UnsupportedFileError('La constancia debe ser una foto'))
+    })
   })
 })

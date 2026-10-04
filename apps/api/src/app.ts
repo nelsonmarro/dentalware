@@ -19,6 +19,9 @@ import { casesRoutes } from './features/cases/routes.ts'
 import { createCasesRepo, createUsersQuery, drizzleUnitOfWork } from './features/cases/repo.ts'
 import { createCasesService } from './features/cases/service.ts'
 import { clinicsRoutes } from './features/clinics/routes.ts'
+import { createCouriersQuery, createDeliveriesRepo } from './features/deliveries/repo.ts'
+import { deliveriesRoutes } from './features/deliveries/routes.ts'
+import { createDeliveriesService } from './features/deliveries/service.ts'
 import { doctorsRoutes } from './features/doctors/routes.ts'
 import { healthRoutes } from './features/health/routes.ts'
 import { labSettingsRoutes } from './features/lab-settings/routes.ts'
@@ -48,6 +51,10 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
   const casesRepo = createCasesRepo(db)
   const attachmentsRepo = createAttachmentsRepo(db)
   const effectiveClock = clock ?? systemClock
+  // La unidad de trabajo de `cases` re-crea el repositorio de entregas sobre su `tx` (ADR 19):
+  // la factoría se inyecta aquí para que `cases/repo.ts` no importe `deliveries/repo.ts`.
+  const casesUow = drizzleUnitOfWork(db, { deliveries: createDeliveriesRepo })
+  const couriersQuery = createCouriersQuery(db)
   const casesService = createCasesService({
     cases: casesRepo,
     attachments: attachmentsRepo,
@@ -56,14 +63,22 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     // Puerto de la feature `users` (ADR 24: `createUsersQuery` lee `users` por join/lectura de
     // solo lectura desde el `repo.ts` de `cases`, sin importar el `repo`/rutas de `users`).
     users: createUsersQuery(db),
+    // `CouriersLookup` es un puerto declarado por `cases`; aquí se cumple con
+    // `createCouriersQuery` de `deliveries` (ADR 24): valida el mensajero de una recogida o un
+    // envío y da su nombre para el historial, sobre la lista que alimenta el selector.
+    couriers: {
+      findActiveCourier: async (userId) =>
+        (await couriersQuery.activeCouriers()).find((c) => c.id === userId),
+    },
     // Sin `tryins` aquí: el servicio solo accede a pruebas en boca dentro de `uow.run`
     // (transaccional, ADR 19). Una instancia suelta invitaría a escribir fuera de la tx.
-    uow: drizzleUnitOfWork(db),
+    uow: casesUow,
     clock: effectiveClock,
   })
+  const deliveriesService = createDeliveriesService({ couriers: couriersQuery })
   const importService = createImportService({
     catalog: createImportCatalog(db),
-    uow: drizzleUnitOfWork(db),
+    uow: casesUow,
     clock: effectiveClock,
   })
   const attachmentsService = createAttachmentsService({
@@ -117,6 +132,7 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     .route('/api/trabajos', casesRoutes(casesService, importRoutes(importService)))
     .route('/api/users', usersRoutes(db, auth))
     .route('/api/adjuntos', attachmentsRoutes(attachmentsService))
+    .route('/api/entregas', deliveriesRoutes(deliveriesService))
 
   app.notFound((c) => c.json({ message: 'Recurso no encontrado' }, 404))
   app.onError((err, c) => {

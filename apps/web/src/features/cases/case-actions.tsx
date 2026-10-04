@@ -1,21 +1,29 @@
-import type { ActionRequiringReason, CaseAction, UserRole } from '@dentalware/shared'
+import type {
+  ActionRequiringDeliveryForm,
+  ActionRequiringReason,
+  CaseAction,
+  UserRole,
+} from '@dentalware/shared'
 import {
   availableActions,
   canPerform,
   canRemake,
   CASE_ACTION_LABEL,
   REMAKE_ROLES,
+  requiresDeliveryForm,
   requiresReason,
   hasRole,
 } from '@dentalware/shared'
-import { useState } from 'react'
+import { useState, type ComponentType } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { actionVariant, type ActionButtonVariant } from './action-emphasis'
 import type { CaseDetail } from './api'
 import { CaseActionDialog } from './case-action-dialog'
+import { DeliverDialog } from './deliver-dialog'
 import { RemakeDialog } from './remake-dialog'
+import { ShipDialog, type DeliverySelf } from './ship-dialog'
 import { useCaseAction } from './use-cases'
 
 /** Orden en la barra: el primario primero (arriba en la pila móvil), luego los secundarios y
@@ -43,18 +51,19 @@ const REASON_DIALOG: Record<ActionRequiringReason, ActionDialogCopy> = {
   },
 }
 
-/** Confirmación de cada acción sin motivo, o `null` si se envía al primer clic. El criterio es
- * la **reversibilidad, no la frecuencia**: finalizar, marcar enviado y marcar entregado van a
- * un estado del que `CASE_TRANSITIONS` no ofrece vuelta y estampan una fecha que no se
- * reconstruye; las demás se quedan a un clic. El texto dice la consecuencia concreta, nunca un
- * «¿estás seguro?».
+/** Confirmación de cada acción sin motivo ni datos de entrega, o `null` si se envía al primer
+ * clic. El criterio es la **reversibilidad, no la frecuencia**: finalizar va a un estado del
+ * que `CASE_TRANSITIONS` no ofrece vuelta y estampa una fecha que no se reconstruye; las demás
+ * se quedan a un clic. El texto dice la consecuencia concreta, nunca un «¿estás seguro?».
  *
  * `Record` exhaustivo a propósito, no una lista de las que confirman: una acción nueva en
  * `shared` **no compila** hasta que alguien decide si es reversible. */
 const CONFIRM_DIALOG: Record<
-  Exclude<CaseAction, ActionRequiringReason>,
+  Exclude<CaseAction, ActionRequiringReason | ActionRequiringDeliveryForm>,
   ActionDialogCopy | null
 > = {
+  // Reversible (se puede cancelar después) y lo hace el mensajero con guantes: sin confirmación.
+  recibir: null,
   aceptar: null,
   reanudar: null,
   enviar_prueba: null,
@@ -64,16 +73,24 @@ const CONFIRM_DIALOG: Record<
     description:
       'El trabajo pasará a "Terminado" con la fecha de hoy. No hay ninguna acción para devolverlo a "En proceso".',
   },
-  marcar_enviado: {
-    confirmLabel: 'Marcar enviado',
-    description:
-      'Se registrará el envío con la fecha de hoy. No hay ninguna acción para devolverlo a "Terminado".',
-  },
-  marcar_entregado: {
-    confirmLabel: 'Marcar entregado',
-    description:
-      'Se registrará la entrega con la fecha de hoy y el trabajo quedará cerrado: no queda ninguna acción para deshacerlo.',
-  },
+}
+
+type DeliveryFormDialogProps = {
+  case: CaseDetail
+  role: UserRole
+  self?: DeliverySelf
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+/** Diálogo con datos de cada acción de entrega (`ActionRequiringDeliveryForm`, derivado de
+ * `ACTION_PAYLOAD` en shared: `envio` o `constancia`). Hacen las veces de confirmación: los dos
+ * son irreversibles y su texto dice la consecuencia (con quién y cuándo sale; que pasa a la
+ * cuenta de la clínica). `Record` exhaustivo: una acción que empiece a pedir datos de entrega
+ * no compila sin su diálogo. */
+const FORM_DIALOG: Record<ActionRequiringDeliveryForm, ComponentType<DeliveryFormDialogProps>> = {
+  marcar_enviado: ShipDialog,
+  marcar_entregado: DeliverDialog,
 }
 
 /** Barra de acciones de estado del panel «Producción» (`role="group"`, «Acciones del
@@ -83,14 +100,17 @@ const CONFIRM_DIALOG: Record<
  * deshabilita mientras `missing` no esté vacío (el aviso de qué falta lo pinta
  * `CaseHeader`, no este componente, para no duplicarlo); las acciones de
  * `ActionRequiringReason` (pausar, cancelar) abren un diálogo con motivo
- * obligatorio, las que tienen texto en `CONFIRM_DIALOG` piden confirmación, y el
- * resto se envía directo al hacer clic. */
+ * obligatorio, las de `ActionRequiringDeliveryForm` (marcar enviado, marcar entregado) abren
+ * su diálogo de `FORM_DIALOG`, las que tienen texto en `CONFIRM_DIALOG` piden confirmación, y
+ * el resto se envía directo al hacer clic. */
 export function CaseActions({
   case: c,
   missing,
   role,
   hasNextStage = false,
   onRemakeCreated,
+  self,
+  size = 'default',
   className,
 }: {
   case: CaseDetail
@@ -102,9 +122,14 @@ export function CaseActions({
   /** Adónde ir tras crear una repetición (Tarea 9): el hijo puede nacer incompleto, así que
    * quien monta la barra navega a su ficha en vez de quedarse en la del padre. */
   onRemakeCreated?: (created: CaseDetail) => void
+  /** Quien usa la app: el mensajero envía con él mismo (`ShipDialog`). */
+  self?: DeliverySelf
+  /** `large`: botones de 56 px a todo el ancho, para la ficha corta del mensajero (#105). */
+  size?: 'default' | 'large'
   className?: string
 }) {
   const [dialogAction, setDialogAction] = useState<ActionRequiringReason | null>(null)
+  const [formAction, setFormAction] = useState<ActionRequiringDeliveryForm | null>(null)
   const [confirm, setConfirm] = useState<({ action: CaseAction } & ActionDialogCopy) | null>(null)
   const action = useCaseAction(c.id)
 
@@ -119,9 +144,15 @@ export function CaseActions({
   // Sin acciones ni «Repetir» no se monta nada: ni un contenedor vacío (UX3-25).
   if (actions.length === 0 && !showRemake) return null
 
+  const DeliveryDialog = formAction ? FORM_DIALOG[formAction] : null
+
   function run(a: CaseAction) {
     if (requiresReason(a)) {
       setDialogAction(a)
+      return
+    }
+    if (requiresDeliveryForm(a)) {
+      setFormAction(a)
       return
     }
     const copy = CONFIRM_DIALOG[a]
@@ -136,7 +167,10 @@ export function CaseActions({
     <div
       role="group"
       aria-label="Acciones del trabajo"
-      className={cn('flex flex-col gap-2 sm:flex-row sm:flex-wrap', className)}
+      className={cn(
+        size === 'large' ? 'flex flex-col gap-3' : 'flex flex-col gap-2 sm:flex-row sm:flex-wrap',
+        className,
+      )}
     >
       {actions
         .filter((a) => a.variant !== 'destructive')
@@ -144,7 +178,7 @@ export function CaseActions({
           <Button
             key={a}
             variant={variant}
-            className="w-full sm:w-auto"
+            className={size === 'large' ? 'h-14 w-full text-base' : 'w-full sm:w-auto'}
             disabled={(a === 'aceptar' && missing.length > 0) || action.isPending}
             onClick={() => run(a)}
           >
@@ -165,6 +199,17 @@ export function CaseActions({
             {CASE_ACTION_LABEL[a]}
           </Button>
         ))}
+      {DeliveryDialog && (
+        <DeliveryDialog
+          case={c}
+          role={role}
+          self={self}
+          open
+          onOpenChange={(open) => {
+            if (!open) setFormAction(null)
+          }}
+        />
+      )}
       {dialogAction && (
         <CaseActionDialog
           open

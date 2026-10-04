@@ -1,6 +1,10 @@
 import { hasRole, type UserRole } from './roles.ts'
 
+/** `por_recoger` es el primer estado del ciclo de vida (ENT-1, Iteración 4): el trabajo existe
+ * en el sistema (recepción programó su recogida) pero todavía no llegó al laboratorio. Pasa a
+ * `nuevo` con la acción `recibir`. */
 export const CASE_STATUSES = [
+  'por_recoger',
   'nuevo',
   'en_proceso',
   'en_espera',
@@ -13,6 +17,7 @@ export const CASE_STATUSES = [
 export type CaseStatus = (typeof CASE_STATUSES)[number]
 
 export const CASE_ACTIONS = [
+  'recibir',
   'aceptar',
   'pausar',
   'reanudar',
@@ -32,6 +37,11 @@ const CANCELABLE: readonly CaseStatus[] = CASE_STATUSES.filter(
 )
 
 export const CASE_TRANSITIONS: Record<CaseAction, Transition> = {
+  recibir: {
+    from: ['por_recoger'],
+    to: 'nuevo',
+    roles: ['admin', 'recepcion', 'mensajero'],
+  },
   aceptar: { from: ['nuevo'], to: 'en_proceso', roles: ['admin', 'recepcion'] },
   pausar: { from: ['en_proceso'], to: 'en_espera', roles: ['admin', 'recepcion'] },
   reanudar: { from: ['en_espera'], to: 'en_proceso', roles: ['admin', 'recepcion'] },
@@ -51,33 +61,46 @@ export const CASE_TRANSITIONS: Record<CaseAction, Transition> = {
   cancelar: { from: CANCELABLE, to: 'cancelado', roles: ['admin', 'recepcion'] },
 }
 
-/**
- * `Record<CaseAction, boolean>` exhaustivo (pendiente de la Tarea 8, ronda de fixes 1): antes
- * `ACTIONS_REQUIRING_REASON` era una lista a mano (`readonly CaseAction[]`) que una acción
- * nueva podía dejar fuera sin que nada lo avisara. Con el `Record` exhaustivo, añadir una
- * acción a `CASE_ACTIONS` sin decidir aquí si pide motivo no compila.
- */
-const REASON_REQUIRED_FOR_ACTION = {
-  aceptar: false,
-  pausar: true,
-  reanudar: false,
-  enviar_prueba: false,
-  recibir_prueba: false,
-  finalizar: false,
-  marcar_enviado: false,
-  marcar_entregado: false,
-  cancelar: true,
-} as const satisfies Record<CaseAction, boolean>
+/** Qué datos exige cada acción además de `accion` (Iteración 4, ENT-2/ENT-4). `Record`
+ * exhaustivo: una acción nueva no compila sin decidir su carga útil. De aquí se derivan el
+ * motivo obligatorio (antes `REASON_REQUIRED_FOR_ACTION`, un `Record<CaseAction, boolean>`
+ * independiente que esta carga útil sustituye) y la validación de `caseActionSchema`. */
+export type ActionPayload = 'ninguna' | 'motivo' | 'envio' | 'constancia'
+export const ACTION_PAYLOAD = {
+  recibir: 'ninguna',
+  aceptar: 'ninguna',
+  pausar: 'motivo',
+  reanudar: 'ninguna',
+  enviar_prueba: 'ninguna',
+  recibir_prueba: 'ninguna',
+  finalizar: 'ninguna',
+  marcar_enviado: 'envio',
+  marcar_entregado: 'constancia',
+  cancelar: 'motivo',
+} as const satisfies Record<CaseAction, ActionPayload>
 
-/** Acciones que exigen motivo, como tipo (M-4, revisión de la Tarea 3): derivado del `Record`
- * de arriba (`as const`), para que la web pueda exigir un texto por cada una en un
- * `Record<ActionRequiringReason, …>` exhaustivo. */
+/** Acciones que exigen motivo, como tipo (M-4, revisión de la Tarea 3): derivado de
+ * `ACTION_PAYLOAD` (`motivo` ⇔ carga útil `'motivo'`), para que la web pueda exigir un texto
+ * por cada una en un `Record<ActionRequiringReason, …>` exhaustivo. */
 export type ActionRequiringReason = {
-  [A in CaseAction]: (typeof REASON_REQUIRED_FOR_ACTION)[A] extends true ? A : never
+  [A in CaseAction]: (typeof ACTION_PAYLOAD)[A] extends 'motivo' ? A : never
 }[CaseAction]
 
 export function requiresReason(action: CaseAction): action is ActionRequiringReason {
-  return REASON_REQUIRED_FOR_ACTION[action]
+  return ACTION_PAYLOAD[action] === 'motivo'
+}
+
+/** Acciones que piden datos de entrega (Iteración 4): `envio` (mensajero y fecha, ENT-2) o
+ * `constancia` (foto de la entrega, ENT-4). Derivado de `ACTION_PAYLOAD` como
+ * `ActionRequiringReason`, para que la web tenga un diálogo por cada una en un `Record`
+ * exhaustivo. */
+export type ActionRequiringDeliveryForm = {
+  [A in CaseAction]: (typeof ACTION_PAYLOAD)[A] extends 'envio' | 'constancia' ? A : never
+}[CaseAction]
+
+export function requiresDeliveryForm(action: CaseAction): action is ActionRequiringDeliveryForm {
+  const payload = ACTION_PAYLOAD[action]
+  return payload === 'envio' || payload === 'constancia'
 }
 
 export const ACTIONS_REQUIRING_REASON: readonly CaseAction[] = CASE_ACTIONS.filter(requiresReason)
@@ -86,6 +109,7 @@ export const ACTIONS_REQUIRING_REASON: readonly CaseAction[] = CASE_ACTIONS.filt
  * de error de la API). Fuente única (UX3-03): antes vivía solo en la web y la API interpolaba
  * la clave (`en_proceso`) en sus 409. `Record` exhaustivo: un estado nuevo no compila sin rótulo. */
 export const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
+  por_recoger: 'Por recoger',
   nuevo: 'Nuevo',
   en_proceso: 'En proceso',
   en_espera: 'En espera',
@@ -99,6 +123,7 @@ export const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
 /** Rótulo de cada acción: imperativo, el texto del botón que la dispara (no el estado destino).
  * Fuente única para la barra de acciones de la web y los 409 de la API (UX3-03). */
 export const CASE_ACTION_LABEL: Record<CaseAction, string> = {
+  recibir: 'Recibido',
   aceptar: 'Aceptar',
   pausar: 'Pausar',
   reanudar: 'Reanudar',
@@ -143,8 +168,10 @@ export function canPerform(role: UserRole, action: CaseAction): boolean {
 }
 
 /** Estados en los que un trabajo aún se puede editar (formulario de edición y botón
- * "editar" de la ficha); el resto responde 409 si se intenta guardar. */
+ * "editar" de la ficha); el resto responde 409 si se intenta guardar. `por_recoger` se suma
+ * en la Iteración 4 (ENT-1): recepción completa los datos cuando el trabajo llega. */
 export const EDITABLE_CASE_STATUSES = [
+  'por_recoger',
   'nuevo',
   'en_proceso',
 ] as const satisfies readonly CaseStatus[]
@@ -285,6 +312,7 @@ export function isEnCurso(status: CaseStatus): boolean {
  * casi idéntico. `Record<Exclude<CaseStatus, 'en_proceso'>, string>` exhaustivo a propósito
  * (mismo patrón que `CONFIRM_DESCRIPTIONS` en la web): un estado nuevo no compila sin motivo. */
 export const STAGE_CHANGE_BLOCKED_REASON: Record<Exclude<CaseStatus, 'en_proceso'>, string> = {
+  por_recoger: 'El trabajo todavía no llegó al laboratorio: recíbelo y acéptalo primero.',
   nuevo: 'El trabajo todavía no tiene fase: acéptalo primero.',
   en_espera: 'El trabajo está en espera: reanúdalo para poder cambiar de fase.',
   en_prueba: 'El trabajo está en una prueba en boca: recíbela para poder cambiar de fase.',

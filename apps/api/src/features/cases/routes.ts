@@ -6,6 +6,7 @@ import {
   REMAKE_ROLES,
   caseActionSchema,
   caseCodeParamSchema,
+  caseEditSchema,
   caseInputSchema,
   caseListQuerySchema,
   commentSchema,
@@ -121,7 +122,8 @@ export const casesRoutes = (service: CasesService, importRoutes: Hono<AppEnv>) =
       '/:id',
       canWrite,
       validate('param', idParamSchema),
-      validate('json', caseInputSchema),
+      // Sin `recogida` (M-2): solo se programa al crear; si llega, se descarta.
+      validate('json', caseEditSchema),
       async (c) => {
         try {
           const updated = await service.update(

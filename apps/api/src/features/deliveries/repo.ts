@@ -1,0 +1,137 @@
+import { and, asc, eq, isNull, or, sql } from 'drizzle-orm'
+import type { Db, Tx } from '../../db/index.ts'
+import { users } from '../../db/schema/auth.ts'
+import { cases } from '../cases/schema.ts'
+import { clinics } from '../clinics/schema.ts'
+import type { CouriersQuery, DeliveriesRepository } from './ports.ts'
+import { deliveries } from './schema.ts'
+
+/**
+ * Repositorio de entregas/recogidas: `createDeliveriesRepo(db | Tx) satisfies
+ * DeliveriesRepository` (misma firma que `createCasesRepo`, se puede re-crear sobre una `tx`
+ * del `UnitOfWork` de `cases` cuando el servicio de la Tarea 3 necesite atomicidad).
+ */
+export function createDeliveriesRepo(db: Db | Tx) {
+  return {
+    async create(d) {
+      const [row] = await db.insert(deliveries).values(d).returning()
+      return row!
+    },
+
+    async byId(id) {
+      const [row] = await db.select().from(deliveries).where(eq(deliveries.id, id)).limit(1)
+      return row
+    },
+
+    async pendingFor(caseId, type) {
+      const [row] = await db
+        .select()
+        .from(deliveries)
+        .where(
+          and(
+            eq(deliveries.caseId, caseId),
+            eq(deliveries.type, type),
+            eq(deliveries.status, 'pendiente'),
+          ),
+        )
+        .limit(1)
+      return row
+    },
+
+    async markDone(id, doneAt, proofAttachmentId) {
+      await db
+        .update(deliveries)
+        .set({ status: 'hecha', doneAt, proofAttachmentId })
+        .where(eq(deliveries.id, id))
+    },
+
+    async markFailed(id, reason, at) {
+      await db
+        .update(deliveries)
+        .set({ status: 'fallida', failedReason: reason, doneAt: at })
+        .where(eq(deliveries.id, id))
+    },
+
+    /**
+     * Una sola consulta con joins a `cases`, `clinics` y `users` (ADR 24: `repo.ts` puede leer
+     * el `schema.ts` de otra feature para un join de solo lectura), sin N+1. `clinicId` no se
+     * guarda en `deliveries` (se obtiene del trabajo, para evitar una fuente doble), así que el
+     * join a `clinics` pasa siempre por `cases`.
+     */
+    async listForDay(q) {
+      const conds = [
+        q.includeOverdue
+          ? or(
+              eq(deliveries.scheduledFor, q.day),
+              and(eq(deliveries.status, 'pendiente'), sql`${deliveries.scheduledFor} < ${q.day}`),
+            )!
+          : eq(deliveries.scheduledFor, q.day),
+      ]
+      if (q.courierId) conds.push(eq(deliveries.courierId, q.courierId))
+
+      const rows = await db
+        .select({
+          id: deliveries.id,
+          type: deliveries.type,
+          status: deliveries.status,
+          scheduledFor: deliveries.scheduledFor,
+          doneAt: deliveries.doneAt,
+          failedReason: deliveries.failedReason,
+          caseId: cases.id,
+          caseCode: cases.code,
+          casePatientRef: cases.patientRef,
+          caseStatus: cases.status,
+          casePriority: cases.priority,
+          clinicId: clinics.id,
+          clinicName: clinics.name,
+          clinicAddress: clinics.address,
+          clinicPhone: clinics.phone,
+          courierId: users.id,
+          courierName: users.name,
+        })
+        .from(deliveries)
+        .innerJoin(cases, eq(deliveries.caseId, cases.id))
+        .innerJoin(clinics, eq(cases.clinicId, clinics.id))
+        .innerJoin(users, eq(deliveries.courierId, users.id))
+        .where(and(...conds))
+        .orderBy(asc(clinics.name), asc(cases.code))
+
+      return rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        status: r.status,
+        scheduledFor: r.scheduledFor,
+        doneAt: r.doneAt,
+        failedReason: r.failedReason,
+        case: {
+          id: r.caseId,
+          code: r.caseCode,
+          patientRef: r.casePatientRef,
+          status: r.caseStatus,
+          priority: r.casePriority,
+        },
+        clinic: {
+          id: r.clinicId,
+          name: r.clinicName,
+          address: r.clinicAddress,
+          phone: r.clinicPhone,
+        },
+        courier: { id: r.courierId, name: r.courierName },
+      }))
+    },
+  } satisfies DeliveriesRepository
+}
+
+/** Puerto de OTRA feature (usuarios, ADR 24/29): mensajeros activos, mismo criterio que
+ * `createUsersQuery` de `cases` (`activeTechnicians`). */
+export function createCouriersQuery(db: Db | Tx) {
+  return {
+    async activeCouriers() {
+      return db
+        .select({ id: users.id, name: users.name })
+        .from(users)
+        .where(and(eq(users.role, 'mensajero'), or(eq(users.banned, false), isNull(users.banned))))
+        .orderBy(asc(users.name))
+    },
+  } satisfies CouriersQuery
+}

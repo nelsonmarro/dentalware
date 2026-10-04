@@ -1,4 +1,5 @@
 import {
+  ATTACHMENT_UPLOAD_ROLES,
   canChangeStage,
   STAGE_CHANGE_BLOCKED_REASON,
   STAGE_CHANGE_ROLES,
@@ -16,6 +17,7 @@ import { useStages } from '@/features/stages/use-stages'
 import { isNotFoundError } from '@/lib/api-error'
 import { AlertChip } from './alert-chip'
 import { isPhoto } from './attachment-kind'
+import { CaseActions } from './case-actions'
 import { dueBadge, isStageVisible } from './case-views'
 import { formatDate } from './date-format'
 import { StatusChip } from './status-chip'
@@ -23,6 +25,7 @@ import { useAttachments } from './use-attachments'
 import { stageNavigation } from './stage-navigation'
 import { useCaseByCode, useChangeStage } from './use-cases'
 import { usePhotoUpload } from './use-photo-upload'
+import type { DeliverySelf } from './ship-dialog'
 
 /** Mismo criterio de rol que `StageControl` (`STAGE_CHANGE_ROLES` de shared, I-5 + M-5 + M-9):
  * no se inventa una lista nueva aquí. */
@@ -40,8 +43,22 @@ function canControlStage(role: UserRole): boolean {
  *
  * Nunca precios: el enmascarado lo garantiza `GET /api/trabajos/codigo/:code` (mismo servicio
  * que `detail`); esta pantalla ni siquiera lee `total` ni `items`.
+ *
+ * Para quien no produce (el mensajero, #105) la ficha corta es su acción de entrega: la barra
+ * de acciones de la ficha completa (`CaseActions`, `availableActions` ∩ `canPerform`) en
+ * grande, con los **mismos** diálogos. No ve «Añadir foto»: su foto es la constancia, dentro
+ * del diálogo de entrega (decisión 11 del plan; la API le niega cualquier otro adjunto).
  */
-export function QuickCase({ code, role }: { code: string; role: UserRole }) {
+export function QuickCase({
+  code,
+  role,
+  self,
+}: {
+  code: string
+  role: UserRole
+  /** Quien usa la app: el mensajero envía con él mismo (`ShipDialog`). */
+  self?: DeliverySelf
+}) {
   const q = useCaseByCode(code)
   const stages = useStages(true)
   const caseId = q.data?.case.id
@@ -87,6 +104,7 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
   // cambiar de fase, el botón simplemente no aparece (ni motivo: es el mismo criterio que usa
   // la ficha completa para mensajero); si el rol sí puede pero el estado no, aparece el motivo.
   const roleCanControl = canControlStage(role)
+  const canUpload = hasRole(ATTACHMENT_UPLOAD_ROLES, role)
   const canControl = roleCanControl && canChangeStage(c.status)
   const next = canControl ? nav.next : undefined
   const last = canControl && nav.last
@@ -152,17 +170,24 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
             {next ? `Avanzar a ${next.name}` : 'Avanzar fase'}
           </Button>
         )}
-        <Button
-          type="button"
-          variant="outline"
-          className="h-14 w-full text-base"
-          onClick={() => photoInputRef.current?.click()}
-        >
-          <Camera /> Añadir foto
-        </Button>
+        {/* Quien no cambia de fase es quien entrega: su acción de entrega, en grande. Admin y
+            técnico producen y siguen con «Avanzar fase» (la ficha completa tiene el resto). */}
+        {!roleCanControl && (
+          <CaseActions case={c} missing={q.data.missing} role={role} self={self} size="large" />
+        )}
+        {canUpload && (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-14 w-full text-base"
+            onClick={() => photoInputRef.current?.click()}
+          >
+            <Camera /> Añadir foto
+          </Button>
+        )}
         {/* UX3-08: el aviso «Foto añadida» se va; el contador queda en la ficha. Sin dato si
             los adjuntos no cargaron (un fallo de red no se presenta como «Fotos: 0»). */}
-        {attachments.isSuccess && (
+        {canUpload && attachments.isSuccess && (
           <p className="text-center text-sm text-muted-foreground">
             {`Fotos: ${attachments.data.filter(isPhoto).length}`}
           </p>
@@ -172,23 +197,27 @@ export function QuickCase({ code, role }: { code: string; role: UserRole }) {
             {progress.done + 1} de {progress.total}…
           </span>
         )}
-        {/* `aria-hidden` + `tabIndex={-1}`: el botón de arriba es el objetivo táctil real (ver
-            el mismo criterio en `photo-uploader.tsx`, Tarea 15). */}
-        <input
-          ref={photoInputRef}
-          type="file"
-          aria-label="Añadir foto"
-          aria-hidden="true"
-          tabIndex={-1}
-          accept="image/*"
-          capture="environment"
-          multiple
-          className="sr-only"
-          onChange={(e) => {
-            void handleFiles(e.target.files)
-            e.target.value = ''
-          }}
-        />
+        {canUpload && (
+          <>
+            {/* `aria-hidden` + `tabIndex={-1}`: el botón de arriba es el objetivo táctil real (ver
+                el mismo criterio en `photo-uploader.tsx`, Tarea 15). */}
+            <input
+              ref={photoInputRef}
+              type="file"
+              aria-label="Añadir foto"
+              aria-hidden="true"
+              tabIndex={-1}
+              accept="image/*"
+              capture="environment"
+              multiple
+              className="sr-only"
+              onChange={(e) => {
+                void handleFiles(e.target.files)
+                e.target.value = ''
+              }}
+            />
+          </>
+        )}
       </div>
       {/* `flex h-11 items-center justify-center` (no solo texto subrayado): objetivo táctil de
           44 px como el resto de la pantalla — con guantes, también este enlace debe ser fácil

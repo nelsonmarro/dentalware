@@ -5,6 +5,7 @@ import type { Stage } from '@/features/stages/api'
 import { cn } from '@/lib/utils'
 import type { CaseDetail } from './api'
 import { CaseActions } from './case-actions'
+import type { DeliverySelf } from './ship-dialog'
 import { isStageVisible } from './case-views'
 import { StageControl } from './stage-control'
 import { stageNavigation } from './stage-navigation'
@@ -27,6 +28,7 @@ export function ProductionPanel({
   stages,
   stagesError = false,
   onRemakeCreated,
+  self,
 }: {
   case: CaseDetail
   missing: string[]
@@ -35,6 +37,8 @@ export function ProductionPanel({
   stages: Stage[]
   stagesError?: boolean
   onRemakeCreated?: (created: CaseDetail) => void
+  /** Quien usa la app: el mensajero envía con él mismo (`ShipDialog`). */
+  self?: DeliverySelf
 }) {
   const showStage = !!c.currentStageId && isStageVisible(c.status)
   const titleId = useId()
@@ -73,6 +77,7 @@ export function ProductionPanel({
           role={role}
           hasNextStage={hasNextStage}
           onRemakeCreated={onRemakeCreated}
+          self={self}
           className="border-t border-border pt-4"
         />
       </CardContent>

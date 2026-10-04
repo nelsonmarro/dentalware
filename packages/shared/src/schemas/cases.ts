@@ -1,8 +1,11 @@
 import { z } from 'zod'
 import { CASE_CODE_REGEX } from '../case-code.ts'
-import { ACTIONS_REQUIRING_REASON, CASE_ACTIONS, CASE_STATUSES } from '../case-status.ts'
+import { ACTION_PAYLOAD, CASE_ACTIONS, CASE_STATUSES } from '../case-status.ts'
 import { fdiTeethSchema } from '../fdi.ts'
-import { priceString, textoOpcional, uuid } from './config.ts'
+import { pickupInputSchema, shipmentInputSchema } from './deliveries.ts'
+import { isoDate, priceString, textoOpcional, uuid } from './config.ts'
+
+export { isoDate } from './config.ts'
 
 export const CASE_PRIORITIES = ['normal', 'urgente'] as const
 export type CasePriority = (typeof CASE_PRIORITIES)[number]
@@ -15,7 +18,7 @@ export const SHADE_SYSTEM_LABEL: Record<ShadeSystem, string> = {
   vita_3d_master: 'VITA 3D-Master',
   otro: 'Otro',
 }
-export const ATTACHMENT_KINDS = ['photo', 'document', 'scan'] as const
+export const ATTACHMENT_KINDS = ['photo', 'document', 'scan', 'constancia'] as const
 export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number]
 export const CHECKLIST_KEYS = ['antagonista', 'mordida', 'color', 'fotos'] as const
 export type ChecklistKey = (typeof CHECKLIST_KEYS)[number]
@@ -40,20 +43,6 @@ export type CaseView = (typeof CASE_VIEWS)[number]
 export type CaseSummary = Record<CaseView, number>
 export const CASE_PAGE_SIZE = 50
 
-const ISO_DATE_FORMAT = 'Fecha inválida (AAAA-MM-DD)'
-/** Descarta fechas con formato correcto pero de calendario inexistente (31/02, 13º mes…)
- * mediante ida y vuelta por `Date.UTC`: si el mes/día se desbordan, el resultado no
- * coincide con los componentes originales. */
-function isRealCalendarDate(s: string): boolean {
-  const [y, m, d] = s.split('-').map(Number)
-  const dt = new Date(Date.UTC(y!, m! - 1, d!))
-  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m! - 1 && dt.getUTCDate() === d
-}
-
-export const isoDate = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: ISO_DATE_FORMAT })
-  .refine(isRealCalendarDate, { error: ISO_DATE_FORMAT })
 const nullable = <T extends z.ZodTypeAny>(s: T) => s.nullish().transform((v) => v ?? null)
 // Un campo numérico/de precio opcional llega del formulario como `''` cuando está
 // vacío (un <input> controlado nunca pasa a `undefined`); sin este preprocesado,
@@ -121,8 +110,19 @@ export const caseInputSchema = z.object({
   internalNotes: textoOpcional(2000),
   assignedTechnicianId: nullable(z.string().min(1)),
   items: z.array(caseItemSchema).min(1, { error: 'Agrega al menos una línea de trabajo' }),
+  /** «Programar recogida» (ENT-1, Iteración 4): sección opcional del formulario de nuevo
+   * trabajo, no otra pantalla. Con `recogida`, el servicio crea el trabajo en `por_recoger`
+   * y la entrega tipo `recogida` en la misma transacción (Tarea 2). */
+  recogida: pickupInputSchema.optional(),
 })
 export type CaseInput = z.infer<typeof caseInputSchema>
+
+/** Editar un trabajo (`PUT /api/trabajos/:id`): los mismos datos sin `recogida`, que solo se
+ * programa al crear (ENT-1). Sin `.strict()`, igual que el resto de schemas: si un cliente la
+ * manda se descarta como cualquier clave desconocida (la web no la envía al editar), y el tipo
+ * de salida garantiza que el servicio nunca la ve. */
+export const caseEditSchema = caseInputSchema.omit({ recogida: true })
+export type CaseEditInput = z.infer<typeof caseEditSchema>
 
 /**
  * Bases de orden aceptadas por `GET /api/trabajos` (`orden`), cada una con su variante `-desc`.
@@ -179,14 +179,36 @@ export type RemakeResponsibility = (typeof REMAKE_RESPONSIBILITIES)[number]
 
 const motivoObligatorio = z.string().trim().min(1, { error: 'Escribe el motivo' }).max(500)
 
+/**
+ * Carga útil de cada acción según `ACTION_PAYLOAD` (shared, Iteración 4): además del motivo
+ * (pausar/cancelar), `marcar_enviado` exige `envio` (mensajero y fecha) y `marcar_entregado`
+ * exige `constanciaId` (el adjunto de constancia, subido antes por el endpoint de adjuntos).
+ * Un `Record` nuevo en `ACTION_PAYLOAD` con un valor que este `superRefine` no traduzca a una
+ * exigencia concreta queda sin validar, así que cada rama cubre uno de los cuatro valores de
+ * `ActionPayload` ('ninguna' no exige nada).
+ */
 export const caseActionSchema = z
   .object({
     accion: z.enum(CASE_ACTIONS, { error: 'Acción inválida' }),
     motivo: textoOpcional(500),
+    envio: shipmentInputSchema.optional(),
+    constanciaId: uuid.optional(),
   })
   .superRefine((v, ctx) => {
-    if (ACTIONS_REQUIRING_REASON.includes(v.accion) && !v.motivo)
+    const payload = ACTION_PAYLOAD[v.accion]
+    if (payload === 'motivo' && !v.motivo) {
       ctx.addIssue({ code: 'custom', path: ['motivo'], message: 'Escribe el motivo' })
+    }
+    if (payload === 'envio' && !v.envio) {
+      ctx.addIssue({ code: 'custom', path: ['envio'], message: 'Elige mensajero y fecha' })
+    }
+    if (payload === 'constancia' && !v.constanciaId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['constanciaId'],
+        message: 'Añade la foto de constancia',
+      })
+    }
   })
 export type CaseActionInput = z.infer<typeof caseActionSchema>
 

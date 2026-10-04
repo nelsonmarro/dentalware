@@ -1,4 +1,4 @@
-import { toothLabel, type FdiTooth } from '@dentalware/shared'
+import { toIsoDate, toothLabel, type FdiTooth } from '@dentalware/shared'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   createMemoryHistory,
@@ -87,6 +87,12 @@ const { CLINIC, CLINIC_2, DOCTOR, PRODUCT_ZR, PRODUCT_AC, CLINIC_PRICES, CLINIC_
 vi.mock('@/features/cases/api')
 vi.mock('@/features/clinics/api', () => ({
   fetchClinics: vi.fn().mockResolvedValue([CLINIC, CLINIC_2]),
+}))
+vi.mock('@/features/deliveries/api', () => ({
+  fetchCouriers: vi.fn().mockResolvedValue([
+    { id: 'm1', name: 'Bruno Mensajero' },
+    { id: 'm2', name: 'Zoila Mensajera' },
+  ]),
 }))
 vi.mock('@/features/doctors/api', () => ({
   fetchDoctors: vi.fn().mockResolvedValue([DOCTOR]),
@@ -545,6 +551,64 @@ describe('CaseForm', () => {
       }),
       true,
     )
+  })
+
+  describe('programar recogida (ENT-1)', () => {
+    it('con la recogida rellenada el trabajo se envía con recogida (mensajero y, por omisión, hoy)', async () => {
+      const onSubmit = vi.fn()
+      const { user } = renderForm(<CaseForm role="recepcion" pending={false} onSubmit={onSubmit} />)
+      await fillMinimalCase(user)
+
+      const toggle = screen.getByRole('button', { name: 'Programar recogida' })
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await user.click(toggle)
+      expect(toggle).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByLabelText('Fecha de recogida')).toHaveValue(toIsoDate(new Date()))
+      await pickOption(user, 'Mensajero', 'Zoila Mensajera')
+
+      await user.click(screen.getByRole('button', { name: 'Guardar' }))
+
+      await waitFor(() =>
+        expect(onSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            recogida: { mensajeroId: 'm2', fecha: toIsoDate(new Date()) },
+          }),
+          false,
+        ),
+      )
+    })
+
+    it('sin recogida el trabajo se envía sin ella', async () => {
+      const onSubmit = vi.fn()
+      const { user } = renderForm(<CaseForm role="recepcion" pending={false} onSubmit={onSubmit} />)
+      await fillMinimalCase(user)
+      await user.click(screen.getByRole('button', { name: 'Guardar' }))
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+      expect(onSubmit.mock.calls[0]![0]).not.toHaveProperty('recogida')
+    })
+
+    it('abrir y volver a cerrar la sección descarta la recogida', async () => {
+      const onSubmit = vi.fn()
+      const { user } = renderForm(<CaseForm role="recepcion" pending={false} onSubmit={onSubmit} />)
+      await fillMinimalCase(user)
+      const toggle = screen.getByRole('button', { name: 'Programar recogida' })
+      await user.click(toggle)
+      await pickOption(user, 'Mensajero', 'Zoila Mensajera')
+      await user.click(toggle)
+      await user.click(screen.getByRole('button', { name: 'Guardar' }))
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+      expect(onSubmit.mock.calls[0]![0].recogida).toBeUndefined()
+    })
+
+    it('con la sección abierta y sin mensajero no se envía y lo pide', async () => {
+      const onSubmit = vi.fn()
+      const { user } = renderForm(<CaseForm role="recepcion" pending={false} onSubmit={onSubmit} />)
+      await fillMinimalCase(user)
+      await user.click(screen.getByRole('button', { name: 'Programar recogida' }))
+      await user.click(screen.getByRole('button', { name: 'Guardar' }))
+      expect(await screen.findByText('Elige un mensajero')).toBeInTheDocument()
+      expect(onSubmit).not.toHaveBeenCalled()
+    })
   })
 
   it('al editar conserva el precio guardado hasta que se cambia de clínica', async () => {

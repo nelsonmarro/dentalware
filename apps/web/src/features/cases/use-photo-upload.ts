@@ -1,8 +1,10 @@
+import type { AttachmentKind } from '@dentalware/shared'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ApiError } from '@/lib/api-error'
 import { compressImage } from '@/lib/image-compress'
 import { isPhoto } from './attachment-kind'
+import type { Attachment } from './attachments-api'
 import { useUploadAttachment } from './use-attachments'
 
 /**
@@ -13,14 +15,22 @@ import { useUploadAttachment } from './use-attachments'
  * un único toast por archivo que falla; sin `onError` en la mutación (el propio bucle ya
  * maneja el error de cada archivo, ver `use-attachments.ts`). Al terminar, un solo aviso de
  * éxito con las que entraron (UX3-08: con guantes, sin él no se sabía si la foto subió).
+ *
+ * `kind` (Iteración 4, ENT-4): fija el tipo del adjunto, p. ej. `'constancia'` para la foto de
+ * entrega; sin él la API lo decide por el archivo. `handleFiles` devuelve los adjuntos que
+ * entraron, para que quien sube una sola foto con un fin (la constancia) sepa su id.
  */
-export function usePhotoUpload(caseId: string, onUploaded?: () => void) {
+export function usePhotoUpload(
+  caseId: string,
+  { onUploaded, kind }: { onUploaded?: () => void; kind?: AttachmentKind } = {},
+) {
   const upload = useUploadAttachment(caseId)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
 
-  async function handleFiles(fileList: FileList | null) {
-    if (!fileList || fileList.length === 0) return
+  async function handleFiles(fileList: FileList | null): Promise<Attachment[]> {
+    if (!fileList || fileList.length === 0) return []
     const files = [...fileList]
+    const uploaded: Attachment[] = []
     let photos = 0
     let documents = 0
     for (const [index, file] of files.entries()) {
@@ -29,7 +39,8 @@ export function usePhotoUpload(caseId: string, onUploaded?: () => void) {
         const compressed = await compressImage(file)
         const form = new FormData()
         form.append('file', compressed, file.name)
-        await upload.mutateAsync(form)
+        if (kind) form.append('kind', kind)
+        uploaded.push(await upload.mutateAsync(form))
         if (isPhoto({ mime: file.type })) photos += 1
         else documents += 1
       } catch (err) {
@@ -44,6 +55,7 @@ export function usePhotoUpload(caseId: string, onUploaded?: () => void) {
     const message = uploadedMessage(photos, documents)
     if (message) toast.success(message)
     onUploaded?.()
+    return uploaded
   }
 
   return { handleFiles, progress }

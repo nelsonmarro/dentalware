@@ -4,19 +4,24 @@ import { CaseForbiddenError, CaseInputError, CaseNotFoundError, CaseStateError }
 import {
   caseDetailFixture,
   caseInputFixture,
+  fakeAttachmentsQuery,
   fakeCasesRepo,
+  fakeCouriersLookup,
+  fakeDeliveryLog,
   fakeStagesQuery,
   fakeTryins,
   fakeUow,
   fakeUsersQuery,
   fixedClock,
 } from './fakes.ts'
-import type { CaseDetail, UnitOfWork } from './ports.ts'
-import { createCasesService, stripPrices } from './service.ts'
+import type { FakeAttachment } from './fakes.ts'
+import type { CaseDetail, Named, UnitOfWork } from './ports.ts'
+import { createCasesService, stripPrices, type CasesService } from './service.ts'
 
 const admin = { userId: 'u1', role: 'admin' } as const
 const tecnico = { userId: 'u2', role: 'tecnico' } as const
 const mensajero = { userId: 'u3', role: 'mensajero' } as const
+const recepcionCtx = { userId: 'u5', role: 'recepcion' } as const
 
 /** Alias descriptivo: una ficha completa (todos los campos que `aceptar` exige), lista para
  * las pruebas de acciones de estado. */
@@ -28,9 +33,10 @@ function build(seed = [caseDetailFixture()], hasDocument = false) {
   // recrear los repos de la transacción, igual que hace `drizzleUnitOfWork` con `tx`.
   const service = createCasesService({
     cases: repo,
-    attachments: { hasDocument: async () => hasDocument },
+    attachments: fakeAttachmentsQuery(hasDocument),
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(),
+    couriers: fakeCouriersLookup(),
     uow: fakeUow(repo, fakeTryins()),
     clock: fixedClock(),
   })
@@ -44,15 +50,18 @@ function servicioCon(
   overrides: {
     tryins?: ReturnType<typeof fakeTryins>
     hasDocument?: boolean
+    couriers?: Named[]
+    attachments?: FakeAttachment[]
   } = {},
 ) {
   const { repo } = fakeCasesRepo([seed])
   const tryins = overrides.tryins ?? fakeTryins()
   return createCasesService({
     cases: repo,
-    attachments: { hasDocument: async () => overrides.hasDocument ?? true },
+    attachments: fakeAttachmentsQuery(overrides.hasDocument ?? true, overrides.attachments),
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(),
+    couriers: fakeCouriersLookup(overrides.couriers),
     uow: fakeUow(repo, tryins),
     clock: fixedClock('2026-09-18'),
   })
@@ -65,9 +74,10 @@ function servicioConFases(stageIds: string[], overrides: Partial<CaseDetail>) {
   const stages = stageIds.map((id, sort) => ({ id, sort, active: true }))
   return createCasesService({
     cases: repo,
-    attachments: { hasDocument: async () => true },
+    attachments: fakeAttachmentsQuery(true),
     stages: fakeStagesQuery(stages),
     users: fakeUsersQuery(),
+    couriers: fakeCouriersLookup(),
     uow: fakeUow(repo, fakeTryins()),
     clock: fixedClock(),
   })
@@ -83,9 +93,10 @@ function servicioConTecnicos(
   const { repo } = fakeCasesRepo([caseDetailFixture({ id: '1', ...overrides })])
   return createCasesService({
     cases: repo,
-    attachments: { hasDocument: async () => true },
+    attachments: fakeAttachmentsQuery(true),
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(technicians.map((t) => ({ name: 'Técnico', ...t }))),
+    couriers: fakeCouriersLookup(),
     uow: fakeUow(repo, fakeTryins()),
     clock: fixedClock(),
   })
@@ -97,9 +108,10 @@ function servicioParaResumen(seed: CaseDetail[], today: string) {
   const { repo } = fakeCasesRepo(seed)
   return createCasesService({
     cases: repo,
-    attachments: { hasDocument: async () => false },
+    attachments: fakeAttachmentsQuery(false),
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(),
+    couriers: fakeCouriersLookup(),
     uow: fakeUow(repo),
     clock: fixedClock(today),
   })
@@ -235,7 +247,7 @@ describe('acciones de estado', () => {
     const { repo } = fakeCasesRepo([completo({ id: '1', status: 'nuevo' })])
     const service = createCasesService({
       cases: repo,
-      attachments: { hasDocument: async () => true },
+      attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery([{ id: 'f1', sort: 1, active: true }]),
       uow: fakeUow(repo, fakeTryins()),
       clock: fixedClock('2026-09-18'),
@@ -331,29 +343,32 @@ describe('acciones de estado', () => {
     expect((await service.detail('1', admin)).case.finishedAt).not.toBeNull()
   })
 
-  it('marcar_enviado fija shippedAt y marcar_entregado fija deliveredAt', async () => {
-    const service = servicioCon(completo({ id: '1', status: 'terminado' }))
-    await service.action('1', { accion: 'marcar_enviado', motivo: null }, admin)
-    const enviado = (await service.detail('1', admin)).case
-    expect(enviado.status).toBe('enviado')
-    expect(enviado.shippedAt).not.toBeNull()
-
-    await service.action('1', { accion: 'marcar_entregado', motivo: null }, admin)
-    const entregado = (await service.detail('1', admin)).case
-    expect(entregado.status).toBe('entregado')
-    expect(entregado.deliveredAt).not.toBeNull()
-  })
-
   it('cada acción escribe el tipo de evento y el estado antes/después que le corresponden', async () => {
     const tryins = fakeTryins()
-    const service = servicioCon(completo({ id: '1', status: 'nuevo' }), { tryins })
+    const service = servicioCon(completo({ id: '1', status: 'nuevo' }), {
+      tryins,
+      couriers: [{ id: 'u3', name: 'Mario Mensajero' }],
+      attachments: [{ id: 'a1', caseId: '1', mime: 'image/jpeg', kind: 'constancia' }],
+    })
 
     await service.action('1', { accion: 'aceptar', motivo: null }, admin)
     await service.action('1', { accion: 'enviar_prueba', motivo: null }, admin)
     await service.action('1', { accion: 'recibir_prueba', motivo: null }, admin)
     await service.action('1', { accion: 'finalizar', motivo: null }, admin)
-    await service.action('1', { accion: 'marcar_enviado', motivo: null }, admin)
-    await service.action('1', { accion: 'marcar_entregado', motivo: null }, admin)
+    await service.action(
+      '1',
+      {
+        accion: 'marcar_enviado',
+        motivo: null,
+        envio: { mensajeroId: 'u3', fecha: '2026-09-18' },
+      },
+      admin,
+    )
+    await service.action(
+      '1',
+      { accion: 'marcar_entregado', motivo: null, constanciaId: 'a1' },
+      admin,
+    )
 
     const eventos = await service.events('1', admin)
     expect(eventos.map((e) => e.type)).toEqual([
@@ -366,8 +381,9 @@ describe('acciones de estado', () => {
     ])
     expect(eventos[0]).toMatchObject({ fromValue: 'nuevo', toValue: 'en_proceso' })
     expect(eventos[3]).toMatchObject({ fromValue: 'en_proceso', toValue: 'terminado' })
-    expect(eventos[4]).toMatchObject({ fromValue: 'terminado', toValue: 'enviado' })
-    expect(eventos[5]).toMatchObject({ fromValue: 'enviado', toValue: 'entregado' })
+    // `shipped` lleva la fecha de entrega y `delivered` la constancia (Iteración 4, ENT-3/ENT-4).
+    expect(eventos[4]).toMatchObject({ fromValue: 'terminado', toValue: '2026-09-18' })
+    expect(eventos[5]).toMatchObject({ fromValue: 'enviado', toValue: 'a1' })
   })
 })
 
@@ -507,6 +523,42 @@ describe('técnico responsable', () => {
     await service.assignTechnician('1', { tecnicoId: 't2' }, admin)
     expect((await service.detail('1', admin)).case.assignedTechnicianId).toBe('t2')
     expect((await service.events('1', admin)).at(-1)).toMatchObject({ type: 'assigned' })
+  })
+
+  // #97: dentro de la transacción, las escrituras del trabajo leen con `byIdForUpdate` (fila
+  // bloqueada) y nunca con `byId`. El fake no tiene concurrencia, así que se comprueba la
+  // lectura: el repo de la unidad de trabajo falla si alguien usa `byId`. El bloqueo real contra
+  // Postgres lo prueban los tests de concurrencia de `cases.test.ts`.
+  it.each([
+    ['assignTechnician', (s: CasesService) => s.assignTechnician('1', { tecnicoId: 't1' }, admin)],
+    ['action', (s: CasesService) => s.action('1', { accion: 'pausar', motivo: 'Falta' }, admin)],
+    [
+      'changeStage',
+      (s: CasesService) => s.changeStage('1', { direccion: 'avanzar', motivo: null }, admin),
+    ],
+  ])('%s lee el trabajo con byIdForUpdate dentro de la transacción', async (_metodo, run) => {
+    const { repo } = fakeCasesRepo([
+      caseDetailFixture({ id: '1', status: 'en_proceso', currentStageId: 'f1' }),
+    ])
+    const sinBloqueo = {
+      ...repo,
+      byId: async () => {
+        throw new Error('lectura sin FOR UPDATE dentro de la transacción')
+      },
+    }
+    const service = createCasesService({
+      cases: repo,
+      attachments: fakeAttachmentsQuery(true),
+      stages: fakeStagesQuery([
+        { id: 'f1', sort: 1, active: true },
+        { id: 'f2', sort: 2, active: true },
+      ]),
+      users: fakeUsersQuery([{ id: 't1', name: 'Técnico' }]),
+      couriers: fakeCouriersLookup(),
+      uow: fakeUow(sinBloqueo),
+      clock: fixedClock(),
+    })
+    await expect(run(service)).resolves.toMatchObject({ id: '1' })
   })
 
   it('rechaza un usuario que no es técnico activo', async () => {
@@ -728,7 +780,7 @@ describe('repetición', () => {
         const rowsSnapshot = new Map(rows)
         const eventsSnapshot = [...events]
         try {
-          await fn({ cases: repo, tryins: fakeTryins() })
+          await fn({ cases: repo, tryins: fakeTryins(), deliveries: fakeDeliveryLog().log })
           throw new Error('fallo simulado después de crear el hijo')
         } catch (e) {
           rows.clear()
@@ -741,9 +793,10 @@ describe('repetición', () => {
     }
     const service = createCasesService({
       cases: repo,
-      attachments: { hasDocument: async () => true },
+      attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery(),
       users: fakeUsersQuery(),
+      couriers: fakeCouriersLookup(),
       uow: uowQueFalla,
       clock: fixedClock('2026-09-18'),
     })
@@ -783,5 +836,477 @@ describe('resumen del día', () => {
     const r = await service.summary()
     expect(r.en_curso).toBe(0)
     expect(r.todos).toBe(1)
+  })
+})
+
+// Iteración 4, Tarea 3 (ENT-1, ENT-2): programar la recogida al crear el trabajo y recibirlo.
+describe('recogida', () => {
+  const mario = { id: 'u3', name: 'Mario Mensajero' }
+  const luis = { id: 'u4', name: 'Luis Mensajero' }
+  const otroMensajero = { userId: 'u4', role: 'mensajero' } as const
+  const recepcion = { userId: 'u5', role: 'recepcion' } as const
+  const recogida = { mensajeroId: 'u3', fecha: '2026-10-05' }
+
+  /** Reloj fijo en el sábado 2026-10-03; mensajeros activos Mario (u3) y Luis (u4). */
+  function servicioConRecogida(seed: CaseDetail[] = [], deliveries = fakeDeliveryLog()) {
+    const { repo, rows, events } = fakeCasesRepo(seed)
+    const service = createCasesService({
+      cases: repo,
+      attachments: fakeAttachmentsQuery(true),
+      stages: fakeStagesQuery(),
+      users: fakeUsersQuery(),
+      couriers: fakeCouriersLookup([mario, luis]),
+      uow: fakeUow(repo, fakeTryins(), deliveries.log),
+      clock: fixedClock('2026-10-03'),
+    })
+    return { service, rows, events, deliveries }
+  }
+
+  /** Un trabajo por recoger con su recogida pendiente asignada a Mario. */
+  function porRecogerDeMario() {
+    return servicioConRecogida(
+      [completo({ id: '1', status: 'por_recoger' })],
+      fakeDeliveryLog([
+        {
+          id: 'd1',
+          caseId: '1',
+          type: 'recogida',
+          courierId: 'u3',
+          scheduledFor: '2026-10-03',
+          status: 'pendiente',
+          doneAt: null,
+          proofAttachmentId: null,
+        },
+      ]),
+    )
+  }
+
+  it('crear con recogida deja el trabajo por recoger, la recogida pendiente y sus dos eventos', async () => {
+    const { service, deliveries } = servicioConRecogida()
+    const c = await service.create(caseInputFixture({ recogida }), admin)
+    expect(c.status).toBe('por_recoger')
+    expect([...deliveries.rows.values()]).toEqual([
+      {
+        id: 'd1',
+        caseId: c.id,
+        type: 'recogida',
+        courierId: 'u3',
+        scheduledFor: '2026-10-05',
+        status: 'pendiente',
+        doneAt: null,
+        proofAttachmentId: null,
+      },
+    ])
+    const eventos = await service.events(c.id, admin)
+    expect(eventos.map((e) => e.type)).toEqual(['created', 'pickup_scheduled'])
+    // El historial muestra nombres: el motivo del evento es el nombre del mensajero.
+    expect(eventos[1]).toMatchObject({
+      toValue: '2026-10-05',
+      reason: 'Mario Mensajero',
+      actorId: 'u1',
+    })
+  })
+
+  it('crear sin recogida deja el trabajo en nuevo y no programa ninguna entrega', async () => {
+    const { service, deliveries } = servicioConRecogida()
+    const c = await service.create(caseInputFixture(), admin)
+    expect(c.status).toBe('nuevo')
+    expect(deliveries.rows.size).toBe(0)
+  })
+
+  it('una recogida para hoy se acepta', async () => {
+    const { service } = servicioConRecogida()
+    const c = await service.create(
+      caseInputFixture({ recogida: { mensajeroId: 'u3', fecha: '2026-10-03' } }),
+      admin,
+    )
+    expect(c.status).toBe('por_recoger')
+  })
+
+  it('una recogida con fecha de ayer lanza CaseInputError y no crea nada', async () => {
+    const { service, rows, deliveries } = servicioConRecogida()
+    const error = await service
+      .create(caseInputFixture({ recogida: { mensajeroId: 'u3', fecha: '2026-10-02' } }), admin)
+      .catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(CaseInputError)
+    expect(error).toMatchObject({
+      message: 'La fecha de recogida no puede ser anterior a hoy.',
+      path: 'recogida.fecha',
+    })
+    expect(rows.size).toBe(0)
+    expect(deliveries.rows.size).toBe(0)
+  })
+
+  it('un mensajero inexistente o que no es mensajero activo lanza CaseInputError', async () => {
+    const { service, rows } = servicioConRecogida()
+    for (const mensajeroId of ['no-existe', 'u2']) {
+      const error = await service
+        .create(caseInputFixture({ recogida: { mensajeroId, fecha: '2026-10-05' } }), admin)
+        .catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(CaseInputError)
+      expect(error).toMatchObject({
+        message: 'Elige un mensajero activo.',
+        path: 'recogida.mensajeroId',
+      })
+    }
+    expect(rows.size).toBe(0)
+  })
+
+  it('el mensajero asignado recibe: el trabajo pasa a nuevo, la recogida queda hecha y hay evento picked_up', async () => {
+    const { service, deliveries } = porRecogerDeMario()
+    const c = await service.action('1', { accion: 'recibir', motivo: null }, mensajero)
+    expect(c.status).toBe('nuevo')
+    expect(deliveries.rows.get('d1')).toMatchObject({
+      status: 'hecha',
+      doneAt: new Date('2026-10-03T12:00:00Z'),
+      proofAttachmentId: null,
+    })
+    const eventos = await service.events('1', admin)
+    expect(eventos.at(-1)).toMatchObject({
+      type: 'picked_up',
+      fromValue: 'por_recoger',
+      toValue: 'nuevo',
+      actorId: 'u3',
+    })
+  })
+
+  it('otro mensajero no puede recibir una recogida que no es suya', async () => {
+    const { service, rows, deliveries } = porRecogerDeMario()
+    await expect(
+      service.action('1', { accion: 'recibir', motivo: null }, otroMensajero),
+    ).rejects.toBeInstanceOf(CaseForbiddenError)
+    expect(rows.get('1')!.status).toBe('por_recoger')
+    expect(deliveries.rows.get('d1')!.status).toBe('pendiente')
+  })
+
+  it('recepción recibe la recogida de cualquier mensajero', async () => {
+    const { service, deliveries } = porRecogerDeMario()
+    const c = await service.action('1', { accion: 'recibir', motivo: null }, recepcion)
+    expect(c.status).toBe('nuevo')
+    expect(deliveries.rows.get('d1')!.status).toBe('hecha')
+  })
+
+  it('un trabajo por recoger sin recogida pendiente (datos viejos) se recibe igual', async () => {
+    const { service } = servicioConRecogida([completo({ id: '1', status: 'por_recoger' })])
+    const c = await service.action('1', { accion: 'recibir', motivo: null }, recepcion)
+    expect(c.status).toBe('nuevo')
+  })
+
+  it('un mensajero no recibe un trabajo por recoger que no tiene recogida pendiente', async () => {
+    const { service, rows } = servicioConRecogida([completo({ id: '1', status: 'por_recoger' })])
+    await expect(
+      service.action('1', { accion: 'recibir', motivo: null }, mensajero),
+    ).rejects.toBeInstanceOf(CaseForbiddenError)
+    expect(rows.get('1')!.status).toBe('por_recoger')
+  })
+
+  it('aceptar un trabajo por recoger lanza CaseStateError con los rótulos', async () => {
+    const { service } = porRecogerDeMario()
+    await expect(service.action('1', { accion: 'aceptar', motivo: null }, admin)).rejects.toThrow(
+      new CaseStateError(
+        'No se puede "Aceptar": el trabajo está en estado "Por recoger". Puede que otra persona lo haya cambiado.',
+      ),
+    )
+  })
+})
+
+// Iteración 4, Tarea 4 (ENT-3, ENT-4): enviar con mensajero y entregar con foto de constancia.
+describe('envío y entrega', () => {
+  const mario = { id: 'u3', name: 'Mario Mensajero' }
+  const luis = { id: 'u4', name: 'Luis Mensajero' }
+  const otroMensajero = { userId: 'u4', role: 'mensajero' } as const
+  const recepcion = { userId: 'u5', role: 'recepcion' } as const
+  const fotoDeEste: FakeAttachment = {
+    id: 'a1',
+    caseId: '1',
+    mime: 'image/jpeg',
+    kind: 'constancia',
+  }
+  const entregaDeMario = {
+    id: 'd1',
+    caseId: '1',
+    type: 'entrega',
+    courierId: 'u3',
+    scheduledFor: '2026-10-03',
+    status: 'pendiente',
+    doneAt: null,
+    proofAttachmentId: null,
+  } as const
+
+  /** Reloj fijo en el sábado 2026-10-03; mensajeros activos Mario (u3) y Luis (u4). */
+  function servicioConEntrega(
+    seed: CaseDetail,
+    { deliveries = fakeDeliveryLog(), attachments = [fotoDeEste] } = {},
+  ) {
+    const { repo, rows } = fakeCasesRepo([seed])
+    const service = createCasesService({
+      cases: repo,
+      attachments: fakeAttachmentsQuery(true, attachments),
+      stages: fakeStagesQuery(),
+      users: fakeUsersQuery(),
+      couriers: fakeCouriersLookup([mario, luis]),
+      uow: fakeUow(repo, fakeTryins(), deliveries.log),
+      clock: fixedClock('2026-10-03'),
+    })
+    return { service, rows, deliveries }
+  }
+  const terminado = () => servicioConEntrega(completo({ id: '1', status: 'terminado' }))
+  const enviadoConMario = (attachments?: FakeAttachment[]) =>
+    servicioConEntrega(completo({ id: '1', status: 'enviado', total: '90.00' }), {
+      deliveries: fakeDeliveryLog([entregaDeMario]),
+      ...(attachments ? { attachments } : {}),
+    })
+  const enviar = (mensajeroId: string, fecha = '2026-10-05') => ({
+    accion: 'marcar_enviado' as const,
+    motivo: null,
+    envio: { mensajeroId, fecha },
+  })
+  const entregar = (constanciaId: string) => ({
+    accion: 'marcar_entregado' as const,
+    motivo: null,
+    constanciaId,
+  })
+
+  it('el mensajero que se asigna a sí mismo envía: queda enviado, con la entrega pendiente y el evento shipped', async () => {
+    const { service, deliveries } = terminado()
+    const c = await service.action('1', enviar('u3'), mensajero)
+    expect(c.status).toBe('enviado')
+    expect(c.shippedAt).toEqual(new Date('2026-10-03T12:00:00Z'))
+    // Enmascarado: el mensajero nunca recibe dinero en la respuesta de la acción.
+    expect(c.total).toBeNull()
+    expect([...deliveries.rows.values()]).toEqual([
+      {
+        id: 'd1',
+        caseId: '1',
+        type: 'entrega',
+        courierId: 'u3',
+        scheduledFor: '2026-10-05',
+        status: 'pendiente',
+        doneAt: null,
+        proofAttachmentId: null,
+      },
+    ])
+    const eventos = await service.events('1', admin)
+    expect(eventos.at(-1)).toMatchObject({
+      type: 'shipped',
+      fromValue: 'terminado',
+      toValue: '2026-10-05',
+      reason: 'Mario Mensajero',
+      actorId: 'u3',
+    })
+  })
+
+  it('un envío para hoy se acepta', async () => {
+    const { service } = terminado()
+    const c = await service.action('1', enviar('u3', '2026-10-03'), admin)
+    expect(c.status).toBe('enviado')
+  })
+
+  it('recepción envía con cualquier mensajero activo', async () => {
+    const { service, deliveries } = terminado()
+    const c = await service.action('1', enviar('u4'), recepcion)
+    expect(c.status).toBe('enviado')
+    expect(deliveries.rows.get('d1')!.courierId).toBe('u4')
+  })
+
+  it('un mensajero no puede asignar el envío a otro mensajero', async () => {
+    const { service, rows, deliveries } = terminado()
+    await expect(service.action('1', enviar('u4'), mensajero)).rejects.toBeInstanceOf(
+      CaseForbiddenError,
+    )
+    expect(rows.get('1')!.status).toBe('terminado')
+    expect(deliveries.rows.size).toBe(0)
+  })
+
+  it('un envío con fecha de ayer lanza CaseInputError y no cambia nada', async () => {
+    const { service, rows, deliveries } = terminado()
+    const error = await service
+      .action('1', enviar('u3', '2026-10-02'), admin)
+      .catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(CaseInputError)
+    expect(error).toMatchObject({
+      message: 'La fecha de entrega no puede ser anterior a hoy.',
+      path: 'envio.fecha',
+    })
+    expect(rows.get('1')!.status).toBe('terminado')
+    expect(deliveries.rows.size).toBe(0)
+  })
+
+  it('un envío con alguien que no es mensajero activo lanza CaseInputError', async () => {
+    const { service, rows } = terminado()
+    const error = await service.action('1', enviar('u2'), admin).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(CaseInputError)
+    expect(error).toMatchObject({
+      message: 'Elige un mensajero activo.',
+      path: 'envio.mensajeroId',
+    })
+    expect(rows.get('1')!.status).toBe('terminado')
+  })
+
+  it('marcar enviado sin envío lanza CaseInputError en envio', async () => {
+    const { service } = terminado()
+    await expect(
+      service.action('1', { accion: 'marcar_enviado', motivo: null }, admin),
+    ).rejects.toMatchObject({ message: 'Elige mensajero y fecha', path: 'envio' })
+  })
+
+  it('el mensajero asignado entrega con su foto: queda entregado, la entrega hecha y el evento delivered', async () => {
+    const { service, deliveries } = enviadoConMario()
+    const c = await service.action('1', entregar('a1'), mensajero)
+    expect(c.status).toBe('entregado')
+    expect(c.deliveredAt).toEqual(new Date('2026-10-03T12:00:00Z'))
+    expect(c.total).toBeNull()
+    expect(deliveries.rows.get('d1')).toMatchObject({
+      status: 'hecha',
+      doneAt: new Date('2026-10-03T12:00:00Z'),
+      proofAttachmentId: 'a1',
+    })
+    const eventos = await service.events('1', admin)
+    expect(eventos.at(-1)).toMatchObject({
+      type: 'delivered',
+      fromValue: 'enviado',
+      toValue: 'a1',
+      actorId: 'u3',
+    })
+  })
+
+  it('otro mensajero no puede entregar una entrega que no es suya', async () => {
+    const { service, rows, deliveries } = enviadoConMario()
+    await expect(service.action('1', entregar('a1'), otroMensajero)).rejects.toBeInstanceOf(
+      CaseForbiddenError,
+    )
+    expect(rows.get('1')!.status).toBe('enviado')
+    expect(deliveries.rows.get('d1')!.status).toBe('pendiente')
+  })
+
+  it('recepción entrega la entrega de cualquier mensajero', async () => {
+    const { service, deliveries } = enviadoConMario()
+    const c = await service.action('1', entregar('a1'), recepcion)
+    expect(c.status).toBe('entregado')
+    expect(deliveries.rows.get('d1')).toMatchObject({ status: 'hecha', proofAttachmentId: 'a1' })
+  })
+
+  it('un trabajo enviado sin entrega pendiente (datos viejos) se entrega igual y guarda la constancia en el evento', async () => {
+    const { service } = servicioConEntrega(completo({ id: '1', status: 'enviado' }))
+    const c = await service.action('1', entregar('a1'), recepcion)
+    expect(c.status).toBe('entregado')
+    const eventos = await service.events('1', admin)
+    expect(eventos.at(-1)).toMatchObject({ type: 'delivered', toValue: 'a1' })
+  })
+
+  it('un mensajero no entrega un trabajo enviado que no tiene entrega pendiente', async () => {
+    const { service, rows } = servicioConEntrega(completo({ id: '1', status: 'enviado' }))
+    await expect(service.action('1', entregar('a1'), mensajero)).rejects.toBeInstanceOf(
+      CaseForbiddenError,
+    )
+    expect(rows.get('1')!.status).toBe('enviado')
+  })
+
+  it('otro mensajero con una constancia que no es de este trabajo recibe 403, no 422: el permiso va antes que los datos', async () => {
+    const { service, rows } = enviadoConMario([{ ...fotoDeEste, id: 'a2', caseId: '2' }])
+    await expect(service.action('1', entregar('a2'), otroMensajero)).rejects.toBeInstanceOf(
+      CaseForbiddenError,
+    )
+    expect(rows.get('1')!.status).toBe('enviado')
+  })
+
+  it('marcar entregado sin constancia lanza CaseInputError en constanciaId', async () => {
+    const { service } = enviadoConMario()
+    await expect(
+      service.action('1', { accion: 'marcar_entregado', motivo: null }, admin),
+    ).rejects.toMatchObject({ message: 'Añade la foto de constancia', path: 'constanciaId' })
+  })
+
+  it.each([
+    ['inexistente', 'a9', [fotoDeEste]],
+    ['de otro trabajo', 'a2', [{ ...fotoDeEste, id: 'a2', caseId: '2' }]],
+    [
+      'que es un PDF de tipo documento',
+      'a3',
+      [{ ...fotoDeEste, id: 'a3', mime: 'application/pdf', kind: 'document' }],
+    ],
+    ['que es una foto normal', 'a4', [{ ...fotoDeEste, id: 'a4', kind: 'photo' }]],
+    ['que no es una imagen', 'a5', [{ ...fotoDeEste, id: 'a5', mime: 'application/pdf' }]],
+  ] as [string, string, FakeAttachment[]][])(
+    'una constancia %s se rechaza con el mensaje literal y no entrega',
+    async (_caso, constanciaId, attachments) => {
+      const { service, rows, deliveries } = enviadoConMario(attachments)
+      const error = await service
+        .action('1', entregar(constanciaId), admin)
+        .catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(CaseInputError)
+      expect(error).toMatchObject({
+        message: 'La foto de constancia no es de este trabajo.',
+        path: 'constanciaId',
+      })
+      expect(rows.get('1')!.status).toBe('enviado')
+      expect(deliveries.rows.get('d1')!.status).toBe('pendiente')
+    },
+  )
+})
+
+// Revisión final del PR 1 de la Iteración 4 (I-1): cancelar un trabajo cierra su recogida o
+// su entrega pendiente; si no, quedaría «pendiente» para siempre en la lista del mensajero.
+describe('cancelar cierra la entrega pendiente', () => {
+  const pendiente = (id: string, caseId: string, type: 'recogida' | 'entrega') =>
+    ({
+      id,
+      caseId,
+      type,
+      courierId: 'u3',
+      scheduledFor: '2026-10-03',
+      status: 'pendiente',
+      doneAt: null,
+      proofAttachmentId: null,
+    }) as const
+
+  function servicioConPendientes(status: CaseStatus, seed: ReturnType<typeof pendiente>[]) {
+    const { repo, rows } = fakeCasesRepo([completo({ id: '1', status })])
+    const deliveries = fakeDeliveryLog(seed)
+    const service = createCasesService({
+      cases: repo,
+      attachments: fakeAttachmentsQuery(true),
+      stages: fakeStagesQuery(),
+      users: fakeUsersQuery(),
+      couriers: fakeCouriersLookup(),
+      uow: fakeUow(repo, fakeTryins(), deliveries.log),
+      clock: fixedClock('2026-10-03'),
+    })
+    return { service, rows, deliveries }
+  }
+  const cancelar = { accion: 'cancelar' as const, motivo: 'La clínica lo anuló' }
+
+  it('cancelar un trabajo por recoger cierra su recogida pendiente con el motivo', async () => {
+    const { service, deliveries } = servicioConPendientes('por_recoger', [
+      pendiente('d1', '1', 'recogida'),
+    ])
+    const c = await service.action('1', cancelar, admin)
+    expect(c.status).toBe('cancelado')
+    expect(deliveries.rows.get('d1')).toMatchObject({
+      status: 'fallida',
+      failedReason: 'Trabajo cancelado: La clínica lo anuló',
+      doneAt: new Date('2026-10-03T12:00:00Z'),
+    })
+  })
+
+  it('cancelar un trabajo enviado cierra su entrega pendiente con el motivo', async () => {
+    const { service, deliveries } = servicioConPendientes('enviado', [
+      pendiente('d1', '1', 'entrega'),
+    ])
+    await service.action('1', cancelar, recepcionCtx)
+    expect(deliveries.rows.get('d1')).toMatchObject({
+      status: 'fallida',
+      failedReason: 'Trabajo cancelado: La clínica lo anuló',
+    })
+  })
+
+  it('cancelar un trabajo en proceso no toca las entregas de otros trabajos', async () => {
+    const { service, rows, deliveries } = servicioConPendientes('en_proceso', [
+      pendiente('d1', '2', 'recogida'),
+      pendiente('d2', '2', 'entrega'),
+    ])
+    await service.action('1', cancelar, admin)
+    expect(rows.get('1')!.status).toBe('cancelado')
+    expect([...deliveries.rows.values()].map((d) => d.status)).toEqual(['pendiente', 'pendiente'])
   })
 })

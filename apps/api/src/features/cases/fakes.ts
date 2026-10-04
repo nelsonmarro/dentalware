@@ -12,12 +12,24 @@ import {
   sumCents,
   toCents,
 } from '@dentalware/shared'
-import type { CaseInput, CaseListQuery, CaseSummary, CaseView, StageRef } from '@dentalware/shared'
+import type {
+  AttachmentKind,
+  CaseInput,
+  CaseListQuery,
+  CaseSummary,
+  CaseView,
+  DeliveryStatus,
+  DeliveryType,
+  StageRef,
+} from '@dentalware/shared'
 import { CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type {
+  AttachmentsQuery,
   CaseDetail,
   CaseEventRow,
   CasesRepository,
+  CouriersLookup,
+  DeliveryLog,
   Named,
   NewCaseEvent,
   StagesQuery,
@@ -191,7 +203,7 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
   let seq = seed.length
   let lastListQuery: Parameters<CasesRepository['list']>[0] | undefined
   const repo: CasesRepository = {
-    async create(input, actorId) {
+    async create(input, actorId, initialStatus = 'nuevo') {
       if (input.items.some((i) => i.productId === 'inexistente'))
         throw new CaseInputError('El producto no existe o está inactivo', 'items.0.productId')
       seq += 1
@@ -199,7 +211,16 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
       const code = `26-0000${seq}`
       // El fake conserva las líneas de la fixture (suficientes para probar orquestación):
       // `items` no se traduce 1:1 al ítem persistido, que además lleva `id`/`lineTotal`.
-      rows.set(id, caseDetailFixture({ id, code, ...caseFields(input), createdBy: actorId }))
+      rows.set(
+        id,
+        caseDetailFixture({
+          id,
+          code,
+          ...caseFields(input),
+          status: initialStatus,
+          createdBy: actorId,
+        }),
+      )
       await repo.addEvent({ caseId: id, type: 'created', toValue: code, actorId })
       return { id, code }
     },
@@ -212,6 +233,9 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
       return true
     },
     byId: async (id) => rows.get(id),
+    // En memoria no hay concurrencia que serializar: el bloqueo de fila (#97) lo prueba el
+    // test de integración de `cases.test.ts` contra Postgres.
+    byIdForUpdate: async (id) => rows.get(id),
     byCode: async (code) => [...rows.values()].find((r) => r.code === code),
     list: async (q, today) => {
       lastListQuery = q
@@ -397,6 +421,22 @@ export function fakeTryins(seed: TryinRow[] = []): TryinsRepository {
   }
 }
 
+/** Un adjunto tal como lo ve `cases` al comprobar la constancia de una entrega (ENT-4). */
+export type FakeAttachment = { id: string; caseId: string; mime: string; kind: AttachmentKind }
+
+/** `AttachmentsQuery` en memoria: `hasDocument` fijo y los adjuntos que `constancia` puede
+ * encontrar. Solo devuelve un adjunto si es del trabajo pedido, igual que el repo real. */
+export const fakeAttachmentsQuery = (
+  hasDocument = true,
+  attachments: FakeAttachment[] = [],
+): AttachmentsQuery => ({
+  hasDocument: async () => hasDocument,
+  constancia: async (caseId, attachmentId) => {
+    const found = attachments.find((a) => a.id === attachmentId && a.caseId === caseId)
+    return found && { mime: found.mime, kind: found.kind }
+  },
+})
+
 const DEFAULT_STAGES: StageRef[] = [{ id: 'f1', sort: 1, active: true }]
 export const fakeStagesQuery = (stages: StageRef[] = DEFAULT_STAGES): StagesQuery => ({
   active: async () => stages,
@@ -409,13 +449,65 @@ export const fakeUsersQuery = (technicians: Named[] = []): UsersQuery => ({
   activeTechnicians: async () => technicians,
 })
 
-// `tryins` por defecto para llamadores que no lo necesitan (p. ej. `import.service.test.ts`,
-// que solo usa `cases` dentro de `uow.run`): evita tocar sus fixtures al ampliar el puerto.
+/** Una fila de entrega/recogida tal como la ve `cases` (el puerto `DeliveryLog`). */
+export type FakeDelivery = {
+  id: string
+  caseId: string
+  type: DeliveryType
+  courierId: string
+  scheduledFor: string
+  status: DeliveryStatus
+  doneAt: Date | null
+  proofAttachmentId: string | null
+  /** Solo en las cerradas sin hacer (`markFailed`). */
+  failedReason?: string
+}
+
+/** `DeliveryLog` en memoria (Iteración 4): suficiente para probar que el servicio programa,
+ * encuentra y cierra la entrega pendiente. El repositorio completo de entregas y su fake viven
+ * en la feature `deliveries`; aquí solo lo que el puerto de `cases` necesita. */
+export function fakeDeliveryLog(seed: FakeDelivery[] = []) {
+  const rows = new Map(seed.map((r) => [r.id, r]))
+  let seq = seed.length
+  const log: DeliveryLog = {
+    async create(d) {
+      seq += 1
+      const id = `d${seq}`
+      rows.set(id, { id, ...d, status: 'pendiente', doneAt: null, proofAttachmentId: null })
+      return { id }
+    },
+    async pendingFor(caseId, type) {
+      return [...rows.values()].find(
+        (r) => r.caseId === caseId && r.type === type && r.status === 'pendiente',
+      )
+    },
+    async markDone(id, doneAt, proofAttachmentId) {
+      const cur = rows.get(id)
+      if (cur) rows.set(id, { ...cur, status: 'hecha', doneAt, proofAttachmentId })
+    },
+    async markFailed(id, reason, at) {
+      const cur = rows.get(id)
+      if (cur) rows.set(id, { ...cur, status: 'fallida', doneAt: at, failedReason: reason })
+    },
+  }
+  return { log, rows }
+}
+
+/** Mensajeros activos en memoria para `CouriersLookup`. Vacío por defecto: quien no prueba la
+ * recogida no necesita declarar ninguno. */
+export const fakeCouriersLookup = (couriers: Named[] = []): CouriersLookup => ({
+  findActiveCourier: async (userId) => couriers.find((c) => c.id === userId),
+})
+
+// `tryins` y `deliveries` por defecto para llamadores que no los necesitan (p. ej.
+// `import.service.test.ts`, que solo usa `cases` dentro de `uow.run`): evita tocar sus
+// fixtures al ampliar el puerto.
 export const fakeUow = (
   cases: CasesRepository,
   tryins: TryinsRepository = fakeTryins(),
+  deliveries: DeliveryLog = fakeDeliveryLog().log,
 ): UnitOfWork => ({
-  run: (fn) => fn({ cases, tryins }),
+  run: (fn) => fn({ cases, tryins, deliveries }),
 })
 export const fixedClock = (today = '2026-09-09') => ({
   today: () => today,

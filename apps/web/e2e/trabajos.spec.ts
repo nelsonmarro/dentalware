@@ -2,6 +2,7 @@ import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import {
   createClinicWithDoctor,
+  createCourier,
   createProduct,
   login,
   loginAsAdmin,
@@ -417,6 +418,7 @@ test.describe('Trabajos', () => {
       })
       expect(createdUser.ok()).toBe(true)
       const { user: tecnico } = (await createdUser.json()) as { user: { id: string; name: string } }
+      const courier = await createCourier(page)
 
       await page.goto(`/trabajos/${trabajo.id}`)
       await page.getByLabel('Técnico responsable').selectOption(tecnico.id)
@@ -427,11 +429,23 @@ test.describe('Trabajos', () => {
       await page.getByRole('button', { name: 'Finalizar' }).click()
       await page.getByRole('alertdialog').getByRole('button', { name: 'Finalizar' }).click()
       await expect(page.getByText('Terminado', { exact: true })).toBeVisible()
+      // ENT-2: enviar pide mensajero y fecha (hoy por omisión).
       await page.getByRole('button', { name: 'Marcar enviado' }).click()
-      await page.getByRole('alertdialog').getByRole('button', { name: 'Marcar enviado' }).click()
+      const envio = page.getByRole('dialog', { name: 'Marcar enviado' })
+      await envio.getByRole('combobox', { name: 'Mensajero' }).click()
+      await page.getByRole('option', { name: courier.name }).click()
+      await expect(
+        envio.getByText(new RegExp(`^El trabajo sale del laboratorio con ${courier.name} el `)),
+      ).toBeVisible()
+      await envio.getByRole('button', { name: 'Marcar enviado' }).click()
       await expect(page.getByText('Enviado', { exact: true })).toBeVisible()
+      // ENT-4: entregar pide la foto de constancia; el botón espera a que suba.
       await page.getByRole('button', { name: 'Marcar entregado' }).click()
-      await page.getByRole('alertdialog').getByRole('button', { name: 'Marcar entregado' }).click()
+      const entrega = page.getByRole('dialog', { name: 'Marcar entregado' })
+      await expect(entrega.getByRole('button', { name: 'Marcar entregado' })).toBeDisabled()
+      await entrega.getByLabel('Foto de constancia').setInputFiles(FOTO_PATH)
+      await expect(entrega.getByRole('img', { name: 'Foto de constancia' })).toBeVisible()
+      await entrega.getByRole('button', { name: 'Marcar entregado' }).click()
       await expect(page.getByText('Entregado', { exact: true })).toBeVisible()
 
       await page.getByRole('button', { name: 'Repetir' }).click()

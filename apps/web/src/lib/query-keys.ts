@@ -34,6 +34,9 @@ export const queryKeys = {
   // coincidencia de prefijo (comportamiento por defecto de TanStack Query, `exact: false`):
   // no hace falta invalidarlo aparte en cada mutación de `use-users.ts`.
   caseTechnicians: ['users', 'tecnicos'] as const,
+  // Bajo `users` por el mismo motivo que `caseTechnicians`: son usuarios con rol mensajero
+  // (`GET /api/entregas/mensajeros`); dar de baja a uno refresca los selectores.
+  couriers: ['users', 'mensajeros'] as const,
   caseEvents: (id: string) => ['trabajos', id, 'eventos'] as const,
   attachments: (caseId: string) => ['trabajos', caseId, 'adjuntos'] as const,
 }

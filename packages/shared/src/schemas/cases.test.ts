@@ -2,9 +2,11 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { z } from 'zod'
 import {
   assignTechnicianSchema,
+  ATTACHMENT_KINDS,
   CASE_VIEWS,
   caseActionSchema,
   caseCodeParamSchema,
+  caseEditSchema,
   caseInputSchema,
   caseItemSchema,
   caseListQuerySchema,
@@ -17,6 +19,7 @@ import {
 const clinicId = '11111111-1111-4111-8111-111111111111'
 const doctorId = '22222222-2222-4222-8222-222222222222'
 const productId = '33333333-3333-4333-8333-333333333333'
+const mensajeroId = '44444444-4444-4444-8444-444444444444'
 const base = () => ({
   clinicId,
   doctorId,
@@ -24,6 +27,9 @@ const base = () => ({
   receivedAt: '2026-09-06',
   items: [{ productId, quantity: 1, teeth: [12, 11] }],
 })
+// Mínimo que ya acepta `caseInputSchema` en los tests de este archivo (Iteración 4, Tarea 1):
+// se reutiliza como base de la prueba de `recogida` programada.
+const validCaseInput = base()
 
 describe('isoDate', () => {
   it('acepta fechas reales, incluido el 29 de febrero de un año bisiesto', () => {
@@ -100,6 +106,37 @@ describe('caseInputSchema', () => {
     })
     expect(r.items[0]!.unitPrice).toBeNull()
   })
+
+  // Iteración 4, Tarea 1 (ENT-1): «Programar recogida» es una sección opcional del formulario
+  // de nuevo trabajo, no otra pantalla.
+  it('el trabajo puede nacer con una recogida programada', () => {
+    const r = caseInputSchema.safeParse({
+      ...validCaseInput,
+      recogida: { mensajeroId, fecha: '2026-10-05' },
+    })
+    expect(r.success).toBe(true)
+  })
+})
+
+// Iteración 4, Tarea 1 (ENT-4): la constancia de entrega es un adjunto de tipo nuevo.
+// Revisión final del PR 1 de la Iteración 4 (M-2): una recogida se programa solo al crear
+// (ENT-1). `PUT /api/trabajos/:id` valida con `caseEditSchema`, que no la conoce: si un cliente
+// la manda, se descarta como cualquier clave desconocida y no llega al servicio.
+describe('caseEditSchema', () => {
+  it('acepta los mismos datos que caseInputSchema', () => {
+    expect(caseEditSchema.parse(base())).toEqual(caseInputSchema.parse(base()))
+  })
+  it('descarta la recogida: editar no programa ninguna', () => {
+    const r = caseEditSchema.parse({ ...base(), recogida: { mensajeroId, fecha: '2026-10-05' } })
+    expect(r).not.toHaveProperty('recogida')
+    expectTypeOf<z.output<typeof caseEditSchema>>().not.toHaveProperty('recogida')
+  })
+})
+
+describe('ATTACHMENT_KINDS', () => {
+  it('la constancia es un tipo de adjunto', () => {
+    expect(ATTACHMENT_KINDS).toEqual(['photo', 'document', 'scan', 'constancia'])
+  })
 })
 
 describe('CASE_VIEWS', () => {
@@ -165,6 +202,31 @@ describe('caseActionSchema', () => {
 
   it('rechaza una acción que no existe', () => {
     expect(caseActionSchema.safeParse({ accion: 'inventada' }).success).toBe(false)
+  })
+
+  // Iteración 4, Tarea 1 (ENT-2/ENT-4): la carga útil de cada acción la decide `ACTION_PAYLOAD`
+  // en shared, no una lista de motivos a mano.
+  it('marcar enviado exige mensajero y fecha', () => {
+    const r = caseActionSchema.safeParse({ accion: 'marcar_enviado' })
+    expect(r.success).toBe(false)
+    expect(r.error?.issues[0]).toMatchObject({
+      path: ['envio'],
+      message: 'Elige mensajero y fecha',
+    })
+    expect(
+      caseActionSchema.safeParse({
+        accion: 'marcar_enviado',
+        envio: { mensajeroId, fecha: '2026-10-05' },
+      }).success,
+    ).toBe(true)
+  })
+
+  it('marcar entregado exige la foto de constancia', () => {
+    const r = caseActionSchema.safeParse({ accion: 'marcar_entregado' })
+    expect(r.error?.issues[0]).toMatchObject({
+      path: ['constanciaId'],
+      message: 'Añade la foto de constancia',
+    })
   })
 })
 

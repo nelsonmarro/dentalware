@@ -5,7 +5,7 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,14 +15,16 @@ import type * as ApiModule from './api'
 import type { CaseDetail } from './api'
 import { QuickCase } from './quick-case'
 
-const { changeStage, fetchCaseByCode } = vi.hoisted(() => ({
+const { changeStage, fetchCaseByCode, postCaseAction } = vi.hoisted(() => ({
   changeStage: vi.fn(),
   fetchCaseByCode: vi.fn(),
+  postCaseAction: vi.fn(),
 }))
 vi.mock('./api', async (importOriginal) => ({
   ...(await importOriginal<typeof ApiModule>()),
   changeStage,
   fetchCaseByCode,
+  postCaseAction,
 }))
 const { fetchAttachments, uploadAttachment } = vi.hoisted(() => ({
   fetchAttachments: vi.fn(),
@@ -35,6 +37,7 @@ import { fetchStages } from '@/features/stages/api'
 
 beforeEach(() => {
   changeStage.mockReset()
+  postCaseAction.mockReset()
   fetchCaseByCode.mockReset()
   uploadAttachment.mockReset()
   fetchAttachments.mockReset()
@@ -494,5 +497,61 @@ describe('QuickCase', () => {
 
     expect(await screen.findByText('No encontrado')).toBeInTheDocument()
     expect(screen.getByText(/Revisa el código impreso en la orden/)).toBeInTheDocument()
+  })
+
+  // #105: la ficha corta del mensajero es su acción de entrega, en grande y con el mismo diálogo
+  // de la ficha completa; su foto es la constancia, no «Añadir foto».
+  describe('como mensajero', () => {
+    const mario = { id: 'm7', name: 'Mario Mensajero' }
+
+    it.each([
+      ['por_recoger', 'Recibido'],
+      ['terminado', 'Marcar enviado'],
+      ['enviado', 'Marcar entregado'],
+    ] as const)('en «%s» ve «%s» grande y a todo el ancho', async (status, accion) => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ status }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      const boton = await screen.findByRole('button', { name: accion })
+      expect(boton).toHaveClass('h-14', 'w-full')
+      expect(screen.queryByRole('button', { name: 'Añadir foto' })).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Añadir foto')).not.toBeInTheDocument()
+    })
+
+    it('«Marcar enviado» abre el mismo diálogo con su nombre fijo', async () => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'terminado' }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      const user = userEvent.setup()
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      await user.click(await screen.findByRole('button', { name: 'Marcar enviado' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Marcar enviado' })
+      expect(within(dialog).getByText('Mario Mensajero')).toBeInTheDocument()
+    })
+
+    it('«Recibido» se envía al primer toque', async () => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'por_recoger' }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      postCaseAction.mockResolvedValue(caso({ status: 'nuevo' }))
+      const user = userEvent.setup()
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      await user.click(await screen.findByRole('button', { name: 'Recibido' }))
+      await waitFor(() =>
+        expect(postCaseAction).toHaveBeenCalledWith('c1', { accion: 'recibir', motivo: null }),
+      )
+    })
+
+    it('técnico y admin no cambian: sin acciones de entrega en la ficha corta', async () => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'terminado' }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      for (const role of ['tecnico', 'admin'] as const) {
+        const r = renderWithProviders(<QuickCase code="26-00123" role={role} self={mario} />)
+        expect(await screen.findByRole('button', { name: 'Añadir foto' })).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Marcar enviado' })).not.toBeInTheDocument()
+        r.unmount()
+      }
+    })
   })
 })

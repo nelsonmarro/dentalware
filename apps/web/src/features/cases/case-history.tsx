@@ -1,18 +1,26 @@
-import { CASE_STATUS_LABEL, type CaseEventType, type CaseStatus } from '@dentalware/shared'
+import {
+  CASE_STATUS_LABEL,
+  CASE_STATUSES,
+  type CaseEventType,
+  type CaseStatus,
+} from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import {
   ArrowLeftRight,
   Ban,
+  CalendarClock,
   Check,
   FilePlus2,
   MessageSquare,
   Package,
+  PackageCheck,
   Pause,
   Paperclip,
   Pencil,
   Play,
   RefreshCcw,
   Send,
+  TriangleAlert,
   Truck,
   UserRound,
   Wallet,
@@ -21,6 +29,7 @@ import {
 } from 'lucide-react'
 import type { Stage } from '@/features/stages/api'
 import type { CaseDetail, CaseEvent } from './api'
+import { formatDate } from './date-format'
 
 export const EVENT_LABEL: Record<CaseEventType, string> = {
   created: 'Trabajo creado',
@@ -36,6 +45,9 @@ export const EVENT_LABEL: Record<CaseEventType, string> = {
   attachment_removed: 'Adjunto eliminado',
   shipped: 'Enviado',
   delivered: 'Entregado',
+  pickup_scheduled: 'Recogida programada',
+  picked_up: 'Recibido en el laboratorio',
+  delivery_failed: 'Entrega o recogida fallida',
   cancelled: 'Cancelado',
   remake_created: 'Repetición creada',
   edited: 'Datos editados',
@@ -56,6 +68,9 @@ const EVENT_ICON: Record<CaseEventType, LucideIcon> = {
   attachment_removed: X,
   shipped: Truck,
   delivered: Check,
+  pickup_scheduled: CalendarClock,
+  picked_up: PackageCheck,
+  delivery_failed: TriangleAlert,
   cancelled: Ban,
   remake_created: RefreshCcw,
   edited: Pencil,
@@ -130,6 +145,27 @@ function EventDetail({
           {technicianName(e.fromValue, e.fromName)} → {technicianName(e.toValue, e.toName)}
         </p>
       )
+    // Iteración 4: estos eventos guardan fecha, mensajero, motivo o constancia en vez de un
+    // estado (ver `cases/service.ts`); se dicen con palabras, nunca con el valor crudo.
+    case 'pickup_scheduled':
+    case 'shipped':
+      return e.reason && e.toValue ? (
+        <p className="text-sm text-muted-foreground">
+          {`Con ${e.reason} para el ${formatDate(e.toValue)}`}
+        </p>
+      ) : null
+    case 'delivered':
+      // Desde la Iteración 4 `toValue` es el id de la constancia; antes era el estado
+      // (`entregado`) y no había foto: solo se nombra la foto cuando la hay.
+      return e.toValue && !(CASE_STATUSES as readonly string[]).includes(e.toValue) ? (
+        <p className="text-sm text-muted-foreground">Con foto de constancia</p>
+      ) : null
+    case 'delivery_failed':
+      return e.reason && e.toValue ? (
+        <p className="text-sm text-muted-foreground">
+          {`Motivo: ${e.reason} — nueva fecha ${formatDate(e.toValue)}`}
+        </p>
+      ) : null
     case 'remake_created':
       return (
         <>

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { CASE_VIEWS } from '@dentalware/shared'
-import { eq } from 'drizzle-orm'
+import { CASE_VIEWS, toIsoDate } from '@dentalware/shared'
+import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
 import {
@@ -12,6 +12,9 @@ import {
 } from '../../test/setup.ts'
 
 describe('/api/trabajos', () => {
+  // Fecha de negocio de hoy con el reloj del sistema (el de `createApp` sin `clock`): un envío
+  // o una recogida no pueden programarse para antes de hoy.
+  const hoy = toIsoDate(new Date())
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
   let app: ReturnType<typeof createApp>
   let admin: string
@@ -129,6 +132,29 @@ describe('/api/trabajos', () => {
     return created.id
   }
 
+  /** Registra un adjunto del trabajo directamente en la BD (ENT-4): `marcar_entregado` solo lee
+   * su tipo y su MIME, la subida real (normalización con `sharp`) la prueba `attachments.test.ts`. */
+  async function adjuntoDe(
+    caseId: string,
+    {
+      kind = 'constancia',
+      mime = 'image/jpeg',
+    }: { kind?: 'constancia' | 'document'; mime?: string } = {},
+  ) {
+    const id = randomUUID()
+    await ctx.db.insert(ctx.schema.attachments).values({
+      id,
+      caseId,
+      kind,
+      filename: 'constancia.jpg',
+      mime,
+      size: 10,
+      storagePath: `${caseId}/${id}.jpg`,
+      uploadedBy: mensajeroId,
+    })
+    return id
+  }
+
   it('crea un trabajo (201) y lo devuelve con código, líneas con precio y total', async () => {
     const r = await app.request('/api/trabajos', req(recepcion, 'POST', caseInput()))
     expect(r.status).toBe(201)
@@ -244,6 +270,23 @@ describe('/api/trabajos', () => {
       message:
         'No se puede editar: el trabajo está en estado "Terminado". Puede que otra persona lo haya cambiado.',
     })
+  })
+
+  // Revisión final del PR 1 de la Iteración 4 (M-2): la recogida solo se programa al crear
+  // (ENT-1). El PUT valida con `caseEditSchema`, que la descarta: editar no cambia el estado ni
+  // crea ninguna entrega.
+  it('PUT con recogida la descarta: el trabajo sigue nuevo y no se programa ninguna', async () => {
+    const id = await createOne(recepcion)
+    const put = await app.request(
+      `/api/trabajos/${id}`,
+      req(recepcion, 'PUT', caseInput({ recogida: { mensajeroId, fecha: hoy } })),
+    )
+    expect(put.status).toBe(200)
+    const { case: updated } = (await put.json()) as { case: { status: string } }
+    expect(updated.status).toBe('nuevo')
+    expect(
+      await ctx.db.select().from(ctx.schema.deliveries).where(eq(ctx.schema.deliveries.caseId, id)),
+    ).toEqual([])
   })
 
   it('listado por vista y búsqueda; total de fila null para mensajero', async () => {
@@ -634,11 +677,14 @@ describe('/api/trabajos', () => {
       await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' }))
       await app.request(
         `/api/trabajos/${id}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_enviado' }),
+        req(admin, 'POST', {
+          accion: 'marcar_enviado',
+          envio: { mensajeroId, fecha: hoy },
+        }),
       )
       const res = await app.request(
         `/api/trabajos/${id}/acciones`,
-        req(mensajero, 'POST', { accion: 'marcar_entregado' }),
+        req(mensajero, 'POST', { accion: 'marcar_entregado', constanciaId: await adjuntoDe(id) }),
       )
       expect(res.status).toBe(200)
       const body = (await res.json()) as {
@@ -682,11 +728,17 @@ describe('/api/trabajos', () => {
       )
       await app.request(
         `/api/trabajos/${padreId}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_enviado' }),
+        req(admin, 'POST', {
+          accion: 'marcar_enviado',
+          envio: { mensajeroId, fecha: hoy },
+        }),
       )
       await app.request(
         `/api/trabajos/${padreId}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_entregado' }),
+        req(admin, 'POST', {
+          accion: 'marcar_entregado',
+          constanciaId: await adjuntoDe(padreId),
+        }),
       )
       const repetir = await app.request(
         `/api/trabajos/${padreId}/repetir`,
@@ -737,6 +789,341 @@ describe('/api/trabajos', () => {
       )
       expect(res.status).toBe(403)
     })
+
+    // #97: con recepción y mensajero moviendo el mismo trabajo, la carrera deja de ser
+    // teórica. `action` lee el trabajo con `byIdForUpdate` (`FOR UPDATE`) dentro de la
+    // transacción, así que la segunda petición espera a que la primera confirme y ve el
+    // estado nuevo. Se repite para que un adelantamiento casual no deje pasar una regresión.
+    it('dos acciones simultáneas sobre el mismo trabajo: una gana (200) y la otra recibe 409', async () => {
+      for (let intento = 0; intento < 10; intento++) {
+        const { id } = await crearTrabajoEnProceso()
+        const [pausar, finalizar] = await Promise.all([
+          app.request(
+            `/api/trabajos/${id}/acciones`,
+            req(admin, 'POST', { accion: 'pausar', motivo: 'Falta antagonista' }),
+          ),
+          app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' })),
+        ])
+        expect([pausar.status, finalizar.status].sort()).toEqual([200, 409])
+        const desdeEnProceso = await ctx.db
+          .select({ type: ctx.schema.caseEvents.type })
+          .from(ctx.schema.caseEvents)
+          .where(
+            and(
+              eq(ctx.schema.caseEvents.caseId, id),
+              eq(ctx.schema.caseEvents.fromValue, 'en_proceso'),
+            ),
+          )
+        expect(desdeEnProceso).toHaveLength(1)
+      }
+    })
+
+    // Iteración 4, Tarea 4 (ENT-3, ENT-4): enviar con mensajero y entregar con constancia.
+    describe('envío y entrega', () => {
+      const ayer = toIsoDate(new Date(Date.now() - 24 * 60 * 60 * 1000))
+
+      async function crearTerminado() {
+        const { id } = await crearTrabajoEnProceso()
+        await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', { accion: 'finalizar' }),
+        )
+        return id
+      }
+
+      async function crearEnviado() {
+        const id = await crearTerminado()
+        await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', { accion: 'marcar_enviado', envio: { mensajeroId, fecha: hoy } }),
+        )
+        return id
+      }
+
+      async function otroMensajero() {
+        const otroId = await createUser(ctx.auth, ctx.db, {
+          email: 'mens2@t.local',
+          password: 'Mensajero1!',
+          name: 'Otro mensajero',
+          role: 'mensajero',
+        })
+        return { otroId, otro: await loginAs(app, 'mens2@t.local', 'Mensajero1!') }
+      }
+
+      const entregasDe = (caseId: string) =>
+        ctx.db.select().from(ctx.schema.deliveries).where(eq(ctx.schema.deliveries.caseId, caseId))
+
+      it('marcar enviado sin envío responde 422 en envio', async () => {
+        const id = await crearTerminado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', { accion: 'marcar_enviado' }),
+        )
+        expect(res.status).toBe(422)
+        expect(await res.json()).toEqual({
+          message: 'Datos inválidos',
+          issues: [{ path: 'envio', message: 'Elige mensajero y fecha' }],
+        })
+      })
+
+      it('un envío con fecha de ayer responde 422 con el mensaje literal', async () => {
+        const id = await crearTerminado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', { accion: 'marcar_enviado', envio: { mensajeroId, fecha: ayer } }),
+        )
+        expect(res.status).toBe(422)
+        expect(await res.json()).toEqual({
+          message: 'Datos inválidos',
+          issues: [
+            { path: 'envio.fecha', message: 'La fecha de entrega no puede ser anterior a hoy.' },
+          ],
+        })
+      })
+
+      it('el mensajero que se asigna a sí mismo envía (200): entrega pendiente y shippedAt, sin precios', async () => {
+        const id = await crearTerminado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', { accion: 'marcar_enviado', envio: { mensajeroId, fecha: hoy } }),
+        )
+        expect(res.status).toBe(200)
+        const { case: enviado } = (await res.json()) as {
+          case: { status: string; shippedAt: string | null; total: string | null }
+        }
+        expect(enviado.status).toBe('enviado')
+        expect(enviado.shippedAt).not.toBeNull()
+        expect(enviado.total).toBeNull()
+        expect(await entregasDe(id)).toEqual([
+          expect.objectContaining({
+            type: 'entrega',
+            status: 'pendiente',
+            courierId: mensajeroId,
+            scheduledFor: hoy,
+          }),
+        ])
+      })
+
+      it('un mensajero que asigna el envío a otro mensajero recibe 403', async () => {
+        const { otroId } = await otroMensajero()
+        const id = await crearTerminado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', {
+            accion: 'marcar_enviado',
+            envio: { mensajeroId: otroId, fecha: hoy },
+          }),
+        )
+        expect(res.status).toBe(403)
+        expect(await entregasDe(id)).toEqual([])
+      })
+
+      it('marcar entregado sin constancia responde 422', async () => {
+        const id = await crearEnviado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', { accion: 'marcar_entregado' }),
+        )
+        expect(res.status).toBe(422)
+        expect(await res.json()).toEqual({
+          message: 'Datos inválidos',
+          issues: [{ path: 'constanciaId', message: 'Añade la foto de constancia' }],
+        })
+      })
+
+      it('con la constancia de otro trabajo responde 422 con el mensaje literal', async () => {
+        const id = await crearEnviado()
+        const otroTrabajo = await crearTerminado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', {
+            accion: 'marcar_entregado',
+            constanciaId: await adjuntoDe(otroTrabajo),
+          }),
+        )
+        expect(res.status).toBe(422)
+        expect(await res.json()).toEqual({
+          message: 'Datos inválidos',
+          issues: [
+            { path: 'constanciaId', message: 'La foto de constancia no es de este trabajo.' },
+          ],
+        })
+      })
+
+      it('con un PDF de tipo documento del mismo trabajo responde 422', async () => {
+        const id = await crearEnviado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', {
+            accion: 'marcar_entregado',
+            constanciaId: await adjuntoDe(id, { kind: 'document', mime: 'application/pdf' }),
+          }),
+        )
+        expect(res.status).toBe(422)
+        const body = (await res.json()) as { issues: { message: string }[] }
+        expect(body.issues).toEqual([
+          { path: 'constanciaId', message: 'La foto de constancia no es de este trabajo.' },
+        ])
+      })
+
+      it('el mensajero asignado entrega con la foto de constancia (200): entrega hecha y deliveredAt', async () => {
+        const id = await crearEnviado()
+        const constanciaId = await adjuntoDe(id)
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', { accion: 'marcar_entregado', constanciaId }),
+        )
+        expect(res.status).toBe(200)
+        const { case: entregado } = (await res.json()) as {
+          case: { status: string; deliveredAt: string | null; total: string | null }
+        }
+        expect(entregado.status).toBe('entregado')
+        expect(entregado.deliveredAt).not.toBeNull()
+        expect(entregado.total).toBeNull()
+        const [entrega] = await entregasDe(id)
+        expect(entrega).toMatchObject({ status: 'hecha', proofAttachmentId: constanciaId })
+        expect(entrega!.doneAt).not.toBeNull()
+      })
+
+      it('otro mensajero no entrega una entrega que no es suya (403)', async () => {
+        const { otro } = await otroMensajero()
+        const id = await crearEnviado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(otro, 'POST', { accion: 'marcar_entregado', constanciaId: await adjuntoDe(id) }),
+        )
+        expect(res.status).toBe(403)
+        const [entrega] = await entregasDe(id)
+        expect(entrega!.status).toBe('pendiente')
+      })
+
+      it('cancelar un trabajo enviado cierra su entrega: no queda ninguna pendiente', async () => {
+        const id = await crearEnviado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', { accion: 'cancelar', motivo: 'Paciente desistió' }),
+        )
+        expect(res.status).toBe(200)
+        expect(await entregasDe(id)).toEqual([
+          expect.objectContaining({
+            status: 'fallida',
+            failedReason: 'Trabajo cancelado: Paciente desistió',
+          }),
+        ])
+      })
+    })
+  })
+
+  // Iteración 4, Tarea 3 (ENT-1, ENT-2): programar la recogida al crear y recibir el trabajo.
+  describe('recogida', () => {
+    async function crearPorRecoger(courierId = mensajeroId) {
+      const res = await app.request(
+        '/api/trabajos',
+        req(recepcion, 'POST', caseInput({ recogida: { mensajeroId: courierId, fecha: hoy } })),
+      )
+      const { case: created } = (await res.json()) as { case: { id: string } }
+      return created.id
+    }
+
+    it('POST /api/trabajos con recogida crea el trabajo por recoger (201) y su recogida pendiente', async () => {
+      const res = await app.request(
+        '/api/trabajos',
+        req(recepcion, 'POST', caseInput({ recogida: { mensajeroId, fecha: hoy } })),
+      )
+      expect(res.status).toBe(201)
+      const { case: created } = (await res.json()) as { case: { id: string; status: string } }
+      expect(created.status).toBe('por_recoger')
+      const filas = await ctx.db
+        .select()
+        .from(ctx.schema.deliveries)
+        .where(eq(ctx.schema.deliveries.caseId, created.id))
+      expect(filas).toEqual([
+        expect.objectContaining({
+          type: 'recogida',
+          status: 'pendiente',
+          courierId: mensajeroId,
+          scheduledFor: hoy,
+        }),
+      ])
+      const eventos = (await (
+        await app.request(`/api/trabajos/${created.id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string; toValue: string | null; reason: string | null }[] }
+      expect(eventos.events.map((e) => e.type)).toEqual(['created', 'pickup_scheduled'])
+      expect(eventos.events[1]).toMatchObject({ toValue: hoy, reason: 'Mensajero' })
+    })
+
+    it('responde 422 si el mensajero de la recogida no es un mensajero activo', async () => {
+      const res = await app.request(
+        '/api/trabajos',
+        req(recepcion, 'POST', caseInput({ recogida: { mensajeroId: tecnicoId, fecha: hoy } })),
+      )
+      expect(res.status).toBe(422)
+      expect(await res.json()).toEqual({
+        message: 'Datos inválidos',
+        issues: [{ path: 'recogida.mensajeroId', message: 'Elige un mensajero activo.' }],
+      })
+    })
+
+    it('el mensajero de la recogida la recibe (200): el trabajo pasa a nuevo', async () => {
+      const id = await crearPorRecoger()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(mensajero, 'POST', { accion: 'recibir' }),
+      )
+      expect(res.status).toBe(200)
+      const { case: recibido } = (await res.json()) as { case: { status: string } }
+      expect(recibido.status).toBe('nuevo')
+      const [recogida] = await ctx.db
+        .select()
+        .from(ctx.schema.deliveries)
+        .where(eq(ctx.schema.deliveries.caseId, id))
+      expect(recogida).toMatchObject({ status: 'hecha', proofAttachmentId: null })
+      expect(recogida!.doneAt).not.toBeNull()
+    })
+
+    it('otro mensajero no recibe una recogida que no es suya (403)', async () => {
+      await createUser(ctx.auth, ctx.db, {
+        email: 'mens2@t.local',
+        password: 'Mensajero1!',
+        name: 'Otro mensajero',
+        role: 'mensajero',
+      })
+      const otro = await loginAs(app, 'mens2@t.local', 'Mensajero1!')
+      const id = await crearPorRecoger()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(otro, 'POST', { accion: 'recibir' }),
+      )
+      expect(res.status).toBe(403)
+    })
+
+    it('el técnico no puede recibir (403)', async () => {
+      const id = await crearPorRecoger()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(tecnico, 'POST', { accion: 'recibir' }),
+      )
+      expect(res.status).toBe(403)
+    })
+
+    it('cancelar un trabajo por recoger cierra su recogida: no queda ninguna pendiente', async () => {
+      const id = await crearPorRecoger()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(recepcion, 'POST', { accion: 'cancelar', motivo: 'La clínica lo anuló' }),
+      )
+      expect(res.status).toBe(200)
+      const filas = await ctx.db
+        .select()
+        .from(ctx.schema.deliveries)
+        .where(eq(ctx.schema.deliveries.caseId, id))
+      expect(filas).toEqual([
+        expect.objectContaining({
+          status: 'fallida',
+          failedReason: 'Trabajo cancelado: La clínica lo anuló',
+        }),
+      ])
+    })
   })
 
   describe('PUT /api/trabajos/:id/fase', () => {
@@ -783,6 +1170,31 @@ describe('/api/trabajos', () => {
         await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
       ).json()) as { events: { type: string }[] }
       expect(eventos.events.some((e) => e.type === 'stage_changed')).toBe(true)
+    })
+
+    // #97: mismo bloqueo de fila que las acciones. Con dos fases, dos «avanzar» simultáneos
+    // desde la primera: el segundo espera, ve la última fase y recibe 409 en vez de repetir el
+    // mismo salto (dos eventos stage_changed idénticos).
+    it('dos avances simultáneos de fase: uno avanza (200) y el otro recibe 409', async () => {
+      for (let intento = 0; intento < 10; intento++) {
+        const { id } = await crearTrabajoEnProceso()
+        const respuestas = await Promise.all(
+          [0, 1].map(() =>
+            app.request(`/api/trabajos/${id}/fase`, req(admin, 'PUT', { direccion: 'avanzar' })),
+          ),
+        )
+        expect(respuestas.map((r) => r.status).sort()).toEqual([200, 409])
+        const cambios = await ctx.db
+          .select({ toValue: ctx.schema.caseEvents.toValue })
+          .from(ctx.schema.caseEvents)
+          .where(
+            and(
+              eq(ctx.schema.caseEvents.caseId, id),
+              eq(ctx.schema.caseEvents.type, 'stage_changed'),
+            ),
+          )
+        expect(cambios).toEqual([{ toValue: stage2 }])
+      }
     })
 
     it('responde 409 al avanzar desde la última fase activa', async () => {
@@ -1039,11 +1451,14 @@ describe('/api/trabajos', () => {
       await app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' }))
       await app.request(
         `/api/trabajos/${id}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_enviado' }),
+        req(admin, 'POST', {
+          accion: 'marcar_enviado',
+          envio: { mensajeroId, fecha: hoy },
+        }),
       )
       await app.request(
         `/api/trabajos/${id}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_entregado' }),
+        req(admin, 'POST', { accion: 'marcar_entregado', constanciaId: await adjuntoDe(id) }),
       )
     }
 

@@ -9,6 +9,11 @@ import type { CSSProperties } from 'react'
  * contraste de UX1-02.
  */
 export const STATUS_COLOR: Record<CaseStatus, string> = {
+  // Spec §6 pide #6B7C93 (gris pizarra), pero ese tono mezclado al 10 % sobre `--card` blanco
+  // da 3.8:1 de contraste (`status-chip.test.tsx`), por debajo del 4.5:1 AA que exige esta
+  // misma prueba para cada estado. Se oscurece a #52606D (mismo tono, 5.6:1) — desviación de
+  // la Tarea 1 de la Iteración 4, documentada en el reporte de la tarea.
+  por_recoger: '#52606D',
   nuevo: '#0F766E',
   en_proceso: '#0F766E',
   en_espera: '#89610E',

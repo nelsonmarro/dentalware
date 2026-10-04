@@ -1,10 +1,13 @@
 import type {
+  AttachmentKind,
   CaseEventType,
+  CaseEditInput,
   CaseInput,
   CaseListQuery,
   CasePriority,
   CaseStatus,
   CaseSummary,
+  DeliveryType,
   PricingUnit,
   RemakeInput,
   StageRef,
@@ -93,12 +96,28 @@ export type CaseTransitionPatch = {
   deliveredAt?: Date | null
 }
 
+/** Estado con el que nace un trabajo: `nuevo`, o `por_recoger` si se programó su recogida
+ * (ENT-1, Iteración 4). Ningún otro: el resto se alcanza solo por acciones. */
+export type InitialCaseStatus = Extract<CaseStatus, 'nuevo' | 'por_recoger'>
+
 export interface CasesRepository {
-  /** Lanza CaseInputError si un producto no existe o está inactivo. */
-  create(input: CaseInput, actorId: string): Promise<{ id: string; code: string }>
+  /** Lanza CaseInputError si un producto no existe o está inactivo. `initialStatus` por
+   * omisión `nuevo`; no viaja en `caseInputSchema`: lo decide el servicio. */
+  create(
+    input: CaseInput,
+    actorId: string,
+    initialStatus?: InitialCaseStatus,
+  ): Promise<{ id: string; code: string }>
   /** false si no existe; lanza CaseStateError si el estado no es editable; CaseInputError por producto. */
-  update(id: string, input: CaseInput, actorId: string): Promise<boolean>
+  update(id: string, input: CaseEditInput, actorId: string): Promise<boolean>
   byId(id: string): Promise<CaseDetail | undefined>
+  /**
+   * Mismo detalle que `byId`, con la fila del trabajo bloqueada (`SELECT … FOR UPDATE`) hasta
+   * el fin de la transacción (#97): dos acciones simultáneas sobre el mismo trabajo se
+   * serializan y la segunda lee el estado que dejó la primera. Solo tiene sentido dentro de
+   * `UnitOfWork.run`; fuera de una transacción el bloqueo se suelta al instante.
+   */
+  byIdForUpdate(id: string): Promise<CaseDetail | undefined>
   /** Mismo detalle que `byId`, resuelto por código (`AA-NNNNN`) en vez de id (Tarea 15,
    * FIC-2 #72): la ficha corta del QR entra por código, no por uuid. */
   byCode(code: string): Promise<CaseDetail | undefined>
@@ -159,6 +178,12 @@ export interface CasesRepository {
 /** Puerto de OTRA feature (adjuntos): se inyecta en la raíz de composición. */
 export interface AttachmentsQuery {
   hasDocument(caseId: string): Promise<boolean>
+  /** Tipo y MIME del adjunto `attachmentId` **solo si es de `caseId`** (ENT-4): `undefined` si
+   * no existe o es de otro trabajo. El servicio decide con esto si vale como constancia. */
+  constancia(
+    caseId: string,
+    attachmentId: string,
+  ): Promise<{ mime: string; kind: AttachmentKind } | undefined>
 }
 
 /** Puerto de OTRA feature (fases): se inyecta en la raíz de composición. */
@@ -174,6 +199,37 @@ export interface UsersQuery {
   activeTechnicians(): Promise<Named[]>
 }
 
+/** Puerto declarado por `cases` y cumplido en la raíz de composición con `createCouriersQuery`
+ * de la feature `deliveries` (que lee `users` de solo lectura, ADR 24): valida el mensajero de
+ * una recogida o de un envío y devuelve su nombre, que el historial muestra en los eventos
+ * `pickup_scheduled` y `shipped`. `undefined` si el id no es de un mensajero activo (no
+ * existe, tiene otro rol o está bloqueado). */
+export interface CouriersLookup {
+  findActiveCourier(userId: string): Promise<Named | undefined>
+}
+
+/**
+ * Puerto propio de `cases` (ADR 24/26): solo lo que el ciclo de vida del trabajo necesita de
+ * las entregas (Iteración 4). Lo implementa `createDeliveriesRepo` de la feature `deliveries`
+ * (estructuralmente compatible); la raíz de composición se lo pasa a `drizzleUnitOfWork`, así
+ * que `cases/repo.ts` nunca importa `deliveries/repo.ts`.
+ */
+export interface DeliveryLog {
+  create(d: {
+    caseId: string
+    type: DeliveryType
+    courierId: string
+    scheduledFor: string
+  }): Promise<{ id: string }>
+  pendingFor(
+    caseId: string,
+    type: DeliveryType,
+  ): Promise<{ id: string; courierId: string } | undefined>
+  markDone(id: string, doneAt: Date, proofAttachmentId: string | null): Promise<void>
+  /** Cierra sin hacerla una entrega o recogida pendiente (p. ej. al cancelar el trabajo). */
+  markFailed(id: string, reason: string, at: Date): Promise<void>
+}
+
 /** Pruebas en boca (`case_tryins`): abiertas por trabajo, cerradas al recibirlas de vuelta. */
 export interface TryinsRepository {
   open(caseId: string): Promise<TryinRow | undefined>
@@ -184,6 +240,10 @@ export interface TryinsRepository {
 /** Atomicidad sin conocer db.transaction (ADR 19): repos re-creados sobre la misma tx. */
 export interface UnitOfWork {
   run<T>(
-    fn: (repos: { cases: CasesRepository; tryins: TryinsRepository }) => Promise<T>,
+    fn: (repos: {
+      cases: CasesRepository
+      tryins: TryinsRepository
+      deliveries: DeliveryLog
+    }) => Promise<T>,
   ): Promise<T>
 }

@@ -1,7 +1,9 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
+  ACTION_PAYLOAD,
   ACTIONS_REQUIRING_REASON,
   type ActionRequiringReason,
+  type ActionRequiringDeliveryForm,
   ACTIVE_FOR_DATES_STATUSES,
   applyAction,
   ASSIGN_TECHNICIAN_ROLES,
@@ -25,6 +27,7 @@ import {
   isEditableStatus,
   notEditableMessage,
   requiresReason,
+  requiresDeliveryForm,
   notReassignableMessage,
   notRemakeableMessage,
   isEnCurso,
@@ -36,8 +39,9 @@ import {
 } from './case-status.ts'
 
 describe('estados y acciones', () => {
-  it('define los 8 estados del spec en orden', () => {
+  it('define los 9 estados (Iteración 4 suma por_recoger, primero) en orden', () => {
     expect(CASE_STATUSES).toEqual([
+      'por_recoger',
       'nuevo',
       'en_proceso',
       'en_espera',
@@ -49,9 +53,10 @@ describe('estados y acciones', () => {
     ])
   })
 
-  it('define las 9 acciones', () => {
+  it('define las 10 acciones (Iteración 4 suma recibir, primero)', () => {
     expect([...CASE_ACTIONS].sort()).toEqual(
       [
+        'recibir',
         'aceptar',
         'pausar',
         'reanudar',
@@ -66,14 +71,53 @@ describe('estados y acciones', () => {
   })
 })
 
-describe('isEditableStatus', () => {
-  it('define nuevo y en_proceso como los únicos estados editables', () => {
-    expect(EDITABLE_CASE_STATUSES).toEqual(['nuevo', 'en_proceso'])
+describe('recibir (Iteración 4, ENT-1)', () => {
+  it('recibir lleva de por recoger a nuevo y lo pueden hacer admin, recepción y mensajero', () => {
+    expect(applyAction('por_recoger', 'recibir')).toEqual({ ok: true, status: 'nuevo' })
+    expect(applyAction('nuevo', 'recibir').ok).toBe(false)
+    expect(canPerform('mensajero', 'recibir')).toBe(true)
+    expect(canPerform('tecnico', 'recibir')).toBe(false)
   })
 
-  it('responde true solo para nuevo y en_proceso', () => {
+  it('un trabajo por recoger no se puede aceptar y sí cancelar', () => {
+    expect(applyAction('por_recoger', 'aceptar').ok).toBe(false)
+    expect(applyAction('por_recoger', 'cancelar')).toEqual({ ok: true, status: 'cancelado' })
+  })
+
+  it('carga útil de cada acción', () => {
+    expect(ACTION_PAYLOAD).toEqual({
+      recibir: 'ninguna',
+      aceptar: 'ninguna',
+      pausar: 'motivo',
+      reanudar: 'ninguna',
+      enviar_prueba: 'ninguna',
+      recibir_prueba: 'ninguna',
+      finalizar: 'ninguna',
+      marcar_enviado: 'envio',
+      marcar_entregado: 'constancia',
+      cancelar: 'motivo',
+    })
+    expect(ACTIONS_REQUIRING_REASON).toEqual(['pausar', 'cancelar'])
+  })
+
+  it('rótulos de por recoger y recibir', () => {
+    expect(CASE_STATUS_LABEL.por_recoger).toBe('Por recoger')
+    expect(CASE_ACTION_LABEL.recibir).toBe('Recibido')
+  })
+
+  it('se edita por recoger, nuevo y en proceso', () => {
+    expect(EDITABLE_CASE_STATUSES).toEqual(['por_recoger', 'nuevo', 'en_proceso'])
+  })
+})
+
+describe('isEditableStatus', () => {
+  it('define por recoger, nuevo y en_proceso como los únicos estados editables (ENT-1)', () => {
+    expect(EDITABLE_CASE_STATUSES).toEqual(['por_recoger', 'nuevo', 'en_proceso'])
+  })
+
+  it('responde true solo para por_recoger, nuevo y en_proceso', () => {
     for (const s of CASE_STATUSES) {
-      expect(isEditableStatus(s)).toBe(s === 'nuevo' || s === 'en_proceso')
+      expect(isEditableStatus(s)).toBe(s === 'por_recoger' || s === 'nuevo' || s === 'en_proceso')
     }
   })
 })
@@ -168,6 +212,7 @@ describe('mensajes de 409 por estado', () => {
 describe('rótulos de estado y de acción', () => {
   it('nombra cada estado como lo ve recepción', () => {
     expect(CASE_STATUS_LABEL).toEqual({
+      por_recoger: 'Por recoger',
       nuevo: 'Nuevo',
       en_proceso: 'En proceso',
       en_espera: 'En espera',
@@ -181,6 +226,7 @@ describe('rótulos de estado y de acción', () => {
 
   it('nombra cada acción como el botón que la dispara', () => {
     expect(CASE_ACTION_LABEL).toEqual({
+      recibir: 'Recibido',
       aceptar: 'Aceptar',
       pausar: 'Pausar',
       reanudar: 'Reanudar',
@@ -218,6 +264,18 @@ describe('motivo obligatorio y permisos por rol', () => {
     expect(requiresReason('finalizar')).toBe(false)
     expect(requiresReason('aceptar')).toBe(false)
     expectTypeOf<ActionRequiringReason>().toEqualTypeOf<'pausar' | 'cancelar'>()
+  })
+
+  // Tarea 5 (Iteración 4): la web abre un diálogo con datos de entrega (mensajero y fecha, o la
+  // foto de constancia) para cada acción de este tipo, en un `Record` exhaustivo.
+  it('requiresDeliveryForm estrecha el tipo a las acciones con envío o constancia', () => {
+    expect(requiresDeliveryForm('marcar_enviado')).toBe(true)
+    expect(requiresDeliveryForm('marcar_entregado')).toBe(true)
+    expect(requiresDeliveryForm('recibir')).toBe(false)
+    expect(requiresDeliveryForm('pausar')).toBe(false)
+    expectTypeOf<ActionRequiringDeliveryForm>().toEqualTypeOf<
+      'marcar_enviado' | 'marcar_entregado'
+    >()
   })
 
   it('aplica la tabla de roles del spec', () => {

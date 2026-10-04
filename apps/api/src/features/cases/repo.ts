@@ -25,6 +25,7 @@ import { stages } from '../stages/schema.ts'
 import { CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type {
   CasesRepository,
+  DeliveryLog,
   NewCaseEvent,
   TryinsRepository,
   UnitOfWork,
@@ -261,17 +262,41 @@ async function listCasesWith(db: Db | Tx, q: CaseListQuery, today: string) {
 /**
  * Repositorio de trabajos: opera sobre `db` (conexión) o `tx` (transacción abierta) tal cual
  * se le pase. `create` y `update` no abren transacción propia (ADR 19): el llamador que
- * necesite atomicidad lo hace a través de `drizzleUnitOfWork(db).run(...)`.
+ * necesite atomicidad lo hace a través de `drizzleUnitOfWork(db, …).run(...)`.
  */
 export function createCasesRepo(db: Db | Tx) {
+  const byId = (id: string) =>
+    db.query.cases.findFirst({
+      where: { id },
+      with: {
+        clinic: { columns: { id: true, name: true } },
+        doctor: { columns: { id: true, name: true } },
+        technician: { columns: { id: true, name: true } },
+        stage: { columns: { id: true, name: true, color: true } },
+        parentCase: { columns: { code: true } },
+        items: {
+          orderBy: { sort: 'asc' },
+          with: {
+            product: { columns: { id: true, code: true, name: true, pricingUnit: true } },
+          },
+        },
+      },
+    })
+
   return {
-    async create(input, actorId) {
+    async create(input, actorId, initialStatus = 'nuevo') {
       const year = Number(input.receivedAt.slice(0, 4))
       const code = await nextCaseCode(db, year)
       const items = await priceItems(db, input.clinicId, input.items)
       const [row] = await db
         .insert(cases)
-        .values({ ...caseColumns(input), code, total: totalOf(items), createdBy: actorId })
+        .values({
+          ...caseColumns(input),
+          status: initialStatus,
+          code,
+          total: totalOf(items),
+          createdBy: actorId,
+        })
         .returning({ id: cases.id })
       await db.insert(caseItems).values(items.map((i) => ({ ...i, caseId: row!.id })))
       await addEventWith(db, { caseId: row!.id, type: 'created', toValue: code, actorId })
@@ -316,23 +341,24 @@ export function createCasesRepo(db: Db | Tx) {
       return true
     },
 
-    byId: (id) =>
-      db.query.cases.findFirst({
-        where: { id },
-        with: {
-          clinic: { columns: { id: true, name: true } },
-          doctor: { columns: { id: true, name: true } },
-          technician: { columns: { id: true, name: true } },
-          stage: { columns: { id: true, name: true, color: true } },
-          parentCase: { columns: { code: true } },
-          items: {
-            orderBy: { sort: 'asc' },
-            with: {
-              product: { columns: { id: true, code: true, name: true, pricingUnit: true } },
-            },
-          },
-        },
-      }),
+    byId,
+
+    // #97: bloquea la fila del trabajo hasta el fin de la transacción y después lee el detalle
+    // con `byId`. Las consultas relacionales de Drizzle (`db.query`) no admiten `.for(...)`,
+    // así que el bloqueo va en un `select` aparte sobre la misma conexión (`tx`). Es
+    // `FOR NO KEY UPDATE`, no `FOR UPDATE`: sigue serializando acciones, fase y técnico (y choca
+    // con el `FOR UPDATE` de `update`/`createRemake`), pero no hace esperar a los inserts de
+    // otras transacciones que solo referencian el trabajo por FK (comentarios, adjuntos,
+    // eventos), que toman `FOR KEY SHARE`.
+    async byIdForUpdate(id) {
+      const [locked] = await db
+        .select({ id: cases.id })
+        .from(cases)
+        .where(eq(cases.id, id))
+        .for('no key update')
+      if (!locked) return undefined
+      return byId(id)
+    },
 
     // Mismo `with` que `byId` (Tarea 15, FIC-2 #72): la ficha corta del QR necesita el detalle
     // completo, solo cambia la condición de búsqueda (código en vez de id).
@@ -434,11 +460,10 @@ export function createCasesRepo(db: Db | Tx) {
 
     async createRemake(parentId, input, actorId) {
       // `FOR UPDATE` sobre el padre: mismo patrón que `update`. Protege contra otra
-      // `createRemake` concurrente sobre el mismo padre (la segunda espera a que la primera
-      // libere la fila antes de leer el estado); no protege contra `action()`, que lee con
-      // `cases.byId(id)` sin `FOR UPDATE` — una acción concurrente puede seguir colándose
-      // entre esta lectura y el insert. El bloqueo sigue siendo necesario y correcto para lo
-      // que sí cubre; el comentario anterior prometía más de lo que da.
+      // `createRemake` concurrente sobre el mismo padre y, desde #97, también contra `action()`,
+      // `changeStage()` y `assignTechnician()`, que leen con `byIdForUpdate` dentro de su
+      // transacción: la operación que llega segunda espera a que la primera libere la fila y
+      // valida contra el estado que dejó.
       const [parent] = await db.select().from(cases).where(eq(cases.id, parentId)).for('update')
       if (!parent) throw new CaseNotFoundError()
       if (!canRemake(parent.status)) {
@@ -567,7 +592,22 @@ export function createUsersQuery(db: Db | Tx): UsersQuery {
   }
 }
 
-export const drizzleUnitOfWork = (db: Db): UnitOfWork => ({
+/**
+ * Unidad de trabajo de los trabajos (ADR 19): re-crea sobre la misma `tx` los repositorios de
+ * `cases` y, desde la Iteración 4, el registro de entregas. La factoría de entregas llega de la
+ * raíz de composición (`app.ts`: `createDeliveriesRepo`): este archivo no importa el
+ * `repo.ts` de `deliveries` (frontera entre features, `docs/architecture.md` §2).
+ */
+export const drizzleUnitOfWork = (
+  db: Db,
+  deps: { deliveries: (tx: Tx) => DeliveryLog },
+): UnitOfWork => ({
   run: (fn) =>
-    db.transaction((tx) => fn({ cases: createCasesRepo(tx), tryins: createTryinsRepo(tx) })),
+    db.transaction((tx) =>
+      fn({
+        cases: createCasesRepo(tx),
+        tryins: createTryinsRepo(tx),
+        deliveries: deps.deliveries(tx),
+      }),
+    ),
 })

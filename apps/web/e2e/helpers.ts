@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { expect, type Locator, type Page } from '@playwright/test'
 
 export const ADMIN = {
@@ -125,6 +127,18 @@ export async function expectTouchTargets(
   opts: { minHeight?: number; minWidth?: number } = {},
 ) {
   const { minHeight = 44, minWidth = 44 } = opts
+  // Un diálogo recién abierto se mide durante su animación de entrada (`zoom-in-95`): a escala
+  // 0,95 un botón de 44 px mide ~42 px y el barrido fallaba a ratos (M-5, revisión final del
+  // PR 1 de la Iteración 4). Se espera a que terminen las animaciones finitas; las infinitas
+  // (spinners, `animate-pulse`) no terminan nunca y no cambian el tamaño de los controles.
+  const page = 'page' in target ? target.page() : target
+  await page.waitForFunction(() =>
+    document
+      .getAnimations()
+      .every(
+        (a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity,
+      ),
+  )
   const items = target.locator(selector)
   const count = await items.count()
   let measured = 0
@@ -202,4 +216,56 @@ export function trackConsoleErrors(page: Page): string[] {
     if (message.type() === 'error') errors.push(`console.error: ${message.text()}`)
   })
   return errors
+}
+
+/** Contraseña de prueba de los mensajeros que crean los E2E (ya silenciada por valor en
+ * `.gitguardian.yaml`): nunca se inventa otra. */
+export const COURIER_PASSWORD = 'Mensajero1!'
+
+/** Crea un mensajero único por API (sesión admin ya iniciada en `page`). */
+export async function createCourier(page: Page) {
+  const suffix = uniqueSuffix()
+  const email = `mensajero-e2e-${suffix}@t.local`
+  const res = await page.request.post('/api/users', {
+    data: {
+      name: `Mensajero E2E ${suffix}`,
+      email,
+      password: COURIER_PASSWORD,
+      role: 'mensajero',
+    },
+  })
+  expect(res.ok()).toBe(true)
+  const { user } = (await res.json()) as { user: { id: string; name: string } }
+  return { ...user, email, password: COURIER_PASSWORD }
+}
+
+/** Foto de prueba (`fixtures/foto.png`) para adjuntos y constancias. */
+export const FOTO_PATH = path.join(import.meta.dirname, 'fixtures', 'foto.png')
+
+/** Hoy como fecha de negocio `YYYY-MM-DD`, en la zona del proceso de Playwright (la misma
+ * máquina que la API en local y en CI). */
+export function todayIso(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Lleva por API un trabajo `terminado` a `enviado` con `courierId` y a `entregado` con una
+ * foto de constancia (ENT-2/ENT-4, Tarea 4): las dos acciones exigen sus datos. */
+export async function shipAndDeliver(page: Page, caseId: string, courierId: string) {
+  const shipped = await page.request.post(`/api/trabajos/${caseId}/acciones`, {
+    data: { accion: 'marcar_enviado', envio: { mensajeroId: courierId, fecha: todayIso() } },
+  })
+  expect(shipped.ok()).toBe(true)
+  const uploaded = await page.request.post(`/api/adjuntos/trabajo/${caseId}`, {
+    multipart: {
+      file: { name: 'constancia.png', mimeType: 'image/png', buffer: readFileSync(FOTO_PATH) },
+      kind: 'constancia',
+    },
+  })
+  expect(uploaded.ok()).toBe(true)
+  const { attachment } = (await uploaded.json()) as { attachment: { id: string } }
+  const delivered = await page.request.post(`/api/trabajos/${caseId}/acciones`, {
+    data: { accion: 'marcar_entregado', constanciaId: attachment.id },
+  })
+  expect(delivered.ok()).toBe(true)
 }

@@ -68,9 +68,10 @@ export function useCreateCase() {
   const invalidate = useInvalidateCases()
   return useMutation({
     mutationFn: (input: CaseInput) => createCase(input),
-    onSuccess: () => {
+    onSuccess: (_created, input) => {
       void invalidate()
-      toast.success('Trabajo creado')
+      // ENT-1: con recogida el trabajo nace «Por recoger»; el aviso dice lo que pasó.
+      toast.success(input.recogida ? 'Recogida programada' : 'Trabajo creado')
     },
     onError: toastApiError,
   })

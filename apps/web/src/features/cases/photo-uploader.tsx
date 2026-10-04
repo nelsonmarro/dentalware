@@ -14,7 +14,7 @@ import { usePhotoUpload } from './use-photo-upload'
 export function PhotoUploader({ caseId, onUploaded }: { caseId: string; onUploaded?: () => void }) {
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { handleFiles, progress } = usePhotoUpload(caseId, onUploaded)
+  const { handleFiles, progress } = usePhotoUpload(caseId, { onUploaded })
 
   return (
     <div className="flex flex-wrap items-center gap-2">
