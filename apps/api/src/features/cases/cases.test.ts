@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { CASE_VIEWS } from '@dentalware/shared'
+import { CASE_VIEWS, toIsoDate } from '@dentalware/shared'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
@@ -740,6 +740,101 @@ describe('/api/trabajos', () => {
       const res = await app.request(
         `/api/trabajos/${id}/acciones`,
         req('', 'POST', { accion: 'pausar' }),
+      )
+      expect(res.status).toBe(403)
+    })
+  })
+
+  // Iteración 4, Tarea 3 (ENT-1, ENT-2): programar la recogida al crear y recibir el trabajo.
+  describe('recogida', () => {
+    const hoy = toIsoDate(new Date())
+
+    async function crearPorRecoger(courierId = mensajeroId) {
+      const res = await app.request(
+        '/api/trabajos',
+        req(recepcion, 'POST', caseInput({ recogida: { mensajeroId: courierId, fecha: hoy } })),
+      )
+      const { case: created } = (await res.json()) as { case: { id: string } }
+      return created.id
+    }
+
+    it('POST /api/trabajos con recogida crea el trabajo por recoger (201) y su recogida pendiente', async () => {
+      const res = await app.request(
+        '/api/trabajos',
+        req(recepcion, 'POST', caseInput({ recogida: { mensajeroId, fecha: hoy } })),
+      )
+      expect(res.status).toBe(201)
+      const { case: created } = (await res.json()) as { case: { id: string; status: string } }
+      expect(created.status).toBe('por_recoger')
+      const filas = await ctx.db
+        .select()
+        .from(ctx.schema.deliveries)
+        .where(eq(ctx.schema.deliveries.caseId, created.id))
+      expect(filas).toEqual([
+        expect.objectContaining({
+          type: 'recogida',
+          status: 'pendiente',
+          courierId: mensajeroId,
+          scheduledFor: hoy,
+        }),
+      ])
+      const eventos = (await (
+        await app.request(`/api/trabajos/${created.id}/eventos`, req(admin, 'GET'))
+      ).json()) as { events: { type: string; toValue: string | null; reason: string | null }[] }
+      expect(eventos.events.map((e) => e.type)).toEqual(['created', 'pickup_scheduled'])
+      expect(eventos.events[1]).toMatchObject({ toValue: hoy, reason: 'Mensajero' })
+    })
+
+    it('responde 422 si el mensajero de la recogida no es un mensajero activo', async () => {
+      const res = await app.request(
+        '/api/trabajos',
+        req(recepcion, 'POST', caseInput({ recogida: { mensajeroId: tecnicoId, fecha: hoy } })),
+      )
+      expect(res.status).toBe(422)
+      expect(await res.json()).toEqual({
+        message: 'Datos inválidos',
+        issues: [{ path: 'recogida.mensajeroId', message: 'Elige un mensajero activo.' }],
+      })
+    })
+
+    it('el mensajero de la recogida la recibe (200): el trabajo pasa a nuevo', async () => {
+      const id = await crearPorRecoger()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(mensajero, 'POST', { accion: 'recibir' }),
+      )
+      expect(res.status).toBe(200)
+      const { case: recibido } = (await res.json()) as { case: { status: string } }
+      expect(recibido.status).toBe('nuevo')
+      const [recogida] = await ctx.db
+        .select()
+        .from(ctx.schema.deliveries)
+        .where(eq(ctx.schema.deliveries.caseId, id))
+      expect(recogida).toMatchObject({ status: 'hecha', proofAttachmentId: null })
+      expect(recogida!.doneAt).not.toBeNull()
+    })
+
+    it('otro mensajero no recibe una recogida que no es suya (403)', async () => {
+      await createUser(ctx.auth, ctx.db, {
+        email: 'mens2@t.local',
+        password: 'Mensajero1!',
+        name: 'Otro mensajero',
+        role: 'mensajero',
+      })
+      const otro = await loginAs(app, 'mens2@t.local', 'Mensajero1!')
+      const id = await crearPorRecoger()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(otro, 'POST', { accion: 'recibir' }),
+      )
+      expect(res.status).toBe(403)
+    })
+
+    it('el técnico no puede recibir (403)', async () => {
+      const id = await crearPorRecoger()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(tecnico, 'POST', { accion: 'recibir' }),
       )
       expect(res.status).toBe(403)
     })

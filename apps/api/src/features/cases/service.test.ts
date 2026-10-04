@@ -5,6 +5,8 @@ import {
   caseDetailFixture,
   caseInputFixture,
   fakeCasesRepo,
+  fakeCouriersLookup,
+  fakeDeliveryLog,
   fakeStagesQuery,
   fakeTryins,
   fakeUow,
@@ -31,6 +33,7 @@ function build(seed = [caseDetailFixture()], hasDocument = false) {
     attachments: { hasDocument: async () => hasDocument },
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(),
+    couriers: fakeCouriersLookup(),
     uow: fakeUow(repo, fakeTryins()),
     clock: fixedClock(),
   })
@@ -53,6 +56,7 @@ function servicioCon(
     attachments: { hasDocument: async () => overrides.hasDocument ?? true },
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(),
+    couriers: fakeCouriersLookup(),
     uow: fakeUow(repo, tryins),
     clock: fixedClock('2026-09-18'),
   })
@@ -68,6 +72,7 @@ function servicioConFases(stageIds: string[], overrides: Partial<CaseDetail>) {
     attachments: { hasDocument: async () => true },
     stages: fakeStagesQuery(stages),
     users: fakeUsersQuery(),
+    couriers: fakeCouriersLookup(),
     uow: fakeUow(repo, fakeTryins()),
     clock: fixedClock(),
   })
@@ -86,6 +91,7 @@ function servicioConTecnicos(
     attachments: { hasDocument: async () => true },
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(technicians.map((t) => ({ name: 'Técnico', ...t }))),
+    couriers: fakeCouriersLookup(),
     uow: fakeUow(repo, fakeTryins()),
     clock: fixedClock(),
   })
@@ -100,6 +106,7 @@ function servicioParaResumen(seed: CaseDetail[], today: string) {
     attachments: { hasDocument: async () => false },
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(),
+    couriers: fakeCouriersLookup(),
     uow: fakeUow(repo),
     clock: fixedClock(today),
   })
@@ -728,7 +735,7 @@ describe('repetición', () => {
         const rowsSnapshot = new Map(rows)
         const eventsSnapshot = [...events]
         try {
-          await fn({ cases: repo, tryins: fakeTryins() })
+          await fn({ cases: repo, tryins: fakeTryins(), deliveries: fakeDeliveryLog().log })
           throw new Error('fallo simulado después de crear el hijo')
         } catch (e) {
           rows.clear()
@@ -744,6 +751,8 @@ describe('repetición', () => {
       attachments: { hasDocument: async () => true },
       stages: fakeStagesQuery(),
       users: fakeUsersQuery(),
+      couriers: fakeCouriersLookup(),
+      couriers: fakeCouriersLookup(),
       uow: uowQueFalla,
       clock: fixedClock('2026-09-18'),
     })
@@ -783,5 +792,176 @@ describe('resumen del día', () => {
     const r = await service.summary()
     expect(r.en_curso).toBe(0)
     expect(r.todos).toBe(1)
+  })
+})
+
+// Iteración 4, Tarea 3 (ENT-1, ENT-2): programar la recogida al crear el trabajo y recibirlo.
+describe('recogida', () => {
+  const mario = { id: 'u3', name: 'Mario Mensajero' }
+  const luis = { id: 'u4', name: 'Luis Mensajero' }
+  const otroMensajero = { userId: 'u4', role: 'mensajero' } as const
+  const recepcion = { userId: 'u5', role: 'recepcion' } as const
+  const recogida = { mensajeroId: 'u3', fecha: '2026-10-05' }
+
+  /** Reloj fijo en el sábado 2026-10-03; mensajeros activos Mario (u3) y Luis (u4). */
+  function servicioConRecogida(seed: CaseDetail[] = [], deliveries = fakeDeliveryLog()) {
+    const { repo, rows, events } = fakeCasesRepo(seed)
+    const service = createCasesService({
+      cases: repo,
+      attachments: { hasDocument: async () => true },
+      stages: fakeStagesQuery(),
+      users: fakeUsersQuery(),
+      couriers: fakeCouriersLookup([mario, luis]),
+      uow: fakeUow(repo, fakeTryins(), deliveries.log),
+      clock: fixedClock('2026-10-03'),
+    })
+    return { service, rows, events, deliveries }
+  }
+
+  /** Un trabajo por recoger con su recogida pendiente asignada a Mario. */
+  function porRecogerDeMario() {
+    return servicioConRecogida(
+      [completo({ id: '1', status: 'por_recoger' })],
+      fakeDeliveryLog([
+        {
+          id: 'd1',
+          caseId: '1',
+          type: 'recogida',
+          courierId: 'u3',
+          scheduledFor: '2026-10-03',
+          status: 'pendiente',
+          doneAt: null,
+          proofAttachmentId: null,
+        },
+      ]),
+    )
+  }
+
+  it('crear con recogida deja el trabajo por recoger, la recogida pendiente y sus dos eventos', async () => {
+    const { service, deliveries } = servicioConRecogida()
+    const c = await service.create(caseInputFixture({ recogida }), admin)
+    expect(c.status).toBe('por_recoger')
+    expect([...deliveries.rows.values()]).toEqual([
+      {
+        id: 'd1',
+        caseId: c.id,
+        type: 'recogida',
+        courierId: 'u3',
+        scheduledFor: '2026-10-05',
+        status: 'pendiente',
+        doneAt: null,
+        proofAttachmentId: null,
+      },
+    ])
+    const eventos = await service.events(c.id, admin)
+    expect(eventos.map((e) => e.type)).toEqual(['created', 'pickup_scheduled'])
+    // El historial muestra nombres: el motivo del evento es el nombre del mensajero.
+    expect(eventos[1]).toMatchObject({
+      toValue: '2026-10-05',
+      reason: 'Mario Mensajero',
+      actorId: 'u1',
+    })
+  })
+
+  it('crear sin recogida deja el trabajo en nuevo y no programa ninguna entrega', async () => {
+    const { service, deliveries } = servicioConRecogida()
+    const c = await service.create(caseInputFixture(), admin)
+    expect(c.status).toBe('nuevo')
+    expect(deliveries.rows.size).toBe(0)
+  })
+
+  it('una recogida para hoy se acepta', async () => {
+    const { service } = servicioConRecogida()
+    const c = await service.create(
+      caseInputFixture({ recogida: { mensajeroId: 'u3', fecha: '2026-10-03' } }),
+      admin,
+    )
+    expect(c.status).toBe('por_recoger')
+  })
+
+  it('una recogida con fecha de ayer lanza CaseInputError y no crea nada', async () => {
+    const { service, rows, deliveries } = servicioConRecogida()
+    const error = await service
+      .create(caseInputFixture({ recogida: { mensajeroId: 'u3', fecha: '2026-10-02' } }), admin)
+      .catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(CaseInputError)
+    expect(error).toMatchObject({
+      message: 'La fecha de recogida no puede ser anterior a hoy.',
+      path: 'recogida.fecha',
+    })
+    expect(rows.size).toBe(0)
+    expect(deliveries.rows.size).toBe(0)
+  })
+
+  it('un mensajero inexistente o que no es mensajero activo lanza CaseInputError', async () => {
+    const { service, rows } = servicioConRecogida()
+    for (const mensajeroId of ['no-existe', 'u2']) {
+      const error = await service
+        .create(caseInputFixture({ recogida: { mensajeroId, fecha: '2026-10-05' } }), admin)
+        .catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(CaseInputError)
+      expect(error).toMatchObject({
+        message: 'Elige un mensajero activo.',
+        path: 'recogida.mensajeroId',
+      })
+    }
+    expect(rows.size).toBe(0)
+  })
+
+  it('el mensajero asignado recibe: el trabajo pasa a nuevo, la recogida queda hecha y hay evento picked_up', async () => {
+    const { service, deliveries } = porRecogerDeMario()
+    const c = await service.action('1', { accion: 'recibir', motivo: null }, mensajero)
+    expect(c.status).toBe('nuevo')
+    expect(deliveries.rows.get('d1')).toMatchObject({
+      status: 'hecha',
+      doneAt: new Date('2026-10-03T12:00:00Z'),
+      proofAttachmentId: null,
+    })
+    const eventos = await service.events('1', admin)
+    expect(eventos.at(-1)).toMatchObject({
+      type: 'picked_up',
+      fromValue: 'por_recoger',
+      toValue: 'nuevo',
+      actorId: 'u3',
+    })
+  })
+
+  it('otro mensajero no puede recibir una recogida que no es suya', async () => {
+    const { service, rows, deliveries } = porRecogerDeMario()
+    await expect(
+      service.action('1', { accion: 'recibir', motivo: null }, otroMensajero),
+    ).rejects.toBeInstanceOf(CaseForbiddenError)
+    expect(rows.get('1')!.status).toBe('por_recoger')
+    expect(deliveries.rows.get('d1')!.status).toBe('pendiente')
+  })
+
+  it('recepción recibe la recogida de cualquier mensajero', async () => {
+    const { service, deliveries } = porRecogerDeMario()
+    const c = await service.action('1', { accion: 'recibir', motivo: null }, recepcion)
+    expect(c.status).toBe('nuevo')
+    expect(deliveries.rows.get('d1')!.status).toBe('hecha')
+  })
+
+  it('un trabajo por recoger sin recogida pendiente (datos viejos) se recibe igual', async () => {
+    const { service } = servicioConRecogida([completo({ id: '1', status: 'por_recoger' })])
+    const c = await service.action('1', { accion: 'recibir', motivo: null }, recepcion)
+    expect(c.status).toBe('nuevo')
+  })
+
+  it('un mensajero no recibe un trabajo por recoger que no tiene recogida pendiente', async () => {
+    const { service, rows } = servicioConRecogida([completo({ id: '1', status: 'por_recoger' })])
+    await expect(
+      service.action('1', { accion: 'recibir', motivo: null }, mensajero),
+    ).rejects.toBeInstanceOf(CaseForbiddenError)
+    expect(rows.get('1')!.status).toBe('por_recoger')
+  })
+
+  it('aceptar un trabajo por recoger lanza CaseStateError con los rótulos', async () => {
+    const { service } = porRecogerDeMario()
+    await expect(service.action('1', { accion: 'aceptar', motivo: null }, admin)).rejects.toThrow(
+      new CaseStateError(
+        'No se puede "Aceptar": el trabajo está en estado "Por recoger". Puede que otra persona lo haya cambiado.',
+      ),
+    )
   })
 })

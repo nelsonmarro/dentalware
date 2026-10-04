@@ -25,6 +25,7 @@ import { stages } from '../stages/schema.ts'
 import { CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type {
   CasesRepository,
+  DeliveryLog,
   NewCaseEvent,
   TryinsRepository,
   UnitOfWork,
@@ -265,13 +266,19 @@ async function listCasesWith(db: Db | Tx, q: CaseListQuery, today: string) {
  */
 export function createCasesRepo(db: Db | Tx) {
   return {
-    async create(input, actorId) {
+    async create(input, actorId, initialStatus = 'nuevo') {
       const year = Number(input.receivedAt.slice(0, 4))
       const code = await nextCaseCode(db, year)
       const items = await priceItems(db, input.clinicId, input.items)
       const [row] = await db
         .insert(cases)
-        .values({ ...caseColumns(input), code, total: totalOf(items), createdBy: actorId })
+        .values({
+          ...caseColumns(input),
+          status: initialStatus,
+          code,
+          total: totalOf(items),
+          createdBy: actorId,
+        })
         .returning({ id: cases.id })
       await db.insert(caseItems).values(items.map((i) => ({ ...i, caseId: row!.id })))
       await addEventWith(db, { caseId: row!.id, type: 'created', toValue: code, actorId })
@@ -567,7 +574,22 @@ export function createUsersQuery(db: Db | Tx): UsersQuery {
   }
 }
 
-export const drizzleUnitOfWork = (db: Db): UnitOfWork => ({
+/**
+ * Unidad de trabajo de los trabajos (ADR 19): re-crea sobre la misma `tx` los repositorios de
+ * `cases` y, desde la Iteración 4, el registro de entregas. La factoría de entregas llega de la
+ * raíz de composición (`app.ts`: `createDeliveriesRepo`): este archivo no importa el
+ * `repo.ts` de `deliveries` (frontera entre features, `docs/architecture.md` §2).
+ */
+export const drizzleUnitOfWork = (
+  db: Db,
+  deps: { deliveries: (tx: Tx) => DeliveryLog },
+): UnitOfWork => ({
   run: (fn) =>
-    db.transaction((tx) => fn({ cases: createCasesRepo(tx), tryins: createTryinsRepo(tx) })),
+    db.transaction((tx) =>
+      fn({
+        cases: createCasesRepo(tx),
+        tryins: createTryinsRepo(tx),
+        deliveries: deps.deliveries(tx),
+      }),
+    ),
 })

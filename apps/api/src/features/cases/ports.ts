@@ -5,6 +5,7 @@ import type {
   CasePriority,
   CaseStatus,
   CaseSummary,
+  DeliveryType,
   PricingUnit,
   RemakeInput,
   StageRef,
@@ -93,9 +94,18 @@ export type CaseTransitionPatch = {
   deliveredAt?: Date | null
 }
 
+/** Estado con el que nace un trabajo: `nuevo`, o `por_recoger` si se programó su recogida
+ * (ENT-1, Iteración 4). Ningún otro: el resto se alcanza solo por acciones. */
+export type InitialCaseStatus = Extract<CaseStatus, 'nuevo' | 'por_recoger'>
+
 export interface CasesRepository {
-  /** Lanza CaseInputError si un producto no existe o está inactivo. */
-  create(input: CaseInput, actorId: string): Promise<{ id: string; code: string }>
+  /** Lanza CaseInputError si un producto no existe o está inactivo. `initialStatus` por
+   * omisión `nuevo`; no viaja en `caseInputSchema`: lo decide el servicio. */
+  create(
+    input: CaseInput,
+    actorId: string,
+    initialStatus?: InitialCaseStatus,
+  ): Promise<{ id: string; code: string }>
   /** false si no existe; lanza CaseStateError si el estado no es editable; CaseInputError por producto. */
   update(id: string, input: CaseInput, actorId: string): Promise<boolean>
   byId(id: string): Promise<CaseDetail | undefined>
@@ -174,6 +184,33 @@ export interface UsersQuery {
   activeTechnicians(): Promise<Named[]>
 }
 
+/** Puerto de OTRA feature (usuarios, ADR 24): valida el mensajero de una recogida y devuelve
+ * su nombre, que el historial muestra en el evento `pickup_scheduled`. `undefined` si el id no
+ * es de un mensajero activo (no existe, tiene otro rol o está bloqueado). */
+export interface CouriersLookup {
+  findActiveCourier(userId: string): Promise<Named | undefined>
+}
+
+/**
+ * Puerto propio de `cases` (ADR 24/26): solo lo que el ciclo de vida del trabajo necesita de
+ * las entregas (Iteración 4). Lo implementa `createDeliveriesRepo` de la feature `deliveries`
+ * (estructuralmente compatible); la raíz de composición se lo pasa a `drizzleUnitOfWork`, así
+ * que `cases/repo.ts` nunca importa `deliveries/repo.ts`.
+ */
+export interface DeliveryLog {
+  create(d: {
+    caseId: string
+    type: DeliveryType
+    courierId: string
+    scheduledFor: string
+  }): Promise<{ id: string }>
+  pendingFor(
+    caseId: string,
+    type: DeliveryType,
+  ): Promise<{ id: string; courierId: string } | undefined>
+  markDone(id: string, doneAt: Date, proofAttachmentId: string | null): Promise<void>
+}
+
 /** Pruebas en boca (`case_tryins`): abiertas por trabajo, cerradas al recibirlas de vuelta. */
 export interface TryinsRepository {
   open(caseId: string): Promise<TryinRow | undefined>
@@ -184,6 +221,10 @@ export interface TryinsRepository {
 /** Atomicidad sin conocer db.transaction (ADR 19): repos re-creados sobre la misma tx. */
 export interface UnitOfWork {
   run<T>(
-    fn: (repos: { cases: CasesRepository; tryins: TryinsRepository }) => Promise<T>,
+    fn: (repos: {
+      cases: CasesRepository
+      tryins: TryinsRepository
+      deliveries: DeliveryLog
+    }) => Promise<T>,
   ): Promise<T>
 }

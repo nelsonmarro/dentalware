@@ -3,8 +3,13 @@ import { caseListQuerySchema, caseInputSchema, type CaseInput } from '@dentalwar
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createUser, setupTestDb, truncateAll } from '../../test/setup.ts'
+import { createDeliveriesRepo } from '../deliveries/repo.ts'
 import { CaseInputError, CaseStateError } from './errors.ts'
 import { createCasesRepo, createTryinsRepo, drizzleUnitOfWork } from './repo.ts'
+
+// Mismo cableado que la raíz de composición (`app.ts`): la factoría de entregas se inyecta.
+const uowDe = (db: Parameters<typeof drizzleUnitOfWork>[0]) =>
+  drizzleUnitOfWork(db, { deliveries: createDeliveriesRepo })
 
 describe('features/cases/repo', () => {
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
@@ -125,7 +130,7 @@ describe('features/cases/repo', () => {
   it('update reemplaza líneas, recalcula total y registra edited y price_changed', async () => {
     const repo = createCasesRepo(ctx.db)
     const id = (await repo.create(input(), actor)).id
-    await drizzleUnitOfWork(ctx.db).run(({ cases }) =>
+    await uowDe(ctx.db).run(({ cases }) =>
       cases.update(
         id,
         input({ items: [{ productId: zr, quantity: 1, unitPrice: '30.00' }] }),
@@ -150,7 +155,7 @@ describe('features/cases/repo', () => {
       .set({ status: 'terminado' })
       .where(eq(ctx.schema.cases.id, id))
     await expect(
-      drizzleUnitOfWork(ctx.db).run(({ cases }) => cases.update(id, input(), actor)),
+      uowDe(ctx.db).run(({ cases }) => cases.update(id, input(), actor)),
     ).rejects.toBeInstanceOf(CaseStateError)
   })
 
@@ -210,7 +215,7 @@ describe('features/cases/repo', () => {
   })
 
   it('drizzleUnitOfWork crea varios trabajos en una sola transacción y revierte todos si uno falla', async () => {
-    const uow = drizzleUnitOfWork(ctx.db)
+    const uow = uowDe(ctx.db)
     await expect(
       uow.run(async ({ cases }) => {
         await cases.create(input(), actor)
@@ -235,7 +240,7 @@ describe('features/cases/repo', () => {
       .set({ status: 'terminado' })
       .where(eq(ctx.schema.cases.id, parentId))
 
-    const uow = drizzleUnitOfWork(ctx.db)
+    const uow = uowDe(ctx.db)
     await expect(
       uow.run(async ({ cases }) => {
         await cases.createRemake(
@@ -309,9 +314,36 @@ describe('features/cases/repo', () => {
     expect(await tryins.open(id)).toBeUndefined()
   })
 
+  it('create sin estado inicial deja el trabajo en nuevo; con por_recoger, por recoger', async () => {
+    const repo = createCasesRepo(ctx.db)
+    const nuevo = (await repo.create(input(), actor)).id
+    const porRecoger = (await repo.create(input(), actor, 'por_recoger')).id
+    expect((await repo.byId(nuevo))!.status).toBe('nuevo')
+    expect((await repo.byId(porRecoger))!.status).toBe('por_recoger')
+  })
+
+  // Iteración 4: la recogida se programa en la misma transacción que el trabajo (ENT-1).
+  it('drizzleUnitOfWork.run entrega el registro de entregas sobre la misma transacción', async () => {
+    await expect(
+      uowDe(ctx.db).run(async ({ cases, deliveries }) => {
+        const { id } = await cases.create(input(), actor, 'por_recoger')
+        await deliveries.create({
+          caseId: id,
+          type: 'recogida',
+          courierId: actor,
+          scheduledFor: '2026-09-10',
+        })
+        expect(await deliveries.pendingFor(id, 'recogida')).toMatchObject({ courierId: actor })
+        throw new Error('fallo simulado después de programar la recogida')
+      }),
+    ).rejects.toThrow('fallo simulado después de programar la recogida')
+    expect(await ctx.db.select().from(ctx.schema.deliveries)).toEqual([])
+    expect(await ctx.db.select().from(ctx.schema.cases)).toEqual([])
+  })
+
   it('drizzleUnitOfWork.run entrega también el repositorio de pruebas en boca', async () => {
     const id = (await createCasesRepo(ctx.db).create(input(), actor)).id
-    await drizzleUnitOfWork(ctx.db).run(({ tryins }) => tryins.create(id, '2026-09-10', null))
+    await uowDe(ctx.db).run(({ tryins }) => tryins.create(id, '2026-09-10', null))
     expect(await createTryinsRepo(ctx.db).open(id)).toMatchObject({ caseId: id })
   })
 })
