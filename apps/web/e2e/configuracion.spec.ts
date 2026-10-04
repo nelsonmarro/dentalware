@@ -111,14 +111,16 @@ test.describe('Configuración', () => {
     expect(created.ok()).toBe(true)
 
     const tecnicoContext = await browser.newContext()
-    const tecnicoPage = await tecnicoContext.newPage()
-    await login(tecnicoPage, { email, password })
-    await expect(tecnicoPage).toHaveURL('/')
-    await expect(tecnicoPage.getByRole('link', { name: 'Configuración' })).toHaveCount(0)
+    try {
+      const tecnicoPage = await tecnicoContext.newPage()
+      await login(tecnicoPage, { email, password })
+      await expect(tecnicoPage).toHaveURL('/')
+      await expect(tecnicoPage.getByRole('link', { name: 'Configuración' })).toHaveCount(0)
 
-    await tecnicoPage.goto('/configuracion/laboratorio')
-    await expect(tecnicoPage).toHaveURL('/')
-
-    await tecnicoContext.close()
+      await tecnicoPage.goto('/configuracion/laboratorio')
+      await expect(tecnicoPage).toHaveURL('/')
+    } finally {
+      await tecnicoContext.close()
+    }
   })
 })
