@@ -175,11 +175,19 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         await courierContext.close()
       }
 
-      // 5. La ficha dice «Entregado» y «Adjuntos» tiene la constancia.
+      // 5. La ficha dice «Entregado» y «Adjuntos» tiene la constancia, marcada como la de la
+      // entrega y sin «Eliminar» (UX4-06); el historial la enlaza (UX4-16).
       await page.reload()
       await expect(page.getByText('Entregado', { exact: true })).toBeVisible()
       await page.getByRole('tab', { name: 'Adjuntos (1)' }).click()
       await expect(page.getByRole('img', { name: 'foto.png' })).toBeVisible()
+      await expect(page.getByText('Constancia de entrega')).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Eliminar foto.png' })).toHaveCount(0)
+      await page.getByRole('tab', { name: /^Historial/ }).click()
+      await expect(page.getByRole('link', { name: 'Ver constancia' })).toHaveAttribute(
+        'href',
+        /^\/api\/adjuntos\/[0-9a-f-]+$/,
+      )
     },
   )
 
@@ -240,7 +248,7 @@ test.describe('Entregas (Iteración 4, #35)', () => {
       await page.goto(`/trabajos/${trabajo.id}`)
       await expect(page.getByText('Enviado', { exact: true })).toBeVisible()
       await page.getByRole('tab', { name: /^Historial/ }).click()
-      await expect(page.getByText('Entrega o recogida fallida')).toBeVisible()
+      await expect(page.getByText('Entrega fallida', { exact: true })).toBeVisible()
     },
   )
 
