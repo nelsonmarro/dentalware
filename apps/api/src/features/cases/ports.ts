@@ -1,4 +1,5 @@
 import type {
+  AttachmentKind,
   CaseEventType,
   CaseInput,
   CaseListQuery,
@@ -176,6 +177,12 @@ export interface CasesRepository {
 /** Puerto de OTRA feature (adjuntos): se inyecta en la raíz de composición. */
 export interface AttachmentsQuery {
   hasDocument(caseId: string): Promise<boolean>
+  /** Tipo y MIME del adjunto `attachmentId` **solo si es de `caseId`** (ENT-4): `undefined` si
+   * no existe o es de otro trabajo. El servicio decide con esto si vale como constancia. */
+  constancia(
+    caseId: string,
+    attachmentId: string,
+  ): Promise<{ mime: string; kind: AttachmentKind } | undefined>
 }
 
 /** Puerto de OTRA feature (fases): se inyecta en la raíz de composición. */

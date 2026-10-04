@@ -10,6 +10,7 @@ import { validate } from '../../lib/validate.ts'
 import type { AppEnv } from '../auth/session.ts'
 import { ctxFrom, requireAuth, requireRole } from '../auth/session.ts'
 import {
+  AttachmentForbiddenError,
   AttachmentNotFoundError,
   CaseNotFoundError,
   FileTooLargeError,
@@ -24,6 +25,9 @@ const caseParam = z.object({ caseId: z.uuid({ error: 'Identificador inválido' }
 /** Traduce los errores de dominio del servicio a la respuesta HTTP que espera la web. */
 function toHttp(e: unknown): never {
   if (e instanceof CaseNotFoundError) throw new HTTPException(404, { message: e.message })
+  // 403 uniforme, igual que `requireRole`.
+  if (e instanceof AttachmentForbiddenError)
+    throw new HTTPException(403, { message: 'Sin permiso' })
   if (e instanceof AttachmentNotFoundError) throw new HTTPException(404, { message: e.message })
   if (e instanceof FileTooLargeError) throw new HTTPException(413, { message: e.message })
   if (e instanceof UnsupportedFileError) throw new HTTPException(415, { message: e.message })

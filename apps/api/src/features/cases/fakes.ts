@@ -13,6 +13,7 @@ import {
   toCents,
 } from '@dentalware/shared'
 import type {
+  AttachmentKind,
   CaseInput,
   CaseListQuery,
   CaseSummary,
@@ -22,6 +23,7 @@ import type {
 } from '@dentalware/shared'
 import { CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type {
+  AttachmentsQuery,
   CaseDetail,
   CaseEventRow,
   CasesRepository,
@@ -417,6 +419,22 @@ export function fakeTryins(seed: TryinRow[] = []): TryinsRepository {
     },
   }
 }
+
+/** Un adjunto tal como lo ve `cases` al comprobar la constancia de una entrega (ENT-4). */
+export type FakeAttachment = { id: string; caseId: string; mime: string; kind: AttachmentKind }
+
+/** `AttachmentsQuery` en memoria: `hasDocument` fijo y los adjuntos que `constancia` puede
+ * encontrar. Solo devuelve un adjunto si es del trabajo pedido, igual que el repo real. */
+export const fakeAttachmentsQuery = (
+  hasDocument = true,
+  attachments: FakeAttachment[] = [],
+): AttachmentsQuery => ({
+  hasDocument: async () => hasDocument,
+  constancia: async (caseId, attachmentId) => {
+    const found = attachments.find((a) => a.id === attachmentId && a.caseId === caseId)
+    return found && { mime: found.mime, kind: found.kind }
+  },
+})
 
 const DEFAULT_STAGES: StageRef[] = [{ id: 'f1', sort: 1, active: true }]
 export const fakeStagesQuery = (stages: StageRef[] = DEFAULT_STAGES): StagesQuery => ({

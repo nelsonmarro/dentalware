@@ -6,7 +6,7 @@ import { attachments } from './schema.ts'
 
 /**
  * Repositorio de adjuntos: cumple `AttachmentsRepository` (su propio puerto) y también
- * `AttachmentsQuery` de `cases` (`hasDocument`), que se inyecta en la raíz de composición
+ * `AttachmentsQuery` de `cases` (`hasDocument`, `constancia`), que se inyecta en la raíz de composición
  * sin que ninguna de las dos features importe el adaptador de la otra.
  */
 export function createAttachmentsRepo(db: Db) {
@@ -38,5 +38,11 @@ export function createAttachmentsRepo(db: Db) {
       })
       return found !== undefined
     },
+    // Solo si el adjunto es de `caseId` (ENT-4): una constancia de otro trabajo no existe aquí.
+    constancia: (caseId, attachmentId) =>
+      db.query.attachments.findFirst({
+        where: { id: attachmentId, caseId },
+        columns: { mime: true, kind: true },
+      }),
   } satisfies AttachmentsRepository & AttachmentsQuery
 }

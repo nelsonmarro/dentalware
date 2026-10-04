@@ -6,6 +6,7 @@ import {
   canChangeStage,
   canPerform,
   CASE_WRITE_ROLES,
+  CONSTANCIA_INVALIDA,
   DELIVERY_MANAGE_ROLES,
   firstStage,
   hasRole,
@@ -238,8 +239,10 @@ export function createCasesService(deps: {
      * dentro de `uow.run` (ADR 19): el permiso por rol, la transición, el `applyTransition` y su
      * `case_event` son atómicos, y el trabajo se lee con `byIdForUpdate` (#97): una segunda
      * acción simultánea espera a que la primera confirme y valida contra el estado nuevo (409)
-     * en vez de pisarla. Devuelve el detalle enmascarado por rol (técnico y mensajero
-     * pueden ejecutar acciones sin ver precios: `finalizar`, `marcar_enviado`/`marcar_entregado`).
+     * en vez de pisarla. `marcar_enviado` programa la entrega pendiente (ENT-3) y
+     * `marcar_entregado` la cierra con la foto de constancia (ENT-4). Devuelve el detalle
+     * enmascarado por rol (técnico y mensajero pueden ejecutar acciones sin ver precios:
+     * `finalizar`, `recibir`, `marcar_enviado`/`marcar_entregado`).
      */
     async action(id: string, input: CaseActionInput, ctx: RequestContext) {
       await deps.uow.run(async ({ cases, tryins, deliveries }) => {
@@ -250,6 +253,12 @@ export function createCasesService(deps: {
         if (!result.ok) throw new CaseStateError(result.reason)
 
         const patch: CaseTransitionPatch = { status: result.status }
+        // Lo que el evento guarda además del estado de origen: por omisión el estado nuevo y el
+        // motivo; el envío y la entrega lo sustituyen por su fecha y su constancia.
+        const event: { toValue: string; reason: string | null } = {
+          toValue: result.status,
+          reason: input.motivo,
+        }
         switch (input.accion) {
           case 'recibir': {
             // ENT-1: el mensajero solo recibe la recogida que tiene asignada (decisión 4 del
@@ -295,12 +304,61 @@ export function createCasesService(deps: {
           case 'finalizar':
             patch.finishedAt = deps.clock.now()
             break
-          case 'marcar_enviado':
+          case 'marcar_enviado': {
+            // ENT-3: el envío nace con su entrega pendiente (mensajero y fecha). El mensajero
+            // solo se asigna a sí mismo (decisión 4 del plan); admin y recepción, a cualquiera.
+            const envio = input.envio
+            if (!envio) throw new CaseInputError('Elige mensajero y fecha', 'envio')
+            if (!hasRole(DELIVERY_MANAGE_ROLES, ctx.role) && envio.mensajeroId !== ctx.userId) {
+              throw new CaseForbiddenError()
+            }
+            if (envio.fecha < deps.clock.today()) {
+              throw new CaseInputError(
+                'La fecha de entrega no puede ser anterior a hoy.',
+                'envio.fecha',
+              )
+            }
+            const courier = await deps.couriers.findActiveCourier(envio.mensajeroId)
+            if (!courier)
+              throw new CaseInputError('Elige un mensajero activo.', 'envio.mensajeroId')
+            await deliveries.create({
+              caseId: id,
+              type: 'entrega',
+              courierId: courier.id,
+              scheduledFor: envio.fecha,
+            })
             patch.shippedAt = deps.clock.now()
+            // El historial muestra nombres: fecha de entrega en `toValue`, mensajero en `reason`
+            // (mismo criterio que `pickup_scheduled` en `create`).
+            event.toValue = envio.fecha
+            event.reason = courier.name
             break
-          case 'marcar_entregado':
-            patch.deliveredAt = deps.clock.now()
+          }
+          case 'marcar_entregado': {
+            // ENT-4: la foto de constancia es obligatoria para todos los roles y debe ser un
+            // adjunto `constancia` de este trabajo y una imagen.
+            const constanciaId = input.constanciaId
+            if (!constanciaId) {
+              throw new CaseInputError('Añade la foto de constancia', 'constanciaId')
+            }
+            const proof = await deps.attachments.constancia(id, constanciaId)
+            if (proof?.kind !== 'constancia' || !proof.mime.startsWith('image/')) {
+              throw new CaseInputError(CONSTANCIA_INVALIDA, 'constanciaId')
+            }
+            // Mismo criterio que `recibir`: el mensajero solo cierra la entrega que tiene
+            // asignada. Un trabajo enviado sin entrega pendiente (enviado antes de la
+            // Iteración 4) se entrega igual —tolerancia deliberada— y la constancia queda solo
+            // en el evento; pero solo quien administra entregas: a un mensajero no le consta.
+            const pending = await deliveries.pendingFor(id, 'entrega')
+            if (!hasRole(DELIVERY_MANAGE_ROLES, ctx.role) && pending?.courierId !== ctx.userId) {
+              throw new CaseForbiddenError()
+            }
+            const now = deps.clock.now()
+            if (pending) await deliveries.markDone(pending.id, now, constanciaId)
+            patch.deliveredAt = now
+            event.toValue = constanciaId
             break
+          }
           case 'cancelar':
             break
         }
@@ -310,8 +368,7 @@ export function createCasesService(deps: {
           caseId: id,
           type: EVENT_TYPE_FOR_ACTION[input.accion],
           fromValue: found.status,
-          toValue: result.status,
-          reason: input.motivo,
+          ...event,
           actorId: ctx.userId,
         })
       })

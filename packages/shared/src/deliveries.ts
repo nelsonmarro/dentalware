@@ -44,6 +44,11 @@ export const ATTACHMENT_UPLOAD_ROLES = [
   'tecnico',
 ] as const satisfies readonly UserRole[]
 
+/** Error de `marcar_entregado` (ENT-4) cuando `constanciaId` no es una foto de constancia de
+ * este trabajo: no existe, es de otro trabajo, es de otro tipo o no es una imagen. La API lo
+ * devuelve en el 422 y la web lo muestra tal cual. */
+export const CONSTANCIA_INVALIDA = 'La foto de constancia no es de este trabajo.'
+
 /** Una entrega/recogida está atrasada si sigue pendiente y su fecha programada ya pasó
  * (decisión 7 del plan: el día de hoy también muestra las pendientes atrasadas). */
 export function isOverdueDelivery(

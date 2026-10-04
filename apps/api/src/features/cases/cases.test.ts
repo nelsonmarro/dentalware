@@ -12,6 +12,9 @@ import {
 } from '../../test/setup.ts'
 
 describe('/api/trabajos', () => {
+  // Fecha de negocio de hoy con el reloj del sistema (el de `createApp` sin `clock`): un envío
+  // o una recogida no pueden programarse para antes de hoy.
+  const hoy = toIsoDate(new Date())
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
   let app: ReturnType<typeof createApp>
   let admin: string
@@ -127,6 +130,29 @@ describe('/api/trabajos', () => {
     const r = await app.request('/api/trabajos', req(cookie, 'POST', caseInput(overrides)))
     const { case: created } = (await r.json()) as { case: { id: string } }
     return created.id
+  }
+
+  /** Registra un adjunto del trabajo directamente en la BD (ENT-4): `marcar_entregado` solo lee
+   * su tipo y su MIME, la subida real (normalización con `sharp`) la prueba `attachments.test.ts`. */
+  async function adjuntoDe(
+    caseId: string,
+    {
+      kind = 'constancia',
+      mime = 'image/jpeg',
+    }: { kind?: 'constancia' | 'document'; mime?: string } = {},
+  ) {
+    const id = randomUUID()
+    await ctx.db.insert(ctx.schema.attachments).values({
+      id,
+      caseId,
+      kind,
+      filename: 'constancia.jpg',
+      mime,
+      size: 10,
+      storagePath: `${caseId}/${id}.jpg`,
+      uploadedBy: mensajeroId,
+    })
+    return id
   }
 
   it('crea un trabajo (201) y lo devuelve con código, líneas con precio y total', async () => {
@@ -636,12 +662,12 @@ describe('/api/trabajos', () => {
         `/api/trabajos/${id}/acciones`,
         req(admin, 'POST', {
           accion: 'marcar_enviado',
-          envio: { mensajeroId, fecha: '2026-10-05' },
+          envio: { mensajeroId, fecha: hoy },
         }),
       )
       const res = await app.request(
         `/api/trabajos/${id}/acciones`,
-        req(mensajero, 'POST', { accion: 'marcar_entregado', constanciaId: randomUUID() }),
+        req(mensajero, 'POST', { accion: 'marcar_entregado', constanciaId: await adjuntoDe(id) }),
       )
       expect(res.status).toBe(200)
       const body = (await res.json()) as {
@@ -687,12 +713,15 @@ describe('/api/trabajos', () => {
         `/api/trabajos/${padreId}/acciones`,
         req(admin, 'POST', {
           accion: 'marcar_enviado',
-          envio: { mensajeroId, fecha: '2026-10-05' },
+          envio: { mensajeroId, fecha: hoy },
         }),
       )
       await app.request(
         `/api/trabajos/${padreId}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_entregado', constanciaId: randomUUID() }),
+        req(admin, 'POST', {
+          accion: 'marcar_entregado',
+          constanciaId: await adjuntoDe(padreId),
+        }),
       )
       const repetir = await app.request(
         `/api/trabajos/${padreId}/repetir`,
@@ -771,12 +800,190 @@ describe('/api/trabajos', () => {
         expect(desdeEnProceso).toHaveLength(1)
       }
     })
+
+    // Iteración 4, Tarea 4 (ENT-3, ENT-4): enviar con mensajero y entregar con constancia.
+    describe('envío y entrega', () => {
+      const ayer = toIsoDate(new Date(Date.now() - 24 * 60 * 60 * 1000))
+
+      async function crearTerminado() {
+        const { id } = await crearTrabajoEnProceso()
+        await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', { accion: 'finalizar' }),
+        )
+        return id
+      }
+
+      async function crearEnviado() {
+        const id = await crearTerminado()
+        await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', { accion: 'marcar_enviado', envio: { mensajeroId, fecha: hoy } }),
+        )
+        return id
+      }
+
+      async function otroMensajero() {
+        const otroId = await createUser(ctx.auth, ctx.db, {
+          email: 'mens2@t.local',
+          password: 'Mensajero1!',
+          name: 'Otro mensajero',
+          role: 'mensajero',
+        })
+        return { otroId, otro: await loginAs(app, 'mens2@t.local', 'Mensajero1!') }
+      }
+
+      const entregasDe = (caseId: string) =>
+        ctx.db.select().from(ctx.schema.deliveries).where(eq(ctx.schema.deliveries.caseId, caseId))
+
+      it('marcar enviado sin envío responde 422 en envio', async () => {
+        const id = await crearTerminado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', { accion: 'marcar_enviado' }),
+        )
+        expect(res.status).toBe(422)
+        expect(await res.json()).toEqual({
+          message: 'Datos inválidos',
+          issues: [{ path: 'envio', message: 'Elige mensajero y fecha' }],
+        })
+      })
+
+      it('un envío con fecha de ayer responde 422 con el mensaje literal', async () => {
+        const id = await crearTerminado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', { accion: 'marcar_enviado', envio: { mensajeroId, fecha: ayer } }),
+        )
+        expect(res.status).toBe(422)
+        expect(await res.json()).toEqual({
+          message: 'Datos inválidos',
+          issues: [
+            { path: 'envio.fecha', message: 'La fecha de entrega no puede ser anterior a hoy.' },
+          ],
+        })
+      })
+
+      it('el mensajero que se asigna a sí mismo envía (200): entrega pendiente y shippedAt, sin precios', async () => {
+        const id = await crearTerminado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', { accion: 'marcar_enviado', envio: { mensajeroId, fecha: hoy } }),
+        )
+        expect(res.status).toBe(200)
+        const { case: enviado } = (await res.json()) as {
+          case: { status: string; shippedAt: string | null; total: string | null }
+        }
+        expect(enviado.status).toBe('enviado')
+        expect(enviado.shippedAt).not.toBeNull()
+        expect(enviado.total).toBeNull()
+        expect(await entregasDe(id)).toEqual([
+          expect.objectContaining({
+            type: 'entrega',
+            status: 'pendiente',
+            courierId: mensajeroId,
+            scheduledFor: hoy,
+          }),
+        ])
+      })
+
+      it('un mensajero que asigna el envío a otro mensajero recibe 403', async () => {
+        const { otroId } = await otroMensajero()
+        const id = await crearTerminado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', {
+            accion: 'marcar_enviado',
+            envio: { mensajeroId: otroId, fecha: hoy },
+          }),
+        )
+        expect(res.status).toBe(403)
+        expect(await entregasDe(id)).toEqual([])
+      })
+
+      it('marcar entregado sin constancia responde 422', async () => {
+        const id = await crearEnviado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', { accion: 'marcar_entregado' }),
+        )
+        expect(res.status).toBe(422)
+        expect(await res.json()).toEqual({
+          message: 'Datos inválidos',
+          issues: [{ path: 'constanciaId', message: 'Añade la foto de constancia' }],
+        })
+      })
+
+      it('con la constancia de otro trabajo responde 422 con el mensaje literal', async () => {
+        const id = await crearEnviado()
+        const otroTrabajo = await crearTerminado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', {
+            accion: 'marcar_entregado',
+            constanciaId: await adjuntoDe(otroTrabajo),
+          }),
+        )
+        expect(res.status).toBe(422)
+        expect(await res.json()).toEqual({
+          message: 'Datos inválidos',
+          issues: [
+            { path: 'constanciaId', message: 'La foto de constancia no es de este trabajo.' },
+          ],
+        })
+      })
+
+      it('con un PDF de tipo documento del mismo trabajo responde 422', async () => {
+        const id = await crearEnviado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', {
+            accion: 'marcar_entregado',
+            constanciaId: await adjuntoDe(id, { kind: 'document', mime: 'application/pdf' }),
+          }),
+        )
+        expect(res.status).toBe(422)
+        const body = (await res.json()) as { issues: { message: string }[] }
+        expect(body.issues).toEqual([
+          { path: 'constanciaId', message: 'La foto de constancia no es de este trabajo.' },
+        ])
+      })
+
+      it('el mensajero asignado entrega con la foto de constancia (200): entrega hecha y deliveredAt', async () => {
+        const id = await crearEnviado()
+        const constanciaId = await adjuntoDe(id)
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', { accion: 'marcar_entregado', constanciaId }),
+        )
+        expect(res.status).toBe(200)
+        const { case: entregado } = (await res.json()) as {
+          case: { status: string; deliveredAt: string | null; total: string | null }
+        }
+        expect(entregado.status).toBe('entregado')
+        expect(entregado.deliveredAt).not.toBeNull()
+        expect(entregado.total).toBeNull()
+        const [entrega] = await entregasDe(id)
+        expect(entrega).toMatchObject({ status: 'hecha', proofAttachmentId: constanciaId })
+        expect(entrega!.doneAt).not.toBeNull()
+      })
+
+      it('otro mensajero no entrega una entrega que no es suya (403)', async () => {
+        const { otro } = await otroMensajero()
+        const id = await crearEnviado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(otro, 'POST', { accion: 'marcar_entregado', constanciaId: await adjuntoDe(id) }),
+        )
+        expect(res.status).toBe(403)
+        const [entrega] = await entregasDe(id)
+        expect(entrega!.status).toBe('pendiente')
+      })
+    })
   })
 
   // Iteración 4, Tarea 3 (ENT-1, ENT-2): programar la recogida al crear y recibir el trabajo.
   describe('recogida', () => {
-    const hoy = toIsoDate(new Date())
-
     async function crearPorRecoger(courierId = mensajeroId) {
       const res = await app.request(
         '/api/trabajos',
@@ -1195,12 +1402,12 @@ describe('/api/trabajos', () => {
         `/api/trabajos/${id}/acciones`,
         req(admin, 'POST', {
           accion: 'marcar_enviado',
-          envio: { mensajeroId, fecha: '2026-10-05' },
+          envio: { mensajeroId, fecha: hoy },
         }),
       )
       await app.request(
         `/api/trabajos/${id}/acciones`,
-        req(admin, 'POST', { accion: 'marcar_entregado', constanciaId: randomUUID() }),
+        req(admin, 'POST', { accion: 'marcar_entregado', constanciaId: await adjuntoDe(id) }),
       )
     }
 

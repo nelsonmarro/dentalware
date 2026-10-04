@@ -301,4 +301,46 @@ describe('/api/adjuntos', () => {
     const stored = await ctx.db.query.attachments.findFirst({ where: { id: attachment.id } })
     expect(stored === undefined).toBe(status === 204)
   })
+
+  // Iteración 4, decisión 5 del plan: el mensajero solo sube la constancia de entrega.
+  it('el mensajero no puede subir una foto (403)', async () => {
+    const buf = await jpegFixture(300, 200)
+    const res = await upload(
+      mensajero,
+      new File([buf], 'foto.jpg', { type: 'image/jpeg' }),
+      'photo',
+    )
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ message: 'Sin permiso' })
+    expect(await ctx.db.query.attachments.findMany({ where: { caseId } })).toEqual([])
+  })
+
+  it('el mensajero sube una constancia que es una imagen (201)', async () => {
+    const buf = await jpegFixture(300, 200)
+    const res = await upload(
+      mensajero,
+      new File([buf], 'constancia.jpg', { type: 'image/jpeg' }),
+      'constancia',
+    )
+    expect(res.status).toBe(201)
+    const { attachment } = (await res.json()) as { attachment: { kind: string; mime: string } }
+    expect(attachment).toMatchObject({ kind: 'constancia', mime: 'image/jpeg' })
+  })
+
+  it('una constancia que no es imagen responde 415', async () => {
+    const pdf = Buffer.from('%PDF-1.4\ncontenido')
+    const res = await upload(
+      mensajero,
+      new File([pdf], 'constancia.pdf', { type: 'application/pdf' }),
+      'constancia',
+    )
+    expect(res.status).toBe(415)
+    expect(await res.json()).toEqual({ message: 'La constancia debe ser una foto' })
+  })
+
+  it('el técnico sigue subiendo fotos (201)', async () => {
+    const buf = await jpegFixture(300, 200)
+    const res = await upload(tecnico, new File([buf], 'foto.jpg', { type: 'image/jpeg' }), 'photo')
+    expect(res.status).toBe(201)
+  })
 })

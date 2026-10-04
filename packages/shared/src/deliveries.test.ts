@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ATTACHMENT_UPLOAD_ROLES,
+  CONSTANCIA_INVALIDA,
   DELIVERY_MANAGE_ROLES,
   DELIVERY_ROLES,
   DELIVERY_STATUS_LABEL,
@@ -32,5 +33,8 @@ describe('entregas', () => {
     expect(isOverdueDelivery({ status: 'hecha', scheduledFor: '2026-10-01' }, '2026-10-03')).toBe(
       false,
     )
+  })
+  it('mensaje de constancia inválida', () => {
+    expect(CONSTANCIA_INVALIDA).toBe('La foto de constancia no es de este trabajo.')
   })
 })

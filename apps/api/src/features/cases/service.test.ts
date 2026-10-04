@@ -4,6 +4,7 @@ import { CaseForbiddenError, CaseInputError, CaseNotFoundError, CaseStateError }
 import {
   caseDetailFixture,
   caseInputFixture,
+  fakeAttachmentsQuery,
   fakeCasesRepo,
   fakeCouriersLookup,
   fakeDeliveryLog,
@@ -13,7 +14,8 @@ import {
   fakeUsersQuery,
   fixedClock,
 } from './fakes.ts'
-import type { CaseDetail, UnitOfWork } from './ports.ts'
+import type { FakeAttachment } from './fakes.ts'
+import type { CaseDetail, Named, UnitOfWork } from './ports.ts'
 import { createCasesService, stripPrices } from './service.ts'
 
 const admin = { userId: 'u1', role: 'admin' } as const
@@ -30,7 +32,7 @@ function build(seed = [caseDetailFixture()], hasDocument = false) {
   // recrear los repos de la transacción, igual que hace `drizzleUnitOfWork` con `tx`.
   const service = createCasesService({
     cases: repo,
-    attachments: { hasDocument: async () => hasDocument },
+    attachments: fakeAttachmentsQuery(hasDocument),
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(),
     couriers: fakeCouriersLookup(),
@@ -47,16 +49,18 @@ function servicioCon(
   overrides: {
     tryins?: ReturnType<typeof fakeTryins>
     hasDocument?: boolean
+    couriers?: Named[]
+    attachments?: FakeAttachment[]
   } = {},
 ) {
   const { repo } = fakeCasesRepo([seed])
   const tryins = overrides.tryins ?? fakeTryins()
   return createCasesService({
     cases: repo,
-    attachments: { hasDocument: async () => overrides.hasDocument ?? true },
+    attachments: fakeAttachmentsQuery(overrides.hasDocument ?? true, overrides.attachments),
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(),
-    couriers: fakeCouriersLookup(),
+    couriers: fakeCouriersLookup(overrides.couriers),
     uow: fakeUow(repo, tryins),
     clock: fixedClock('2026-09-18'),
   })
@@ -69,7 +73,7 @@ function servicioConFases(stageIds: string[], overrides: Partial<CaseDetail>) {
   const stages = stageIds.map((id, sort) => ({ id, sort, active: true }))
   return createCasesService({
     cases: repo,
-    attachments: { hasDocument: async () => true },
+    attachments: fakeAttachmentsQuery(true),
     stages: fakeStagesQuery(stages),
     users: fakeUsersQuery(),
     couriers: fakeCouriersLookup(),
@@ -88,7 +92,7 @@ function servicioConTecnicos(
   const { repo } = fakeCasesRepo([caseDetailFixture({ id: '1', ...overrides })])
   return createCasesService({
     cases: repo,
-    attachments: { hasDocument: async () => true },
+    attachments: fakeAttachmentsQuery(true),
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(technicians.map((t) => ({ name: 'Técnico', ...t }))),
     couriers: fakeCouriersLookup(),
@@ -103,7 +107,7 @@ function servicioParaResumen(seed: CaseDetail[], today: string) {
   const { repo } = fakeCasesRepo(seed)
   return createCasesService({
     cases: repo,
-    attachments: { hasDocument: async () => false },
+    attachments: fakeAttachmentsQuery(false),
     stages: fakeStagesQuery(),
     users: fakeUsersQuery(),
     couriers: fakeCouriersLookup(),
@@ -242,7 +246,7 @@ describe('acciones de estado', () => {
     const { repo } = fakeCasesRepo([completo({ id: '1', status: 'nuevo' })])
     const service = createCasesService({
       cases: repo,
-      attachments: { hasDocument: async () => true },
+      attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery([{ id: 'f1', sort: 1, active: true }]),
       uow: fakeUow(repo, fakeTryins()),
       clock: fixedClock('2026-09-18'),
@@ -338,29 +342,32 @@ describe('acciones de estado', () => {
     expect((await service.detail('1', admin)).case.finishedAt).not.toBeNull()
   })
 
-  it('marcar_enviado fija shippedAt y marcar_entregado fija deliveredAt', async () => {
-    const service = servicioCon(completo({ id: '1', status: 'terminado' }))
-    await service.action('1', { accion: 'marcar_enviado', motivo: null }, admin)
-    const enviado = (await service.detail('1', admin)).case
-    expect(enviado.status).toBe('enviado')
-    expect(enviado.shippedAt).not.toBeNull()
-
-    await service.action('1', { accion: 'marcar_entregado', motivo: null }, admin)
-    const entregado = (await service.detail('1', admin)).case
-    expect(entregado.status).toBe('entregado')
-    expect(entregado.deliveredAt).not.toBeNull()
-  })
-
   it('cada acción escribe el tipo de evento y el estado antes/después que le corresponden', async () => {
     const tryins = fakeTryins()
-    const service = servicioCon(completo({ id: '1', status: 'nuevo' }), { tryins })
+    const service = servicioCon(completo({ id: '1', status: 'nuevo' }), {
+      tryins,
+      couriers: [{ id: 'u3', name: 'Mario Mensajero' }],
+      attachments: [{ id: 'a1', caseId: '1', mime: 'image/jpeg', kind: 'constancia' }],
+    })
 
     await service.action('1', { accion: 'aceptar', motivo: null }, admin)
     await service.action('1', { accion: 'enviar_prueba', motivo: null }, admin)
     await service.action('1', { accion: 'recibir_prueba', motivo: null }, admin)
     await service.action('1', { accion: 'finalizar', motivo: null }, admin)
-    await service.action('1', { accion: 'marcar_enviado', motivo: null }, admin)
-    await service.action('1', { accion: 'marcar_entregado', motivo: null }, admin)
+    await service.action(
+      '1',
+      {
+        accion: 'marcar_enviado',
+        motivo: null,
+        envio: { mensajeroId: 'u3', fecha: '2026-09-18' },
+      },
+      admin,
+    )
+    await service.action(
+      '1',
+      { accion: 'marcar_entregado', motivo: null, constanciaId: 'a1' },
+      admin,
+    )
 
     const eventos = await service.events('1', admin)
     expect(eventos.map((e) => e.type)).toEqual([
@@ -373,8 +380,9 @@ describe('acciones de estado', () => {
     ])
     expect(eventos[0]).toMatchObject({ fromValue: 'nuevo', toValue: 'en_proceso' })
     expect(eventos[3]).toMatchObject({ fromValue: 'en_proceso', toValue: 'terminado' })
-    expect(eventos[4]).toMatchObject({ fromValue: 'terminado', toValue: 'enviado' })
-    expect(eventos[5]).toMatchObject({ fromValue: 'enviado', toValue: 'entregado' })
+    // `shipped` lleva la fecha de entrega y `delivered` la constancia (Iteración 4, ENT-3/ENT-4).
+    expect(eventos[4]).toMatchObject({ fromValue: 'terminado', toValue: '2026-09-18' })
+    expect(eventos[5]).toMatchObject({ fromValue: 'enviado', toValue: 'a1' })
   })
 })
 
@@ -748,7 +756,7 @@ describe('repetición', () => {
     }
     const service = createCasesService({
       cases: repo,
-      attachments: { hasDocument: async () => true },
+      attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery(),
       users: fakeUsersQuery(),
       couriers: fakeCouriersLookup(),
@@ -808,7 +816,7 @@ describe('recogida', () => {
     const { repo, rows, events } = fakeCasesRepo(seed)
     const service = createCasesService({
       cases: repo,
-      attachments: { hasDocument: async () => true },
+      attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery(),
       users: fakeUsersQuery(),
       couriers: fakeCouriersLookup([mario, luis]),
@@ -964,4 +972,231 @@ describe('recogida', () => {
       ),
     )
   })
+})
+
+// Iteración 4, Tarea 4 (ENT-3, ENT-4): enviar con mensajero y entregar con foto de constancia.
+describe('envío y entrega', () => {
+  const mario = { id: 'u3', name: 'Mario Mensajero' }
+  const luis = { id: 'u4', name: 'Luis Mensajero' }
+  const otroMensajero = { userId: 'u4', role: 'mensajero' } as const
+  const recepcion = { userId: 'u5', role: 'recepcion' } as const
+  const fotoDeEste: FakeAttachment = {
+    id: 'a1',
+    caseId: '1',
+    mime: 'image/jpeg',
+    kind: 'constancia',
+  }
+  const entregaDeMario = {
+    id: 'd1',
+    caseId: '1',
+    type: 'entrega',
+    courierId: 'u3',
+    scheduledFor: '2026-10-03',
+    status: 'pendiente',
+    doneAt: null,
+    proofAttachmentId: null,
+  } as const
+
+  /** Reloj fijo en el sábado 2026-10-03; mensajeros activos Mario (u3) y Luis (u4). */
+  function servicioConEntrega(
+    seed: CaseDetail,
+    { deliveries = fakeDeliveryLog(), attachments = [fotoDeEste] } = {},
+  ) {
+    const { repo, rows } = fakeCasesRepo([seed])
+    const service = createCasesService({
+      cases: repo,
+      attachments: fakeAttachmentsQuery(true, attachments),
+      stages: fakeStagesQuery(),
+      users: fakeUsersQuery(),
+      couriers: fakeCouriersLookup([mario, luis]),
+      uow: fakeUow(repo, fakeTryins(), deliveries.log),
+      clock: fixedClock('2026-10-03'),
+    })
+    return { service, rows, deliveries }
+  }
+  const terminado = () => servicioConEntrega(completo({ id: '1', status: 'terminado' }))
+  const enviadoConMario = (attachments?: FakeAttachment[]) =>
+    servicioConEntrega(completo({ id: '1', status: 'enviado', total: '90.00' }), {
+      deliveries: fakeDeliveryLog([entregaDeMario]),
+      ...(attachments ? { attachments } : {}),
+    })
+  const enviar = (mensajeroId: string, fecha = '2026-10-05') => ({
+    accion: 'marcar_enviado' as const,
+    motivo: null,
+    envio: { mensajeroId, fecha },
+  })
+  const entregar = (constanciaId: string) => ({
+    accion: 'marcar_entregado' as const,
+    motivo: null,
+    constanciaId,
+  })
+
+  it('el mensajero que se asigna a sí mismo envía: queda enviado, con la entrega pendiente y el evento shipped', async () => {
+    const { service, deliveries } = terminado()
+    const c = await service.action('1', enviar('u3'), mensajero)
+    expect(c.status).toBe('enviado')
+    expect(c.shippedAt).toEqual(new Date('2026-10-03T12:00:00Z'))
+    // Enmascarado: el mensajero nunca recibe dinero en la respuesta de la acción.
+    expect(c.total).toBeNull()
+    expect([...deliveries.rows.values()]).toEqual([
+      {
+        id: 'd1',
+        caseId: '1',
+        type: 'entrega',
+        courierId: 'u3',
+        scheduledFor: '2026-10-05',
+        status: 'pendiente',
+        doneAt: null,
+        proofAttachmentId: null,
+      },
+    ])
+    const eventos = await service.events('1', admin)
+    expect(eventos.at(-1)).toMatchObject({
+      type: 'shipped',
+      fromValue: 'terminado',
+      toValue: '2026-10-05',
+      reason: 'Mario Mensajero',
+      actorId: 'u3',
+    })
+  })
+
+  it('un envío para hoy se acepta', async () => {
+    const { service } = terminado()
+    const c = await service.action('1', enviar('u3', '2026-10-03'), admin)
+    expect(c.status).toBe('enviado')
+  })
+
+  it('recepción envía con cualquier mensajero activo', async () => {
+    const { service, deliveries } = terminado()
+    const c = await service.action('1', enviar('u4'), recepcion)
+    expect(c.status).toBe('enviado')
+    expect(deliveries.rows.get('d1')!.courierId).toBe('u4')
+  })
+
+  it('un mensajero no puede asignar el envío a otro mensajero', async () => {
+    const { service, rows, deliveries } = terminado()
+    await expect(service.action('1', enviar('u4'), mensajero)).rejects.toBeInstanceOf(
+      CaseForbiddenError,
+    )
+    expect(rows.get('1')!.status).toBe('terminado')
+    expect(deliveries.rows.size).toBe(0)
+  })
+
+  it('un envío con fecha de ayer lanza CaseInputError y no cambia nada', async () => {
+    const { service, rows, deliveries } = terminado()
+    const error = await service
+      .action('1', enviar('u3', '2026-10-02'), admin)
+      .catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(CaseInputError)
+    expect(error).toMatchObject({
+      message: 'La fecha de entrega no puede ser anterior a hoy.',
+      path: 'envio.fecha',
+    })
+    expect(rows.get('1')!.status).toBe('terminado')
+    expect(deliveries.rows.size).toBe(0)
+  })
+
+  it('un envío con alguien que no es mensajero activo lanza CaseInputError', async () => {
+    const { service, rows } = terminado()
+    const error = await service.action('1', enviar('u2'), admin).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(CaseInputError)
+    expect(error).toMatchObject({
+      message: 'Elige un mensajero activo.',
+      path: 'envio.mensajeroId',
+    })
+    expect(rows.get('1')!.status).toBe('terminado')
+  })
+
+  it('marcar enviado sin envío lanza CaseInputError en envio', async () => {
+    const { service } = terminado()
+    await expect(
+      service.action('1', { accion: 'marcar_enviado', motivo: null }, admin),
+    ).rejects.toMatchObject({ message: 'Elige mensajero y fecha', path: 'envio' })
+  })
+
+  it('el mensajero asignado entrega con su foto: queda entregado, la entrega hecha y el evento delivered', async () => {
+    const { service, deliveries } = enviadoConMario()
+    const c = await service.action('1', entregar('a1'), mensajero)
+    expect(c.status).toBe('entregado')
+    expect(c.deliveredAt).toEqual(new Date('2026-10-03T12:00:00Z'))
+    expect(c.total).toBeNull()
+    expect(deliveries.rows.get('d1')).toMatchObject({
+      status: 'hecha',
+      doneAt: new Date('2026-10-03T12:00:00Z'),
+      proofAttachmentId: 'a1',
+    })
+    const eventos = await service.events('1', admin)
+    expect(eventos.at(-1)).toMatchObject({
+      type: 'delivered',
+      fromValue: 'enviado',
+      toValue: 'a1',
+      actorId: 'u3',
+    })
+  })
+
+  it('otro mensajero no puede entregar una entrega que no es suya', async () => {
+    const { service, rows, deliveries } = enviadoConMario()
+    await expect(service.action('1', entregar('a1'), otroMensajero)).rejects.toBeInstanceOf(
+      CaseForbiddenError,
+    )
+    expect(rows.get('1')!.status).toBe('enviado')
+    expect(deliveries.rows.get('d1')!.status).toBe('pendiente')
+  })
+
+  it('recepción entrega la entrega de cualquier mensajero', async () => {
+    const { service, deliveries } = enviadoConMario()
+    const c = await service.action('1', entregar('a1'), recepcion)
+    expect(c.status).toBe('entregado')
+    expect(deliveries.rows.get('d1')).toMatchObject({ status: 'hecha', proofAttachmentId: 'a1' })
+  })
+
+  it('un trabajo enviado sin entrega pendiente (datos viejos) se entrega igual y guarda la constancia en el evento', async () => {
+    const { service } = servicioConEntrega(completo({ id: '1', status: 'enviado' }))
+    const c = await service.action('1', entregar('a1'), recepcion)
+    expect(c.status).toBe('entregado')
+    const eventos = await service.events('1', admin)
+    expect(eventos.at(-1)).toMatchObject({ type: 'delivered', toValue: 'a1' })
+  })
+
+  it('un mensajero no entrega un trabajo enviado que no tiene entrega pendiente', async () => {
+    const { service, rows } = servicioConEntrega(completo({ id: '1', status: 'enviado' }))
+    await expect(service.action('1', entregar('a1'), mensajero)).rejects.toBeInstanceOf(
+      CaseForbiddenError,
+    )
+    expect(rows.get('1')!.status).toBe('enviado')
+  })
+
+  it('marcar entregado sin constancia lanza CaseInputError en constanciaId', async () => {
+    const { service } = enviadoConMario()
+    await expect(
+      service.action('1', { accion: 'marcar_entregado', motivo: null }, admin),
+    ).rejects.toMatchObject({ message: 'Añade la foto de constancia', path: 'constanciaId' })
+  })
+
+  it.each([
+    ['inexistente', 'a9', [fotoDeEste]],
+    ['de otro trabajo', 'a2', [{ ...fotoDeEste, id: 'a2', caseId: '2' }]],
+    [
+      'que es un PDF de tipo documento',
+      'a3',
+      [{ ...fotoDeEste, id: 'a3', mime: 'application/pdf', kind: 'document' }],
+    ],
+    ['que es una foto normal', 'a4', [{ ...fotoDeEste, id: 'a4', kind: 'photo' }]],
+    ['que no es una imagen', 'a5', [{ ...fotoDeEste, id: 'a5', mime: 'application/pdf' }]],
+  ] as [string, string, FakeAttachment[]][])(
+    'una constancia %s se rechaza con el mensaje literal y no entrega',
+    async (_caso, constanciaId, attachments) => {
+      const { service, rows, deliveries } = enviadoConMario(attachments)
+      const error = await service
+        .action('1', entregar(constanciaId), admin)
+        .catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(CaseInputError)
+      expect(error).toMatchObject({
+        message: 'La foto de constancia no es de este trabajo.',
+        path: 'constanciaId',
+      })
+      expect(rows.get('1')!.status).toBe('enviado')
+      expect(deliveries.rows.get('d1')!.status).toBe('pendiente')
+    },
+  )
 })
