@@ -16,12 +16,14 @@ export function ClinicGroup({
   role,
   userId,
   today,
+  showCourier,
 }: {
   clinic: DeliveryItem['clinic']
   deliveries: DeliveryItem[]
   role: UserRole
   userId: string
   today: string
+  showCourier: boolean
 }) {
   const titleId = useId()
   return (
@@ -35,7 +37,14 @@ export function ClinicGroup({
       <ClinicContact clinic={clinic} />
       <ul className="flex flex-col gap-2">
         {deliveries.map((d) => (
-          <DeliveryCard key={d.id} delivery={d} role={role} userId={userId} today={today} />
+          <DeliveryCard
+            key={d.id}
+            delivery={d}
+            role={role}
+            userId={userId}
+            today={today}
+            showCourier={showCourier}
+          />
         ))}
       </ul>
     </section>

@@ -54,6 +54,7 @@ export function DayPicker({ day, onChange }: { day: string; onChange: (day: stri
         <Input
           id={inputId}
           type="date"
+          lang="es-EC"
           value={day}
           onChange={(e) => {
             if (e.target.value) onChange(e.target.value)

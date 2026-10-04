@@ -120,6 +120,22 @@ describe('DeliveriesDay', () => {
     expect(within(tarjeta).getByText('Juan P.')).toBeInTheDocument()
   })
 
+  it('a recepción le dice el mensajero de cada tarjeta', async () => {
+    fetchDeliveries.mockResolvedValue([entrega()])
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="recepcion" userId="r1" />)
+    expect(await screen.findByText('Mensajero: Mario Mensajero')).toBeInTheDocument()
+  })
+
+  // UX4-20: con el filtro por mensajero puesto, repetirlo en cada tarjeta es ruido.
+  it('con el filtro por mensajero no repite «Mensajero:» en cada tarjeta', async () => {
+    fetchDeliveries.mockResolvedValue([entrega()])
+    renderWithQueryAndRouter(
+      <DeliveriesDay day="2026-10-03" courierId="m1" role="recepcion" userId="r1" />,
+    )
+    await screen.findByRole('listitem')
+    expect(screen.queryByText(/^Mensajero:/)).not.toBeInTheDocument()
+  })
+
   it('un trabajo urgente lo dice con texto', async () => {
     fetchDeliveries.mockResolvedValue([
       entrega({ case: { ...entrega().case, priority: 'urgente' } }),
@@ -397,23 +413,35 @@ describe('DeliveriesDay', () => {
     expect(within(hoy).queryByText('Atrasada')).not.toBeInTheDocument()
   })
 
-  it('sin entregas lo dice', async () => {
+  // UX4-23: el vacío dice qué hacer (la salida: otro día) y todos llevan punto final.
+  it('sin entregas lo dice e invita a ver otro día', async () => {
     fetchDeliveries.mockResolvedValue([])
     renderWithQueryAndRouter(<DeliveriesDay day="2026-10-05" role="admin" userId="a1" />)
     expect(await screen.findByText('No hay entregas ni recogidas este día.')).toBeInTheDocument()
+    expect(screen.getByText('Usa las flechas para ver otro día.')).toBeInTheDocument()
   })
 
   it('al mensajero, hoy sin entregas, le habla a él', async () => {
     fetchDeliveries.mockResolvedValue([])
     renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
-    expect(await screen.findByText('No tienes entregas hoy')).toBeInTheDocument()
+    expect(await screen.findByText('No tienes entregas hoy.')).toBeInTheDocument()
+    expect(screen.getByText('Usa las flechas para ver otro día.')).toBeInTheDocument()
+  })
+
+  it('en el inicio (compacto), sin flechas, no invita a usarlas', async () => {
+    fetchDeliveries.mockResolvedValue([])
+    renderWithQueryAndRouter(
+      <DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" compact />,
+    )
+    expect(await screen.findByText('No tienes entregas hoy.')).toBeInTheDocument()
+    expect(screen.queryByText('Usa las flechas para ver otro día.')).not.toBeInTheDocument()
   })
 
   it('un fallo al cargar no se muestra como vacío: ofrece reintentar', async () => {
     fetchDeliveries.mockRejectedValue(new TypeError('Failed to fetch'))
     renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
     expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
-    expect(screen.queryByText('No tienes entregas hoy')).not.toBeInTheDocument()
+    expect(screen.queryByText('No tienes entregas hoy.')).not.toBeInTheDocument()
   })
   // UX4-26: sin red, la consulta de un día que no está en caché queda en pausa; «Cargando…» sin
   // fin parecía colgado. Lo dice y espera la señal, sin pedir nada a la red.

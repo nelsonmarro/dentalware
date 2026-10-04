@@ -1,6 +1,8 @@
 import {
   compareStopDeliveries,
+  DELIVERY_MANAGE_ROLES,
   deliveryDaySummary,
+  hasRole,
   isActionableDelivery,
   toIsoDate,
   type UserRole,
@@ -72,18 +74,27 @@ export function DeliveriesDay({
     const mineToday = role === 'mensajero' && day === today
     // En compacto, que no quede nada pendiente no es lo mismo que no haber tenido entregas.
     const allDone = compact && q.data.length > 0
+    // UX4-23: el vacío dice la salida (otro día con las flechas), salvo en el inicio, que no
+    // las tiene. Mismo ancho que la lista (UX4-20).
     return (
-      <EmptyState
-        title={
-          allDone
-            ? 'Terminaste las entregas de hoy.'
-            : mineToday
-              ? 'No tienes entregas hoy'
-              : 'No hay entregas ni recogidas este día.'
-        }
-      />
+      <div className="max-w-4xl">
+        <EmptyState
+          title={
+            allDone
+              ? 'Terminaste las entregas de hoy.'
+              : mineToday
+                ? 'No tienes entregas hoy.'
+                : 'No hay entregas ni recogidas este día.'
+          }
+          description={compact ? undefined : 'Usa las flechas para ver otro día.'}
+        />
+      </div>
     )
   }
+
+  // Quien administra entregas ve las de todos: el nombre del mensajero orienta a recepción.
+  // Con el filtro por mensajero ya se sabe de quién son: no se repite (UX4-20).
+  const showCourier = hasRole(DELIVERY_MANAGE_ROLES, role) && !courierId
 
   return (
     <div className="flex max-w-4xl min-w-0 flex-col gap-4">
@@ -99,6 +110,7 @@ export function DeliveriesDay({
           role={role}
           userId={userId}
           today={today}
+          showCourier={showCourier}
         />
       ))}
     </div>

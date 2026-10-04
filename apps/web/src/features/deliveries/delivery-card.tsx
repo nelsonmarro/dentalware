@@ -6,10 +6,8 @@ import {
   cancelledDeliveryNote,
   CASE_ACTION_LABEL,
   DELIVERY_CLOSING_ACTION,
-  DELIVERY_MANAGE_ROLES,
   deliveryNextStep,
   deliveryOutcome,
-  hasRole,
   isActionableDelivery,
   isOverdueDelivery,
   type UserRole,
@@ -43,12 +41,15 @@ export function DeliveryCard({
   role,
   userId,
   today,
+  showCourier,
 }: {
   delivery: DeliveryItem
   role: UserRole
   /** Quien usa la app: el mensajero solo actúa sobre sus propias entregas. */
   userId: string
   today: string
+  /** «Mensajero: …» en la tarjeta: lo decide la lista (`DeliveriesDay`). */
+  showCourier: boolean
 }) {
   const [dialog, setDialog] = useState<'entregar' | 'fallida' | null>(null)
   const action = useCaseAction(d.case.id)
@@ -73,8 +74,6 @@ export function DeliveryCard({
   // UX4-10: quien la tiene pero no la cierra (el mensajero en su recogida) sabe qué sigue.
   const nextStep = canFail && !canClose ? deliveryNextStep(role, d.type) : null
   const overdue = pending && isOverdueDelivery(d, today)
-  // Quien administra entregas ve las de todos: el nombre del mensajero orienta a recepción.
-  const showCourier = hasRole(DELIVERY_MANAGE_ROLES, role)
 
   // UX4-05: cada diálogo vive mientras su acción siga disponible. Si la entrega deja de estar
   // pendiente (otra persona canceló el trabajo o la cerró; lo trae el refresco tras un 409 o
@@ -129,16 +128,21 @@ export function DeliveryCard({
         </div>
       </div>
       {(canClose || canFail) && (
+        // UX4-20: ancho mínimo común, para que las acciones se alineen de tarjeta en tarjeta.
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
           {canClose && (
-            <Button className="w-full sm:w-auto" disabled={action.isPending} onClick={close}>
+            <Button
+              className="w-full sm:w-auto sm:min-w-40"
+              disabled={action.isPending}
+              onClick={close}
+            >
               {CASE_ACTION_LABEL[closing]}
             </Button>
           )}
           {canFail && (
             <Button
               variant="outline"
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto sm:min-w-40"
               disabled={action.isPending}
               onClick={() => setDialog('fallida')}
             >

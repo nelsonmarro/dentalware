@@ -71,6 +71,6 @@ describe('MyDeliveriesToday', () => {
     renderWithQueryAndRouter(<MyDeliveriesToday userId="m1" />)
 
     expect(await screen.findByText('Terminaste las entregas de hoy.')).toBeInTheDocument()
-    expect(screen.queryByText('No tienes entregas hoy')).not.toBeInTheDocument()
+    expect(screen.queryByText('No tienes entregas hoy.')).not.toBeInTheDocument()
   })
 })

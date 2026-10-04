@@ -52,6 +52,13 @@ describe('DayPicker', () => {
     expect(onChange).toHaveBeenCalledWith('2026-10-15')
   })
 
+  // UX4-23: la fecha se anuncia y, donde el navegador lo respeta, se muestra en español de
+  // Ecuador (10/04 no se lee como 10 de abril).
+  it('el campo de fecha va en español de Ecuador', () => {
+    renderWithProviders(<DayPicker day="2026-10-03" onChange={() => {}} />)
+    expect(screen.getByLabelText('Día')).toHaveAttribute('lang', 'es-EC')
+  })
+
   it('borrar la fecha no deja la pantalla sin día', () => {
     const onChange = vi.fn()
     renderWithProviders(<DayPicker day="2026-10-03" onChange={onChange} />)
