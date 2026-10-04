@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
-import { ApiError } from '@/lib/api-error'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiError } from '@/lib/api-error'
 import { renderWithQueryAndRouter } from '@/test/render'
 import type { DeliveryItem } from './api'
 import { DeliveriesDay } from './deliveries-day'
@@ -362,6 +362,7 @@ describe('DeliveriesDay', () => {
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     })
+
     it('un 409 al marcar entregado refresca la lista y cierra el diálogo', async () => {
       fetchDeliveries.mockResolvedValueOnce([entrega()])
       fetchDeliveries.mockResolvedValue([cancelada()])
@@ -388,6 +389,7 @@ describe('DeliveriesDay', () => {
       )
       expect(await screen.findByText('Cancelado')).toBeInTheDocument()
     })
+
     it('un 403 al subir la constancia (ya no es suya) refresca la lista y cierra el diálogo', async () => {
       fetchDeliveries.mockResolvedValueOnce([entrega()])
       fetchDeliveries.mockResolvedValue([

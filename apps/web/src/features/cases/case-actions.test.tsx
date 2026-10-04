@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react'
+import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/lib/api-error'
 import { renderWithProviders } from '@/test/render'
@@ -469,7 +470,8 @@ describe('CaseActions', () => {
       )
     })
 
-    it('un 409 al marcar enviado refresca la ficha y cierra el diálogo', async () => {
+    it('un 409 al marcar enviado refresca la ficha, avisa una vez y cierra el diálogo', async () => {
+      const avisos = vi.spyOn(toast, 'error')
       fetchCase.mockResolvedValueOnce({ case: caso({ status: 'terminado' }), missing: [] })
       fetchCase.mockResolvedValueOnce({
         case: caso({ status: 'enviado', pendingDelivery: { type: 'entrega', courierId: yo.id } }),
@@ -487,8 +489,10 @@ describe('CaseActions', () => {
       await waitFor(() =>
         expect(screen.queryByRole('dialog', { name: 'Marcar enviado' })).not.toBeInTheDocument(),
       )
-      // La barra sigue montada con la acción que sí toca ahora.
+      // La barra sigue montada con la acción que sí toca ahora, y el 409 avisa una sola vez.
       expect(screen.getByRole('button', { name: 'Marcar entregado' })).toBeInTheDocument()
+      expect(avisos).toHaveBeenCalledTimes(1)
+      avisos.mockRestore()
     })
   })
 })
