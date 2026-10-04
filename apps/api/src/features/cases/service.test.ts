@@ -891,17 +891,31 @@ describe('resumen del día', () => {
     expect(r.todos).toBe(1)
   })
 
-  // CAL-2 (#80, Tarea 8): "vencen mañana" es el siguiente día hábil (ADR 30), no el día
-  // de calendario siguiente. '2026-09-18' es viernes: "mañana" es el lunes '2026-09-21',
-  // nunca el sábado '2026-09-19'.
-  it('"vencen mañana" cuenta el siguiente día hábil, saltando el fin de semana', async () => {
+  // CAL-2 (#80) y UX4-04: «vencen mañana» es `hoy < fecha ≤ siguiente día hábil` (ADR 30).
+  // '2026-09-18' es viernes: entran el sábado 19 y el lunes 21, no hoy ni el martes 22.
+  it('"vencen mañana" llega hasta el siguiente día hábil, incluido el fin de semana', async () => {
     const service = servicioParaResumen(
       [
         completo({ id: '1', status: 'en_proceso', promisedDate: '2026-09-21', dueDate: null }),
         completo({ id: '2', status: 'en_proceso', promisedDate: '2026-09-19', dueDate: null }),
         completo({ id: '3', status: 'terminado', promisedDate: '2026-09-21', dueDate: null }),
+        completo({ id: '4', status: 'en_proceso', promisedDate: '2026-09-18', dueDate: null }),
+        completo({ id: '5', status: 'en_proceso', promisedDate: '2026-09-22', dueDate: null }),
       ],
       '2026-09-18',
+    )
+    const r = await service.summary()
+    expect(r.vencen_manana).toBe(2)
+  })
+
+  it('"vencen mañana" el domingo solo cuenta el lunes', async () => {
+    const service = servicioParaResumen(
+      [
+        completo({ id: '1', status: 'en_proceso', promisedDate: '2026-09-21', dueDate: null }),
+        completo({ id: '2', status: 'en_proceso', promisedDate: '2026-09-19', dueDate: null }),
+        completo({ id: '3', status: 'en_proceso', promisedDate: '2026-09-20', dueDate: null }),
+      ],
+      '2026-09-20',
     )
     const r = await service.summary()
     expect(r.vencen_manana).toBe(1)

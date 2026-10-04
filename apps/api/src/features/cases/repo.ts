@@ -143,9 +143,10 @@ const ORDER_COLUMNS = {
  * total de su lista; dos definiciones podrían divergir en silencio).
  */
 function viewCondition(view: CaseView, today: string): SQL | undefined {
-  // CAL-2 (#80): "mañana" es el siguiente día *hábil* (ADR 30), calculado en JS con el mismo
-  // helper que usa `promisedDate` al aceptar un trabajo — nunca en SQL, para no duplicar la
-  // regla de fin de semana/feriados en dos lenguajes.
+  // CAL-2 (#80) y UX4-04: "mañana" llega hasta el siguiente día *hábil* (ADR 30), calculado en
+  // JS con el mismo helper que usa `promisedDate` al aceptar un trabajo — nunca en SQL, para no
+  // duplicar la regla de fin de semana/feriados en dos lenguajes. Es un rango (`hoy <` fecha
+  // `≤ siguiente hábil`) y no una igualdad: así lo que vence el sábado sale el viernes.
   const siguienteDiaHabil = toIsoDate(addBusinessDays(new Date(`${today}T00:00:00`), 1, []))
   const conditionByView: Record<CaseView, SQL | undefined> = {
     nuevos: eq(cases.status, 'nuevo'),
@@ -156,7 +157,7 @@ function viewCondition(view: CaseView, today: string): SQL | undefined {
     ),
     vencen_manana: and(
       inArray(cases.status, [...ACTIVE_FOR_DATES_STATUSES]),
-      sql`${effectiveDate} = ${siguienteDiaHabil}::date`,
+      sql`${effectiveDate} > ${today}::date and ${effectiveDate} <= ${siguienteDiaHabil}::date`,
     ),
     atrasados: and(
       inArray(cases.status, [...ACTIVE_FOR_DATES_STATUSES]),

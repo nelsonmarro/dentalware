@@ -2106,13 +2106,44 @@ describe('/api/trabajos', () => {
     })
   })
 
-  // CAL-2 (#80, Tarea 8): "vencen mañana" es el siguiente día *hábil* tras hoy (ADR 30), no el
-  // día de calendario siguiente. Reloj fijo en viernes para que "mañana" salte el fin de
-  // semana: un trabajo que vence el sábado no debe contar, y uno que vence el lunes (el
-  // siguiente día hábil real) sí. Con la mutación "+1 día natural" en vez de `addBusinessDays`,
-  // el lunes dejaría de contar (mañana sería el sábado) y este test lo detecta.
-  describe('vencen_manana (CAL-2)', () => {
-    const VIERNES = '2026-10-02'
+  // CAL-2 (#80) y UX4-04: «vencen mañana» cubre `hoy < fecha efectiva ≤ siguiente día hábil`
+  // (ADR 30), para que un trabajo que vence el sábado salga el viernes y no se pierda. Se prueba
+  // con reloj fijo en viernes (el siguiente hábil salta el fin de semana) y en domingo (el
+  // siguiente hábil es mañana). Fechas literales: 2026-10-02 viernes, 03 sábado, 04 domingo,
+  // 05 lunes, 06 martes.
+  describe.each([
+    {
+      dia: 'viernes',
+      hoy: '2026-10-02',
+    },
+    {
+      dia: 'domingo',
+      hoy: '2026-10-04',
+    },
+  ])('vencen_manana en $dia (CAL-2, UX4-04)', ({ hoy, dia }) => {
+    const FECHAS: Record<string, string> = {
+      'hoy mismo': hoy,
+      'el sábado': '2026-10-03',
+      'el domingo': '2026-10-04',
+      'el lunes': '2026-10-05',
+      'el martes': '2026-10-06',
+    }
+    const ESPERADO: Record<string, Record<string, boolean>> = {
+      viernes: {
+        'hoy mismo': false,
+        'el sábado': true,
+        'el domingo': true,
+        'el lunes': true,
+        'el martes': false,
+      },
+      domingo: {
+        'hoy mismo': false,
+        'el sábado': false,
+        'el domingo': false,
+        'el lunes': true,
+        'el martes': false,
+      },
+    }
     let vencenMananaApp: ReturnType<typeof createApp>
 
     beforeAll(() => {
@@ -2121,30 +2152,25 @@ describe('/api/trabajos', () => {
         db: ctx.db,
         webOrigin: ctx.config.WEB_ORIGIN,
         storage: ctx.storage,
-        clock: { today: () => VIERNES, now: () => new Date(`${VIERNES}T12:00:00Z`) },
+        clock: { today: () => hoy, now: () => new Date(`${hoy}T12:00:00Z`) },
       })
     })
 
-    it('el lunes (siguiente día hábil) cuenta; el sábado y un trabajo terminado no', async () => {
-      const lunesId = await createOne(recepcion, { patientRef: 'Vence el lunes' })
-      await ctx.db
-        .update(ctx.schema.cases)
-        .set({ status: 'en_proceso', promisedDate: '2026-10-05' })
-        .where(eq(ctx.schema.cases.id, lunesId))
-
-      const sabadoId = await createOne(recepcion, { patientRef: 'Vence el sábado' })
-      await ctx.db
-        .update(ctx.schema.cases)
-        .set({ status: 'en_proceso', promisedDate: '2026-10-03' })
-        .where(eq(ctx.schema.cases.id, sabadoId))
-
-      const terminadoLunesId = await createOne(recepcion, {
-        patientRef: 'Terminado, vencía el lunes',
-      })
+    it('cuenta según la fecha y estado; el contador del resumen coincide con la lista', async () => {
+      const ids: Record<string, string> = {}
+      for (const [nombre, fecha] of Object.entries(FECHAS)) {
+        const id = await createOne(recepcion, { patientRef: `Vence ${nombre} (${dia})` })
+        await ctx.db
+          .update(ctx.schema.cases)
+          .set({ status: 'en_proceso', promisedDate: fecha })
+          .where(eq(ctx.schema.cases.id, id))
+        ids[nombre] = id
+      }
+      const terminadoId = await createOne(recepcion, { patientRef: `Terminado (${dia})` })
       await ctx.db
         .update(ctx.schema.cases)
         .set({ status: 'terminado', promisedDate: '2026-10-05' })
-        .where(eq(ctx.schema.cases.id, terminadoLunesId))
+        .where(eq(ctx.schema.cases.id, terminadoId))
 
       const listaRes = await vencenMananaApp.request(
         '/api/trabajos?vista=vencen_manana',
@@ -2155,12 +2181,13 @@ describe('/api/trabajos', () => {
         cases: { id: string }[]
         total: number
       }
-      const ids = lista.map((c) => c.id)
+      const enLista = lista.map((c) => c.id)
 
-      expect(ids).toContain(lunesId)
-      expect(ids).not.toContain(sabadoId)
-      expect(ids).not.toContain(terminadoLunesId)
-      expect(total).toBe(1)
+      for (const [nombre, id] of Object.entries(ids)) {
+        expect(enLista.includes(id), `${nombre} (hoy ${dia})`).toBe(ESPERADO[dia]![nombre])
+      }
+      expect(enLista).not.toContain(terminadoId)
+      expect(total).toBe(Object.values(ESPERADO[dia]!).filter(Boolean).length)
 
       // ADR 32: el contador del resumen coincide con el total de la lista de su misma vista.
       const resumenRes = await vencenMananaApp.request('/api/trabajos/resumen', req(admin, 'GET'))

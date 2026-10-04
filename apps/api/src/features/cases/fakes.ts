@@ -196,10 +196,15 @@ function matchesView(view: CaseView | undefined, today: string, r: CaseDetail): 
     case 'vencen_hoy':
       return activeForDates && effectiveDate === today
     case 'vencen_manana': {
-      // Mismo cálculo que `viewCondition` (`repo.ts`, CAL-2): el siguiente día *hábil*, no el
-      // día de calendario siguiente.
+      // Mismo cálculo que `viewCondition` (`repo.ts`, CAL-2, UX4-04): hasta el siguiente día
+      // *hábil*, sin incluir hoy.
       const siguienteDiaHabil = toIsoDate(addBusinessDays(new Date(`${today}T00:00:00`), 1, []))
-      return activeForDates && effectiveDate === siguienteDiaHabil
+      return (
+        activeForDates &&
+        effectiveDate !== null &&
+        effectiveDate > today &&
+        effectiveDate <= siguienteDiaHabil
+      )
     }
     case 'atrasados':
       return activeForDates && effectiveDate !== null && effectiveDate < today

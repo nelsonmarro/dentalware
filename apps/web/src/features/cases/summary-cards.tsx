@@ -1,8 +1,8 @@
 import type { CaseView } from '@dentalware/shared'
-import { CASE_VIEWS } from '@dentalware/shared'
+import { CASE_VIEWS, toIsoDate } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { LoadError } from '@/components/load-error'
-import { CASE_VIEW_LABEL } from './case-views'
+import { caseViewLabel } from './case-views'
 import { STATUS_COLOR } from './status-chip'
 import { useSummary } from './use-summary'
 
@@ -29,6 +29,7 @@ const SUMMARY_VIEWS = CASE_VIEWS.filter((v): v is Exclude<CaseView, 'todos'> => 
 
 export function SummaryCards() {
   const summary = useSummary()
+  const today = toIsoDate(new Date())
 
   // UX3-02: antes de este cambio, un fallo de red dejaba las seis tarjetas en "—" con
   // `aria-label` "cargando" para siempre — un estado de carga permanente, no un error.
@@ -57,8 +58,8 @@ export function SummaryCards() {
             // en el nombre: quien usa lector de pantalla necesita la misma aclaración.
             aria-label={
               count === undefined
-                ? `${CASE_VIEW_LABEL[vista]}, cargando`
-                : [`${CASE_VIEW_LABEL[vista]} ${count}`, note].filter(Boolean).join(', ')
+                ? `${caseViewLabel(vista, today)}, cargando`
+                : [`${caseViewLabel(vista, today)} ${count}`, note].filter(Boolean).join(', ')
             }
             className="flex min-h-[88px] flex-col justify-between gap-2 rounded-xl border-l-4 bg-card p-4 ring-1 ring-foreground/10 transition-colors hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             style={{ borderLeftColor: VIEW_COLOR[vista] }}
@@ -66,7 +67,7 @@ export function SummaryCards() {
             {/* La nota va con el rótulo, arriba: el número queda abajo en todas las tarjetas
                 (con tres hijos, `justify-between` lo subía en «En curso»). */}
             <span className="flex flex-col gap-0.5">
-              <span className="text-sm text-muted-foreground">{CASE_VIEW_LABEL[vista]}</span>
+              <span className="text-sm text-muted-foreground">{caseViewLabel(vista, today)}</span>
               {note && <span className="text-xs text-muted-foreground">{note}</span>}
             </span>
             <span className="font-mono text-2xl font-semibold tabular-nums">{count ?? '—'}</span>

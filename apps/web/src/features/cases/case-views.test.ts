@@ -1,6 +1,12 @@
 import { CASE_STATUSES, CASE_VIEWS } from '@dentalware/shared'
 import { describe, expect, it } from 'vitest'
-import { CASE_VIEW_LABEL, dueBadge, isStageVisible, parseCasesSearch } from './case-views'
+import {
+  CASE_VIEW_LABEL,
+  caseViewLabel,
+  dueBadge,
+  isStageVisible,
+  parseCasesSearch,
+} from './case-views'
 
 describe('CASE_VIEW_LABEL', () => {
   it('cubre todas las vistas de CASE_VIEWS', () => {
@@ -22,6 +28,19 @@ describe('CASE_VIEW_LABEL', () => {
 
   it('rotula la vista en prueba', () => {
     expect(CASE_VIEW_LABEL.en_prueba).toBe('En prueba')
+  })
+})
+
+describe('caseViewLabel', () => {
+  // UX4-04: la vista llega hasta el siguiente día hábil, y el rótulo lo dice.
+  it('«vencen_manana» nombra el día cuando el siguiente hábil no es mañana', () => {
+    expect(caseViewLabel('vencen_manana', '2026-10-02')).toBe('Vencen el lunes')
+    expect(caseViewLabel('vencen_manana', '2026-10-04')).toBe('Vencen mañana')
+  })
+
+  it('las demás vistas conservan su rótulo fijo', () => {
+    expect(caseViewLabel('vencen_hoy', '2026-10-02')).toBe('Vencen hoy')
+    expect(caseViewLabel('atrasados', '2026-10-02')).toBe('Atrasados')
   })
 })
 
