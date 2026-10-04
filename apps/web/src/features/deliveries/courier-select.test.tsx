@@ -15,11 +15,25 @@ beforeEach(() => {
   ])
 })
 
-function Harness({ initial = '', selectedName }: { initial?: string; selectedName?: string }) {
+function Harness({
+  initial = '',
+  selectedName,
+  allLabel,
+}: {
+  initial?: string
+  selectedName?: string
+  allLabel?: string
+}) {
   const [value, setValue] = useState(initial)
   return (
     <>
-      <CourierSelect id="mensajero" value={value} onChange={setValue} selectedName={selectedName} />
+      <CourierSelect
+        id="mensajero"
+        value={value}
+        onChange={setValue}
+        selectedName={selectedName}
+        allLabel={allLabel}
+      />
       <output aria-label="valor">{value}</output>
     </>
   )
@@ -55,6 +69,19 @@ describe('CourierSelect', () => {
     await waitFor(() => expect(fetchCouriers).toHaveBeenCalledTimes(2))
     await waitFor(() =>
       expect(screen.queryByText('No se pudieron cargar los mensajeros.')).not.toBeInTheDocument(),
+    )
+  })
+
+  // ENT-5: en «Entregas», recepción filtra por mensajero o ve todos (valor vacío).
+  it('con `allLabel`, el valor vacío es «Todos los mensajeros» y se puede volver a él', async () => {
+    const { user } = renderWithProviders(<Harness initial="m1" allLabel="Todos los mensajeros" />)
+    const select = screen.getByRole('combobox', { name: 'Mensajero' })
+    await waitFor(() => expect(select).toHaveTextContent('Bruno Mensajero'))
+    await user.click(select)
+    await user.click(await screen.findByRole('option', { name: 'Todos los mensajeros' }))
+    expect(screen.getByLabelText('valor')).toBeEmptyDOMElement()
+    expect(screen.getByRole('combobox', { name: 'Mensajero' })).toHaveTextContent(
+      'Todos los mensajeros',
     )
   })
 })

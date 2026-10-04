@@ -19,7 +19,8 @@ export function DeliverDialog({
   open,
   onOpenChange,
 }: {
-  case: CaseDetail
+  /** Solo el id: también la abre «Entregas» (ENT-5), que no carga la ficha completa. */
+  case: Pick<CaseDetail, 'id'>
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {

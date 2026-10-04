@@ -54,12 +54,16 @@ export function toasts(page: Page): Locator {
   return page.getByRole('region', { name: /^Notifications/ })
 }
 
-/** Crea una clínica y un doctor únicos por API (sesión admin ya iniciada en `page`). */
-export async function createClinicWithDoctor(page: Page) {
+/** Crea una clínica y un doctor únicos por API (sesión admin ya iniciada en `page`).
+ * `contact`: dirección y teléfono, para las pantallas que los enlazan (mapa, `tel:`). */
+export async function createClinicWithDoctor(
+  page: Page,
+  contact: { address?: string; phone?: string } = {},
+) {
   const suffix = uniqueSuffix()
 
   const clinicRes = await page.request.post('/api/config/clinicas', {
-    data: { name: `Clínica E2E ${suffix}` },
+    data: { name: `Clínica E2E ${suffix}`, ...contact },
   })
   expect(clinicRes.ok()).toBe(true)
   const { clinic } = (await clinicRes.json()) as { clinic: { id: string; name: string } }

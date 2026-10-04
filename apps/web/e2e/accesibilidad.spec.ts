@@ -421,6 +421,35 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // ENT-5: «Entregas», con el enlace al mapa, el `tel:` y las acciones de una entrega pendiente.
+  test('entregas: grupo de clínica y acciones', { tag: '@extendida' }, async ({ page }) => {
+    const { clinic, doctor } = await createClinicWithDoctor(page, {
+      address: 'Av. Amazonas N34-120 y Atahualpa, Quito',
+      phone: '099 123 4567',
+    })
+    const product = await createProduct(page)
+    const created = await createCompleteCase(page, {
+      clinicId: clinic.id,
+      doctorId: doctor.id,
+      productId: product.id,
+    })
+    for (const accion of ['aceptar', 'finalizar']) {
+      await runCaseAction(page, created.id, accion)
+    }
+    const courier = await createCourier(page)
+    const shipped = await page.request.post(`/api/trabajos/${created.id}/acciones`, {
+      data: { accion: 'marcar_enviado', envio: { mensajeroId: courier.id, fecha: todayIso() } },
+    })
+    expect(shipped.ok()).toBe(true)
+
+    await page.goto(`/entregas?mensajeroId=${courier.id}`)
+    await expect(page.getByRole('heading', { level: 1, name: 'Entregas' })).toBeVisible()
+    const group = page.getByRole('region', { name: clinic.name })
+    await expect(group.getByRole('button', { name: 'Marcar entregado' })).toBeVisible()
+    await expect(group.getByRole('link', { name: /099 123 4567/ })).toBeVisible()
+    await expectTouchTargets(page, TOUCH_CONTROLS)
+  })
+
   test(
     'importar: enlace de plantilla y controles del diálogo',
     { tag: '@extendida' },
