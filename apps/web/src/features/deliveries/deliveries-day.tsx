@@ -62,7 +62,17 @@ export function DeliveriesDay({
   const today = toIsoDate(new Date())
   const q = useDeliveries(day, courierId)
 
-  if (q.isPending) return <p className="text-sm text-muted-foreground">Cargando…</p>
+  if (q.isPending) {
+    // Sin red la consulta queda en pausa (`fetchStatus: 'paused'`) y «Cargando…» no terminaría
+    // nunca: se dice que espera la señal (UX4-26). Al volver la red se carga sola.
+    return (
+      <p className="text-sm text-muted-foreground">
+        {q.fetchStatus === 'paused'
+          ? 'Sin conexión: este día se cargará al volver la señal.'
+          : 'Cargando…'}
+      </p>
+    )
+  }
   if (q.isError) return <LoadError onRetry={() => void q.refetch()} />
 
   const items = compact

@@ -1,4 +1,5 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { onlineManager } from '@tanstack/react-query'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/lib/api-error'
 import { renderWithQueryAndRouter } from '@/test/render'
@@ -319,6 +320,25 @@ describe('DeliveriesDay', () => {
     expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
     expect(screen.queryByText('No tienes entregas hoy')).not.toBeInTheDocument()
   })
+  // UX4-26: sin red, la consulta de un día que no está en caché queda en pausa; «Cargando…» sin
+  // fin parecía colgado. Lo dice y espera la señal, sin pedir nada a la red.
+  it('sin red, un día que no está en caché dice que se cargará al volver la señal', async () => {
+    onlineManager.setOnline(false)
+    try {
+      fetchDeliveries.mockResolvedValue([])
+      renderWithQueryAndRouter(<DeliveriesDay day="2026-10-05" role="admin" userId="a1" />)
+
+      expect(
+        await screen.findByText('Sin conexión: este día se cargará al volver la señal.'),
+      ).toBeInTheDocument()
+      expect(screen.queryByText('Cargando…')).not.toBeInTheDocument()
+      expect(fetchDeliveries).not.toHaveBeenCalled()
+    } finally {
+      act(() => onlineManager.setOnline(true))
+    }
+    expect(await screen.findByText('No hay entregas ni recogidas este día.')).toBeInTheDocument()
+  })
+
   // UX4-05: el diálogo que cierra una entrega no se queda abierto cuando la entrega deja de
   // estar pendiente (otra persona canceló el trabajo o cerró la entrega).
   describe('diálogos sobre una entrega que dejó de estar pendiente', () => {

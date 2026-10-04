@@ -33,6 +33,8 @@ export function OfflineNotice() {
             <span className="font-medium">
               Sin conexión: lo que marques se enviará al volver la señal
             </span>
+            {/* El espacio separa las dos frases para el lector de pantalla; el `gap` las separa a la vista. */}
+            {paused > 0 && ' '}
             {paused > 0 && <span>{pendingLabel(paused)}</span>}
           </p>
         </div>

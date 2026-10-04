@@ -62,6 +62,8 @@ describe('OfflineNotice (UX4-11)', () => {
     await user.click(screen.getByRole('button', { name: 'Recibido' }))
 
     expect(await screen.findByText('1 acción por enviar')).toBeInTheDocument()
+    // Las dos frases no se pegan para el lector de pantalla («señal1 acción»).
+    expect(screen.getByRole('status')).toHaveTextContent(`${AVISO} 1 acción por enviar`)
 
     await user.click(screen.getByRole('button', { name: 'Recibido' }))
 
