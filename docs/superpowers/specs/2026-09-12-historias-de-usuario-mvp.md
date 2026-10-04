@@ -230,7 +230,7 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 7 = baja.
   - Solo trabajos activos asignados al usuario; los vencidos se marcan.
   - Tocar un trabajo abre su ficha.
 
-**INI-3.** Como mensajero, quiero ver en el inicio las entregas y recogidas de hoy para organizar mi ruta.
+**INI-3.** Como mensajero, quiero ver en el inicio las entregas y recogidas de hoy para organizar mi ruta. _(Hecha en la Iteración 4.)_
 - Versión mínima aceptable: lista de hoy agrupada por clínica con dirección; enlace a Entregas (ENT-5).
 - Criterios:
   - Solo entregas pendientes con fecha de hoy; sin precios.
@@ -263,33 +263,33 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 7 = baja.
 
 ### ENT — Recogidas y entregas
 
-**ENT-1.** Como recepción, quiero programar la recogida de un trabajo en la clínica y asignarla al mensajero para coordinar el traslado antes de recibirlo.
+**ENT-1.** Como recepción, quiero programar la recogida de un trabajo en la clínica y asignarla al mensajero para coordinar el traslado antes de recibirlo. _(Hecha en la Iteración 4.)_
 - Versión mínima aceptable: «Programar recogida» crea el trabajo en `por_recoger` con `delivery` tipo recogida, mensajero y fecha.
 - Criterios:
   - La recogida aparece en la lista del mensajero en la fecha indicada.
   - Fecha obligatoria y no anterior a hoy; mensajero obligatorio.
   - El trabajo no puede aceptarse hasta ser recibido.
 
-**ENT-2.** Como mensajero, quiero marcar la recogida como hecha para que el laboratorio sepa que el trabajo ya viene en camino.
+**ENT-2.** Como mensajero, quiero marcar la recogida como hecha para que el laboratorio sepa que el trabajo ya viene en camino. _(Hecha en la Iteración 4.)_
 - Versión mínima aceptable: «Recibido» en la recogida pasa el trabajo a `nuevo` y cierra la `delivery`.
 - Criterios:
   - Queda evento con actor y hora; la recogida desaparece de pendientes.
   - Recepción y administrador también pueden hacerlo.
 
-**ENT-3.** Como recepción, quiero marcar un trabajo terminado como enviado y asignar la entrega al mensajero para que salga del laboratorio con seguimiento.
+**ENT-3.** Como recepción, quiero marcar un trabajo terminado como enviado y asignar la entrega al mensajero para que salga del laboratorio con seguimiento. _(Hecha en la Iteración 4.)_
 - Versión mínima aceptable: «Marcar enviado» desde `terminado` crea `delivery` tipo entrega con mensajero y fecha; estado `enviado`.
 - Criterios:
   - Solo desde `terminado`; otras transiciones 409.
   - Se fija `shipped_at` y queda el evento.
 
-**ENT-4.** Como mensajero, quiero marcar la entrega como hecha con una foto de constancia para que quede prueba de que la clínica la recibió.
+**ENT-4.** Como mensajero, quiero marcar la entrega como hecha con una foto de constancia para que quede prueba de que la clínica la recibió. _(Hecha en la Iteración 4.)_
 - Versión mínima aceptable: «Entregado» con foto obligatoria; estado `entregado`, `delivered_at` y `proof_attachment_id`.
 - Criterios:
   - Sin foto no se puede confirmar; la foto se comprime en el cliente.
   - Se puede marcar «fallida» con motivo y reprogramar.
   - El trabajo entregado pasa a ser cargo en la cuenta de la clínica (CTA-1).
 
-**ENT-5.** Como mensajero, quiero ver mis entregas y recogidas por día agrupadas por clínica con dirección y teléfono para hacer la ruta sin preguntar.
+**ENT-5.** Como mensajero, quiero ver mis entregas y recogidas por día agrupadas por clínica con dirección y teléfono para hacer la ruta sin preguntar. _(Hecha en la Iteración 4.)_
 - Versión mínima aceptable: pantalla «Entregas» con selector de día, grupos por clínica, acciones de ENT-2 y ENT-4; sin precios.
 - Criterios:
   - Solo las asignadas al mensajero con sesión; administrador y recepción ven todas.
@@ -305,7 +305,7 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 7 = baja.
   - Tocar un evento abre la ficha.
   - Los colores de estado son los mismos de la lista.
 
-**CAL-2.** Como recepción, quiero un aviso interno un día antes de cada fecha comprometida para reaccionar antes de que se atrase.
+**CAL-2.** Como recepción, quiero un aviso interno un día antes de cada fecha comprometida para reaccionar antes de que se atrase. _(Hecha en la Iteración 4.)_
 - Versión mínima aceptable: vista rápida «Vencen mañana» en el inicio y en la lista de trabajos, con la misma definición en los dos lados (ADR 32); sin calendario.
 - Criterios:
   - Incluye trabajos activos con `promised_date` = siguiente día hábil.

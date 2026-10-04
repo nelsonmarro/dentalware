@@ -74,6 +74,7 @@ Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabaj
   - Proyectos `escritorio` y `android` en local; `iphone` solo en CI.
   - Datos únicos por ejecución (`uniqueSuffix`), selectores por rol o label, sin `waitForTimeout`.
   - Puertos 3000 y 5173 libres antes de correrlos.
+  - Cada `browser.newContext()` extra (otro rol con su sesión) se cierra en `finally`. Leer un id de la URL tras guardar espera una URL que excluya `/nuevo` (`/\/trabajos\/(?!nuevo$)[^/]+$/`): la de antes de navegar también casa.
 - **Niveles de E2E**: cada test lleva exactamente una etiqueta, verificada por `e2e-tags.test.ts`. Ante la duda, `@clave`.
   - `@esencial`: sin esto el laboratorio no trabaja (sesión, crear trabajo, técnico sin precios ni configuración, crear clínica y producto).
   - `@clave`: uso diario cuyo fallo no lo detiene.
