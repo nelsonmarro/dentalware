@@ -1,9 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
+import { testPassword } from '../../test/passwords.ts'
 import { createUser, loginAs, setupTestDb, truncateAll } from '../../test/setup.ts'
 import { resolvePrice } from './repo.ts'
 
 describe('/api/config/productos', () => {
+  const adminPwd = testPassword()
+  const tecnicoPwd = testPassword()
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
   let app: ReturnType<typeof createApp>
   let admin: string
@@ -23,18 +26,18 @@ describe('/api/config/productos', () => {
     await truncateAll(ctx.db)
     await createUser(ctx.auth, ctx.db, {
       email: 'admin@t.local',
-      password: 'Admin12345!',
+      password: adminPwd,
       name: 'Admin',
       role: 'admin',
     })
     await createUser(ctx.auth, ctx.db, {
       email: 'tec@t.local',
-      password: 'Tecnico123!',
+      password: tecnicoPwd,
       name: 'Tec',
       role: 'tecnico',
     })
-    admin = await loginAs(app, 'admin@t.local', 'Admin12345!')
-    tecnico = await loginAs(app, 'tec@t.local', 'Tecnico123!')
+    admin = await loginAs(app, 'admin@t.local', adminPwd)
+    tecnico = await loginAs(app, 'tec@t.local', tecnicoPwd)
     const r = await app.request(
       '/api/config/productos/categorias',
       req(admin, 'POST', { name: 'Prótesis fija', sort: 1 }),
@@ -69,13 +72,14 @@ describe('/api/config/productos', () => {
   })
 
   it('recepción lee el catálogo de productos pero no lo modifica (403, SETTINGS_ROLES)', async () => {
+    const recepcionPwd = testPassword()
     await createUser(ctx.auth, ctx.db, {
       email: 'rec@t.local',
-      password: 'Recep12345!',
+      password: recepcionPwd,
       name: 'Rec',
       role: 'recepcion',
     })
-    const recepcion = await loginAs(app, 'rec@t.local', 'Recep12345!')
+    const recepcion = await loginAs(app, 'rec@t.local', recepcionPwd)
     expect((await app.request('/api/config/productos', req(recepcion, 'GET'))).status).toBe(200)
     expect(
       (await app.request('/api/config/productos', req(recepcion, 'POST', zirconio()))).status,

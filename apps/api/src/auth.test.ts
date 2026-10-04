@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from './app.ts'
+import { testPassword } from './test/passwords.ts'
 import { createUser, loginAs, setupTestDb, truncateAll } from './test/setup.ts'
 
 let ctx: Awaited<ReturnType<typeof setupTestDb>>
@@ -29,13 +30,14 @@ describe('sesión y /api/me', () => {
   })
 
   it('devuelve el usuario con su rol tras iniciar sesión', async () => {
+    const password = testPassword()
     await createUser(ctx.auth, ctx.db, {
       email: 'ana@lab.local',
-      password: 'Recepcion1!',
+      password,
       name: 'Ana',
       role: 'recepcion',
     })
-    const cookie = await loginAs(app, 'ana@lab.local', 'Recepcion1!')
+    const cookie = await loginAs(app, 'ana@lab.local', password)
     const res = await app.request('/api/me', { headers: { cookie } })
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({
@@ -56,6 +58,7 @@ describe('sesión y /api/me', () => {
 })
 
 describe('registro de usuarios', () => {
+  const nuevoPassword = testPassword()
   const signUp = (cookie?: string) =>
     app.request('/api/auth/sign-up/email', {
       method: 'POST',
@@ -64,7 +67,7 @@ describe('registro de usuarios', () => {
         origin: ctx.config.WEB_ORIGIN,
         ...(cookie ? { cookie } : {}),
       },
-      body: JSON.stringify({ email: 'nuevo@lab.local', password: 'Nuevo1234!', name: 'Nuevo' }),
+      body: JSON.stringify({ email: 'nuevo@lab.local', password: nuevoPassword, name: 'Nuevo' }),
     })
 
   it('bloquea el registro anónimo', async () => {
@@ -73,27 +76,29 @@ describe('registro de usuarios', () => {
   })
 
   it('bloquea el registro a un técnico', async () => {
+    const password = testPassword()
     await createUser(ctx.auth, ctx.db, {
       email: 'tec@lab.local',
-      password: 'Tecnico12!',
+      password,
       name: 'Tec',
       role: 'tecnico',
     })
-    const cookie = await loginAs(app, 'tec@lab.local', 'Tecnico12!')
+    const cookie = await loginAs(app, 'tec@lab.local', password)
     expect((await signUp(cookie)).status).toBe(403)
   })
 
   it('permite el registro a un admin y el nuevo usuario nace como tecnico', async () => {
+    const password = testPassword()
     await createUser(ctx.auth, ctx.db, {
       email: 'admin@lab.local',
-      password: 'Admin1234!',
+      password,
       name: 'Admin',
       role: 'admin',
     })
-    const cookie = await loginAs(app, 'admin@lab.local', 'Admin1234!')
+    const cookie = await loginAs(app, 'admin@lab.local', password)
     const res = await signUp(cookie)
     expect(res.status).toBe(200)
-    const nuevoCookie = await loginAs(app, 'nuevo@lab.local', 'Nuevo1234!')
+    const nuevoCookie = await loginAs(app, 'nuevo@lab.local', nuevoPassword)
     const me = await app.request('/api/me', { headers: { cookie: nuevoCookie } })
     expect(await me.json()).toMatchObject({ email: 'nuevo@lab.local', role: 'tecnico' })
   })
@@ -125,13 +130,14 @@ describe('CORS', () => {
 
 describe('requireRole', () => {
   it('403 para rol no permitido en una ruta protegida de prueba', async () => {
+    const password = testPassword()
     await createUser(ctx.auth, ctx.db, {
       email: 'men@lab.local',
-      password: 'Mensajero1!',
+      password,
       name: 'Men',
       role: 'mensajero',
     })
-    const cookie = await loginAs(app, 'men@lab.local', 'Mensajero1!')
+    const cookie = await loginAs(app, 'men@lab.local', password)
     const res = await app.request('/api/admin/ping', { headers: { cookie } })
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({ message: 'Sin permiso' })

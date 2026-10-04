@@ -1,9 +1,12 @@
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
+import { testPassword } from '../../test/passwords.ts'
 import { createUser, loginAs, setupTestDb, truncateAll } from '../../test/setup.ts'
 
 describe('/api/config/doctores', () => {
+  const adminPwd = testPassword()
+  const tecnicoPwd = testPassword()
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
   let app: ReturnType<typeof createApp>
   let admin: string
@@ -23,18 +26,18 @@ describe('/api/config/doctores', () => {
     await truncateAll(ctx.db)
     await createUser(ctx.auth, ctx.db, {
       email: 'admin@t.local',
-      password: 'Admin12345!',
+      password: adminPwd,
       name: 'Admin',
       role: 'admin',
     })
     await createUser(ctx.auth, ctx.db, {
       email: 'tec@t.local',
-      password: 'Tecnico1234',
+      password: tecnicoPwd,
       name: 'Técnico',
       role: 'tecnico',
     })
-    admin = await loginAs(app, 'admin@t.local', 'Admin12345!')
-    tecnico = await loginAs(app, 'tec@t.local', 'Tecnico1234')
+    admin = await loginAs(app, 'admin@t.local', adminPwd)
+    tecnico = await loginAs(app, 'tec@t.local', tecnicoPwd)
     const [c] = await ctx.db.insert(ctx.schema.clinics).values({ name: 'Sonrisa' }).returning()
     clinicId = c!.id
   })

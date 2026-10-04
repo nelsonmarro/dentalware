@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { users } from '../db/schema/index.ts'
+import { testPassword } from '../test/passwords.ts'
 import { setupTestDb, truncateAll } from '../test/setup.ts'
 import { ensureAdmin } from './seed.ts'
 
@@ -13,7 +14,7 @@ import { ensureAdmin } from './seed.ts'
  */
 describe('ensureAdmin', () => {
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
-  const admin = { email: 'admin-seed@lab.local', password: 'Admin12345!', name: 'Administrador' }
+  const admin = { email: 'admin-seed@lab.local', password: testPassword(), name: 'Administrador' }
 
   beforeAll(async () => {
     ctx = await setupTestDb()

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
+import { testPassword } from '../../test/passwords.ts'
 import {
   cleanupTestStorage,
   createUser,
@@ -14,6 +15,10 @@ import {
 import { createCasesRepo } from '../cases/repo.ts'
 
 describe('/api/adjuntos', () => {
+  const adminPwd = testPassword()
+  const recepcionPwd = testPassword()
+  const tecnicoPwd = testPassword()
+  const mensajeroPwd = testPassword()
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
   let app: ReturnType<typeof createApp>
   let admin: string
@@ -40,32 +45,32 @@ describe('/api/adjuntos', () => {
     await truncateAll(ctx.db)
     adminId = await createUser(ctx.auth, ctx.db, {
       email: 'admin@t.local',
-      password: 'Admin12345!',
+      password: adminPwd,
       name: 'Admin',
       role: 'admin',
     })
     await createUser(ctx.auth, ctx.db, {
       email: 'recep@t.local',
-      password: 'Recep12345!',
+      password: recepcionPwd,
       name: 'Recepción',
       role: 'recepcion',
     })
     await createUser(ctx.auth, ctx.db, {
       email: 'tec@t.local',
-      password: 'Tecnico123!',
+      password: tecnicoPwd,
       name: 'Ana Técnico',
       role: 'tecnico',
     })
     await createUser(ctx.auth, ctx.db, {
       email: 'mens@t.local',
-      password: 'Mensajero1!',
+      password: mensajeroPwd,
       name: 'Mensajero',
       role: 'mensajero',
     })
-    admin = await loginAs(app, 'admin@t.local', 'Admin12345!')
-    recepcion = await loginAs(app, 'recep@t.local', 'Recep12345!')
-    tecnico = await loginAs(app, 'tec@t.local', 'Tecnico123!')
-    mensajero = await loginAs(app, 'mens@t.local', 'Mensajero1!')
+    admin = await loginAs(app, 'admin@t.local', adminPwd)
+    recepcion = await loginAs(app, 'recep@t.local', recepcionPwd)
+    tecnico = await loginAs(app, 'tec@t.local', tecnicoPwd)
+    mensajero = await loginAs(app, 'mens@t.local', mensajeroPwd)
 
     const [clinic] = await ctx.db.insert(ctx.schema.clinics).values({ name: 'Sonrisa' }).returning()
     const [doctor] = await ctx.db

@@ -1,8 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
+import { testPassword } from '../../test/passwords.ts'
 import { createUser, loginAs, setupTestDb, truncateAll } from '../../test/setup.ts'
 
 describe('/api/users', () => {
+  const adminPwd = testPassword()
+  const anaPwd = testPassword()
+  const anaNuevaPwd = testPassword()
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
   let app: ReturnType<typeof createApp>
   let admin: string
@@ -21,11 +25,11 @@ describe('/api/users', () => {
     await truncateAll(ctx.db)
     adminId = await createUser(ctx.auth, ctx.db, {
       email: 'admin@t.local',
-      password: 'Admin12345!',
+      password: adminPwd,
       name: 'Admin',
       role: 'admin',
     })
-    admin = await loginAs(app, 'admin@t.local', 'Admin12345!')
+    admin = await loginAs(app, 'admin@t.local', adminPwd)
   })
   afterAll(async () => {
     await ctx.pool.end()
@@ -42,7 +46,7 @@ describe('/api/users', () => {
       req(admin, 'POST', {
         name: 'Ana',
         email: 'ana@t.local',
-        password: 'Secreta123',
+        password: anaPwd,
         role: 'recepcion',
       }),
     )
@@ -52,7 +56,7 @@ describe('/api/users', () => {
       users: { email: string; role: string }[]
     }
     expect(list.users.map((u) => u.email)).toEqual(['admin@t.local', 'ana@t.local'])
-    const cookie = await loginAs(app, 'ana@t.local', 'Secreta123')
+    const cookie = await loginAs(app, 'ana@t.local', anaPwd)
     const me = (await (await app.request('/api/me', req(cookie, 'GET'))).json()) as { role: string }
     expect(me.role).toBe('recepcion')
     expect((await app.request('/api/users', req(cookie, 'GET'))).status).toBe(403)
@@ -64,7 +68,7 @@ describe('/api/users', () => {
       req(admin, 'POST', {
         name: 'Ana',
         email: 'ana@t.local',
-        password: 'Secreta123',
+        password: anaPwd,
         role: 'recepcion',
       }),
     )
@@ -73,7 +77,7 @@ describe('/api/users', () => {
       req(admin, 'POST', {
         name: 'Ana2',
         email: 'ana@t.local',
-        password: 'Secreta123',
+        password: anaPwd,
         role: 'tecnico',
       }),
     )
@@ -84,17 +88,17 @@ describe('/api/users', () => {
     const ana = list.users.find((u) => u.email === 'ana@t.local')!
     const upd = await app.request(
       `/api/users/${ana.id}`,
-      req(admin, 'PATCH', { role: 'tecnico', password: 'Nueva12345' }),
+      req(admin, 'PATCH', { role: 'tecnico', password: anaNuevaPwd }),
     )
     expect(upd.status).toBe(200)
     expect(((await upd.json()) as { user: { role: string } }).user.role).toBe('tecnico')
-    await loginAs(app, 'ana@t.local', 'Nueva12345')
+    await loginAs(app, 'ana@t.local', anaNuevaPwd)
     const ban = await app.request(
       `/api/users/${ana.id}/bloqueo`,
       req(admin, 'PATCH', { banned: true, reason: 'Salió del laboratorio' }),
     )
     expect(((await ban.json()) as { user: { banned: boolean } }).user.banned).toBe(true)
-    await expect(loginAs(app, 'ana@t.local', 'Nueva12345')).rejects.toThrow()
+    await expect(loginAs(app, 'ana@t.local', anaNuevaPwd)).rejects.toThrow()
   })
 
   it('la superficie HTTP del plugin admin de better-auth está bloqueada; /api/users sigue funcionando', async () => {
@@ -115,7 +119,7 @@ describe('/api/users', () => {
       req(admin, 'POST', {
         name: 'Beta',
         email: 'beta@t.local',
-        password: 'Secreta123',
+        password: testPassword(),
         role: 'tecnico',
       }),
     )

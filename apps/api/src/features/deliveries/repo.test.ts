@@ -1,6 +1,7 @@
 import { caseInputSchema, type CaseInput } from '@dentalware/shared'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { testPassword } from '../../test/passwords.ts'
 import { createUser, setupTestDb, truncateAll } from '../../test/setup.ts'
 import { createCasesRepo } from '../cases/repo.ts'
 import { createCouriersQuery, createDeliveriesRepo } from './repo.ts'
@@ -48,13 +49,13 @@ describe('features/deliveries/repo', () => {
     productId = product!.id
     actor = await createUser(ctx.auth, ctx.db, {
       email: 'admin@t.local',
-      password: 'Admin12345!',
+      password: testPassword(),
       name: 'Admin',
       role: 'admin',
     })
     courierId = await createUser(ctx.auth, ctx.db, {
       email: 'mensajero@t.local',
-      password: 'Admin12345!',
+      password: testPassword(),
       name: 'Beto Mensajero',
       role: 'mensajero',
     })
@@ -165,7 +166,7 @@ describe('features/deliveries/repo', () => {
       const repo = createDeliveriesRepo(ctx.db)
       const otroMensajero = await createUser(ctx.auth, ctx.db, {
         email: 'otro@t.local',
-        password: 'Admin12345!',
+        password: testPassword(),
         name: 'Otro Mensajero',
         role: 'mensajero',
       })
@@ -310,13 +311,13 @@ describe('features/deliveries/repo', () => {
     it('devuelve solo mensajeros activos, ordenados por nombre', async () => {
       await createUser(ctx.auth, ctx.db, {
         email: 'zoe@t.local',
-        password: 'Admin12345!',
+        password: testPassword(),
         name: 'Zoe Mensajera',
         role: 'mensajero',
       })
       const bloqueadoId = await createUser(ctx.auth, ctx.db, {
         email: 'bloqueado@t.local',
-        password: 'Admin12345!',
+        password: testPassword(),
         name: 'Ana Bloqueada',
         role: 'mensajero',
       })
