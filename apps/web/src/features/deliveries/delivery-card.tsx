@@ -3,11 +3,11 @@ import {
   canActOnDelivery,
   canPerform,
   CASE_ACTION_LABEL,
+  DELIVERY_CLOSING_ACTION,
   DELIVERY_MANAGE_ROLES,
   DELIVERY_ROLES,
   hasRole,
   isOverdueDelivery,
-  type CaseAction,
   type UserRole,
 } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
@@ -23,13 +23,6 @@ import { DELIVERY_TYPE_COLOR } from './delivery-colors'
 import { DeliveryStatusChip } from './delivery-status-chip'
 import { DeliveryTypeChip } from './delivery-type-chip'
 import { FailDialog } from './fail-dialog'
-
-/** Acción de estado del trabajo que cierra cada tipo de entrega: la recogida se cierra con
- * «Recibido» y la entrega con «Marcar entregado» (y su constancia). `Record` exhaustivo. */
-const CLOSING_ACTION: Record<DeliveryItem['type'], CaseAction> = {
-  recogida: 'recibir',
-  entrega: 'marcar_entregado',
-}
 
 /**
  * Una recogida o entrega de la lista del día (ENT-5): tipo, código (enlace a la ficha corta),
@@ -54,7 +47,7 @@ export function DeliveryCard({
   const action = useCaseAction(d.case.id)
   const cancelled = d.case.status === 'cancelado'
   const pending = d.status === 'pendiente' && !cancelled
-  const closing = CLOSING_ACTION[d.type]
+  const closing = DELIVERY_CLOSING_ACTION[d.type]
   // Misma regla que la API y la ficha (`canActOnDelivery`, M-3): una sola fuente para «el
   // mensajero solo actúa sobre lo suyo»; admin y recepción, sobre cualquiera.
   const own = canActOnDelivery({ role, userId }, closing, { type: d.type, courierId: d.courier.id })

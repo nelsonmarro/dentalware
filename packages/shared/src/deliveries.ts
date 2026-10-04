@@ -85,6 +85,15 @@ export const DELIVERY_CLOSED_BY_ACTION: Record<CaseAction, DeliveryType | null> 
   cancelar: null,
 }
 
+/** Qué acción de estado cierra cada tipo de entrega (la inversa de `DELIVERY_CLOSED_BY_ACTION`,
+ * probada contra ella): la recogida se cierra con «Recibido» y la entrega con «Marcar
+ * entregado». `Record` exhaustivo; una sola fuente para la tarjeta de la web y para «No se
+ * pudo» (`fail`), que exige el mismo permiso que la acción que cierra la entrega. */
+export const DELIVERY_CLOSING_ACTION: Record<DeliveryType, CaseAction> = {
+  recogida: 'recibir',
+  entrega: 'marcar_entregado',
+}
+
 /** La entrega o recogida pendiente de un trabajo, tal como la ve quien decide si puede
  * cerrarla: de qué tipo es y a qué mensajero está asignada. */
 export type PendingDelivery = { type: DeliveryType; courierId: string }

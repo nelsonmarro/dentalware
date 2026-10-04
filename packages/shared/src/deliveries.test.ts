@@ -7,7 +7,10 @@ import {
   DELIVERY_ROLES,
   DELIVERY_STATUS_LABEL,
   DELIVERY_TYPE_LABEL,
+  DELIVERY_ALREADY_CLOSED_MESSAGE,
   DELIVERY_CLOSED_BY_ACTION,
+  DELIVERY_CLOSING_ACTION,
+  DELIVERY_TYPES,
   canActOnDelivery,
   isOverdueDelivery,
 } from './deliveries.ts'
@@ -58,6 +61,23 @@ describe('entregas', () => {
       cancelar: null,
     })
   })
+  it('mensaje de entrega cerrada por otra persona', () => {
+    expect(DELIVERY_ALREADY_CLOSED_MESSAGE).toBe(
+      'La entrega ya no está pendiente. Puede que otra persona la haya cerrado.',
+    )
+  })
+
+  // M-2 de la revisión final del PR 2: una sola fuente para «qué acción cierra cada tipo de
+  // entrega» (la usan la tarjeta de la web y `fail` de la API), coherente con la inversa.
+  it('cada tipo de entrega dice qué acción la cierra', () => {
+    expect(DELIVERY_CLOSING_ACTION).toEqual({ recogida: 'recibir', entrega: 'marcar_entregado' })
+  })
+  it('la acción que cierra cada tipo es la que DELIVERY_CLOSED_BY_ACTION asigna a ese tipo', () => {
+    for (const type of DELIVERY_TYPES) {
+      expect(DELIVERY_CLOSED_BY_ACTION[DELIVERY_CLOSING_ACTION[type]]).toBe(type)
+    }
+  })
+
   // M-4 (revisión final del PR 1): el mensajero solo ve y ejecuta la acción de la entrega que
   // tiene asignada; admin y recepción actúan sobre cualquiera.
   describe('canActOnDelivery', () => {
