@@ -18,6 +18,7 @@ import type {
   CaseListQuery,
   CaseSummary,
   CaseView,
+  DeliveryStatus,
   DeliveryType,
   StageRef,
 } from '@dentalware/shared'
@@ -455,9 +456,11 @@ export type FakeDelivery = {
   type: DeliveryType
   courierId: string
   scheduledFor: string
-  status: 'pendiente' | 'hecha'
+  status: DeliveryStatus
   doneAt: Date | null
   proofAttachmentId: string | null
+  /** Solo en las cerradas sin hacer (`markFailed`). */
+  failedReason?: string
 }
 
 /** `DeliveryLog` en memoria (Iteración 4): suficiente para probar que el servicio programa,
@@ -481,6 +484,10 @@ export function fakeDeliveryLog(seed: FakeDelivery[] = []) {
     async markDone(id, doneAt, proofAttachmentId) {
       const cur = rows.get(id)
       if (cur) rows.set(id, { ...cur, status: 'hecha', doneAt, proofAttachmentId })
+    },
+    async markFailed(id, reason, at) {
+      const cur = rows.get(id)
+      if (cur) rows.set(id, { ...cur, status: 'fallida', doneAt: at, failedReason: reason })
     },
   }
   return { log, rows }

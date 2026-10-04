@@ -8,6 +8,7 @@ import {
   CASE_WRITE_ROLES,
   CONSTANCIA_INVALIDA,
   DELIVERY_MANAGE_ROLES,
+  DELIVERY_TYPES,
   firstStage,
   hasRole,
   hidesPrices,
@@ -361,8 +362,20 @@ export function createCasesService(deps: {
             event.toValue = constanciaId
             break
           }
-          case 'cancelar':
+          case 'cancelar': {
+            // Un trabajo cancelado no se recoge ni se entrega: su recogida o entrega pendiente
+            // (por recoger o enviado) se cierra en la misma transacción con el motivo, para que
+            // no quede «pendiente» para siempre en la lista del mensajero. El motivo es
+            // obligatorio al cancelar (`REASON_REQUIRED_FOR_ACTION`).
+            const now = deps.clock.now()
+            for (const type of DELIVERY_TYPES) {
+              const pending = await deliveries.pendingFor(id, type)
+              if (pending) {
+                await deliveries.markFailed(pending.id, `Trabajo cancelado: ${input.motivo}`, now)
+              }
+            }
             break
+          }
         }
 
         await cases.applyTransition(id, patch)

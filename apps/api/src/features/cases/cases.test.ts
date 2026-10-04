@@ -979,6 +979,21 @@ describe('/api/trabajos', () => {
         const [entrega] = await entregasDe(id)
         expect(entrega!.status).toBe('pendiente')
       })
+
+      it('cancelar un trabajo enviado cierra su entrega: no queda ninguna pendiente', async () => {
+        const id = await crearEnviado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', { accion: 'cancelar', motivo: 'Paciente desistió' }),
+        )
+        expect(res.status).toBe(200)
+        expect(await entregasDe(id)).toEqual([
+          expect.objectContaining({
+            status: 'fallida',
+            failedReason: 'Trabajo cancelado: Paciente desistió',
+          }),
+        ])
+      })
     })
   })
 
@@ -1072,6 +1087,25 @@ describe('/api/trabajos', () => {
         req(tecnico, 'POST', { accion: 'recibir' }),
       )
       expect(res.status).toBe(403)
+    })
+
+    it('cancelar un trabajo por recoger cierra su recogida: no queda ninguna pendiente', async () => {
+      const id = await crearPorRecoger()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(recepcion, 'POST', { accion: 'cancelar', motivo: 'La clínica lo anuló' }),
+      )
+      expect(res.status).toBe(200)
+      const filas = await ctx.db
+        .select()
+        .from(ctx.schema.deliveries)
+        .where(eq(ctx.schema.deliveries.caseId, id))
+      expect(filas).toEqual([
+        expect.objectContaining({
+          status: 'fallida',
+          failedReason: 'Trabajo cancelado: La clínica lo anuló',
+        }),
+      ])
     })
   })
 

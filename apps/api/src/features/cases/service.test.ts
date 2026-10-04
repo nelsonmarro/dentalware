@@ -21,6 +21,7 @@ import { createCasesService, stripPrices, type CasesService } from './service.ts
 const admin = { userId: 'u1', role: 'admin' } as const
 const tecnico = { userId: 'u2', role: 'tecnico' } as const
 const mensajero = { userId: 'u3', role: 'mensajero' } as const
+const recepcionCtx = { userId: 'u5', role: 'recepcion' } as const
 
 /** Alias descriptivo: una ficha completa (todos los campos que `aceptar` exige), lista para
  * las pruebas de acciones de estado. */
@@ -1242,4 +1243,70 @@ describe('envío y entrega', () => {
       expect(deliveries.rows.get('d1')!.status).toBe('pendiente')
     },
   )
+})
+
+// Revisión final del PR 1 de la Iteración 4 (I-1): cancelar un trabajo cierra su recogida o
+// su entrega pendiente; si no, quedaría «pendiente» para siempre en la lista del mensajero.
+describe('cancelar cierra la entrega pendiente', () => {
+  const pendiente = (id: string, caseId: string, type: 'recogida' | 'entrega') =>
+    ({
+      id,
+      caseId,
+      type,
+      courierId: 'u3',
+      scheduledFor: '2026-10-03',
+      status: 'pendiente',
+      doneAt: null,
+      proofAttachmentId: null,
+    }) as const
+
+  function servicioConPendientes(status: CaseStatus, seed: ReturnType<typeof pendiente>[]) {
+    const { repo, rows } = fakeCasesRepo([completo({ id: '1', status })])
+    const deliveries = fakeDeliveryLog(seed)
+    const service = createCasesService({
+      cases: repo,
+      attachments: fakeAttachmentsQuery(true),
+      stages: fakeStagesQuery(),
+      users: fakeUsersQuery(),
+      couriers: fakeCouriersLookup(),
+      uow: fakeUow(repo, fakeTryins(), deliveries.log),
+      clock: fixedClock('2026-10-03'),
+    })
+    return { service, rows, deliveries }
+  }
+  const cancelar = { accion: 'cancelar' as const, motivo: 'La clínica lo anuló' }
+
+  it('cancelar un trabajo por recoger cierra su recogida pendiente con el motivo', async () => {
+    const { service, deliveries } = servicioConPendientes('por_recoger', [
+      pendiente('d1', '1', 'recogida'),
+    ])
+    const c = await service.action('1', cancelar, admin)
+    expect(c.status).toBe('cancelado')
+    expect(deliveries.rows.get('d1')).toMatchObject({
+      status: 'fallida',
+      failedReason: 'Trabajo cancelado: La clínica lo anuló',
+      doneAt: new Date('2026-10-03T12:00:00Z'),
+    })
+  })
+
+  it('cancelar un trabajo enviado cierra su entrega pendiente con el motivo', async () => {
+    const { service, deliveries } = servicioConPendientes('enviado', [
+      pendiente('d1', '1', 'entrega'),
+    ])
+    await service.action('1', cancelar, recepcionCtx)
+    expect(deliveries.rows.get('d1')).toMatchObject({
+      status: 'fallida',
+      failedReason: 'Trabajo cancelado: La clínica lo anuló',
+    })
+  })
+
+  it('cancelar un trabajo en proceso no toca las entregas de otros trabajos', async () => {
+    const { service, rows, deliveries } = servicioConPendientes('en_proceso', [
+      pendiente('d1', '2', 'recogida'),
+      pendiente('d2', '2', 'entrega'),
+    ])
+    await service.action('1', cancelar, admin)
+    expect(rows.get('1')!.status).toBe('cancelado')
+    expect([...deliveries.rows.values()].map((d) => d.status)).toEqual(['pendiente', 'pendiente'])
+  })
 })

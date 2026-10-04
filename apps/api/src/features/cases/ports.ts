@@ -225,6 +225,8 @@ export interface DeliveryLog {
     type: DeliveryType,
   ): Promise<{ id: string; courierId: string } | undefined>
   markDone(id: string, doneAt: Date, proofAttachmentId: string | null): Promise<void>
+  /** Cierra sin hacerla una entrega o recogida pendiente (p. ej. al cancelar el trabajo). */
+  markFailed(id: string, reason: string, at: Date): Promise<void>
 }
 
 /** Pruebas en boca (`case_tryins`): abiertas por trabajo, cerradas al recibirlas de vuelta. */
