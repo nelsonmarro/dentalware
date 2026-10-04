@@ -891,6 +891,46 @@ describe('/api/trabajos', () => {
         })
       })
 
+      // T4 de la revisión final del PR 2: el envío solo se asigna a un mensajero activo.
+      it('un envío con un técnico como mensajero responde 422 y no programa nada', async () => {
+        const id = await crearTerminado()
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', {
+            accion: 'marcar_enviado',
+            envio: { mensajeroId: tecnicoId, fecha: hoy },
+          }),
+        )
+        expect(res.status).toBe(422)
+        expect(await res.json()).toEqual({
+          message: 'Datos inválidos',
+          issues: [{ path: 'envio.mensajeroId', message: 'Elige un mensajero activo.' }],
+        })
+        expect(await entregasDe(id)).toEqual([])
+      })
+
+      it('un envío con un mensajero bloqueado responde 422 y no programa nada', async () => {
+        const id = await crearTerminado()
+        const { otroId } = await otroMensajero()
+        await ctx.db
+          .update(ctx.schema.users)
+          .set({ banned: true })
+          .where(eq(ctx.schema.users.id, otroId))
+        const res = await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(admin, 'POST', {
+            accion: 'marcar_enviado',
+            envio: { mensajeroId: otroId, fecha: hoy },
+          }),
+        )
+        expect(res.status).toBe(422)
+        expect(await res.json()).toEqual({
+          message: 'Datos inválidos',
+          issues: [{ path: 'envio.mensajeroId', message: 'Elige un mensajero activo.' }],
+        })
+        expect(await entregasDe(id)).toEqual([])
+      })
+
       it('el mensajero que se asigna a sí mismo envía (200): entrega pendiente y shippedAt, sin precios', async () => {
         const id = await crearTerminado()
         const res = await app.request(
