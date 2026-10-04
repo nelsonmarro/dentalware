@@ -1,5 +1,5 @@
 import type { UserRole } from '@dentalware/shared'
-import { ACCOUNTS_ROLES, hasRole, SETTINGS_ROLES } from '@dentalware/shared'
+import { ACCOUNTS_ROLES, DELIVERY_ROLES, hasRole, SETTINGS_ROLES } from '@dentalware/shared'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ClipboardList, Home, LogOut, Settings, Truck, Wallet } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -11,7 +11,7 @@ type NavItem = { to: string; label: string; icon: typeof Home; roles?: readonly 
 const NAV: NavItem[] = [
   { to: '/', label: 'Inicio', icon: Home },
   { to: '/trabajos', label: 'Trabajos', icon: ClipboardList },
-  { to: '/entregas', label: 'Entregas', icon: Truck },
+  { to: '/entregas', label: 'Entregas', icon: Truck, roles: DELIVERY_ROLES },
   { to: '/cuentas', label: 'Cuentas', icon: Wallet, roles: ACCOUNTS_ROLES },
   { to: '/configuracion', label: 'Configuración', icon: Settings, roles: SETTINGS_ROLES },
 ]

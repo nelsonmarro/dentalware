@@ -1,5 +1,5 @@
-import { DELIVERY_MANAGE_ROLES, hasRole, toIsoDate } from '@dentalware/shared'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { DELIVERY_MANAGE_ROLES, DELIVERY_ROLES, hasRole, toIsoDate } from '@dentalware/shared'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { PageHeader } from '@/components/page-header'
 import { CourierSelect } from '@/features/deliveries/courier-select'
 import { DayPicker } from '@/features/deliveries/day-picker'
@@ -7,6 +7,11 @@ import { DeliveriesDay } from '@/features/deliveries/deliveries-day'
 import { parseDeliveriesSearch } from '@/features/deliveries/deliveries-search'
 
 export const Route = createFileRoute('/_app/entregas')({
+  // `GET /api/entregas` es de DELIVERY_ROLES: el técnico vuelve al inicio en vez de ver un
+  // error que «Reintentar» no arregla (I-1, revisión de la Tarea 7).
+  beforeLoad: ({ context }) => {
+    if (!hasRole(DELIVERY_ROLES, context.user.role)) throw redirect({ to: '/' })
+  },
   validateSearch: parseDeliveriesSearch,
   component: EntregasPage,
 })
