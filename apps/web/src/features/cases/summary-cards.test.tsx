@@ -83,12 +83,12 @@ describe('SummaryCards', () => {
     expect(card).toHaveAttribute('href', expect.stringContaining('vista=vencen_manana'))
   })
 
-  it('el viernes la tarjeta dice «Vencen el lunes» y sigue enlazando a la misma vista', async () => {
+  it('el viernes la tarjeta dice «Vencen hasta el lunes» y sigue enlazando a la misma vista', async () => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-02T12:00:00') })
     fetchSummary.mockResolvedValue(SUMMARY)
     renderWithProviders(<SummaryCards />)
 
-    const card = await screen.findByRole('link', { name: /Vencen el lunes 6/ })
+    const card = await screen.findByRole('link', { name: /Vencen hasta el lunes 6/ })
     expect(card).toHaveAttribute('href', expect.stringContaining('vista=vencen_manana'))
   })
 

@@ -39,7 +39,7 @@ describe('CaseViewTabs', () => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-02T12:00:00') })
     try {
       render(<Harness initial="todos" />)
-      expect(screen.getByRole('tab', { name: 'Vencen el lunes' })).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: 'Vencen hasta el lunes' })).toBeInTheDocument()
     } finally {
       vi.useRealTimers()
     }

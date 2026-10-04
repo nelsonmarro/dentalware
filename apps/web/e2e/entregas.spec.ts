@@ -300,7 +300,7 @@ test.describe('Entregas (Iteración 4, #35)', () => {
 
   // CAL-2: el contador «Vencen mañana» del inicio coincide con el total de su lista. Con el
   // reloj real, la vista llega hasta el siguiente día hábil (`addBusinessDays`) y su rótulo dice
-  // «Vencen mañana» o «Vencen el lunes» (UX4-04), así que el test no depende del día de la semana.
+  // «Vencen mañana» o «Vencen hasta el lunes» (UX4-04), así que el test no depende del día de la semana.
   test(
     '«Vencen mañana»: el contador del inicio coincide con la lista',
     { tag: '@clave' },
@@ -318,7 +318,7 @@ test.describe('Entregas (Iteración 4, #35)', () => {
       // contador y leer la lista, se vuelve a leer todo.
       await expect(async () => {
         await page.goto('/')
-        const card = page.getByRole('link', { name: /^Vencen (mañana|el \S+) \d+$/ })
+        const card = page.getByRole('link', { name: /^Vencen (mañana|hasta el \S+) \d+$/ })
         await expect(card).toBeVisible()
         const count = Number((await card.getAttribute('aria-label'))!.split(' ').pop())
         expect(count).toBeGreaterThanOrEqual(1)

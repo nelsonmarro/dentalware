@@ -34,7 +34,7 @@ describe('CASE_VIEW_LABEL', () => {
 describe('caseViewLabel', () => {
   // UX4-04: la vista llega hasta el siguiente día hábil, y el rótulo lo dice.
   it('«vencen_manana» nombra el día cuando el siguiente hábil no es mañana', () => {
-    expect(caseViewLabel('vencen_manana', '2026-10-02')).toBe('Vencen el lunes')
+    expect(caseViewLabel('vencen_manana', '2026-10-02')).toBe('Vencen hasta el lunes')
     expect(caseViewLabel('vencen_manana', '2026-10-04')).toBe('Vencen mañana')
   })
 
