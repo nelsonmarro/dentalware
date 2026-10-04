@@ -1,4 +1,9 @@
-import { ATTACHMENT_UPLOAD_ROLES, DELIVERY_ROLES, hasRole } from '@dentalware/shared'
+import {
+  ATTACHMENT_UPLOAD_ROLES,
+  canActOnDelivery,
+  DELIVERY_ROLES,
+  hasRole,
+} from '@dentalware/shared'
 import { ALLOWED_MIME, isImage, MAX_UPLOAD_BYTES } from '../../lib/upload-policy.ts'
 import type { IdGenerator } from '../../lib/ids.ts'
 import type { RequestContext } from '../../lib/request-context.ts'
@@ -17,6 +22,7 @@ import type {
   CasesQuery,
   ImageProcessor,
   OpenedFile,
+  PendingDeliveryLookup,
   UploadInput,
 } from './ports.ts'
 
@@ -32,6 +38,7 @@ export function createAttachmentsService(deps: {
   attachments: AttachmentsRepository
   cases: CasesQuery
   events: CaseEventLog
+  deliveries: PendingDeliveryLookup
   storage: Storage
   images: ImageProcessor
   ids: IdGenerator
@@ -48,7 +55,8 @@ export function createAttachmentsService(deps: {
     },
 
     /**
-     * Comprueba que el rol puede subir este tipo de adjunto y reproduce el flujo previo de la
+     * Comprueba que el rol puede subir este tipo de adjunto (y, si es una constancia, que puede
+     * cerrar la entrega pendiente del trabajo) y reproduce el flujo previo de la
      * ruta: comprobar trabajo, tamaño, MIME permitido (una constancia solo puede ser imagen),
      * normalizar imagen (o validar la firma del PDF), guardar original + miniatura y
      * registrar el evento `attachment_added`.
@@ -61,6 +69,16 @@ export function createAttachmentsService(deps: {
         throw new AttachmentForbiddenError()
       }
       if (!(await deps.cases.exists(input.caseId))) throw new CaseNotFoundError()
+      // UX4-01: la constancia es la de la entrega que cierra `marcar_entregado`, así que exige
+      // el mismo permiso: el mensajero solo sube la de su entrega pendiente; admin y recepción,
+      // la de cualquiera (también sin entrega pendiente, la tolerancia de esa acción).
+      if (isProof) {
+        const pending = await deps.deliveries.pendingFor(input.caseId, 'entrega')
+        const asDelivery = pending && { type: 'entrega' as const, courierId: pending.courierId }
+        if (!canActOnDelivery(ctx, 'marcar_entregado', asDelivery)) {
+          throw new AttachmentForbiddenError()
+        }
+      }
       if (input.size > MAX_UPLOAD_BYTES) {
         throw new FileTooLargeError('El archivo supera los 25 MB')
       }

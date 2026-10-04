@@ -26,6 +26,8 @@ describe('/api/adjuntos', () => {
   let tecnico: string
   let mensajero: string
   let adminId: string
+  let mensajeroId: string
+  let otroMensajeroId: string
   let caseId: string
 
   beforeAll(async () => {
@@ -61,7 +63,13 @@ describe('/api/adjuntos', () => {
       name: 'Ana Técnico',
       role: 'tecnico',
     })
-    await createUser(ctx.auth, ctx.db, {
+    otroMensajeroId = await createUser(ctx.auth, ctx.db, {
+      email: 'mens2@t.local',
+      password: testPassword(),
+      name: 'Otro mensajero',
+      role: 'mensajero',
+    })
+    mensajeroId = await createUser(ctx.auth, ctx.db, {
       email: 'mens@t.local',
       password: mensajeroPwd,
       name: 'Mensajero',
@@ -320,7 +328,15 @@ describe('/api/adjuntos', () => {
     expect(await ctx.db.query.attachments.findMany({ where: { caseId } })).toEqual([])
   })
 
-  it('el mensajero sube una constancia que es una imagen (201)', async () => {
+  /** Deja una entrega o recogida pendiente del trabajo asignada a `courierId`. */
+  function pendingDelivery(type: 'entrega' | 'recogida', courierId: string) {
+    return ctx.db
+      .insert(ctx.schema.deliveries)
+      .values({ caseId, type, courierId, scheduledFor: '2026-10-05' })
+  }
+
+  it('el mensajero sube la constancia de su entrega pendiente (201)', async () => {
+    await pendingDelivery('entrega', mensajeroId)
     const buf = await jpegFixture(300, 200)
     const res = await upload(
       mensajero,
@@ -332,7 +348,45 @@ describe('/api/adjuntos', () => {
     expect(attachment).toMatchObject({ kind: 'constancia', mime: 'image/jpeg' })
   })
 
+  // UX4-01: el mensajero solo sube la constancia de una entrega pendiente suya.
+  it.each([
+    {
+      caso: 'la entrega pendiente es de otro mensajero',
+      setup: () => pendingDelivery('entrega', otroMensajeroId),
+    },
+    { caso: 'el trabajo no tiene entrega pendiente', setup: async () => {} },
+    {
+      caso: 'lo pendiente es una recogida suya',
+      setup: () => pendingDelivery('recogida', mensajeroId),
+    },
+  ])('el mensajero no sube una constancia si $caso (403)', async ({ setup }) => {
+    await setup()
+    const buf = await jpegFixture(300, 200)
+    const res = await upload(
+      mensajero,
+      new File([buf], 'constancia.jpg', { type: 'image/jpeg' }),
+      'constancia',
+    )
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ message: 'Sin permiso' })
+    expect(await ctx.db.query.attachments.findMany({ where: { caseId } })).toEqual([])
+    const events = await ctx.db.query.caseEvents.findMany({ where: { caseId } })
+    expect(events.some((e) => e.type === 'attachment_added')).toBe(false)
+  })
+
+  it('recepción sube la constancia de la entrega de un mensajero (201)', async () => {
+    await pendingDelivery('entrega', mensajeroId)
+    const buf = await jpegFixture(300, 200)
+    const res = await upload(
+      recepcion,
+      new File([buf], 'constancia.jpg', { type: 'image/jpeg' }),
+      'constancia',
+    )
+    expect(res.status).toBe(201)
+  })
+
   it('una constancia que no es imagen responde 415', async () => {
+    await pendingDelivery('entrega', mensajeroId)
     const pdf = Buffer.from('%PDF-1.4\ncontenido')
     const res = await upload(
       mensajero,

@@ -12,6 +12,7 @@ import {
   fakeImages,
   fixedIds,
   memoryStorage,
+  pendingDeliveriesWith,
   recordingEvents,
 } from './fakes.ts'
 import { createAttachmentsService } from './service.ts'
@@ -20,8 +21,12 @@ import type { UploadInput } from './ports.ts'
 const admin = { userId: 'u1', role: 'admin' } as const
 const tecnico = { userId: 'u2', role: 'tecnico' } as const
 const mensajero = { userId: 'u3', role: 'mensajero' } as const
+const recepcion = { userId: 'u4', role: 'recepcion' } as const
+const otroMensajero = { userId: 'u5', role: 'mensajero' } as const
 
-function build(ids: string[] = ['id-1']) {
+type PendingSeed = Parameters<typeof pendingDeliveriesWith>[0]
+
+function build(ids: string[] = ['id-1'], pending: PendingSeed = []) {
   const attachments = fakeAttachmentsRepo()
   const cases = casesQueryWith(['c1'])
   const { log: events, events: eventLog } = recordingEvents()
@@ -30,6 +35,7 @@ function build(ids: string[] = ['id-1']) {
     attachments,
     cases,
     events,
+    deliveries: pendingDeliveriesWith(pending),
     storage,
     images: fakeImages,
     ids: fixedIds(ids),
@@ -207,10 +213,59 @@ describe('createAttachmentsService', () => {
       expect(await storage.exists('c1/id-1.jpg')).toBe(false)
     })
 
-    it('el mensajero sube una constancia que es una imagen', async () => {
-      const { service } = build()
+    it('el mensajero sube la constancia de su entrega pendiente', async () => {
+      const { service } = build(['id-1'], [{ caseId: 'c1', type: 'entrega', courierId: 'u3' }])
       const row = await service.upload(uploadOf({ kind: 'constancia' }), mensajero)
       expect(row).toMatchObject({ kind: 'constancia', mime: 'image/jpeg', uploadedBy: 'u3' })
+    })
+
+    // UX4-01: el mensajero solo actúa sobre sus entregas (`canActOnDelivery`), también al
+    // subir la constancia; si no, 403 y nada guardado ni registrado.
+    it.each([
+      [
+        'la entrega pendiente es de otro mensajero',
+        [{ caseId: 'c1', type: 'entrega' as const, courierId: 'u5' }],
+      ],
+      ['el trabajo no tiene entrega pendiente', []],
+      [
+        'lo pendiente es una recogida suya, no una entrega',
+        [{ caseId: 'c1', type: 'recogida' as const, courierId: 'u3' }],
+      ],
+      [
+        'su entrega pendiente es de otro trabajo',
+        [{ caseId: 'c2', type: 'entrega' as const, courierId: 'u3' }],
+      ],
+    ])('el mensajero no sube una constancia si %s', async (_caso, pending) => {
+      const { service, storage, eventLog } = build(['id-1'], pending)
+      await expect(
+        service.upload(uploadOf({ kind: 'constancia' }), mensajero),
+      ).rejects.toBeInstanceOf(AttachmentForbiddenError)
+      expect(await storage.exists('c1/id-1.jpg')).toBe(false)
+      expect(eventLog).toEqual([])
+    })
+
+    it('otro mensajero no sube la constancia de una entrega ajena', async () => {
+      const { service } = build(['id-1'], [{ caseId: 'c1', type: 'entrega', courierId: 'u3' }])
+      await expect(
+        service.upload(uploadOf({ kind: 'constancia' }), otroMensajero),
+      ).rejects.toBeInstanceOf(AttachmentForbiddenError)
+    })
+
+    it.each([
+      ['admin', admin],
+      ['recepción', recepcion],
+    ])('%s sube la constancia de la entrega pendiente de cualquier mensajero', async (_q, ctx) => {
+      const { service } = build(['id-1'], [{ caseId: 'c1', type: 'entrega', courierId: 'u3' }])
+      const row = await service.upload(uploadOf({ kind: 'constancia' }), ctx)
+      expect(row.kind).toBe('constancia')
+    })
+
+    // Misma tolerancia que `marcar_entregado` (`canActOnDelivery`): quien administra entregas
+    // puede entregar un trabajo enviado sin entrega pendiente (datos anteriores a la It. 4).
+    it('recepción sube una constancia aunque el trabajo no tenga entrega pendiente', async () => {
+      const { service } = build()
+      const row = await service.upload(uploadOf({ kind: 'constancia' }), recepcion)
+      expect(row.kind).toBe('constancia')
     })
 
     it('el técnico sigue subiendo fotos', async () => {
@@ -238,7 +293,7 @@ describe('createAttachmentsService', () => {
             size: pdf.byteLength,
             bytes: pdf,
           }),
-          mensajero,
+          admin,
         ),
       ).rejects.toThrow(new UnsupportedFileError('La constancia debe ser una foto'))
     })

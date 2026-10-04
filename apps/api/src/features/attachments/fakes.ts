@@ -1,3 +1,4 @@
+import type { DeliveryType } from '@dentalware/shared'
 import { Readable } from 'node:stream'
 import type { IdGenerator } from '../../lib/ids.ts'
 import { assertStorageKey, type Storage } from '../../lib/storage.ts'
@@ -8,6 +9,7 @@ import type {
   CasesQuery,
   ImageProcessor,
   NewAttachment,
+  PendingDeliveryLookup,
 } from './ports.ts'
 
 /** Almacenamiento en memoria: suficiente para probar el flujo sin disco. Cumple el mismo
@@ -110,3 +112,10 @@ export function recordingEvents() {
   }
   return { log, events }
 }
+
+/** Entregas pendientes en memoria: como mucho una por trabajo y tipo, igual que la BD. */
+export const pendingDeliveriesWith = (
+  rows: { caseId: string; type: DeliveryType; courierId: string }[],
+): PendingDeliveryLookup => ({
+  pendingFor: async (caseId, type) => rows.find((r) => r.caseId === caseId && r.type === type),
+})

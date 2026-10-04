@@ -1,4 +1,4 @@
-import type { AttachmentKind } from '@dentalware/shared'
+import type { AttachmentKind, DeliveryType } from '@dentalware/shared'
 // Solo tipos: la forma de fila se deriva del schema (mismo ruling que en `cases/ports.ts`).
 import type { Readable } from 'node:stream'
 import type { attachments } from './schema.ts'
@@ -35,6 +35,12 @@ export interface CaseEventLog {
     toValue?: string | null
     actorId: string
   }): Promise<void>
+}
+
+/** Puerto de OTRA feature (entregas, ADR 34): la entrega pendiente de un tipo para un trabajo,
+ * con su mensajero, para decidir con `canActOnDelivery` quién sube la constancia (UX4-01). */
+export interface PendingDeliveryLookup {
+  pendingFor(caseId: string, type: DeliveryType): Promise<{ courierId: string } | undefined>
 }
 
 export type UploadInput = {
