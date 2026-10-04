@@ -248,28 +248,33 @@ describe('DeliveriesDay', () => {
   })
 
   // Ruling de la Tarea 6: al cancelar el trabajo su entrega queda `fallida` con «Trabajo
-  // cancelado: …». Se ve como cancelada, sin acciones ni «No se pudo», y nunca como atrasada.
-  it('la entrega de un trabajo cancelado se ve «Cancelado», sin acciones ni «Atrasada»', async () => {
+  // cancelado: …». UX4-17: se ve «Anulada» (chip de entrega, como «Hecha» y «Fallida») con el
+  // motivo de la cancelación, sin acciones, ni «Atrasada», ni «Urgente», que ya no aplican.
+  it('la entrega de un trabajo cancelado se ve «Anulada» con el motivo, sin acciones ni avisos', async () => {
     fetchDeliveries.mockResolvedValue([
       entrega({
         status: 'fallida',
         scheduledFor: '2026-10-01',
         failedReason: 'Trabajo cancelado: la clínica lo anuló',
-        case: { ...entrega().case, status: 'cancelado' },
+        case: { ...entrega().case, status: 'cancelado', priority: 'urgente' },
       }),
     ])
     renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
 
     const tarjeta = await screen.findByRole('listitem')
-    expect(within(tarjeta).getByText('Cancelado')).toBeInTheDocument()
+    expect(within(tarjeta).getByText('Anulada')).toBeInTheDocument()
+    expect(within(tarjeta).getByText('Trabajo cancelado: la clínica lo anuló')).toBeInTheDocument()
     expect(within(tarjeta).queryByText('Fallida')).not.toBeInTheDocument()
+    expect(within(tarjeta).queryByText('Cancelado')).not.toBeInTheDocument()
     expect(within(tarjeta).queryByText('Atrasada')).not.toBeInTheDocument()
+    expect(within(tarjeta).queryByText('Urgente')).not.toBeInTheDocument()
     expect(within(tarjeta).queryByRole('button')).not.toBeInTheDocument()
   })
 
-  // M-3 de la revisión final del PR 2: «Cancelado» solo para la entrega que cerró la
-  // cancelación; las cerradas antes conservan su estado real (y su motivo, si fallaron).
-  it('la recogida hecha de un trabajo cancelado después se ve «Hecha», no «Cancelado»', async () => {
+  // M-3 de la revisión final del PR 2: «Anulada» solo para la entrega que cerró la
+  // cancelación; las cerradas antes conservan su estado real (y su motivo, si fallaron), y
+  // dicen que el trabajo se canceló después (UX4-17).
+  it('la recogida hecha de un trabajo cancelado después se ve «Hecha» y dice que se canceló', async () => {
     fetchDeliveries.mockResolvedValue([
       entrega({
         type: 'recogida',
@@ -282,7 +287,8 @@ describe('DeliveriesDay', () => {
 
     const tarjeta = await screen.findByRole('listitem')
     expect(within(tarjeta).getByText('Hecha')).toBeInTheDocument()
-    expect(within(tarjeta).queryByText('Cancelado')).not.toBeInTheDocument()
+    expect(within(tarjeta).getByText('Trabajo cancelado')).toBeInTheDocument()
+    expect(within(tarjeta).queryByText('Anulada')).not.toBeInTheDocument()
     expect(within(tarjeta).queryByRole('button')).not.toBeInTheDocument()
   })
 
@@ -299,7 +305,73 @@ describe('DeliveriesDay', () => {
     const tarjeta = await screen.findByRole('listitem')
     expect(within(tarjeta).getByText('Fallida')).toBeInTheDocument()
     expect(within(tarjeta).getByText('Motivo: Clínica cerrada')).toBeInTheDocument()
-    expect(within(tarjeta).queryByText('Cancelado')).not.toBeInTheDocument()
+    expect(within(tarjeta).getByText('Trabajo cancelado')).toBeInTheDocument()
+    expect(within(tarjeta).queryByText('Anulada')).not.toBeInTheDocument()
+  })
+
+  it('una entrega hecha no repite «Urgente»: ya no hay prisa', async () => {
+    fetchDeliveries.mockResolvedValue([
+      entrega({
+        status: 'hecha',
+        doneAt: '2026-10-03T15:00:00.000Z',
+        case: { ...entrega().case, status: 'entregado', priority: 'urgente' },
+      }),
+    ])
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="admin" userId="a1" />)
+    const tarjeta = await screen.findByRole('listitem')
+    expect(within(tarjeta).queryByText('Urgente')).not.toBeInTheDocument()
+  })
+
+  // UX4-18: la fallida dice para cuándo quedó.
+  it('una fallida dice la nueva fecha a la que se reprogramó', async () => {
+    fetchDeliveries.mockResolvedValue([
+      entrega({ status: 'fallida', failedReason: 'Clínica cerrada', rescheduledFor: '2026-10-05' }),
+    ])
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
+    const tarjeta = await screen.findByRole('listitem')
+    expect(within(tarjeta).getByText('Nueva fecha: 05/10/2026')).toBeInTheDocument()
+  })
+
+  it('el resumen del día cuenta también las fallidas y las anuladas', async () => {
+    fetchDeliveries.mockResolvedValue([
+      entrega({ id: 'd1' }),
+      entrega({ id: 'd2', case: { ...entrega().case, id: 'c2', code: '26-00002' } }),
+      entrega({
+        id: 'd3',
+        status: 'fallida',
+        failedReason: 'Clínica cerrada',
+        case: { ...entrega().case, id: 'c3', code: '26-00003' },
+      }),
+      entrega({
+        id: 'd4',
+        status: 'fallida',
+        failedReason: 'Trabajo cancelado: x',
+        case: { ...entrega().case, id: 'c4', code: '26-00004', status: 'cancelado' },
+      }),
+    ])
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="admin" userId="a1" />)
+    expect(await screen.findByText('2 pendientes · 1 fallida · 1 anulada')).toBeInTheDocument()
+  })
+
+  // UX4-19: dentro de una parada, lo urgente pendiente va arriba aunque llegue después.
+  it('dentro de una parada, lo urgente va primero', async () => {
+    fetchDeliveries.mockResolvedValue([
+      entrega({ id: 'd1', case: { ...entrega().case, code: '26-00001' } }),
+      entrega({
+        id: 'd2',
+        type: 'recogida',
+        case: { ...entrega().case, id: 'c2', code: '26-00002', status: 'por_recoger' },
+      }),
+      entrega({
+        id: 'd3',
+        case: { ...entrega().case, id: 'c3', code: '26-00003', priority: 'urgente' },
+      }),
+    ])
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="admin" userId="a1" />)
+    await screen.findByRole('region', { name: 'Clínica Sonrisa' })
+    expect(
+      screen.getAllByRole('listitem').map((li) => within(li).getAllByRole('link')[0]!.textContent),
+    ).toEqual(['26-00003', '26-00001', '26-00002'])
   })
 
   it('una pendiente de ayer se marca «Atrasada»; la de hoy no', async () => {
@@ -428,7 +500,7 @@ describe('DeliveriesDay', () => {
       await waitFor(() =>
         expect(screen.queryByRole('dialog', { name: 'Marcar entregado' })).not.toBeInTheDocument(),
       )
-      expect(await screen.findByText('Cancelado')).toBeInTheDocument()
+      expect(await screen.findByText('Anulada')).toBeInTheDocument()
     })
 
     it('un 403 al subir la constancia (ya no es suya) refresca la lista y cierra el diálogo', async () => {

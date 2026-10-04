@@ -1,4 +1,10 @@
-import { isOverdueDelivery, toIsoDate, type UserRole } from '@dentalware/shared'
+import {
+  compareStopDeliveries,
+  deliveryDaySummary,
+  isActionableDelivery,
+  toIsoDate,
+  type UserRole,
+} from '@dentalware/shared'
 import { EmptyState } from '@/components/empty-state'
 import { LoadError } from '@/components/load-error'
 import type { DeliveryItem } from './api'
@@ -7,15 +13,9 @@ import { useDeliveries } from './use-deliveries'
 
 type Group = { clinic: DeliveryItem['clinic']; deliveries: DeliveryItem[] }
 
-/** Lo que queda por hacer, primero: pendientes (las atrasadas antes, luego por fecha) y al final
- * las cerradas y las de trabajos cancelados (que ya no se hacen). */
-function rank(d: DeliveryItem, today: string): number {
-  if (d.status !== 'pendiente' || d.case.status === 'cancelado') return 2
-  return isOverdueDelivery(d, today) ? 0 : 1
-}
-
 /** Agrupa por clínica, en orden alfabético (como recorre la ruta quien la lee en papel), y
- * ordena cada grupo con `rank`. */
+ * ordena cada parada con `compareStopDeliveries` (shared): lo que queda por hacer primero, y de
+ * eso lo urgente, luego lo atrasado y luego por fecha (UX4-19); lo cerrado al final. */
 function groupByClinic(items: DeliveryItem[], today: string): Group[] {
   const groups = new Map<string, Group>()
   for (const d of items) {
@@ -27,15 +27,7 @@ function groupByClinic(items: DeliveryItem[], today: string): Group[] {
     .sort((a, b) => a.clinic.name.localeCompare(b.clinic.name, 'es'))
     .map((g) => ({
       ...g,
-      deliveries: g.deliveries
-        .map((d, i) => ({ d, i }))
-        .sort(
-          (x, y) =>
-            rank(x.d, today) - rank(y.d, today) ||
-            x.d.scheduledFor.localeCompare(y.d.scheduledFor) ||
-            x.i - y.i,
-        )
-        .map(({ d }) => d),
+      deliveries: [...g.deliveries].sort((a, b) => compareStopDeliveries(a, b, today)),
     }))
 }
 
@@ -75,9 +67,7 @@ export function DeliveriesDay({
   }
   if (q.isError) return <LoadError onRetry={() => void q.refetch()} />
 
-  const items = compact
-    ? q.data.filter((d) => d.status === 'pendiente' && d.case.status !== 'cancelado')
-    : q.data
+  const items = compact ? q.data.filter(isActionableDelivery) : q.data
   if (items.length === 0) {
     const mineToday = role === 'mensajero' && day === today
     // En compacto, que no quede nada pendiente no es lo mismo que no haber tenido entregas.
@@ -95,23 +85,11 @@ export function DeliveriesDay({
     )
   }
 
-  const pending = items.filter((d) => rank(d, today) < 2)
-  const overdue = items.filter((d) => rank(d, today) === 0)
-  const done = items.filter((d) => d.status === 'hecha')
-
   return (
     <div className="flex max-w-4xl min-w-0 flex-col gap-4">
       {!compact && (
-        <p className="text-sm text-muted-foreground">
-          {[
-            `${pending.length} ${pending.length === 1 ? 'pendiente' : 'pendientes'}`,
-            overdue.length > 0 &&
-              `${overdue.length} ${overdue.length === 1 ? 'atrasada' : 'atrasadas'}`,
-            done.length > 0 && `${done.length} ${done.length === 1 ? 'hecha' : 'hechas'}`,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </p>
+        // UX4-18: también lo que no se pudo y lo anulado, para que el día cuadre.
+        <p className="text-sm text-muted-foreground">{deliveryDaySummary(items, today)}</p>
       )}
       {groupByClinic(items, today).map((g) => (
         <ClinicGroup

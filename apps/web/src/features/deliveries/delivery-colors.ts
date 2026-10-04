@@ -1,4 +1,4 @@
-import type { DeliveryStatus, DeliveryType } from '@dentalware/shared'
+import type { DeliveryOutcome, DeliveryType } from '@dentalware/shared'
 import { STATUS_COLOR } from '@/features/cases/status-chip'
 
 /** Color de cada tipo de entrega, tomado del estado del trabajo que acompaña (`STATUS_COLOR`,
@@ -10,8 +10,11 @@ export const DELIVERY_TYPE_COLOR: Record<DeliveryType, string> = {
 }
 
 /** Color de una entrega cerrada: hecha con el verde de «Entregado», fallida con el rojo de
- * «Cancelado». Una pendiente no lleva chip: es el estado por omisión y su acción ya lo dice. */
-export const DELIVERY_CLOSED_COLOR: Record<Exclude<DeliveryStatus, 'pendiente'>, string> = {
+ * «Cancelado» y anulada (la cerró la cancelación del trabajo: ya no hay que ir, UX4-17) con el
+ * gris neutro de «Por recoger». Una pendiente no lleva chip: es el estado por omisión y su
+ * acción ya lo dice. Todos con su contraste AA probado en `status-chip.test.tsx`. */
+export const DELIVERY_OUTCOME_COLOR: Record<DeliveryOutcome, string> = {
   hecha: STATUS_COLOR.entregado,
   fallida: STATUS_COLOR.cancelado,
+  anulada: STATUS_COLOR.por_recoger,
 }

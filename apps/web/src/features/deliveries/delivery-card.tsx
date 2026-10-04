@@ -3,12 +3,14 @@ import {
   canActOnDelivery,
   canFailDelivery,
   canPerform,
+  cancelledDeliveryNote,
   CASE_ACTION_LABEL,
   DELIVERY_CLOSING_ACTION,
   DELIVERY_MANAGE_ROLES,
   deliveryNextStep,
+  deliveryOutcome,
   hasRole,
-  isClosedByCancellation,
+  isActionableDelivery,
   isOverdueDelivery,
   type UserRole,
 } from '@dentalware/shared'
@@ -16,8 +18,8 @@ import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { AlertChip } from '@/features/cases/alert-chip'
+import { formatDate } from '@/features/cases/date-format'
 import { DeliverDialog } from '@/features/cases/deliver-dialog'
-import { StatusChip } from '@/features/cases/status-chip'
 import { useCaseAction } from '@/features/cases/use-cases'
 import { cn } from '@/lib/utils'
 import type { DeliveryItem } from './api'
@@ -30,9 +32,11 @@ import { FailDialog } from './fail-dialog'
  * Una recogida o entrega de la lista del día (ENT-5): tipo, código (enlace a la ficha corta),
  * paciente, «Urgente» y «Atrasada», y la acción que la cierra con los **mismos** diálogos de la
  * ficha. Una pendiente ofrece su acción (un solo primario) y «No se pudo»; una cerrada queda
- * atenuada con su estado y sin acciones. La que cerró la cancelación del trabajo (ruling de la
- * Tarea 6: `fallida` con el prefijo de cancelación, `isClosedByCancellation`) se ve «Cancelado»,
- * nunca como fallida reprogramable; las cerradas antes de cancelar conservan su estado real.
+ * atenuada con su resultado (`deliveryOutcome`), sin acciones ni «Urgente». La que cerró la
+ * cancelación del trabajo (ruling de la Tarea 6) se ve «Anulada» con el motivo de la
+ * cancelación (UX4-17), nunca como fallida reprogramable; las cerradas antes de cancelar
+ * conservan su estado real y dicen que el trabajo se canceló. La fallida dice su nueva fecha
+ * (UX4-18).
  */
 export function DeliveryCard({
   delivery: d,
@@ -48,10 +52,13 @@ export function DeliveryCard({
 }) {
   const [dialog, setDialog] = useState<'entregar' | 'fallida' | null>(null)
   const action = useCaseAction(d.case.id)
-  const cancelled = isClosedByCancellation(d)
+  const outcome = deliveryOutcome(d)
   // Cancelar cierra la pendiente en la misma transacción; el estado del trabajo es solo una
   // red por si una pendiente de un trabajo cancelado llegara igual: nunca es accionable.
-  const pending = d.status === 'pendiente' && d.case.status !== 'cancelado'
+  const pending = isActionableDelivery(d)
+  // UX4-17: lo cerrado de un trabajo cancelado lo dice; la anulada, con el motivo.
+  const cancelNote =
+    d.case.status === 'cancelado' && !pending ? cancelledDeliveryNote(d.failedReason) : null
   const closing = DELIVERY_CLOSING_ACTION[d.type]
   // Misma regla que la API y la ficha (`canActOnDelivery`, M-3): una sola fuente para «el
   // mensajero solo actúa sobre lo suyo»; admin y recepción, sobre cualquiera.
@@ -98,22 +105,26 @@ export function DeliveryCard({
           >
             {d.case.code}
           </Link>
-          {d.case.priority === 'urgente' && <AlertChip tone="destructive">Urgente</AlertChip>}
-          {overdue && <AlertChip tone="amber">Atrasada</AlertChip>}
-          {cancelled ? (
-            <StatusChip status="cancelado" />
-          ) : (
-            d.status !== 'pendiente' && <DeliveryStatusChip status={d.status} />
+          {pending && d.case.priority === 'urgente' && (
+            <AlertChip tone="destructive">Urgente</AlertChip>
           )}
+          {overdue && <AlertChip tone="amber">Atrasada</AlertChip>}
+          {outcome && <DeliveryStatusChip outcome={outcome} />}
         </div>
         <div className="flex flex-col gap-0.5">
           {d.case.patientRef && <p className="text-sm">{d.case.patientRef}</p>}
           {showCourier && (
             <p className="text-sm text-muted-foreground">{`Mensajero: ${d.courier.name}`}</p>
           )}
-          {d.status === 'fallida' && !cancelled && d.failedReason && (
+          {outcome === 'fallida' && d.failedReason && (
             <p className="text-sm text-muted-foreground">{`Motivo: ${d.failedReason}`}</p>
           )}
+          {outcome === 'fallida' && d.rescheduledFor && (
+            <p className="text-sm text-muted-foreground">
+              {`Nueva fecha: ${formatDate(d.rescheduledFor)}`}
+            </p>
+          )}
+          {cancelNote && <p className="text-sm text-muted-foreground">{cancelNote}</p>}
           {nextStep && <p className="text-sm text-muted-foreground">{nextStep}</p>}
         </div>
       </div>
