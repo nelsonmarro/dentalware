@@ -816,6 +816,51 @@ describe('repetición', () => {
   })
 })
 
+// #96, Tarea 9: desde la ficha del padre no había forma de ver sus repeticiones (solo el hijo
+// enlazaba al padre con `parentCaseId`). `remakes` solo recorre un nivel: el padre inmediato,
+// no el árbol completo (una repetición de una repetición encadena al padre inmediato).
+describe('repeticiones de un trabajo', () => {
+  const remake: RemakeInput = {
+    motivo: 'Fractura en cerámica al probar',
+    responsabilidad: 'laboratorio',
+    cobroPct: 0,
+  }
+
+  it('lista solo los hijos directos, de la más reciente a la más antigua, sin el nieto', async () => {
+    const { repo, rows } = fakeCasesRepo([completo({ id: '1', status: 'terminado' })])
+    const service = createCasesService({
+      cases: repo,
+      attachments: fakeAttachmentsQuery(true),
+      stages: fakeStagesQuery(),
+      users: fakeUsersQuery(),
+      couriers: fakeCouriersLookup(),
+      deliveries: fakeDeliveryLog().log,
+      uow: fakeUow(repo, fakeTryins()),
+      clock: fixedClock('2026-09-18'),
+    })
+    const hijo1 = await service.createRemake('1', remake, admin)
+    const hijo2 = await service.createRemake('1', remake, admin)
+    // El nieto cuelga de hijo2, no de '1': se fuerza su estado a mano (no es el foco de este
+    // test cómo se llega ahí, ver la suite de arriba) para poder repetirlo.
+    rows.set(hijo2.id, { ...rows.get(hijo2.id)!, status: 'terminado' })
+    const nieto = await service.createRemake(hijo2.id, remake, admin)
+
+    const repeticiones = await service.remakes('1')
+    expect(repeticiones.map((r) => r.id)).toEqual([hijo2.id, hijo1.id])
+    expect(repeticiones.some((r) => r.id === nieto.id)).toBe(false)
+  })
+
+  it('un trabajo sin repeticiones devuelve la lista vacía', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado' }))
+    expect(await service.remakes('1')).toEqual([])
+  })
+
+  it('un trabajo inexistente lanza CaseNotFoundError', async () => {
+    const service = servicioCon(completo({ id: '1', status: 'terminado' }))
+    await expect(service.remakes('nope')).rejects.toBeInstanceOf(CaseNotFoundError)
+  })
+})
+
 // T11 (#68): resumen del día por vista. La garantía de que cada contador coincide con el
 // `total` de su lista real es el test de integración contra Postgres (`cases.test.ts`); estos
 // prueban la orquestación (el servicio delega en `cases.summary(today)`).

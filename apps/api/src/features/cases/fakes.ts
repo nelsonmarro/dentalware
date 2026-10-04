@@ -405,6 +405,21 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
       })
       return { id, code }
     },
+    // Mismo criterio que `repo.ts`: solo los hijos de primer grado, de la más reciente a la
+    // más antigua. El `Map` conserva el orden de inserción (ascendente); `.reverse()` lo
+    // vuelve el orden de creación descendente que pide el puerto, sin un `createdAt` propio.
+    async remakesOf(parentId) {
+      return [...rows.values()]
+        .filter((r) => r.parentCaseId === parentId)
+        .reverse()
+        .map((r) => ({
+          id: r.id,
+          code: r.code,
+          status: r.status,
+          receivedAt: r.receivedAt,
+          remakeReason: r.remakeReason,
+        }))
+    },
   }
   return { repo, rows, events, lastListQuery: () => lastListQuery }
 }

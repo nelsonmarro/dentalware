@@ -525,6 +525,16 @@ export function createCasesService(deps: {
       return mustGet(id)
     },
     /**
+     * Repeticiones directas del trabajo (#96, Tarea 9): la ficha del padre lista sus hijos de
+     * primer grado, de la más reciente a la más antigua, sin dinero (`RemakeSummary`). Sin
+     * enmascarar por rol: la ruta usa solo `requireAuth` (como `events`/`detail`), cualquier
+     * rol autenticado la ve igual. Lanza `CaseNotFoundError` si el padre no existe.
+     */
+    async remakes(id: string) {
+      await mustGet(id)
+      return deps.cases.remakesOf(id)
+    },
+    /**
      * Técnicos activos para el combobox de `assignTechnician` en la web (Tarea 9): mismo
      * puerto `UsersQuery.activeTechnicians` que valida la asignación, pero expuesto de
      * lectura para que recepción pueda elegir a quién asignar (hoy solo puede asignar, no

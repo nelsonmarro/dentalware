@@ -1736,6 +1736,83 @@ describe('/api/trabajos', () => {
       expect(fichaHijo.case.prescription).toBeNull()
       expect(fichaHijo.missing).toContain('Prescripción (texto o documento)')
     })
+
+    // #96, Tarea 9: desde la ficha del padre no había forma de ver sus repeticiones. El
+    // endpoint es un bloque de la ficha (`requireAuth`, no `requireRole`: cualquier rol
+    // autenticado lo lee), sin dinero.
+    describe('GET /api/trabajos/:id/repeticiones', () => {
+      it('lista las repeticiones directas, de la más reciente a la más antigua', async () => {
+        const { id } = await crearTrabajoEntregado()
+        const primero = (await (
+          await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+        ).json()) as { case: { id: string; code: string } }
+        const segundo = (await (
+          await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+        ).json()) as { case: { id: string; code: string } }
+
+        const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(admin, 'GET'))
+        expect(res.status).toBe(200)
+        const { repeticiones } = (await res.json()) as {
+          repeticiones: { id: string; code: string; status: string; remakeReason: string }[]
+        }
+        expect(repeticiones.map((r) => r.id)).toEqual([segundo.case.id, primero.case.id])
+        expect(repeticiones[0]).toMatchObject({
+          code: segundo.case.code,
+          status: 'nuevo',
+          remakeReason: 'Fractura en cerámica al probar',
+        })
+      })
+
+      it('no incluye al nieto, solo a los hijos directos', async () => {
+        const { id } = await crearTrabajoEntregado()
+        const hijoRes = await app.request(
+          `/api/trabajos/${id}/repetir`,
+          req(admin, 'POST', remakeBody()),
+        )
+        const { case: hijo } = (await hijoRes.json()) as { case: { id: string } }
+        await avanzarAEntregado(hijo.id)
+        await app.request(`/api/trabajos/${hijo.id}/repetir`, req(admin, 'POST', remakeBody()))
+
+        const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(admin, 'GET'))
+        const { repeticiones } = (await res.json()) as { repeticiones: { id: string }[] }
+        expect(repeticiones.map((r) => r.id)).toEqual([hijo.id])
+      })
+
+      it('un trabajo sin repeticiones devuelve la lista vacía', async () => {
+        const { id } = await crearTrabajoEntregado()
+        const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(admin, 'GET'))
+        const { repeticiones } = (await res.json()) as { repeticiones: unknown[] }
+        expect(repeticiones).toEqual([])
+      })
+
+      it('un técnico ve la lista, sin ningún campo de dinero', async () => {
+        const { id } = await crearTrabajoEntregado()
+        await app.request(`/api/trabajos/${id}/repetir`, req(admin, 'POST', remakeBody()))
+
+        const res = await app.request(`/api/trabajos/${id}/repeticiones`, req(tecnico, 'GET'))
+        expect(res.status).toBe(200)
+        const { repeticiones } = (await res.json()) as { repeticiones: Record<string, unknown>[] }
+        expect(repeticiones).toHaveLength(1)
+        expect(Object.keys(repeticiones[0]!).sort()).toEqual(
+          ['code', 'id', 'receivedAt', 'remakeReason', 'status'].sort(),
+        )
+      })
+
+      it('responde 404 si el trabajo no existe', async () => {
+        const res = await app.request(
+          `/api/trabajos/${randomUUID()}/repeticiones`,
+          req(admin, 'GET'),
+        )
+        expect(res.status).toBe(404)
+        expect(await res.json()).toEqual({ message: 'No encontrado' })
+      })
+
+      it('401 sin sesión', async () => {
+        const { id } = await crearTrabajoEntregado()
+        const res = await app.request(`/api/trabajos/${id}/repeticiones`, req('', 'GET'))
+        expect(res.status).toBe(401)
+      })
+    })
   })
 
   // T11 (#68): resumen del día por vista. `app` (el de todo el archivo) usa el reloj real del

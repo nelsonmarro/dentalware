@@ -45,6 +45,16 @@ export type CaseEventRow = typeof caseEvents.$inferSelect & {
   fromName: string | null
   toName: string | null
 }
+/** Fila de `remakesOf` (#96, Tarea 9): sin dinero (no `total`, no `remakeChargePct`) — el
+ * bloque «Repeticiones» de la ficha del padre no necesita precio para nadie. */
+export type RemakeSummary = {
+  id: string
+  code: string
+  status: CaseStatus
+  receivedAt: string
+  remakeReason: string | null
+}
+
 export type TryinRow = typeof caseTryins.$inferSelect
 export type CaseListRow = {
   id: string
@@ -173,6 +183,14 @@ export interface CasesRepository {
     input: RemakeCreateInput,
     actorId: string,
   ): Promise<{ id: string; code: string }>
+  /**
+   * Repeticiones directas del trabajo (#96, Tarea 9): solo los hijos de primer grado —una
+   * repetición de una repetición encadena al padre inmediato (ver `createRemake` arriba), así
+   * que esto nunca recorre el árbol completo—, de la más reciente a la más antigua. Sin dinero
+   * (ver `RemakeSummary`): ninguna vista que la consume necesita precio ni el porcentaje de
+   * cobro de la repetición, así que no hace falta enmascarar por rol.
+   */
+  remakesOf(parentId: string): Promise<RemakeSummary[]>
 }
 
 /** Puerto de OTRA feature (adjuntos): se inyecta en la raíz de composición. */

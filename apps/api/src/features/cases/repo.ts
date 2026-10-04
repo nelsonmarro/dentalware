@@ -563,6 +563,17 @@ export function createCasesRepo(db: Db | Tx) {
       })
       return { id: childId, code }
     },
+
+    // #96, Tarea 9: solo los hijos de primer grado (`where parentCaseId = :id`, sin recursión:
+    // ver el JSDoc del puerto), de la más reciente a la más antigua por fecha de creación real
+    // (no por `receivedAt`, que puede repetirse el mismo día entre varias repeticiones).
+    async remakesOf(parentId) {
+      return db.query.cases.findMany({
+        where: { parentCaseId: parentId },
+        orderBy: { createdAt: 'desc' },
+        columns: { id: true, code: true, status: true, receivedAt: true, remakeReason: true },
+      })
+    },
   } satisfies CasesRepository
 }
 

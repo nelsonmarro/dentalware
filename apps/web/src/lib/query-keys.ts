@@ -47,5 +47,9 @@ export const queryKeys = {
       ['trabajos', 'entregas', dia, mensajeroId ?? null] as const,
   },
   caseEvents: (id: string) => ['trabajos', id, 'eventos'] as const,
+  // Bajo el prefijo `trabajos` (#96, Tarea 9): repetir el trabajo (`useCreateRemake`, que
+  // invalida ese prefijo) refresca el bloque «Repeticiones» de la ficha del padre sin tocarlo
+  // aparte.
+  caseRemakes: (id: string) => ['trabajos', id, 'repeticiones'] as const,
   attachments: (caseId: string) => ['trabajos', caseId, 'adjuntos'] as const,
 }
