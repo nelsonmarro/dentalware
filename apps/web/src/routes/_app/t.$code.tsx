@@ -16,5 +16,5 @@ export const Route = createFileRoute('/_app/t/$code')({
 function QuickCasePage() {
   const { code } = Route.useParams()
   const { user } = Route.useRouteContext()
-  return <QuickCase code={code} role={user.role} />
+  return <QuickCase code={code} role={user.role} self={{ id: user.id, name: user.name }} />
 }

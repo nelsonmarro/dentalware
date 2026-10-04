@@ -393,6 +393,33 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // #105: la ficha corta del mensajero (su acción de entrega en grande), con su propia sesión.
+  test(
+    'ficha corta del mensajero: acción de entrega',
+    { tag: '@extendida' },
+    async ({ page, browser }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, created.id, accion)
+      }
+      const courier = await createCourier(page)
+
+      const courierContext = await browser.newContext()
+      const courierPage = await courierContext.newPage()
+      await login(courierPage, { email: courier.email, password: courier.password })
+      await courierPage.goto(`/t/${created.code}`)
+      await expect(courierPage.getByRole('button', { name: 'Marcar enviado' })).toBeVisible()
+      await expectTouchTargets(courierPage, TOUCH_CONTROLS)
+      await courierContext.close()
+    },
+  )
+
   test(
     'importar: enlace de plantilla y controles del diálogo',
     { tag: '@extendida' },
