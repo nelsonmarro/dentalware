@@ -230,6 +230,9 @@ export function fakeCasesRepo(seed: CaseDetail[] = []) {
       return true
     },
     byId: async (id) => rows.get(id),
+    // En memoria no hay concurrencia que serializar: el bloqueo de fila (#97) lo prueba el
+    // test de integración de `cases.test.ts` contra Postgres.
+    byIdForUpdate: async (id) => rows.get(id),
     byCode: async (code) => [...rows.values()].find((r) => r.code === code),
     list: async (q, today) => {
       lastListQuery = q

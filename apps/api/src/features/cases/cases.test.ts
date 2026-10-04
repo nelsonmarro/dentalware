@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { CASE_VIEWS, toIsoDate } from '@dentalware/shared'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
 import {
@@ -743,6 +743,34 @@ describe('/api/trabajos', () => {
       )
       expect(res.status).toBe(403)
     })
+
+    // #97: con recepción y mensajero moviendo el mismo trabajo, la carrera deja de ser
+    // teórica. `action` lee el trabajo con `byIdForUpdate` (`FOR UPDATE`) dentro de la
+    // transacción, así que la segunda petición espera a que la primera confirme y ve el
+    // estado nuevo. Se repite para que un adelantamiento casual no deje pasar una regresión.
+    it('dos acciones simultáneas sobre el mismo trabajo: una gana (200) y la otra recibe 409', async () => {
+      for (let intento = 0; intento < 10; intento++) {
+        const { id } = await crearTrabajoEnProceso()
+        const [pausar, finalizar] = await Promise.all([
+          app.request(
+            `/api/trabajos/${id}/acciones`,
+            req(admin, 'POST', { accion: 'pausar', motivo: 'Falta antagonista' }),
+          ),
+          app.request(`/api/trabajos/${id}/acciones`, req(admin, 'POST', { accion: 'finalizar' })),
+        ])
+        expect([pausar.status, finalizar.status].sort()).toEqual([200, 409])
+        const desdeEnProceso = await ctx.db
+          .select({ type: ctx.schema.caseEvents.type })
+          .from(ctx.schema.caseEvents)
+          .where(
+            and(
+              eq(ctx.schema.caseEvents.caseId, id),
+              eq(ctx.schema.caseEvents.fromValue, 'en_proceso'),
+            ),
+          )
+        expect(desdeEnProceso).toHaveLength(1)
+      }
+    })
   })
 
   // Iteración 4, Tarea 3 (ENT-1, ENT-2): programar la recogida al crear y recibir el trabajo.
@@ -884,6 +912,31 @@ describe('/api/trabajos', () => {
         await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))
       ).json()) as { events: { type: string }[] }
       expect(eventos.events.some((e) => e.type === 'stage_changed')).toBe(true)
+    })
+
+    // #97: mismo bloqueo de fila que las acciones. Con dos fases, dos «avanzar» simultáneos
+    // desde la primera: el segundo espera, ve la última fase y recibe 409 en vez de repetir el
+    // mismo salto (dos eventos stage_changed idénticos).
+    it('dos avances simultáneos de fase: uno avanza (200) y el otro recibe 409', async () => {
+      for (let intento = 0; intento < 10; intento++) {
+        const { id } = await crearTrabajoEnProceso()
+        const respuestas = await Promise.all(
+          [0, 1].map(() =>
+            app.request(`/api/trabajos/${id}/fase`, req(admin, 'PUT', { direccion: 'avanzar' })),
+          ),
+        )
+        expect(respuestas.map((r) => r.status).sort()).toEqual([200, 409])
+        const cambios = await ctx.db
+          .select({ toValue: ctx.schema.caseEvents.toValue })
+          .from(ctx.schema.caseEvents)
+          .where(
+            and(
+              eq(ctx.schema.caseEvents.caseId, id),
+              eq(ctx.schema.caseEvents.type, 'stage_changed'),
+            ),
+          )
+        expect(cambios).toEqual([{ toValue: stage2 }])
+      }
     })
 
     it('responde 409 al avanzar desde la última fase activa', async () => {

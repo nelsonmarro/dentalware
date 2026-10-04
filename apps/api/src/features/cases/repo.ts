@@ -262,9 +262,27 @@ async function listCasesWith(db: Db | Tx, q: CaseListQuery, today: string) {
 /**
  * Repositorio de trabajos: opera sobre `db` (conexión) o `tx` (transacción abierta) tal cual
  * se le pase. `create` y `update` no abren transacción propia (ADR 19): el llamador que
- * necesite atomicidad lo hace a través de `drizzleUnitOfWork(db).run(...)`.
+ * necesite atomicidad lo hace a través de `drizzleUnitOfWork(db, …).run(...)`.
  */
 export function createCasesRepo(db: Db | Tx) {
+  const byId = (id: string) =>
+    db.query.cases.findFirst({
+      where: { id },
+      with: {
+        clinic: { columns: { id: true, name: true } },
+        doctor: { columns: { id: true, name: true } },
+        technician: { columns: { id: true, name: true } },
+        stage: { columns: { id: true, name: true, color: true } },
+        parentCase: { columns: { code: true } },
+        items: {
+          orderBy: { sort: 'asc' },
+          with: {
+            product: { columns: { id: true, code: true, name: true, pricingUnit: true } },
+          },
+        },
+      },
+    })
+
   return {
     async create(input, actorId, initialStatus = 'nuevo') {
       const year = Number(input.receivedAt.slice(0, 4))
@@ -323,23 +341,20 @@ export function createCasesRepo(db: Db | Tx) {
       return true
     },
 
-    byId: (id) =>
-      db.query.cases.findFirst({
-        where: { id },
-        with: {
-          clinic: { columns: { id: true, name: true } },
-          doctor: { columns: { id: true, name: true } },
-          technician: { columns: { id: true, name: true } },
-          stage: { columns: { id: true, name: true, color: true } },
-          parentCase: { columns: { code: true } },
-          items: {
-            orderBy: { sort: 'asc' },
-            with: {
-              product: { columns: { id: true, code: true, name: true, pricingUnit: true } },
-            },
-          },
-        },
-      }),
+    byId,
+
+    // #97: bloquea la fila del trabajo hasta el fin de la transacción y después lee el detalle
+    // con `byId`. Las consultas relacionales de Drizzle (`db.query`) no admiten `.for('update')`,
+    // así que el bloqueo va en un `select` aparte sobre la misma conexión (`tx`).
+    async byIdForUpdate(id) {
+      const [locked] = await db
+        .select({ id: cases.id })
+        .from(cases)
+        .where(eq(cases.id, id))
+        .for('update')
+      if (!locked) return undefined
+      return byId(id)
+    },
 
     // Mismo `with` que `byId` (Tarea 15, FIC-2 #72): la ficha corta del QR necesita el detalle
     // completo, solo cambia la condición de búsqueda (código en vez de id).

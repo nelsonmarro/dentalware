@@ -109,6 +109,13 @@ export interface CasesRepository {
   /** false si no existe; lanza CaseStateError si el estado no es editable; CaseInputError por producto. */
   update(id: string, input: CaseInput, actorId: string): Promise<boolean>
   byId(id: string): Promise<CaseDetail | undefined>
+  /**
+   * Mismo detalle que `byId`, con la fila del trabajo bloqueada (`SELECT … FOR UPDATE`) hasta
+   * el fin de la transacción (#97): dos acciones simultáneas sobre el mismo trabajo se
+   * serializan y la segunda lee el estado que dejó la primera. Solo tiene sentido dentro de
+   * `UnitOfWork.run`; fuera de una transacción el bloqueo se suelta al instante.
+   */
+  byIdForUpdate(id: string): Promise<CaseDetail | undefined>
   /** Mismo detalle que `byId`, resuelto por código (`AA-NNNNN`) en vez de id (Tarea 15,
    * FIC-2 #72): la ficha corta del QR entra por código, no por uuid. */
   byCode(code: string): Promise<CaseDetail | undefined>

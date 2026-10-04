@@ -236,13 +236,15 @@ export function createCasesService(deps: {
      * Ejecuta una acción de estado: recibir (ENT-1), aceptar, pausar/reanudar, enviar/recibir
      * prueba en boca, finalizar, marcar enviado/entregado o cancelar (CIC-1/CIC-3). Todo corre
      * dentro de `uow.run` (ADR 19): el permiso por rol, la transición, el `applyTransition` y su
-     * `case_event` son atómicos. Devuelve el detalle enmascarado por rol (técnico y mensajero
+     * `case_event` son atómicos, y el trabajo se lee con `byIdForUpdate` (#97): una segunda
+     * acción simultánea espera a que la primera confirme y valida contra el estado nuevo (409)
+     * en vez de pisarla. Devuelve el detalle enmascarado por rol (técnico y mensajero
      * pueden ejecutar acciones sin ver precios: `finalizar`, `marcar_enviado`/`marcar_entregado`).
      */
     async action(id: string, input: CaseActionInput, ctx: RequestContext) {
       await deps.uow.run(async ({ cases, tryins, deliveries }) => {
         if (!canPerform(ctx.role, input.accion)) throw new CaseForbiddenError()
-        const found = await cases.byId(id)
+        const found = await cases.byIdForUpdate(id)
         if (!found) throw new CaseNotFoundError()
         const result = applyAction(found.status, input.accion)
         if (!result.ok) throw new CaseStateError(result.reason)
@@ -325,14 +327,16 @@ export function createCasesService(deps: {
      * Solo admin, recepción y técnico pueden cambiar de fase (defensa en profundidad: la ruta
      * ya filtra por rol con `canChangeStage` en `routes.ts`, pero un test de servicio con
      * fakes no pasa por la ruta — mismo patrón que `assignTechnician`). Todo corre dentro de
-     * `uow.run` (ADR 19): el permiso, el trabajo, la fase y su evento son atómicos.
+     * `uow.run` (ADR 19): el permiso, el trabajo, la fase y su evento son atómicos; la fila del
+     * trabajo queda bloqueada (`byIdForUpdate`, #97), así que dos avances simultáneos no dan el
+     * mismo salto dos veces.
      */
     async changeStage(id: string, input: StageChangeInput, ctx: RequestContext) {
       await deps.uow.run(async ({ cases }) => {
         if (!(STAGE_CHANGE_ROLES as readonly UserRole[]).includes(ctx.role)) {
           throw new CaseForbiddenError()
         }
-        const found = await cases.byId(id)
+        const found = await cases.byIdForUpdate(id)
         if (!found) throw new CaseNotFoundError()
         if (!canChangeStage(found.status)) {
           throw new CaseStateError(STAGE_CHANGE_BLOCKED_REASON[found.status])
