@@ -191,6 +191,42 @@ describe('CaseHeader', () => {
     expect(link).toHaveClass('min-h-11')
   })
 
+  it('el original avisa de su repetición con un enlace «Repetido: código» de 44 px', async () => {
+    renderWithRouter(
+      <CaseHeader
+        case={baseCase()}
+        missing={[]}
+        role="admin"
+        remakes={[{ id: 'hijo-1', code: '26-00096' }]}
+      />,
+    )
+    const link = await screen.findByRole('link', { name: 'Repetido: 26-00096' })
+    expect(link).toHaveAttribute('href', '/trabajos/hijo-1')
+    expect(link).toHaveClass('min-h-11')
+  })
+
+  it('con varias repeticiones enlaza cada una', async () => {
+    renderWithRouter(
+      <CaseHeader
+        case={baseCase()}
+        missing={[]}
+        role="admin"
+        remakes={[
+          { id: 'h2', code: '26-00097' },
+          { id: 'h1', code: '26-00096' },
+        ]}
+      />,
+    )
+    expect(await screen.findByRole('link', { name: 'Repetido: 26-00097' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Repetido: 26-00096' })).toBeInTheDocument()
+  })
+
+  it('sin repeticiones no muestra «Repetido»', async () => {
+    renderWithRouter(<CaseHeader case={baseCase()} missing={[]} role="admin" remakes={[]} />)
+    await screen.findByText('26-00001')
+    expect(screen.queryByText(/Repetido/)).not.toBeInTheDocument()
+  })
+
   it('muestra el enlace Imprimir para cualquier rol, incluso sin poder editar', async () => {
     renderWithRouter(
       <CaseHeader case={baseCase({ status: 'entregado' })} missing={[]} role="tecnico" />,

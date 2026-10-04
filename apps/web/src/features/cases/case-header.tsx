@@ -30,6 +30,7 @@ export function CaseHeader({
   missing,
   role,
   events = [],
+  remakes = [],
 }: {
   case: CaseDetail
   missing: string[]
@@ -38,6 +39,10 @@ export function CaseHeader({
    * "hold" del aviso "En espera desde…". Opcional porque no todo llamador los tiene a mano
    * (los tests de este componente no cargan `/eventos`). */
   events?: CaseEvent[]
+  /** Repeticiones directas del trabajo (`useCaseRemakes`, la misma consulta del bloque
+   * «Repeticiones»): solo código e id, para avisar «Repetido: …» sin bajar al final de «Detalle»
+   * (UX4-25). El detalle (estado, fecha, motivo) sigue en el bloque. */
+  remakes?: { id: string; code: string }[]
 }) {
   const hidePrices = hidesPrices(role)
   const canEdit = canWriteCases(role) && isEditableStatus(c.status)
@@ -77,6 +82,20 @@ export function CaseHeader({
               >
                 Repetición de {c.parentCase.code}
               </Link>
+            )}
+            {remakes.length > 0 && (
+              <div className="flex flex-wrap gap-x-4">
+                {remakes.map((r) => (
+                  <Link
+                    key={r.id}
+                    to="/trabajos/$caseId"
+                    params={{ caseId: r.id }}
+                    className="inline-flex min-h-11 items-center gap-1.5 text-sm text-primary underline underline-offset-2"
+                  >
+                    <span>Repetido:</span> <span className="font-mono">{r.code}</span>
+                  </Link>
+                ))}
+              </div>
             )}
           </div>
           <div className="flex gap-2">

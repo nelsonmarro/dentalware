@@ -357,6 +357,8 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       const { case: child } = (await remake.json()) as { case: { id: string; code: string } }
 
       await page.goto(`/trabajos/${created.id}`)
+      await expect(page.getByRole('link', { name: `Repetido: ${child.code}` })).toBeVisible()
+      await expectTouchTargets(page, 'a[href]:has-text("Repetido:")')
       await expect(page.getByRole('heading', { name: 'Repeticiones' })).toBeVisible()
       await expectTouchTargets(page, TOUCH_CONTROLS)
       await expectTouchTargets(page, 'a[href]:has-text("' + child.code + '")')
