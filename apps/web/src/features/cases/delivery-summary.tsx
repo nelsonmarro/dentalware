@@ -25,35 +25,41 @@ export function DeliverySummary({
   if (pending) {
     const when = dayPhrase(pending.scheduledFor, toIsoDate(new Date()))
     return (
-      <p className="flex items-center gap-2 text-base">
-        <Truck aria-hidden className="size-5 shrink-0 text-muted-foreground" />
-        <span>{pendingDeliveryLine(pending.type, when, pending.courierName)}</span>
+      <p className="flex items-start gap-2 text-base">
+        <Truck aria-hidden className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+        <span className="min-w-0">
+          {pendingDeliveryLine(pending.type, when, pending.courierName)}
+        </span>
       </p>
     )
   }
   if (!lastDelivered) return null
   return (
-    <p className="flex flex-wrap items-center gap-x-2 text-base">
-      <PackageCheck aria-hidden className="size-5 shrink-0 text-muted-foreground" />
-      <span>
-        {deliveredLine(formatTimestampDate(lastDelivered.doneAt), lastDelivered.courierName)}
+    <p className="flex items-start gap-2 text-base">
+      <PackageCheck aria-hidden className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+      {/* Texto y enlace en un mismo bloque en línea: en móvil parten juntos, sin dejar el
+          icono o el «·» solos en una línea. */}
+      <span className="min-w-0">
+        <span>
+          {deliveredLine(formatTimestampDate(lastDelivered.doneAt), lastDelivered.courierName)}
+        </span>
+        {lastDelivered.proofAttachmentId && (
+          <>
+            <span aria-hidden className="text-muted-foreground">
+              {' · '}
+            </span>
+            {/* Mismo enlace que «Ver constancia» del historial (UX4-16): la foto se abre aparte. */}
+            <a
+              href={attachmentUrl(lastDelivered.proofAttachmentId)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-11 items-center align-middle text-primary underline underline-offset-2"
+            >
+              Ver constancia
+            </a>
+          </>
+        )}
       </span>
-      {lastDelivered.proofAttachmentId && (
-        <>
-          <span aria-hidden className="text-muted-foreground">
-            ·
-          </span>
-          {/* Mismo enlace que «Ver constancia» del historial (UX4-16): la foto se abre aparte. */}
-          <a
-            href={attachmentUrl(lastDelivered.proofAttachmentId)}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-h-11 items-center text-primary underline underline-offset-2"
-          >
-            Ver constancia
-          </a>
-        </>
-      )}
     </p>
   )
 }

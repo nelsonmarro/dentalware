@@ -162,7 +162,7 @@ export function QuickCase({
         </div>
         <StatusChip status={c.status} />
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 empty:hidden">
         {/* M-2: sin fecha, con palabras; el «—» de `formatDate` no se lee en voz alta ni de un
             vistazo. Al mensajero no se le muestra (UX4-07): su fecha es la de su tarea, abajo. */}
         {!courier && (
@@ -204,7 +204,7 @@ export function QuickCase({
           Es la última fase: usa la ficha completa para finalizar el trabajo.
         </p>
       )}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 empty:hidden">
         {canControl && !last && (
           <Button
             className="h-14 w-full text-base"
