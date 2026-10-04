@@ -427,7 +427,6 @@ describe('/api/entregas', () => {
           )
 
       it('«No se pudo» y «Entregado» a la vez: nunca 500 ni una pendiente fantasma', async () => {
-        let conflictos = 0
         for (let i = 0; i < 10; i++) {
           const { caseId, entregaId, constanciaId } = await enviadoConEntrega()
           const [fallida, entregado] = await Promise.all([
@@ -442,11 +441,9 @@ describe('/api/entregas', () => {
           ])
           expect([fallida.status, entregado.status].sort()).not.toContain(500)
           if (fallida.status === 409) {
-            conflictos++
             expect(await fallida.json()).toEqual({ message: 'Esta entrega ya no está pendiente.' })
           }
           if (entregado.status === 409) {
-            conflictos++
             expect(await entregado.json()).toEqual({
               message: 'La entrega ya no está pendiente. Puede que otra persona la haya cerrado.',
             })
@@ -464,8 +461,9 @@ describe('/api/entregas', () => {
           if (trabajo!.status === 'entregado') expect(pendientes).toEqual([])
           else expect(pendientes).toHaveLength(1)
         }
-        // Si las dos peticiones nunca se cruzaran, la prueba no probaría la carrera.
-        expect(conflictos).toBeGreaterThan(0)
+        // Sin aserción sobre cuántos conflictos hubo: si las peticiones se serializan (p. ej. en
+        // CI), 200/200 es legítimo — «Entregado» cierra la entrega reprogramada —. El cierre
+        // condicional lo prueban de forma determinista `repo.test.ts` y los tests de servicio.
       })
 
       // M-8: `fail` cierra, reprograma y escribe el evento en una sola transacción. Si el
