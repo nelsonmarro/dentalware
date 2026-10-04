@@ -11,6 +11,7 @@ import {
   toIsoDate,
   type UserRole,
   hasRole,
+  isOwnDelivery,
 } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { Camera } from 'lucide-react'
@@ -119,9 +120,10 @@ export function QuickCase({
   const dateLabel = c.promisedDate || !c.dueDate ? 'Fecha comprometida' : 'Fecha deseada'
   const courier = deliversOnly(role)
   // UX4-07: la entrega o recogida que le toca a este mensajero: qué hacer, cuándo y dónde.
-  const myTask = courier && c.pendingDelivery?.courierId === self.id ? c.pendingDelivery : null
+  const myTask = courier && isOwnDelivery(self.id, c.pendingDelivery) ? c.pendingDelivery : null
   // UX4-08: sin acción, el mensajero sabe por qué (la tiene otro, o no hay ninguna pendiente)
-  // en vez de una ficha muda que parece un fallo. Misma regla que la barra (`actionsFor`).
+  // en vez de una ficha muda que parece un fallo. Misma regla que la barra (`actionsFor`). En
+  // su recogida, qué sigue (UX4-10): «Recibido» lo marca recepción al llegar.
   const noActionReason =
     courier && actionsFor({ role, userId: self.id }, c.status, c.pendingDelivery).length === 0
       ? courierNoActionReason(c.pendingDelivery, self.id)

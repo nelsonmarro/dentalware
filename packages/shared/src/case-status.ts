@@ -37,11 +37,9 @@ const CANCELABLE: readonly CaseStatus[] = CASE_STATUSES.filter(
 )
 
 export const CASE_TRANSITIONS: Record<CaseAction, Transition> = {
-  recibir: {
-    from: ['por_recoger'],
-    to: 'nuevo',
-    roles: ['admin', 'recepcion', 'mensajero'],
-  },
+  // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar el trabajo al
+  // laboratorio; el mensajero solo lo recoge (y puede marcar «No se pudo», `canFailDelivery`).
+  recibir: { from: ['por_recoger'], to: 'nuevo', roles: ['admin', 'recepcion'] },
   aceptar: { from: ['nuevo'], to: 'en_proceso', roles: ['admin', 'recepcion'] },
   pausar: { from: ['en_proceso'], to: 'en_espera', roles: ['admin', 'recepcion'] },
   reanudar: { from: ['en_espera'], to: 'en_proceso', roles: ['admin', 'recepcion'] },

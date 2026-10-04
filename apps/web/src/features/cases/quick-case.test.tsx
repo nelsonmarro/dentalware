@@ -533,17 +533,11 @@ describe('QuickCase', () => {
     const mario = { id: 'm7', name: 'Mario Mensajero' }
 
     it.each([
-      ['por_recoger', 'Recibido'],
       ['terminado', 'Marcar enviado'],
       ['enviado', 'Marcar entregado'],
     ] as const)('en «%s» ve «%s» grande y a todo el ancho', async (status, accion) => {
-      // La recogida o la entrega pendiente es suya (M-4); «Marcar enviado» no depende de ella.
-      const pendingDelivery =
-        status === 'por_recoger'
-          ? pendiente('recogida', mario.id)
-          : status === 'enviado'
-            ? pendiente('entrega', mario.id)
-            : null
+      // La entrega pendiente es suya (M-4); «Marcar enviado» no depende de ella.
+      const pendingDelivery = status === 'enviado' ? pendiente('entrega', mario.id) : null
       fetchCaseByCode.mockResolvedValue({ case: caso({ status, pendingDelivery }), missing: [] })
       vi.mocked(fetchStages).mockResolvedValue(fases)
       renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
@@ -565,7 +559,8 @@ describe('QuickCase', () => {
       expect(within(dialog).getByText('Mario Mensajero')).toBeInTheDocument()
     })
 
-    it('«Recibido» se envía al primer toque', async () => {
+    // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar al laboratorio.
+    it('en su propia recogida dice adónde ir y que recepción la marca al llegar, sin «Recibido»', async () => {
       fetchCaseByCode.mockResolvedValue({
         case: caso({
           status: 'por_recoger',
@@ -574,14 +569,13 @@ describe('QuickCase', () => {
         missing: [],
       })
       vi.mocked(fetchStages).mockResolvedValue(fases)
-      postCaseAction.mockResolvedValue(caso({ status: 'nuevo' }))
-      const user = userEvent.setup()
       renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
 
-      await user.click(await screen.findByRole('button', { name: 'Recibido' }))
-      await waitFor(() =>
-        expect(postCaseAction).toHaveBeenCalledWith('c1', { accion: 'recibir', motivo: null }),
-      )
+      expect(await screen.findByText('Recoger hoy en Clínica Uno')).toBeInTheDocument()
+      expect(
+        screen.getByText('Recepción lo marca como recibido al llegar al laboratorio.'),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Recibido' })).not.toBeInTheDocument()
     })
 
     // M-4: una entrega asignada a otro mensajero no le ofrece la acción (la API daría 403).

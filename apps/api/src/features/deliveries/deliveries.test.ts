@@ -308,6 +308,23 @@ describe('/api/entregas', () => {
       })
     })
 
+    // UX4-10: «Recibido» es de recepción, pero «No se pudo» en su recogida sigue siendo suyo.
+    it('el mensajero marca «No se pudo» en su propia recogida', async () => {
+      const caseId = await createCase()
+      const created = await createDeliveriesRepo(ctx.db).create({
+        caseId,
+        type: 'recogida',
+        courierId: mensajeroId,
+        scheduledFor: '2026-10-10',
+      })
+      const res = await post(`/api/entregas/${created.id}/fallida`, mensajero, {
+        motivo: 'Clínica cerrada',
+        nuevaFecha: '2026-10-12',
+      })
+      expect(res.status).toBe(200)
+      expect((await createDeliveriesRepo(ctx.db).byId(created.id))?.status).toBe('fallida')
+    })
+
     it('admin reprograma la de cualquier mensajero', async () => {
       const caseId = await createCase()
       const created = await createDeliveriesRepo(ctx.db).create({

@@ -353,8 +353,9 @@ describe('CaseActions', () => {
       expect(container).toBeEmptyDOMElement()
     })
 
-    it('a un mensajero le ofrece «Recibido» de su propia recogida', () => {
-      renderWithProviders(
+    // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar al laboratorio.
+    it('a un mensajero no le ofrece «Recibido» ni de su propia recogida', () => {
+      const { container } = renderWithProviders(
         <CaseActions
           case={caso({
             status: 'por_recoger',
@@ -370,7 +371,7 @@ describe('CaseActions', () => {
           role="mensajero"
         />,
       )
-      expect(screen.getByRole('button', { name: 'Recibido' })).toBeInTheDocument()
+      expect(container).toBeEmptyDOMElement()
     })
 
     it('a un mensajero no le ofrece «Marcar entregado» de una entrega asignada a otro', () => {

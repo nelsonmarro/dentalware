@@ -1,9 +1,4 @@
-import {
-  canActOnDelivery,
-  DELIVERY_CLOSING_ACTION,
-  DELIVERY_MANAGE_ROLES,
-  hasRole,
-} from '@dentalware/shared'
+import { canFailDelivery, DELIVERY_MANAGE_ROLES, hasRole } from '@dentalware/shared'
 import type { DeliveryFailInput, DeliveryListQuery } from '@dentalware/shared'
 import type { Clock } from '../../lib/clock.ts'
 import type { RequestContext } from '../../lib/request-context.ts'
@@ -59,9 +54,10 @@ export function createDeliveriesService(deps: {
       return deps.uow.run(async ({ deliveries, events }) => {
         const found = await deliveries.byId(id)
         if (!found || found.status !== 'pendiente') throw new DeliveryNotPendingError()
-        // Mismo permiso que la acción que cierra esta entrega (M-2): una sola fuente con la
-        // web y con `CasesService.action` para «el mensajero solo actúa sobre la suya».
-        if (!canActOnDelivery(ctx, DELIVERY_CLOSING_ACTION[found.type], found)) {
+        // «El mensajero solo actúa sobre la suya», una sola fuente con la web (`canFailDelivery`).
+        // No deriva de quién cierra la entrega (UX4-10): la recogida la recibe recepción, pero
+        // «No se pudo» en su recogida sigue siendo del mensajero.
+        if (!canFailDelivery(ctx, found)) {
           throw new DeliveryForbiddenError()
         }
         if (input.nuevaFecha < deps.clock.today()) {

@@ -14,7 +14,10 @@ import {
   DELIVERY_PROOF_LOCKED_MESSAGE,
   DELIVERY_TYPES,
   canActOnDelivery,
+  canFailDelivery,
   cancelledDeliveryReason,
+  deliveryNextStep,
+  isOwnDelivery,
   courierTaskTitle,
   deliveredLine,
   pendingDeliveryLine,
@@ -120,10 +123,11 @@ describe('entregas', () => {
   // tiene asignada; admin y recepción actúan sobre cualquiera.
   describe('canActOnDelivery', () => {
     const yo = { role: 'mensajero', userId: 'm1' } as const
-    it('el mensajero recibe su propia recogida pendiente', () => {
+    // Sin el rol (UX4-10, `canPerform`), esto solo dice si la recogida es suya.
+    it('la recogida pendiente del mensajero es suya', () => {
       expect(canActOnDelivery(yo, 'recibir', { type: 'recogida', courierId: 'm1' })).toBe(true)
     })
-    it('el mensajero no recibe la recogida de otro mensajero', () => {
+    it('la recogida de otro mensajero no es suya', () => {
       expect(canActOnDelivery(yo, 'recibir', { type: 'recogida', courierId: 'm2' })).toBe(false)
     })
     it('el mensajero no entrega sin entrega pendiente', () => {
@@ -189,6 +193,65 @@ describe('entregas', () => {
     it('la suya no necesita motivo: su tarea ya dice qué hacer', () => {
       expect(courierNoActionReason(pendiente('entrega', 'm1'), 'm1')).toBeNull()
     })
+    // UX4-10: la recogida la cierra recepción al llegar; el mensajero sabe que no le toca.
+    it('su recogida dice que recepción la marca al llegar', () => {
+      expect(courierNoActionReason(pendiente('recogida', 'm1'), 'm1')).toBe(
+        'Recepción lo marca como recibido al llegar al laboratorio.',
+      )
+    })
+  })
+
+  // Minor de T5: «¿es el mensajero asignado?», una sola regla.
+  describe('isOwnDelivery', () => {
+    it('es suya si está asignada a él', () => {
+      expect(isOwnDelivery('m1', { courierId: 'm1' })).toBe(true)
+    })
+    it('no es suya si la tiene otro', () => {
+      expect(isOwnDelivery('m1', { courierId: 'm2' })).toBe(false)
+    })
+    it('sin entrega no hay nada suyo', () => {
+      expect(isOwnDelivery('m1', null)).toBe(false)
+      expect(isOwnDelivery('m1', undefined)).toBe(false)
+    })
+  })
+
+  // UX4-10: «No se pudo» no depende de quién cierra la entrega. El mensajero dueño lo marca en
+  // su recogida aunque «Recibido» sea de recepción.
+  describe('canFailDelivery', () => {
+    const yo = { role: 'mensajero', userId: 'm1' } as const
+    it('el mensajero marca «No se pudo» en su propia recogida', () => {
+      expect(canFailDelivery(yo, { type: 'recogida', courierId: 'm1' })).toBe(true)
+    })
+    it('el mensajero marca «No se pudo» en su propia entrega', () => {
+      expect(canFailDelivery(yo, { type: 'entrega', courierId: 'm1' })).toBe(true)
+    })
+    it('el mensajero no marca «No se pudo» en la de otro', () => {
+      expect(canFailDelivery(yo, { type: 'recogida', courierId: 'm2' })).toBe(false)
+    })
+    it.each(['admin', 'recepcion'] as const)('%s lo marca en la de cualquiera', (role) => {
+      expect(canFailDelivery({ role, userId: 'r1' }, { type: 'recogida', courierId: 'm2' })).toBe(
+        true,
+      )
+    })
+    it('el técnico no lo marca', () => {
+      expect(
+        canFailDelivery({ role: 'tecnico', userId: 't1' }, { type: 'entrega', courierId: 't1' }),
+      ).toBe(false)
+    })
+  })
+
+  // UX4-10: qué sigue cuando quien ve la entrega no la puede cerrar.
+  describe('deliveryNextStep', () => {
+    it('al mensajero, en una recogida, le dice que recepción la marca al llegar', () => {
+      expect(deliveryNextStep('mensajero', 'recogida')).toBe(
+        'Recepción lo marca como recibido al llegar al laboratorio.',
+      )
+    })
+    it('quien cierra la entrega no necesita aviso', () => {
+      expect(deliveryNextStep('mensajero', 'entrega')).toBeNull()
+      expect(deliveryNextStep('recepcion', 'recogida')).toBeNull()
+      expect(deliveryNextStep('admin', 'recogida')).toBeNull()
+    })
   })
 
   // Una sola regla para la barra de acciones y para saber si la ficha corta queda sin acción.
@@ -202,6 +265,17 @@ describe('entregas', () => {
     })
     it('el mensajero no tiene acciones en un trabajo en producción', () => {
       expect(actionsFor(yo, 'en_proceso', null)).toEqual([])
+    })
+    it('el mensajero no ve «Recibido» ni en su propia recogida (UX4-10)', () => {
+      expect(actionsFor(yo, 'por_recoger', { type: 'recogida', courierId: 'm1' })).toEqual([])
+    })
+    it('recepción ve «Recibido» en cualquier recogida', () => {
+      expect(
+        actionsFor({ role: 'recepcion', userId: 'r1' }, 'por_recoger', {
+          type: 'recogida',
+          courierId: 'm1',
+        }),
+      ).toEqual(['recibir', 'cancelar'])
     })
     it('recepción ve las acciones de su rol en el estado', () => {
       expect(actionsFor({ role: 'recepcion', userId: 'r1' }, 'enviado', null)).toEqual([

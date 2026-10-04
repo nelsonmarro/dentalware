@@ -1,11 +1,12 @@
 import {
   availableActions,
   canActOnDelivery,
+  canFailDelivery,
   canPerform,
   CASE_ACTION_LABEL,
   DELIVERY_CLOSING_ACTION,
   DELIVERY_MANAGE_ROLES,
-  DELIVERY_ROLES,
+  deliveryNextStep,
   hasRole,
   isClosedByCancellation,
   isOverdueDelivery,
@@ -54,12 +55,16 @@ export function DeliveryCard({
   const closing = DELIVERY_CLOSING_ACTION[d.type]
   // Misma regla que la API y la ficha (`canActOnDelivery`, M-3): una sola fuente para «el
   // mensajero solo actúa sobre lo suyo»; admin y recepción, sobre cualquiera.
-  const own = canActOnDelivery({ role, userId }, closing, { type: d.type, courierId: d.courier.id })
+  const assignment = { type: d.type, courierId: d.courier.id }
+  const own = canActOnDelivery({ role, userId }, closing, assignment)
   const canClose =
     pending && own && availableActions(d.case.status).includes(closing) && canPerform(role, closing)
-  // «No se pudo»: quien puede cerrar la entrega también puede reprogramarla (la API exige lo
-  // mismo en `POST /api/entregas/:id/fallida`).
-  const canFail = pending && own && hasRole(DELIVERY_ROLES, role)
+  // «No se pudo»: misma regla que la API (`canFailDelivery`, `POST /api/entregas/:id/fallida`).
+  // No depende de quién cierra la entrega (UX4-10): el mensajero no marca «Recibido», pero sí
+  // «No se pudo» en su recogida.
+  const canFail = pending && canFailDelivery({ role, userId }, assignment)
+  // UX4-10: quien la tiene pero no la cierra (el mensajero en su recogida) sabe qué sigue.
+  const nextStep = canFail && !canClose ? deliveryNextStep(role, d.type) : null
   const overdue = pending && isOverdueDelivery(d, today)
   // Quien administra entregas ve las de todos: el nombre del mensajero orienta a recepción.
   const showCourier = hasRole(DELIVERY_MANAGE_ROLES, role)
@@ -109,6 +114,7 @@ export function DeliveryCard({
           {d.status === 'fallida' && !cancelled && d.failedReason && (
             <p className="text-sm text-muted-foreground">{`Motivo: ${d.failedReason}`}</p>
           )}
+          {nextStep && <p className="text-sm text-muted-foreground">{nextStep}</p>}
         </div>
       </div>
       {(canClose || canFail) && (

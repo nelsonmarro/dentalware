@@ -1036,9 +1036,19 @@ describe('recogida', () => {
     expect(rows.size).toBe(0)
   })
 
-  it('el mensajero asignado recibe: el trabajo pasa a nuevo, la recogida queda hecha y hay evento picked_up', async () => {
+  // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar al laboratorio.
+  it('el mensajero no recibe ni su propia recogida: la recogida sigue pendiente', async () => {
+    const { service, rows, deliveries } = porRecogerDeMario()
+    await expect(
+      service.action('1', { accion: 'recibir', motivo: null }, mensajero),
+    ).rejects.toBeInstanceOf(CaseForbiddenError)
+    expect(rows.get('1')!.status).toBe('por_recoger')
+    expect(deliveries.rows.get('d1')!.status).toBe('pendiente')
+  })
+
+  it('recepción recibe: el trabajo pasa a nuevo, la recogida queda hecha y hay evento picked_up', async () => {
     const { service, deliveries } = porRecogerDeMario()
-    const c = await service.action('1', { accion: 'recibir', motivo: null }, mensajero)
+    const c = await service.action('1', { accion: 'recibir', motivo: null }, recepcion)
     expect(c.status).toBe('nuevo')
     expect(deliveries.rows.get('d1')).toMatchObject({
       status: 'hecha',
@@ -1050,7 +1060,7 @@ describe('recogida', () => {
       type: 'picked_up',
       fromValue: 'por_recoger',
       toValue: 'nuevo',
-      actorId: 'u3',
+      actorId: recepcion.userId,
     })
   })
 

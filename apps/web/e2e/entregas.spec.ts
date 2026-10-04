@@ -130,7 +130,8 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         .first()
         .textContent())!
 
-      // 2. El mensajero ve la recogida en su inicio y en «Entregas», y marca «Recibido».
+      // 2. El mensajero ve la recogida en su inicio y en «Entregas»; «Recibido» lo marca
+      // recepción al llegar al laboratorio (UX4-10), y a él solo le queda «No se pudo».
       const courierContext = await browser.newContext()
       try {
         const courierPage = await courierContext.newPage()
@@ -144,10 +145,25 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         await courierPage.goto('/entregas')
         await expect(courierPage.getByRole('heading', { level: 1, name: 'Entregas' })).toBeVisible()
         const parada = courierPage.getByRole('region', { name: clinic.name })
-        await parada.getByRole('button', { name: 'Recibido' }).click()
-        await expect(toasts(courierPage).getByText('Trabajo recibido')).toBeVisible()
-        await expect(parada.getByText('Hecha', { exact: true })).toBeVisible()
+        await expect(
+          parada.getByText('Recepción lo marca como recibido al llegar al laboratorio.'),
+        ).toBeVisible()
+        await expect(parada.getByRole('button', { name: 'No se pudo' })).toBeVisible()
         await expect(parada.getByRole('button', { name: 'Recibido' })).toHaveCount(0)
+
+        // 2b. Recepción recibe el trabajo al llegar, desde «Entregas».
+        await page.goto('/entregas')
+        await expect(page.getByRole('heading', { level: 1, name: 'Entregas' })).toBeVisible()
+        const llegada = page
+          .getByRole('region', { name: clinic.name })
+          .getByRole('listitem')
+          .filter({ hasText: code })
+        await llegada.getByRole('button', { name: 'Recibido' }).click()
+        await expect(toasts(page).getByText('Trabajo recibido')).toBeVisible()
+        await expect(llegada.getByText('Hecha', { exact: true })).toBeVisible()
+        await courierPage.reload()
+        await expect(parada.getByText('Hecha', { exact: true })).toBeVisible()
+        await expect(parada.getByRole('button', { name: 'No se pudo' })).toHaveCount(0)
 
         // 3. Recepción acepta y finaliza (por API) y marca enviado con el mensajero.
         await runAction(page, caseId, { accion: 'aceptar' })

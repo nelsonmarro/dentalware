@@ -124,7 +124,25 @@ describe('DeliveriesDay', () => {
     expect(await screen.findByText('Urgente')).toBeInTheDocument()
   })
 
-  it('una recogida pendiente ofrece «Recibido» (se envía al primer toque) y «No se pudo»', async () => {
+  // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar al laboratorio.
+  it('al mensajero, su recogida pendiente le ofrece «No se pudo» y le dice que recepción la marca al llegar', async () => {
+    fetchDeliveries.mockResolvedValue([
+      entrega({
+        type: 'recogida',
+        case: { ...entrega().case, id: 'c9', status: 'por_recoger' },
+      }),
+    ])
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
+
+    const tarjeta = await screen.findByRole('listitem')
+    expect(within(tarjeta).getByRole('button', { name: 'No se pudo' })).toBeInTheDocument()
+    expect(within(tarjeta).queryByRole('button', { name: 'Recibido' })).not.toBeInTheDocument()
+    expect(
+      within(tarjeta).getByText('Recepción lo marca como recibido al llegar al laboratorio.'),
+    ).toBeInTheDocument()
+  })
+
+  it('a recepción, una recogida pendiente le ofrece «Recibido» (se envía al primer toque) y «No se pudo»', async () => {
     fetchDeliveries.mockResolvedValue([
       entrega({
         type: 'recogida',
@@ -133,7 +151,7 @@ describe('DeliveriesDay', () => {
     ])
     postCaseAction.mockResolvedValue({})
     const { user } = renderWithQueryAndRouter(
-      <DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />,
+      <DeliveriesDay day="2026-10-03" role="recepcion" userId="r1" />,
     )
 
     const tarjeta = await screen.findByRole('listitem')
@@ -142,6 +160,7 @@ describe('DeliveriesDay', () => {
     expect(
       within(tarjeta).queryByRole('button', { name: 'Marcar entregado' }),
     ).not.toBeInTheDocument()
+    expect(within(tarjeta).queryByText(/Recepción lo marca/)).not.toBeInTheDocument()
     await user.click(within(tarjeta).getByRole('button', { name: 'Recibido' }))
     await waitFor(() =>
       expect(postCaseAction).toHaveBeenCalledWith('c9', { accion: 'recibir', motivo: null }),

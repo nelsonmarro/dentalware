@@ -1172,7 +1172,7 @@ describe('/api/trabajos', () => {
       })
       await app.request(
         `/api/trabajos/${id}/acciones`,
-        req(mensajero, 'POST', { accion: 'recibir' }),
+        req(recepcion, 'POST', { accion: 'recibir' }),
       )
       expect(await ficha()).toBeNull()
     })
@@ -1189,11 +1189,31 @@ describe('/api/trabajos', () => {
       })
     })
 
-    it('el mensajero de la recogida la recibe (200): el trabajo pasa a nuevo', async () => {
+    // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar al laboratorio.
+    it('el mensajero no recibe ni su propia recogida (403): sigue por recoger', async () => {
       const id = await crearPorRecoger()
       const res = await app.request(
         `/api/trabajos/${id}/acciones`,
         req(mensajero, 'POST', { accion: 'recibir' }),
+      )
+      expect(res.status).toBe(403)
+      const [recogida] = await ctx.db
+        .select()
+        .from(ctx.schema.deliveries)
+        .where(eq(ctx.schema.deliveries.caseId, id))
+      expect(recogida).toMatchObject({ status: 'pendiente' })
+      const [trabajo] = await ctx.db
+        .select()
+        .from(ctx.schema.cases)
+        .where(eq(ctx.schema.cases.id, id))
+      expect(trabajo!.status).toBe('por_recoger')
+    })
+
+    it('recepción recibe la recogida (200): el trabajo pasa a nuevo', async () => {
+      const id = await crearPorRecoger()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(recepcion, 'POST', { accion: 'recibir' }),
       )
       expect(res.status).toBe(200)
       const { case: recibido } = (await res.json()) as { case: { status: string } }

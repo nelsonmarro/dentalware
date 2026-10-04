@@ -74,10 +74,16 @@ describe('estados y acciones', () => {
 })
 
 describe('recibir (Iteración 4, ENT-1)', () => {
-  it('recibir lleva de por recoger a nuevo y lo pueden hacer admin, recepción y mensajero', () => {
+  it('recibir lleva de por recoger a nuevo', () => {
     expect(applyAction('por_recoger', 'recibir')).toEqual({ ok: true, status: 'nuevo' })
     expect(applyAction('nuevo', 'recibir').ok).toBe(false)
-    expect(canPerform('mensajero', 'recibir')).toBe(true)
+  })
+
+  // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar el trabajo al
+  // laboratorio, no el mensajero al recogerlo en la clínica.
+  it('recibir solo lo hacen admin y recepción', () => {
+    expect(CASE_TRANSITIONS.recibir.roles).toEqual(['admin', 'recepcion'])
+    expect(canPerform('mensajero', 'recibir')).toBe(false)
     expect(canPerform('tecnico', 'recibir')).toBe(false)
   })
 
