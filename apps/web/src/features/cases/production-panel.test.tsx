@@ -307,8 +307,6 @@ describe('ProductionPanel', () => {
     }
   })
 
-  // M-5 (revisión de la Tarea 4): ids de `useId()`, no escritos a mano, para que dos paneles
-  // (o una prueba que monta varios) no compartan el id del título.
   // UX4-09: la entrega va en el mismo panel que su acción.
   it('en un trabajo enviado dice con quién salió y para cuándo', async () => {
     renderWithProviders(
@@ -374,6 +372,8 @@ describe('ProductionPanel', () => {
     expect(tecnico.compareDocumentPosition(boton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  // M-5 (revisión de la Tarea 4): ids de `useId()`, no escritos a mano, para que dos paneles
+  // (o una prueba que monta varios) no compartan el id del título.
   it('dos paneles montados no comparten ids de título', async () => {
     renderWithProviders(
       <>

@@ -256,7 +256,7 @@ export interface DeliveryLog {
 /**
  * Lectura de las entregas de un trabajo para su ficha (UX4-07/09), fuera de la transacción:
  * la pendiente (como mucho una: un trabajo está por recoger o enviado, no las dos cosas) y la
- * última entrega hecha, con el nombre del mensajero. Lo cumple `createCaseDeliveriesQuery` de
+ * última entrega hecha, con el nombre del mensajero. Lo cumple `createCaseDeliveryInfoQuery` de
  * `deliveries` en la raíz de composición (ADR 24/34). Sin dinero.
  */
 export interface CaseDeliveriesQuery {
