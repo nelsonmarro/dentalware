@@ -10,16 +10,45 @@ export type SessionStatus =
   { status: 'ok'; user: SessionUser } | { status: 'anonymous' } | { status: 'invalid-role' }
 
 /**
+ * Última sesión válida que respondió el servidor en esta pestaña (UX4-26). Se olvida en cuanto el
+ * servidor responde sin sesión o con un rol no válido, y al cerrar sesión; solo vive en memoria.
+ */
+let knownUser: SessionUser | null = null
+
+/**
  * Estado fino de la sesión: distingue "sin sesión" de "sesión con un rol que no existe en
  * `USER_ROLES`" (una fila manipulada, una migración a medias). Lo usa `login.tsx` para mostrar
  * un mensaje claro en vez de rebotar en silencio contra `_app.tsx` (issue #21).
  */
 export async function getSessionStatus(): Promise<SessionStatus> {
   const { data } = await authClient.getSession()
+  knownUser = null
   if (!data) return { status: 'anonymous' }
   const role = userRoleSchema.safeParse(data.user.role)
   if (!role.success) return { status: 'invalid-role' }
-  return { status: 'ok', user: { ...data.user, role: role.data } }
+  knownUser = { ...data.user, role: role.data }
+  return { status: 'ok', user: knownUser }
+}
+
+/**
+ * Sesión para el `beforeLoad` de `_app`, que se repite en cada navegación (UX4-26). Sin red,
+ * `authClient.getSession()` **rechaza** con el `TypeError` de `fetch` (no resuelve con
+ * `{ error }`), y ese rechazo caía en el `defaultErrorComponent` del router: cambiar de día en
+ * «Entregas» tapaba la pantalla entera, barra de navegación incluida. Si ya se conocía una
+ * sesión válida, se deja pasar con ella; la pantalla pinta sus datos en caché o su `LoadError`,
+ * y la API sigue exigiendo sesión en cada petición, así que la seguridad no cambia.
+ *
+ * Nunca deja pasar sin sesión conocida (primer arranque sin red → pantalla de error, como
+ * antes), ni ante una respuesta del servidor sin sesión o con rol no válido (→ login), ni ante
+ * un fallo que no sea de red.
+ */
+export async function getAppSession(): Promise<SessionUser | null> {
+  try {
+    return await getSession()
+  } catch (error) {
+    if (error instanceof TypeError && knownUser) return knownUser
+    throw error
+  }
 }
 
 /**
@@ -79,5 +108,6 @@ export async function signIn(values: { email: string; password: string }): Promi
 }
 
 export async function signOut(): Promise<void> {
+  knownUser = null
   await authClient.signOut()
 }

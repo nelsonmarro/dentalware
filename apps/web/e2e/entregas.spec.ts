@@ -334,3 +334,44 @@ test.describe('Entregas (Iteración 4, #35)', () => {
     },
   )
 })
+
+// UX4-11 y UX4-26: sin red, cambiar de día no tapa la pantalla con el error del router y la app
+// avisa que lo marcado se enviará al volver la señal. Fuera del `describe` de arriba porque sin
+// red el navegador sí escribe en consola los `fetch` fallidos; aquí solo se exige que no quede
+// ninguna excepción sin capturar.
+test.describe('Entregas sin red', () => {
+  test(
+    'cambiar de día sin red deja la pantalla, la navegación y el aviso de sin conexión',
+    { tag: '@clave' },
+    async ({ page, context }) => {
+      const pageErrors: string[] = []
+      page.on('pageerror', (error) => pageErrors.push(error.message))
+      await loginAsAdmin(page)
+      await page.goto('/entregas')
+      await expect(page.getByRole('heading', { level: 1, name: 'Entregas' })).toBeVisible()
+      const aviso = page.getByRole('status').filter({
+        hasText: 'Sin conexión: lo que marques se enviará al volver la señal',
+      })
+      await expect(aviso).toHaveCount(0)
+
+      try {
+        await context.setOffline(true)
+        await expect(aviso).toBeVisible()
+
+        await page.getByRole('button', { name: 'Día siguiente' }).click()
+
+        await expect(page).toHaveURL(new RegExp(`dia=${tomorrowIso()}`))
+        await expect(page.getByText('No hay conexión con el servidor')).toHaveCount(0)
+        await expect(page.getByRole('heading', { level: 1, name: 'Entregas' })).toBeVisible()
+        await expect(
+          page.getByRole('navigation', { name: /^Principal/ }).filter({ visible: true }),
+        ).toHaveCount(1)
+      } finally {
+        await context.setOffline(false)
+      }
+
+      await expect(aviso).toHaveCount(0)
+      expect(pageErrors).toEqual([])
+    },
+  )
+})

@@ -3,17 +3,17 @@ import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/rea
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { routeTree } from '@/routeTree.gen'
-import { getSession } from '@/features/auth/session'
+import { getAppSession } from '@/features/auth/session'
 import { ApiError } from '@/lib/api-error'
 import type * as CasesApiModule from './api'
 import { fetchAttachments } from './attachments-api'
 
 // La ficha (`routes/_app/trabajos/$caseId.tsx`) no tiene archivo de test propio (convención
 // del proyecto: `routes/` no lleva tests, ver `home-summary.test.tsx`); se prueba montando el
-// árbol de rutas real, igual que `login-redirect.test.tsx`. Se mockea `getSession` (no
+// árbol de rutas real, igual que `login-redirect.test.tsx`. Se mockea `getAppSession` (no
 // `authClient`: ese import está restringido fuera de `features/auth/**`, docs/architecture.md
 // §3.5).
-vi.mock('@/features/auth/session', () => ({ getSession: vi.fn() }))
+vi.mock('@/features/auth/session', () => ({ getAppSession: vi.fn() }))
 const { fetchCase } = vi.hoisted(() => ({ fetchCase: vi.fn() }))
 vi.mock('./api', async (importOriginal) => ({
   ...(await importOriginal<typeof CasesApiModule>()),
@@ -40,7 +40,7 @@ function renderApp(initialPath: string) {
 
 describe('ficha del trabajo: "no existe" distinto de "no se pudo cargar" (UX3-02)', () => {
   beforeEach(() => {
-    vi.mocked(getSession).mockResolvedValue({
+    vi.mocked(getAppSession).mockResolvedValue({
       id: 'u1',
       name: 'Ana',
       email: 'ana@labo.test',

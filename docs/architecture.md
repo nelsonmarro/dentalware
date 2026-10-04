@@ -54,7 +54,7 @@ packages/shared (máquina de estados, dinero, FDI, readiness, schemas zod)
 ### Web (`apps/web/src`)
 
 - `features/<f>/api.ts` es la única frontera con la red (`hc<AppType>` + `throwIfNotOk`). `use-*.ts` es la capa de aplicación (TanStack Query). Componentes y `routes/` son adaptadores de UI, sin reglas: totales, estados y readiness vienen de `shared`.
-- **Identidad**: `authClient` confinado en `features/auth/`; el resto usa `getSession`/`signIn`/`signOut`/`useSession`. `getSessionStatus()` distingue `ok`, `anonymous` e `invalid-role`; un rol desconocido nunca cuenta como rol.
+- **Identidad**: `authClient` confinado en `features/auth/`; el resto usa `getSession`/`signIn`/`signOut`/`useSession`. `getSessionStatus()` distingue `ok`, `anonymous` e `invalid-role`; un rol desconocido nunca cuenta como rol. Sin red, `getAppSession()` (el `beforeLoad` de `_app`) deja pasar con la última sesión válida conocida: la API sigue exigiendo sesión en cada petición (UX4-26).
 - **Estado**: el servidor es la fuente de verdad, la URL guarda vista, filtros y página, y no hay store global.
 - **Componentes transversales**: `FormDialog`, `ConfirmDialog`, `DataGrid` (`docs/data-grid.md`) y `Combobox`. Una sola UI responsive.
 - **PWA**: shell cacheado con `autoUpdate`, sin escritura offline; cámara vía `<input capture>`.
