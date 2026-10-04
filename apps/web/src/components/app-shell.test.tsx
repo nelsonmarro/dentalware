@@ -1,23 +1,24 @@
-import { screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import { renderWithRouter } from '@/test/router'
+import { onlineManager } from '@tanstack/react-query'
+import { act, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { renderWithQueryAndRouter } from '@/test/render'
 import { AppShell } from './app-shell'
 
 const USER = { name: 'Ana', role: 'admin' as const }
 
 describe('AppShell', () => {
   it('la navegación de escritorio tiene nombre accesible', async () => {
-    renderWithRouter(<AppShell user={USER}>contenido</AppShell>)
+    renderWithQueryAndRouter(<AppShell user={USER}>contenido</AppShell>)
     expect(await screen.findByRole('navigation', { name: 'Principal' })).toBeInTheDocument()
   })
 
   it('la navegación inferior móvil tiene un nombre accesible distinto', async () => {
-    renderWithRouter(<AppShell user={USER}>contenido</AppShell>)
+    renderWithQueryAndRouter(<AppShell user={USER}>contenido</AppShell>)
     expect(await screen.findByRole('navigation', { name: 'Principal móvil' })).toBeInTheDocument()
   })
 
   it('el botón de cerrar sesión de la barra lateral muestra el texto, no solo el icono', async () => {
-    renderWithRouter(<AppShell user={USER}>contenido</AppShell>)
+    renderWithQueryAndRouter(<AppShell user={USER}>contenido</AppShell>)
     const sidebar = (await screen.findByRole('navigation', { name: 'Principal' })).closest('aside')
     expect(sidebar).not.toBeNull()
     const { getByRole } = within(sidebar!)
@@ -32,7 +33,7 @@ describe('AppShell', () => {
     { role: 'mensajero' as const, entregas: true },
     { role: 'tecnico' as const, entregas: false },
   ])('con rol $role muestra Entregas: $entregas', async ({ role, entregas }) => {
-    renderWithRouter(<AppShell user={{ name: 'Ana', role }}>contenido</AppShell>)
+    renderWithQueryAndRouter(<AppShell user={{ name: 'Ana', role }}>contenido</AppShell>)
     for (const name of ['Principal', 'Principal móvil']) {
       const nav = await screen.findByRole('navigation', { name })
       expect(within(nav).queryByRole('link', { name: /Entregas/ }) !== null).toBe(entregas)
@@ -47,7 +48,7 @@ describe('AppShell', () => {
   ])(
     'con rol $role muestra Cuentas: $cuentas y Configuración: $configuracion',
     async ({ role, cuentas, configuracion }) => {
-      renderWithRouter(<AppShell user={{ name: 'Ana', role }}>contenido</AppShell>)
+      renderWithQueryAndRouter(<AppShell user={{ name: 'Ana', role }}>contenido</AppShell>)
       const nav = await screen.findByRole('navigation', { name: 'Principal' })
       expect(within(nav).queryByRole('link', { name: /Cuentas/ }) !== null).toBe(cuentas)
       expect(within(nav).queryByRole('link', { name: /Configuración/ }) !== null).toBe(
@@ -55,4 +56,24 @@ describe('AppShell', () => {
       )
     },
   )
+
+  // UX4-11: el aviso sin conexión vive en el layout autenticado, en todas las pantallas de `_app`.
+  describe('sin conexión', () => {
+    afterEach(() => {
+      act(() => onlineManager.setOnline(true))
+    })
+
+    it('muestra el aviso global sin red y lo quita al volver', async () => {
+      renderWithQueryAndRouter(<AppShell user={USER}>contenido</AppShell>)
+      await screen.findByRole('navigation', { name: 'Principal' })
+
+      act(() => onlineManager.setOnline(false))
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Sin conexión: lo que marques se enviará al volver la señal',
+      )
+
+      act(() => onlineManager.setOnline(true))
+      expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    })
+  })
 })

@@ -5,6 +5,7 @@ import { ClipboardList, Home, LogOut, Settings, Truck, Wallet } from 'lucide-rea
 import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { signOut } from '@/features/auth/session'
+import { OfflineNotice } from '@/components/offline-notice'
 
 type NavItem = { to: string; label: string; icon: typeof Home; roles?: readonly UserRole[] }
 
@@ -73,6 +74,8 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* UX4-11: arriba y en el flujo, para no tapar la barra inferior móvil. */}
+        <OfflineNotice />
         {/* Header móvil */}
         <header className="flex items-center justify-between border-b border-border px-4 py-3 lg:hidden print:hidden">
           <span className="font-semibold">Dentalware</span>
