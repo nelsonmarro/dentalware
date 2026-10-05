@@ -139,6 +139,51 @@ describe('features/deliveries/service', () => {
       const otroDia = await service.list({ dia: '2026-10-09' }, { userId: 'a1', role: 'admin' })
       expect(otroDia).toEqual([])
     })
+
+    // #118: lo que viene en camino al laboratorio sigue en la lista de hoy.
+    it('hoy incluye las recogidas hechas antes cuyo trabajo sigue por recoger; el mensajero, las suyas', async () => {
+      const { service } = makeService({
+        cases: new Map([
+          ['c1', { ...CASE_REF, status: 'por_recoger' }],
+          ['c2', { ...CASE_REF, code: '26-00002', status: 'nuevo' }],
+          ['c3', { ...CASE_REF, code: '26-00003', status: 'por_recoger' }],
+        ]),
+        seed: [
+          makeRow({
+            id: 'd1',
+            caseId: 'c1',
+            type: 'recogida',
+            status: 'hecha',
+            scheduledFor: '2026-10-08',
+          }),
+          // Ya recibido: no viene en camino.
+          makeRow({
+            id: 'd2',
+            caseId: 'c2',
+            type: 'recogida',
+            status: 'hecha',
+            scheduledFor: '2026-10-08',
+          }),
+          makeRow({
+            id: 'd3',
+            caseId: 'c3',
+            type: 'recogida',
+            status: 'hecha',
+            scheduledFor: '2026-10-08',
+            courierId: 'otro-mensajero',
+          }),
+        ],
+      })
+      const hoy = await service.list({ dia: '2026-10-10' }, { userId: 'a1', role: 'admin' })
+      expect(hoy.map((d) => d.id)).toEqual(['d1', 'd3'])
+      const delMensajero = await service.list(
+        { dia: '2026-10-10' },
+        { userId: 'mensajero-1', role: 'mensajero' },
+      )
+      expect(delMensajero.map((d) => d.id)).toEqual(['d1'])
+      const otroDia = await service.list({ dia: '2026-10-09' }, { userId: 'a1', role: 'admin' })
+      expect(otroDia).toEqual([])
+    })
   })
 
   describe('fail', () => {

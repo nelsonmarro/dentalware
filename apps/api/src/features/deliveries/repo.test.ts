@@ -340,6 +340,47 @@ describe('features/deliveries/repo', () => {
       expect(conAtrasadas.map((d) => d.case.patientRef).sort()).toEqual(['Ayer pendiente', 'Hoy'])
     })
 
+    // #118: lo que viene en camino no se pierde de vista al cambiar de día.
+    it('con includeOverdue trae las recogidas hechas de días anteriores cuyo trabajo sigue por recoger', async () => {
+      const repo = createDeliveriesRepo(ctx.db)
+      const estado = (id: string, status: 'por_recoger' | 'nuevo') =>
+        ctx.db.update(ctx.schema.cases).set({ status }).where(eq(ctx.schema.cases.id, id))
+      const enCamino = await createCase({ patientRef: 'En camino' })
+      await estado(enCamino, 'por_recoger')
+      const recogida = await repo.create({
+        caseId: enCamino,
+        type: 'recogida',
+        courierId,
+        scheduledFor: '2026-09-08',
+      })
+      await repo.markDone(recogida.id, new Date('2026-09-08T15:00:00Z'), null)
+      // Una entrega hecha ayer no viene en camino, aunque su trabajo estuviera por recoger.
+      const entregaAyer = await createCase({ patientRef: 'Entrega de ayer' })
+      await estado(entregaAyer, 'por_recoger')
+      const entrega = await repo.create({
+        caseId: entregaAyer,
+        type: 'entrega',
+        courierId,
+        scheduledFor: '2026-09-09',
+      })
+      await repo.markDone(entrega.id, new Date('2026-09-09T15:00:00Z'), null)
+
+      const hoy = await repo.listForDay({ day: '2026-09-10', includeOverdue: true })
+      expect(hoy.map((d) => d.case.patientRef)).toEqual(['En camino'])
+      expect(hoy[0]).toMatchObject({
+        status: 'hecha',
+        scheduledFor: '2026-09-08',
+        case: { status: 'por_recoger' },
+      })
+
+      const otroDia = await repo.listForDay({ day: '2026-09-10', includeOverdue: false })
+      expect(otroDia).toEqual([])
+
+      // «Recibido»: el trabajo pasa a nuevo y deja de venir en camino.
+      await estado(enCamino, 'nuevo')
+      expect(await repo.listForDay({ day: '2026-09-10', includeOverdue: true })).toEqual([])
+    })
+
     it('devuelve el código, el alias del paciente, la dirección y el teléfono de la clínica, y el nombre del mensajero', async () => {
       const repo = createDeliveriesRepo(ctx.db)
       const caseId = await createCase({ patientRef: 'Paciente 7' })
