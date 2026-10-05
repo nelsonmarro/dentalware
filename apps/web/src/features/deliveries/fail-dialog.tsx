@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { QueuedNotice } from '@/features/cases/queued-notice'
+import { useCaseBusy } from '@/features/cases/use-case-busy'
 import { useFailDelivery } from './use-fail-delivery'
 
 type FailFormValues = z.input<typeof deliveryFailSchema>
@@ -51,7 +53,7 @@ export function FailDialog({
   delivery: {
     id: string
     type: DeliveryType
-    case: { code: string }
+    case: { id: string; code: string }
     clinic: { name: string }
   }
   open: boolean
@@ -60,7 +62,8 @@ export function FailDialog({
   const now = new Date()
   const today = toIsoDate(now)
   const nextBusinessDay = toIsoDate(addBusinessDays(now, 1, []))
-  const fail = useFailDelivery(delivery.id)
+  const fail = useFailDelivery(delivery.id, delivery.case.id)
+  const { busy, queued } = useCaseBusy(delivery.case.id)
   const { register, handleSubmit, formState, setValue, control } = useForm<
     FailFormValues,
     unknown,
@@ -73,6 +76,7 @@ export function FailDialog({
   const motivo = useWatch({ control, name: 'motivo' })
 
   function submit(input: DeliveryFailInput) {
+    if (busy) return
     fail.mutate(input, { onSuccess: () => onOpenChange(false) })
   }
 
@@ -88,8 +92,8 @@ export function FailDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Volver
           </Button>
-          <Button type="submit" form="fail-delivery-form" disabled={fail.isPending}>
-            {fail.isPending ? 'Guardando…' : 'Reprogramar'}
+          <Button type="submit" form="fail-delivery-form" disabled={busy}>
+            {busy ? 'Guardando…' : 'Reprogramar'}
           </Button>
         </>
       }
@@ -144,6 +148,7 @@ export function FailDialog({
           />
           {formState.errors.nuevaFecha && <FieldError errors={[formState.errors.nuevaFecha]} />}
         </Field>
+        {queued && <QueuedNotice />}
       </form>
     </FormDialog>
   )

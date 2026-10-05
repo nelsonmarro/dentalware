@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ApiError } from '@/lib/api-error'
 import { compressImage } from '@/lib/image-compress'
-import { queryKeys } from '@/lib/query-keys'
+import { mutationKeys, queryKeys } from '@/lib/query-keys'
 import { uploadAttachment } from './attachments-api'
 
 /** La subida dice que la entrega ya no es de quien sube (403) o que el trabajo cambió (409). */
@@ -21,6 +21,7 @@ export function isProofRejected(err: unknown): boolean {
 export function useUploadProof(caseId: string) {
   const qc = useQueryClient()
   return useMutation({
+    mutationKey: mutationKeys.proofUpload(caseId),
     mutationFn: async (photo: File) => {
       const form = new FormData()
       form.append('file', await compressImage(photo), photo.name)

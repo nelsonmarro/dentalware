@@ -18,6 +18,8 @@ import { Button } from '@/components/ui/button'
 import { AlertChip } from '@/features/cases/alert-chip'
 import { formatDate } from '@/features/cases/date-format'
 import { DeliverDialog } from '@/features/cases/deliver-dialog'
+import { QueuedNotice } from '@/features/cases/queued-notice'
+import { useCaseBusy } from '@/features/cases/use-case-busy'
 import { useCaseAction } from '@/features/cases/use-cases'
 import { cn } from '@/lib/utils'
 import type { DeliveryItem } from './api'
@@ -53,6 +55,9 @@ export function DeliveryCard({
 }) {
   const [dialog, setDialog] = useState<'entregar' | 'fallida' | null>(null)
   const action = useCaseAction(d.case.id)
+  // M-4: cualquier acción de este trabajo en curso o en pausa (también la de un diálogo ya
+  // cerrado con «Volver») bloquea las dos acciones de la tarjeta.
+  const { busy, queued } = useCaseBusy(d.case.id)
   const outcome = deliveryOutcome(d)
   // Cancelar cierra la pendiente en la misma transacción; el estado del trabajo es solo una
   // red por si una pendiente de un trabajo cancelado llegara igual: nunca es accionable.
@@ -127,17 +132,14 @@ export function DeliveryCard({
           )}
           {cancelNote && <p className="text-sm text-muted-foreground">{cancelNote}</p>}
           {nextStep && <p className="text-sm text-muted-foreground">{nextStep}</p>}
+          {queued && (canClose || canFail) && <QueuedNotice />}
         </div>
       </div>
       {(canClose || canFail) && (
         // UX4-20: ancho mínimo común, para que las acciones se alineen de tarjeta en tarjeta.
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
           {canClose && (
-            <Button
-              className="w-full sm:w-auto sm:min-w-40"
-              disabled={action.isPending}
-              onClick={close}
-            >
+            <Button className="w-full sm:w-auto sm:min-w-40" disabled={busy} onClick={close}>
               {CASE_ACTION_LABEL[closing]}
             </Button>
           )}
@@ -145,7 +147,7 @@ export function DeliveryCard({
             <Button
               variant="outline"
               className="w-full sm:w-auto sm:min-w-40"
-              disabled={action.isPending}
+              disabled={busy}
               onClick={() => setDialog('fallida')}
             >
               No se pudo

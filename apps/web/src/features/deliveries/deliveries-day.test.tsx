@@ -479,6 +479,118 @@ describe('DeliveriesDay', () => {
     expect(await screen.findByText('No hay entregas ni recogidas este día.')).toBeInTheDocument()
   })
 
+  // M-4 de la revisión final: sin red, lo enviado queda en pausa. «Volver» cierra el diálogo,
+  // pero la tarjeta no deja repetir la entrega (dos subidas, un 409 y una constancia huérfana) y
+  // dice por qué con texto.
+  describe('sin red, una acción en pausa no se repite', () => {
+    const ENCOLADA = 'Se enviará al volver la señal.'
+
+    it('«Marcar entregado» en pausa: tras «Volver» la tarjeta no deja repetirlo y lo dice', async () => {
+      fetchDeliveries.mockResolvedValue([entrega()])
+      uploadAttachment.mockResolvedValue({ id: 'a1', url: '/api/adjuntos/a1', thumbUrl: null })
+      postCaseAction.mockResolvedValue({ id: 'c1', status: 'entregado' })
+      const { user } = renderWithQueryAndRouter(
+        <DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />,
+      )
+      const tarjeta = await screen.findByRole('listitem')
+      try {
+        act(() => onlineManager.setOnline(false))
+        await user.click(within(tarjeta).getByRole('button', { name: 'Marcar entregado' }))
+        const dialog = await screen.findByRole('dialog', { name: 'Marcar entregado' })
+        await user.upload(
+          within(dialog).getByLabelText('Foto de constancia'),
+          new File(['contenido'], 'foto.png', { type: 'image/png' }),
+        )
+        await user.click(within(dialog).getByRole('button', { name: 'Marcar entregado' }))
+        expect(await within(dialog).findByText(ENCOLADA)).toBeInTheDocument()
+        await user.click(within(dialog).getByRole('button', { name: 'Volver' }))
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+        expect(within(tarjeta).getByRole('button', { name: 'Marcar entregado' })).toBeDisabled()
+        expect(within(tarjeta).getByRole('button', { name: 'No se pudo' })).toBeDisabled()
+        expect(within(tarjeta).getByText(ENCOLADA)).toBeInTheDocument()
+        expect(uploadAttachment).not.toHaveBeenCalled()
+      } finally {
+        act(() => onlineManager.setOnline(true))
+      }
+      await waitFor(() => expect(postCaseAction).toHaveBeenCalledTimes(1))
+      expect(uploadAttachment).toHaveBeenCalledTimes(1)
+    })
+
+    it('«No se pudo» en pausa: tras «Volver» la tarjeta no deja repetirlo y lo dice', async () => {
+      fetchDeliveries.mockResolvedValue([entrega()])
+      failDelivery.mockResolvedValue({})
+      const { user } = renderWithQueryAndRouter(
+        <DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />,
+      )
+      const tarjeta = await screen.findByRole('listitem')
+      try {
+        act(() => onlineManager.setOnline(false))
+        await user.click(within(tarjeta).getByRole('button', { name: 'No se pudo' }))
+        const dialog = await screen.findByRole('dialog', { name: 'No se pudo entregar' })
+        await user.type(within(dialog).getByLabelText('Motivo'), 'Clínica cerrada')
+        await user.click(within(dialog).getByRole('button', { name: 'Reprogramar' }))
+        expect(await within(dialog).findByText(ENCOLADA)).toBeInTheDocument()
+        await user.click(within(dialog).getByRole('button', { name: 'Volver' }))
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+        expect(within(tarjeta).getByRole('button', { name: 'Marcar entregado' })).toBeDisabled()
+        expect(within(tarjeta).getByRole('button', { name: 'No se pudo' })).toBeDisabled()
+        expect(within(tarjeta).getByText(ENCOLADA)).toBeInTheDocument()
+        expect(failDelivery).not.toHaveBeenCalled()
+      } finally {
+        act(() => onlineManager.setOnline(true))
+      }
+      await waitFor(() => expect(failDelivery).toHaveBeenCalledTimes(1))
+    })
+
+    it('con red, mientras se envía, bloquea la tarjeta sin decir que espera la señal', async () => {
+      fetchDeliveries.mockResolvedValue([entrega()])
+      failDelivery.mockReturnValue(new Promise(() => {}))
+      const { user } = renderWithQueryAndRouter(
+        <DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />,
+      )
+      const tarjeta = await screen.findByRole('listitem')
+      await user.click(within(tarjeta).getByRole('button', { name: 'No se pudo' }))
+      const dialog = await screen.findByRole('dialog', { name: 'No se pudo entregar' })
+      await user.type(within(dialog).getByLabelText('Motivo'), 'Clínica cerrada')
+      await user.click(within(dialog).getByRole('button', { name: 'Reprogramar' }))
+      await waitFor(() => expect(failDelivery).toHaveBeenCalledTimes(1))
+      await user.click(within(dialog).getByRole('button', { name: 'Volver' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+      expect(within(tarjeta).getByRole('button', { name: 'No se pudo' })).toBeDisabled()
+      expect(within(tarjeta).queryByText(ENCOLADA)).not.toBeInTheDocument()
+    })
+
+    it('la pausa de un trabajo no bloquea la tarjeta de otro', async () => {
+      fetchDeliveries.mockResolvedValue([
+        entrega(),
+        entrega({ id: 'd2', case: { ...entrega().case, id: 'c2', code: '26-00002' } }),
+      ])
+      failDelivery.mockResolvedValue({})
+      const { user } = renderWithQueryAndRouter(
+        <DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />,
+      )
+      const [primera, segunda] = await screen.findAllByRole('listitem')
+      try {
+        act(() => onlineManager.setOnline(false))
+        await user.click(within(primera!).getByRole('button', { name: 'No se pudo' }))
+        const dialog = await screen.findByRole('dialog', { name: 'No se pudo entregar' })
+        await user.type(within(dialog).getByLabelText('Motivo'), 'Clínica cerrada')
+        await user.click(within(dialog).getByRole('button', { name: 'Reprogramar' }))
+        await user.click(within(dialog).getByRole('button', { name: 'Volver' }))
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+        expect(within(primera!).getByRole('button', { name: 'No se pudo' })).toBeDisabled()
+        expect(within(segunda!).getByRole('button', { name: 'No se pudo' })).toBeEnabled()
+        expect(within(segunda!).queryByText(ENCOLADA)).not.toBeInTheDocument()
+      } finally {
+        act(() => onlineManager.setOnline(true))
+      }
+    })
+  })
+
   // UX4-05: el diálogo que cierra una entrega no se queda abierto cuando la entrega deja de
   // estar pendiente (otra persona canceló el trabajo o cerró la entrega).
   describe('diálogos sobre una entrega que dejó de estar pendiente', () => {

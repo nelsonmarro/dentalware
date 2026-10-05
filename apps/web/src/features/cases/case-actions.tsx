@@ -23,6 +23,8 @@ import { CaseActionDialog } from './case-action-dialog'
 import { DeliverDialog } from './deliver-dialog'
 import { RemakeDialog } from './remake-dialog'
 import { ShipDialog, type DeliverySelf } from './ship-dialog'
+import { QueuedNotice } from './queued-notice'
+import { useCaseBusy } from './use-case-busy'
 import { useCaseAction } from './use-cases'
 
 /** Orden en la barra: el primario primero (arriba en la pila móvil), luego los secundarios y
@@ -133,6 +135,9 @@ export function CaseActions({
   const [formAction, setFormAction] = useState<ActionRequiringDeliveryForm | null>(null)
   const [confirm, setConfirm] = useState<({ action: CaseAction } & ActionDialogCopy) | null>(null)
   const action = useCaseAction(c.id)
+  // M-4: una acción de este trabajo en curso o en pausa (también la de un diálogo ya cerrado
+  // con «Volver», o la de la tarjeta de «Entregas») bloquea la barra.
+  const { busy, queued } = useCaseBusy(c.id)
 
   // `actionsFor` (shared): estado ∩ rol ∩ `canActOnDelivery` (M-4): a un mensajero no se le
   // ofrece «Recibido» ni «Marcar entregado» de una recogida o entrega asignada a otro (la API
@@ -187,7 +192,7 @@ export function CaseActions({
             key={a}
             variant={variant}
             className={size === 'large' ? 'h-14 w-full text-base' : 'w-full sm:w-auto'}
-            disabled={(a === 'aceptar' && missing.length > 0) || action.isPending}
+            disabled={(a === 'aceptar' && missing.length > 0) || busy}
             onClick={() => run(a)}
           >
             {CASE_ACTION_LABEL[a]}
@@ -201,12 +206,13 @@ export function CaseActions({
             key={a}
             variant={variant}
             className="w-full sm:ml-auto sm:w-auto"
-            disabled={action.isPending}
+            disabled={busy}
             onClick={() => run(a)}
           >
             {CASE_ACTION_LABEL[a]}
           </Button>
         ))}
+      {queued && <QueuedNotice className="sm:basis-full" />}
       {DeliveryDialog && (
         <DeliveryDialog
           case={c}

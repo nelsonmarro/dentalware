@@ -1,4 +1,5 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { onlineManager } from '@tanstack/react-query'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/lib/api-error'
@@ -7,11 +8,13 @@ import type { CaseDetail } from './api'
 import { CaseActions } from './case-actions'
 import { useCase } from './use-cases'
 
-const { postCaseAction, fetchCase } = vi.hoisted(() => ({
+const { postCaseAction, fetchCase, uploadAttachment } = vi.hoisted(() => ({
   postCaseAction: vi.fn(),
   fetchCase: vi.fn(),
+  uploadAttachment: vi.fn(),
 }))
 vi.mock('./api', () => ({ postCaseAction, fetchCase }))
+vi.mock('./attachments-api', () => ({ uploadAttachment }))
 vi.mock('@/features/deliveries/api', () => ({
   fetchCouriers: vi.fn().mockResolvedValue([{ id: 'm1', name: 'Bruno Mensajero' }]),
 }))
@@ -328,6 +331,50 @@ describe('CaseActions', () => {
       within(dialog).getByRole('button', { name: 'Tomar foto de constancia' }),
     ).toBeInTheDocument()
     expect(postCaseAction).not.toHaveBeenCalled()
+  })
+
+  // M-4 de la revisión final de la ola It4: sin red, la entrega enviada desde el diálogo queda
+  // en pausa; tras «Volver», la barra (también la de la ficha corta) no deja repetirla.
+  it('sin red, tras «Volver» de una entrega en pausa la barra no deja repetirla y lo dice', async () => {
+    uploadAttachment.mockResolvedValue({ id: 'a1', url: '/api/adjuntos/a1', thumbUrl: null })
+    postCaseAction.mockResolvedValue({ id: 'c1', status: 'entregado' })
+    const { user } = renderWithProviders(
+      <CaseActions
+        self={yo}
+        case={caso({
+          status: 'enviado',
+          pendingDelivery: {
+            type: 'entrega',
+            courierId: yo.id,
+            courierName: 'Mario',
+            scheduledFor: '2026-10-04',
+          },
+        })}
+        missing={[]}
+        role="mensajero"
+        size="large"
+      />,
+    )
+    const barra = await screen.findByRole('group', { name: 'Acciones del trabajo' })
+    try {
+      act(() => onlineManager.setOnline(false))
+      await user.click(within(barra).getByRole('button', { name: 'Marcar entregado' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Marcar entregado' })
+      await user.upload(
+        within(dialog).getByLabelText('Foto de constancia'),
+        new File(['contenido'], 'foto.png', { type: 'image/png' }),
+      )
+      await user.click(within(dialog).getByRole('button', { name: 'Marcar entregado' }))
+      await user.click(within(dialog).getByRole('button', { name: 'Volver' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+      expect(within(barra).getByRole('button', { name: 'Marcar entregado' })).toBeDisabled()
+      expect(within(barra).getByText('Se enviará al volver la señal.')).toBeInTheDocument()
+    } finally {
+      act(() => onlineManager.setOnline(true))
+    }
+    await waitFor(() => expect(postCaseAction).toHaveBeenCalledTimes(1))
+    expect(uploadAttachment).toHaveBeenCalledTimes(1)
   })
 
   // M-4 (revisión final del PR 1 de la Iteración 4): el mensajero solo ve la acción de la

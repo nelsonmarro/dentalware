@@ -10,7 +10,7 @@ vi.mock('./api', () => ({ failDelivery }))
 const entrega = {
   id: 'd1',
   type: 'entrega',
-  case: { code: '26-00087' },
+  case: { id: 'c1', code: '26-00087' },
   clinic: { name: 'Clínica Sur' },
 } as const
 

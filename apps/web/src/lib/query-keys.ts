@@ -52,3 +52,16 @@ export const queryKeys = {
   caseRemakes: (id: string) => ['trabajos', id, 'repeticiones'] as const,
   attachments: (caseId: string) => ['trabajos', caseId, 'adjuntos'] as const,
 }
+
+/**
+ * Claves de las mutaciones que cierran una entrega de un trabajo (M-4 de la revisión final de la
+ * ola It4). Todas cuelgan de `case(caseId)`: `useCaseBusy` cuenta por ese prefijo las pendientes
+ * o en pausa de un trabajo, venga de donde venga (tarjeta de «Entregas», ficha o un diálogo ya
+ * cerrado), para que sin red no se pueda repetir la misma acción.
+ */
+export const mutationKeys = {
+  case: (caseId: string) => ['trabajos', caseId] as const,
+  caseAction: (caseId: string) => ['trabajos', caseId, 'accion'] as const,
+  proofUpload: (caseId: string) => ['trabajos', caseId, 'constancia'] as const,
+  deliveryFail: (caseId: string) => ['trabajos', caseId, 'no-se-pudo'] as const,
+}

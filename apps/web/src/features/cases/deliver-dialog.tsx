@@ -8,6 +8,8 @@ import { useLocalFile } from '@/lib/use-local-file'
 import type { CaseDetail } from './api'
 import type { Attachment } from './attachments-api'
 import { useCaseAction } from './use-cases'
+import { QueuedNotice } from './queued-notice'
+import { useCaseBusy } from './use-case-busy'
 import { isProofRejected, useUploadProof } from './use-upload-proof'
 
 /**
@@ -54,7 +56,8 @@ export function DeliverDialog({
   // La constancia ya subida de la foto elegida: un reintento tras un fallo de la acción no
   // vuelve a subirla.
   const uploaded = useRef<{ photo: File; proof: Attachment } | null>(null)
-  const busy = upload.isPending || action.isPending
+  // M-4: también cuenta lo de este trabajo que lanzó otro diálogo ya cerrado y espera la señal.
+  const { busy, queued } = useCaseBusy(c.id)
 
   async function submit() {
     if (!photo || busy) return
@@ -144,10 +147,14 @@ export function DeliverDialog({
             Tomar foto de constancia
           </Button>
         )}
-        {upload.isPending && (
-          <p role="status" className="text-sm text-muted-foreground">
-            Subiendo foto…
-          </p>
+        {queued ? (
+          <QueuedNotice />
+        ) : (
+          upload.isPending && (
+            <p role="status" className="text-sm text-muted-foreground">
+              Subiendo foto…
+            </p>
+          )
         )}
         {/* Objetivo táctil real: el botón de arriba (mismo criterio que `PhotoUploader`). */}
         <input
