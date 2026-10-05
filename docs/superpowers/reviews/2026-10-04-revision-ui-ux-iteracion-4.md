@@ -370,3 +370,52 @@ Todas en `capturas/it4/`. Ninguna muestra credenciales: los formularios de login
 - Ficha corta: `ficha-corta-mensajero-entrega-360.png`, `ficha-corta-mensajero-ajena-360.png`, `ficha-corta-chip-por-recoger-partido-360.png`
 - Ficha: `ficha-enviado-admin-1280.png`, `historial-no-se-pudo-1280.png`, `adjuntos-constancias-duplicadas-1280.png`, `bloque-repeticiones-1280.png`, `ficha-repeticion-enlace-original-390.png`
 - Formulario y lista: `formulario-programar-recogida-390.png`, `lista-vencen-manana-1280.png`, `lista-vencen-manana-390.png`
+
+## Resultado de la ola
+
+Ola en la rama `fix/revision-ui-ux-it4` (plan `8164306`, 10 tareas). Commits de `git log 8164306..HEAD`; el detalle de cada revisión está en el ledger `.superpowers/sdd/2026-10-04-ola-fixes-ui-ux-it4/progress.md`.
+
+| Hallazgo | Estado | Commit(s) |
+|---|---|---|
+| UX4-01 | Corregido | `8521161` |
+| UX4-02 | Corregido | `fdb5070` |
+| UX4-03 | Corregido | `6bae268`, `e6243b6`, `e32f51b` |
+| UX4-04 | Corregido («Vencen mañana» hasta el siguiente día hábil; el viernes, «Vencen hasta el lunes») | `f86ae91`, `1e97d52` |
+| UX4-05 | Corregido | `56ece50`, `c780577`, `cc77cb7`, `0088c68`, `9c5c814` |
+| UX4-06 | Corregido (la constancia se sube al confirmar; la de la entrega se distingue y no se borra, ni en carrera con «Marcar entregado») | `868f9e5`, `385ecaa`, `8570551`, `dcde13d`, `5c67677`, `ae4e129`, `9264e0f` |
+| UX4-07 | Corregido | `ed3cd51`, `fcc63a5`, `ab9327a` |
+| UX4-08 | Corregido | `fcfb7d3`, `fcc63a5` |
+| UX4-09 | Corregido | `83b63ae`, `44aa8db`, `fcc63a5` |
+| UX4-10 | Corregido (decisión de Nelson: «Recibido» solo lo marcan admin y recepción) | `2032c4b` |
+| UX4-11 | Corregido (aviso global sin conexión; las acciones siguen en pausa y se envían al volver la señal) | `0ba4d02` |
+| UX4-12 | Corregido | `2c5161c`, `f45adad`, `7490919`, `68c3aac`, `798dc19` |
+| UX4-13 | Post-MVP (#117): reasignar el mensajero de una recogida o entrega | — |
+| UX4-14 | Corregido | `98985e4` |
+| UX4-15 | Corregido | `868f9e5` |
+| UX4-16 | Corregido | `c2fe3f8`, `44aa8db` |
+| UX4-17 | Corregido | `2c5161c`, `271b878`, `e0aaaa1`, `1db0310` |
+| UX4-18 | Corregido | `2c5161c`, `271b878`, `68c3aac`, `1db0310` |
+| UX4-19 | Corregido | `2c5161c`, `271b878` |
+| UX4-20 | Corregido | `6c074e0` |
+| UX4-21 | Corregido | `2c5161c`, `e4abd17`, `e0aaaa1` |
+| UX4-22 | Corregido | `e11a014`, `27d2b0a`, `68c3aac` |
+| UX4-23 | Corregido | `6c074e0` |
+| UX4-24 | Corregido | `5f73dc5` |
+| UX4-25 | Corregido | `7d7ddea` |
+| UX4-26 | Corregido (sin red, la navegación no tapa la pantalla y «Entregas» dice que el día se cargará al volver la señal) | `c47dda5`, `20a9d59` |
+
+Cierre (Tarea 10): `9264e0f` cierra la carrera borrar contra «Marcar entregado» con la FK `RESTRICT`; `3503f95` anota en `conventions.md` §5 y en `architecture.md` lo nuevo de la ola (contexto y foco de los diálogos, «Anulada», motivos frecuentes, `ClinicContact`/`map-link`, reglas del día de `GET /api/entregas`); `ab9327a` amplía el barrido táctil a «Entregas» del mensajero, sus diálogos y la ficha corta de un trabajo enviado. Con un build de producción (`vite preview` y service worker activo), sin red se navega entre «Entregas», «Trabajos» e «Inicio» sin caer en la página de Chrome sin conexión y con el aviso «Sin conexión» a la vista; una recarga completa sin red también recibe la app del service worker, y sin sesión conocida en memoria sale el error del router (lo previsto en el plan).
+
+Diferidos, con su motivo (ledger):
+
+- **403 antes que 413/415 para el mensajero** al subir: el orden de las comprobaciones no cambia lo que puede hacer; solo cuál de los dos errores ve.
+- **Carrera teórica entre `pendingFor` y el guardado de la constancia**: `marcar_entregado` vuelve a comprobar la entrega pendiente, así que no hay daño.
+- **Pausar, cancelar y finalizar no se cierran solos tras un refresco**: un segundo toque da 409 sin daño.
+- **Constancia usada por la vía de tolerancia** (admin o recepción sin entrega pendiente) que se ve «sin usar»: solo pasa con datos anteriores a la Iteración 4. Y el `cast` de `eventLabel`, que pasará a `isDeliveryType`.
+- **«Ver constancia» da 404 en eventos viejos** cuya constancia se borró antes de la protección: solo datos de desarrollo.
+- **`Promise.all` en `toDetail`** y la forma de `lastDelivered` repetida en dos puertos: rendimiento y duplicación menores, sin efecto visible.
+- **Efecto de `document.fonts.ready` sin test unitario**: jsdom no tiene `document.fonts`; se comprobó en Chrome a 360 px.
+- **Regla del rango de «Vencen mañana» duplicada en el repo y en su fake**: igual que el resto de vistas, que el fake reproduce para probar el servicio.
+- **«Cargando…» sin fin en otras pantallas con la consulta en pausa y sin caché**: generalizarlo con `fetchStatus === 'paused'` es una tarea aparte.
+- **Sesión conocida solo en memoria**: arrancar la app sin red cae en el error del router, como decide el plan.
+- **El mensajero ve las fotos de cualquier trabajo** (ficha básica, spec §8): pendiente de valorar con Nelson desde la LOPDP.
