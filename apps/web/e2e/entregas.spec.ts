@@ -130,8 +130,8 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         .first()
         .textContent())!
 
-      // 2. El mensajero ve la recogida en su inicio y en «Entregas»; «Recibido» lo marca
-      // recepción al llegar al laboratorio (UX4-10), y a él solo le queda «No se pudo».
+      // 2. El mensajero ve la recogida en su inicio y en «Entregas», con «Recogido» y «No se
+      // pudo»; «Recibido» lo marca recepción al llegar al laboratorio (UX4-10, #118).
       const courierContext = await browser.newContext()
       try {
         const courierPage = await courierContext.newPage()
@@ -145,13 +145,12 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         await courierPage.goto('/entregas')
         await expect(courierPage.getByRole('heading', { level: 1, name: 'Entregas' })).toBeVisible()
         const parada = courierPage.getByRole('region', { name: clinic.name })
-        await expect(
-          parada.getByText('Recepción lo marca como recibido al llegar al laboratorio.'),
-        ).toBeVisible()
+        await expect(parada.getByRole('button', { name: 'Recogido' })).toBeVisible()
         await expect(parada.getByRole('button', { name: 'No se pudo' })).toBeVisible()
         await expect(parada.getByRole('button', { name: 'Recibido' })).toHaveCount(0)
 
-        // 2b. Recepción recibe el trabajo al llegar, desde «Entregas».
+        // 2b. La clínica lo trae en mano: recepción lo recibe desde «Entregas» y «Recibido»
+        // cierra la recogida pendiente.
         await page.goto('/entregas')
         await expect(page.getByRole('heading', { level: 1, name: 'Entregas' })).toBeVisible()
         const llegada = page
@@ -164,6 +163,7 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         await courierPage.reload()
         await expect(parada.getByText('Hecha', { exact: true })).toBeVisible()
         await expect(parada.getByRole('button', { name: 'No se pudo' })).toHaveCount(0)
+        await expect(parada.getByRole('button', { name: 'Recogido' })).toHaveCount(0)
 
         // 3. Recepción acepta y finaliza (por API) y marca enviado con el mensajero.
         await runAction(page, caseId, { accion: 'aceptar' })
@@ -209,6 +209,85 @@ test.describe('Entregas (Iteración 4, #35)', () => {
       await expect(
         page.getByRole('region', { name: 'Entrega' }).getByRole('link', { name: 'Ver constancia' }),
       ).toBeVisible()
+    },
+  )
+
+  // ENT-2 (#118): el mensajero marca «Recogido» en la clínica; el trabajo sigue por recoger, en
+  // camino al laboratorio, hasta que recepción marca «Recibido» al llegar.
+  test(
+    'el mensajero marca «Recogido» y recepción ve lo que viene en camino y lo recibe',
+    { tag: '@clave' },
+    async ({ page, browser }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const courier = await createCourier(page)
+      const recepcion = await createStaff(page, 'recepcion')
+      await page.context().clearCookies()
+      await login(page, { email: recepcion.email, password: recepcion.password })
+      const res = await page.request.post('/api/trabajos', {
+        data: {
+          clinicId: clinic.id,
+          doctorId: doctor.id,
+          patientRef: `Paciente E2E ${uniqueSuffix()}`,
+          receivedAt: todayIso(),
+          dueDate: farDueDate(),
+          prescription: PRESCRIPCION,
+          items: [
+            {
+              productId: product.id,
+              quantity: 1,
+              teeth: [11],
+              unitPrice: null,
+              discountPct: 0,
+            },
+          ],
+          recogida: { mensajeroId: courier.id, fecha: todayIso() },
+        },
+      })
+      expect(res.ok()).toBe(true)
+      const { case: trabajo } = (await res.json()) as { case: { id: string; code: string } }
+
+      const courierContext = await browser.newContext()
+      try {
+        const courierPage = await courierContext.newPage()
+        const courierErrors = trackConsoleErrors(courierPage)
+        await login(courierPage, { email: courier.email, password: courier.password })
+        await courierPage.goto('/entregas')
+        const tarjeta = courierPage
+          .getByRole('region', { name: clinic.name })
+          .getByRole('listitem')
+          .filter({ hasText: trabajo.code })
+        await tarjeta.getByRole('button', { name: 'Recogido' }).click()
+        await expect(toasts(courierPage).getByText('Recogida registrada')).toBeVisible()
+        await expect(tarjeta.getByText('En camino al laboratorio')).toBeVisible()
+        await expect(tarjeta.getByText(`Recogido por ${courier.name} a las `)).toBeVisible()
+        await expect(tarjeta.getByRole('button')).toHaveCount(0)
+        await expect(courierPage.getByText('0 pendientes · 1 en camino')).toBeVisible()
+        expect(courierErrors).toEqual([])
+      } finally {
+        await courierContext.close()
+      }
+
+      // Recepción lo ve en camino en «Entregas» y lo recibe al llegar.
+      await page.goto('/entregas')
+      const llegada = page
+        .getByRole('region', { name: clinic.name })
+        .getByRole('listitem')
+        .filter({ hasText: trabajo.code })
+      await expect(llegada.getByText('En camino al laboratorio')).toBeVisible()
+      await expect(llegada.getByRole('button', { name: 'Recogido' })).toHaveCount(0)
+      await llegada.getByRole('button', { name: 'Recibido' }).click()
+      await expect(toasts(page).getByText('Trabajo recibido')).toBeVisible()
+      await expect(llegada.getByText('Hecha', { exact: true })).toBeVisible()
+
+      // La ficha dice «Nuevo» y el historial tiene los dos momentos.
+      await page.goto(`/trabajos/${trabajo.id}`)
+      await expect(page.getByText('Nuevo', { exact: true })).toBeVisible()
+      await page.getByRole('tab', { name: /^Historial/ }).click()
+      const historial = page.getByRole('tabpanel', { name: /^Historial/ })
+      await expect(historial.getByText('Recogido', { exact: true })).toBeVisible()
+      await expect(historial.getByText(`Por ${courier.name}`)).toBeVisible()
+      await expect(historial.getByText('Recibido en el laboratorio', { exact: true })).toBeVisible()
     },
   )
 

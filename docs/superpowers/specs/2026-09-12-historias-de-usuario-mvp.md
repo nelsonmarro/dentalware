@@ -270,11 +270,17 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 7 = baja.
   - Fecha obligatoria y no anterior a hoy; mensajero obligatorio.
   - El trabajo no puede aceptarse hasta ser recibido.
 
-**ENT-2.** Como mensajero, quiero marcar la recogida como hecha para que el laboratorio sepa que el trabajo ya viene en camino. _(Hecha en la Iteración 4.)_
-- Versión mínima aceptable: «Recibido» en la recogida pasa el trabajo a `nuevo` y cierra la `delivery`.
+**ENT-2.** Como mensajero, quiero marcar la recogida como hecha para que el laboratorio sepa que el trabajo ya viene en camino. Como recepción, quiero ver qué viene en camino y marcar «Recibido» cuando llega. _(Hecha en la Iteración 4; completada en #118.)_
+- Nota: en la ola UI/UX de la Iteración 4 (UX4-10) «Recibido» pasó a ser solo de recepción, al llegar el trabajo al laboratorio, y el mensajero se quedó sin forma de decir que ya lo recogió. #118 separa los dos momentos sin estado nuevo (ADR 16).
+- Versión mínima aceptable:
+  - «Recogido» en la tarjeta de recogida de «Entregas» y en la ficha corta del mensajero: un toque, sin diálogo ni foto. Cierra la `delivery` y el trabajo sigue en `por_recoger`.
+  - Recepción ve «En camino al laboratorio · Recogido por {mensajero} a las {HH:MM}» en «Entregas» y en la ficha completa, y marca «Recibido», que pasa el trabajo a `nuevo`.
 - Criterios:
-  - Queda evento con actor y hora; la recogida desaparece de pendientes.
-  - Recepción y administrador también pueden hacerlo.
+  - «Recogido»: solo en recogidas pendientes; el mensajero, solo en la suya (403 en la ajena); 409 si ya no está pendiente. La API también lo permite a admin y recepción, pero la UI solo se lo ofrece al mensajero: ellos ven «Recibido», que también cierra la recogida si el trabajo llega en mano.
+  - Queda el evento `picked_up` con actor y hora, y el nombre del mensajero copiado en el momento («Recogido · Por {mensajero}» en el historial). «Recibido» escribe `received` («Recibido en el laboratorio»); con la recogida ya hecha no la vuelve a cerrar ni duplica eventos.
+  - Tras «Recogido», la recogida sale de los pendientes del mensajero: no tiene «No se pudo» ni cuenta como atrasada. En el resumen del día cuenta como «en camino», no como hecha.
+  - «Entregas» de hoy sigue mostrando todo lo que viene en camino, sea cual sea su fecha programada, hasta «Recibido».
+  - «En camino al laboratorio» se deriva en `shared` (`isInTransitToLab`, `isDeliveryInTransit`); técnico y mensajero no reciben dinero en los DTOs nuevos.
 
 **ENT-3.** Como recepción, quiero marcar un trabajo terminado como enviado y asignar la entrega al mensajero para que salga del laboratorio con seguimiento. _(Hecha en la Iteración 4.)_
 - Versión mínima aceptable: «Marcar enviado» desde `terminado` crea `delivery` tipo entrega con mensajero y fecha; estado `enviado`.

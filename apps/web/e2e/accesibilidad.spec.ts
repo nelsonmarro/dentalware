@@ -550,6 +550,8 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
         await expect(group.getByRole('link', { name: porRecoger.code })).toBeVisible()
         await expect(group.getByRole('button', { name: 'Marcar entregado' })).toBeVisible()
         await expect(group.getByRole('button', { name: 'No se pudo' })).toHaveCount(2)
+        // #118: «Recogido» en su recogida entra en el barrido.
+        await expect(group.getByRole('button', { name: 'Recogido' })).toBeVisible()
         expect(
           await courierPage.evaluate(
             () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
@@ -566,6 +568,16 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
         await expectTouchTargets(fail, TOUCH_CONTROLS)
         await fail.getByRole('button', { name: 'Volver' }).click()
         await expect(fail).toBeHidden()
+
+        // #118: ya recogida, la tarjeta en camino (sin botones) tampoco rompe el barrido.
+        await recogida.getByRole('button', { name: 'Recogido' }).click()
+        await expect(recogida.getByText('En camino al laboratorio')).toBeVisible()
+        expect(
+          await courierPage.evaluate(
+            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+          ),
+        ).toBe(true)
+        await expectTouchTargets(courierPage, TOUCH_CONTROLS)
 
         await group.getByRole('button', { name: 'Marcar entregado' }).click()
         const deliver = courierPage.getByRole('dialog', { name: 'Marcar entregado' })
