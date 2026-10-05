@@ -91,7 +91,12 @@ export function ProductionPanel({
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         {/* UX4-09: la recogida o entrega va junto a su acción, arriba del panel. */}
-        <DeliverySummary pending={c.pendingDelivery} lastDelivered={c.lastDelivered} />
+        <DeliverySummary
+          status={c.status}
+          pending={c.pendingDelivery}
+          lastDelivered={c.lastDelivered}
+          lastPickedUp={c.lastPickedUp}
+        />
         {actionsFirst ? (
           <>
             {actions}

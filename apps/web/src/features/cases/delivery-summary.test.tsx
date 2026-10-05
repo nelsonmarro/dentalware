@@ -11,6 +11,8 @@ describe('DeliverySummary', () => {
   it('una recogida pendiente dice para cuándo y con quién', () => {
     render(
       <DeliverySummary
+        status="por_recoger"
+        lastPickedUp={null}
         pending={{
           id: 'd1',
           type: 'recogida',
@@ -27,6 +29,8 @@ describe('DeliverySummary', () => {
   it('una entrega pendiente dice cuándo sale y con quién', () => {
     render(
       <DeliverySummary
+        status="por_recoger"
+        lastPickedUp={null}
         pending={{
           id: 'd1',
           type: 'entrega',
@@ -43,6 +47,8 @@ describe('DeliverySummary', () => {
   it('lo entregado dice cuándo, quién y enlaza la constancia', () => {
     render(
       <DeliverySummary
+        status="por_recoger"
+        lastPickedUp={null}
         pending={null}
         lastDelivered={{
           doneAt: '2026-10-04T15:00:00.000Z',
@@ -60,6 +66,8 @@ describe('DeliverySummary', () => {
   it('lo entregado sin constancia no deja un enlace roto', () => {
     render(
       <DeliverySummary
+        status="por_recoger"
+        lastPickedUp={null}
         pending={null}
         lastDelivered={{
           doneAt: '2026-10-04T15:00:00.000Z',
@@ -73,7 +81,46 @@ describe('DeliverySummary', () => {
   })
 
   it('sin entrega pendiente ni hecha no monta nada', () => {
-    const { container } = render(<DeliverySummary pending={null} lastDelivered={null} />)
+    const { container } = render(
+      <DeliverySummary
+        status="por_recoger"
+        pending={null}
+        lastDelivered={null}
+        lastPickedUp={null}
+      />,
+    )
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  // #118: recepción ve lo que viene en camino, quién lo recogió y a qué hora.
+  const recogido = {
+    doneAt: new Date('2026-10-05T10:32:00').toISOString(),
+    courierName: 'Mario',
+  }
+
+  it('lo que viene en camino dice quién lo recogió y a qué hora', () => {
+    render(
+      <DeliverySummary
+        status="por_recoger"
+        pending={null}
+        lastDelivered={null}
+        lastPickedUp={recogido}
+      />,
+    )
+    expect(
+      screen.getByText('En camino al laboratorio · Recogido por Mario a las 10:32'),
+    ).toBeInTheDocument()
+  })
+
+  it('ya recibido (nuevo) no dice que viene en camino', () => {
+    const { container } = render(
+      <DeliverySummary
+        status="nuevo"
+        pending={null}
+        lastDelivered={null}
+        lastPickedUp={recogido}
+      />,
+    )
     expect(container).toBeEmptyDOMElement()
   })
 })

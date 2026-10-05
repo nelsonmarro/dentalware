@@ -17,6 +17,7 @@ import {
   MessageSquare,
   Package,
   PackageCheck,
+  PackageOpen,
   Pause,
   Paperclip,
   Pencil,
@@ -50,7 +51,7 @@ export const EVENT_LABEL: Record<CaseEventType, string> = {
   shipped: 'Enviado',
   delivered: 'Entregado',
   pickup_scheduled: 'Recogida programada',
-  picked_up: 'Recibido en el laboratorio',
+  picked_up: 'Recogido',
   received: 'Recibido en el laboratorio',
   delivery_failed: 'Entrega o recogida fallida',
   cancelled: 'Cancelado',
@@ -86,7 +87,7 @@ const EVENT_ICON: Record<CaseEventType, LucideIcon> = {
   shipped: Truck,
   delivered: Check,
   pickup_scheduled: CalendarClock,
-  picked_up: PackageCheck,
+  picked_up: PackageOpen,
   received: PackageCheck,
   delivery_failed: TriangleAlert,
   cancelled: Ban,
@@ -172,6 +173,10 @@ function EventDetail({
           {`Con ${e.reason} para el ${formatDate(e.toValue)}`}
         </p>
       ) : null
+    // #118: quién recogió en la clínica (copia del nombre en el momento). Los viejos, que
+    // escribía «Recibido» sin nombre, se quedan en «Recogido» a secas.
+    case 'picked_up':
+      return e.reason ? <p className="text-sm text-muted-foreground">{`Por ${e.reason}`}</p> : null
     case 'delivered':
       // Desde la Iteración 4 `toValue` es el id de la constancia; antes era el estado
       // (`entregado`) y no había foto: solo se nombra la foto cuando la hay.
