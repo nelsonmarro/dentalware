@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { onlineManager } from '@tanstack/react-query'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { authClient } from './auth-client'
 import { getAppSession, getSession, getSessionStatus, signIn, signOut } from './session'
 
@@ -197,6 +198,12 @@ describe('getAppSession', () => {
     vi.mocked(authClient.getSession).mockReset()
     vi.mocked(authClient.getSession).mockResolvedValue(anonymous)
     await getAppSession()
+    // «Sin red» es lo que dice `onlineManager` (el mismo que pausa las mutaciones y pinta el
+    // aviso); los casos de abajo que simulan el rechazo de `fetch` también lo ponen sin red.
+    onlineManager.setOnline(false)
+  })
+  afterEach(() => {
+    onlineManager.setOnline(true)
   })
 
   it('con red devuelve el usuario de la sesión', async () => {
@@ -253,6 +260,17 @@ describe('getAppSession', () => {
     await signOut()
 
     await expect(getAppSession()).rejects.toBe(sinRed)
+  })
+
+  // M-5 de la revisión final: un `TypeError` con red es un fallo de programación del cliente de
+  // auth, no «sin red»; dejar pasar con la sesión conocida lo ocultaría.
+  it('con red, un TypeError no usa la sesión conocida', async () => {
+    const bug = new TypeError("Cannot read properties of undefined (reading 'user')")
+    vi.mocked(authClient.getSession).mockResolvedValueOnce(ok).mockRejectedValueOnce(bug)
+    onlineManager.setOnline(true)
+    await getAppSession()
+
+    await expect(getAppSession()).rejects.toBe(bug)
   })
 
   it('un fallo que no es de red no usa la sesión conocida', async () => {

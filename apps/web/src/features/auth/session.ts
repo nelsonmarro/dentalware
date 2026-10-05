@@ -1,4 +1,5 @@
 import { userRoleSchema, type UserRole } from '@dentalware/shared'
+import { onlineManager } from '@tanstack/react-query'
 import { authClient } from './auth-client'
 
 export type SessionUser = { id: string; name: string; email: string; role: UserRole }
@@ -40,13 +41,15 @@ export async function getSessionStatus(): Promise<SessionStatus> {
  *
  * Nunca deja pasar sin sesión conocida (primer arranque sin red → pantalla de error, como
  * antes), ni ante una respuesta del servidor sin sesión o con rol no válido (→ login), ni ante
- * un fallo que no sea de red.
+ * un fallo que no sea de red. «Sin red» es el rechazo de `fetch` (`TypeError`) **con**
+ * `onlineManager` sin conexión, el mismo que pausa las mutaciones y pinta `OfflineNotice` (M-5):
+ * un `TypeError` con red es un fallo del cliente y no se oculta.
  */
 export async function getAppSession(): Promise<SessionUser | null> {
   try {
     return await getSession()
   } catch (error) {
-    if (error instanceof TypeError && knownUser) return knownUser
+    if (error instanceof TypeError && !onlineManager.isOnline() && knownUser) return knownUser
     throw error
   }
 }
