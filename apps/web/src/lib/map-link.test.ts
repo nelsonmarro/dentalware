@@ -30,6 +30,19 @@ describe('mapUrl con la ciudad (UX4-21)', () => {
 })
 
 describe('mapPlace', () => {
+  // M-3 de la revisión de la Tarea 9: «ya dice la ciudad» se mira en el último tramo tras la
+  // coma, no en cualquier parte: la calle o el barrio pueden llevar el nombre de la ciudad.
+  it('añade la ciudad aunque la calle lleve su nombre', () => {
+    expect(mapPlace('Av. Loja 12', 'Loja')).toBe('Av. Loja 12, Loja')
+    expect(mapPlace('Calle Quitoloma 5, Conocoto', 'Quito')).toBe(
+      'Calle Quitoloma 5, Conocoto, Quito',
+    )
+  })
+
+  it('no la repite si el último tramo ya es la ciudad', () => {
+    expect(mapPlace('Av. Loja 12,  loja ', 'Loja')).toBe('Av. Loja 12,  loja ')
+  })
+
   it('une la dirección y la ciudad para nombrar el lugar', () => {
     expect(mapPlace('Av. Amazonas N34-56', 'Quito')).toBe('Av. Amazonas N34-56, Quito')
     expect(mapPlace('Av. Amazonas N34-56', null)).toBe('Av. Amazonas N34-56')

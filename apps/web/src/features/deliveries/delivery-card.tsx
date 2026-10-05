@@ -118,7 +118,9 @@ export function DeliveryCard({
           {outcome === 'fallida' && d.failedReason && (
             <p className="text-sm text-muted-foreground">{`Motivo: ${d.failedReason}`}</p>
           )}
-          {outcome === 'fallida' && d.rescheduledFor && (
+          {/* M-1 (revisión T9): si el trabajo se canceló después, la reprogramada quedó
+              anulada y la fecha prometería una visita que ya no existe. */}
+          {outcome === 'fallida' && d.rescheduledFor && !cancelNote && (
             <p className="text-sm text-muted-foreground">
               {`Nueva fecha: ${formatDate(d.rescheduledFor)}`}
             </p>

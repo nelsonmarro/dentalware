@@ -1,8 +1,14 @@
+const sameText = (a: string, b: string) =>
+  a.trim().localeCompare(b.trim(), 'es', { sensitivity: 'base' }) === 0
+
 /** El lugar que se busca en el mapa (UX4-21): la dirección en su ciudad («Av. Amazonas N34-56,
- * Quito»), sin repetir la ciudad si la dirección ya la dice. Es también lo que se lee. */
+ * Quito»), sin repetir la ciudad si la dirección ya acaba en ella. Se mira solo el último tramo
+ * tras la coma (M-3, revisión T9): «Av. Loja 12» en Loja sí necesita la ciudad. Es también lo
+ * que se lee. */
 export function mapPlace(address: string, city: string | null): string {
   const c = city?.trim()
-  if (!c || address.toLocaleLowerCase('es').includes(c.toLocaleLowerCase('es'))) return address
+  const last = address.split(',').at(-1) ?? ''
+  if (!c || sameText(last, c)) return address
   return `${address}, ${c}`
 }
 

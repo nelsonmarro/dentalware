@@ -163,6 +163,24 @@ describe('QuickCase', () => {
     expect(screen.getByText('Modelado')).toBeInTheDocument()
   })
 
+  // UX4-14 (M-6 de la revisión de la Tarea 9): con un paciente largo, lo que se ajusta es su
+  // texto (`min-w-0`, `break-words`), no el chip de estado, que no se encoge ni se parte.
+  it('con un paciente largo, el texto se ajusta y el chip de estado no se encoge', async () => {
+    fetchCaseByCode.mockResolvedValue({
+      case: caso({ patientRef: 'María Fernanda Villacís Andrade de Cevallos' }),
+      missing: [],
+    })
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
+
+    const paciente = await screen.findByText('María Fernanda Villacís Andrade de Cevallos')
+    expect(paciente).toHaveClass('break-words')
+    expect(paciente.parentElement).toHaveClass('min-w-0')
+    const chip = screen.getByText('En proceso')
+    expect(chip.parentElement).toBe(paciente.parentElement?.parentElement)
+    expect(chip).toHaveClass('shrink-0', 'whitespace-nowrap')
+  })
+
   it('avanza la fase y muestra la fase nueva tras la mutación', async () => {
     fetchCaseByCode.mockResolvedValueOnce({ case: caso(), missing: [] })
     fetchCaseByCode.mockResolvedValueOnce({

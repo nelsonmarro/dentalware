@@ -350,6 +350,23 @@ describe('DeliveriesDay', () => {
     expect(within(tarjeta).getByText('Nueva fecha: 05/10/2026')).toBeInTheDocument()
   })
 
+  // M-1 de la revisión de la Tarea 9: si el trabajo se canceló después, la entrega reprogramada
+  // quedó anulada; «Nueva fecha» prometería una visita que ya no existe.
+  it('una fallida de un trabajo cancelado después no promete la nueva fecha', async () => {
+    fetchDeliveries.mockResolvedValue([
+      entrega({
+        status: 'fallida',
+        failedReason: 'Clínica cerrada',
+        rescheduledFor: '2026-10-05',
+        case: { ...entrega().case, status: 'cancelado' },
+      }),
+    ])
+    renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="admin" userId="a1" />)
+    const tarjeta = await screen.findByRole('listitem')
+    expect(within(tarjeta).getByText('Trabajo cancelado')).toBeInTheDocument()
+    expect(within(tarjeta).queryByText(/^Nueva fecha/)).not.toBeInTheDocument()
+  })
+
   it('el resumen del día cuenta también las fallidas y las anuladas', async () => {
     fetchDeliveries.mockResolvedValue([
       entrega({ id: 'd1' }),
