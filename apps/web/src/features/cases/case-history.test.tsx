@@ -158,6 +158,13 @@ describe('CaseHistory', () => {
       'Recibido en el laboratorio',
       null,
     ],
+    // #118: «Recibido» (`recibir`) escribe su propio evento `received`.
+    [
+      'received',
+      { fromValue: 'por_recoger', toValue: 'nuevo' },
+      'Recibido en el laboratorio',
+      null,
+    ],
     [
       'shipped',
       { fromValue: 'terminado', toValue: '2026-10-05', reason: 'Mario Mensajero' },

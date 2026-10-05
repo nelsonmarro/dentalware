@@ -193,6 +193,45 @@ export function canFailDelivery(
   return hasRole(DELIVERY_ROLES, actor.role) && isOwnDelivery(actor.userId, delivery)
 }
 
+/**
+ * ¿Puede `actor` marcar «Recogido» en `delivery` (#118)? Solo en una recogida: quien administra
+ * entregas, en cualquiera; el mensajero, solo en la suya. Cierra la recogida sin cambiar el
+ * estado del trabajo, que sigue por recoger hasta «Recibido». Una sola fuente para la API
+ * (`DeliveriesService.pickUp`, 403) y la web (botón «Recogido»).
+ */
+export function canMarkPickedUp(
+  actor: { role: UserRole; userId: string },
+  delivery: DeliveryAssignment,
+): boolean {
+  if (delivery.type !== 'recogida') return false
+  if (hasRole(DELIVERY_MANAGE_ROLES, actor.role)) return true
+  return hasRole(DELIVERY_ROLES, actor.role) && isOwnDelivery(actor.userId, delivery)
+}
+
+/** La última recogida hecha de un trabajo (#118): cuándo la recogió y quién. Sin dinero. */
+export type LastPickedUp = {
+  /** Timestamp ISO (UTC); formatea el cliente. */
+  doneAt: string
+  courierName: string
+}
+
+/** ¿Viene en camino al laboratorio (#118)? La recogida está hecha y el trabajo sigue por
+ * recoger, sin otra recogida pendiente. Rótulo derivado, sin estado nuevo (ADR 16). */
+export function isInTransitToLab(
+  status: CaseStatus,
+  pending: DeliveryAssignment | null | undefined,
+  lastPickedUp: LastPickedUp | null | undefined,
+): boolean {
+  return status === 'por_recoger' && !pending && !!lastPickedUp
+}
+
+export const IN_TRANSIT_TO_LAB = 'En camino al laboratorio'
+
+/** «Recogido por Luis a las 10:32» (#118); `time` ya formateada por el cliente. */
+export function pickedUpLine(courierName: string, time: string): string {
+  return `Recogido por ${courierName} a las ${time}`
+}
+
 /** Quién cierra cada tipo de entrega cuando no es quien la ve (UX4-10). `Record` exhaustivo. */
 const DELIVERY_NEXT_STEP: Record<DeliveryType, string> = {
   recogida: 'Recepción lo marca como recibido al llegar al laboratorio.',

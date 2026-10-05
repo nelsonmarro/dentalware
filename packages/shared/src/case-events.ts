@@ -14,6 +14,7 @@ export const CASE_EVENT_TYPES = [
   'delivered',
   'pickup_scheduled',
   'picked_up',
+  'received',
   'delivery_failed',
   'cancelled',
   'remake_created',

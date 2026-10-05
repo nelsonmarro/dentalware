@@ -24,7 +24,12 @@ import {
   actionsFor,
   isClosedByCancellation,
   isOverdueDelivery,
+  canMarkPickedUp,
+  isInTransitToLab,
+  IN_TRANSIT_TO_LAB,
+  pickedUpLine,
 } from './deliveries.ts'
+import { CASE_EVENT_TYPES } from './case-events.ts'
 
 describe('entregas', () => {
   it('rótulos', () => {
@@ -294,5 +299,66 @@ describe('entregas', () => {
     it('lo entregado dice cuándo y quién', () => {
       expect(deliveredLine('04/10/2026', 'Mario')).toBe('Entregado el 04/10/2026 por Mario')
     })
+  })
+  // #118: el mensajero marca «Recogido» en la suya; admin y recepción, en cualquiera.
+  describe('canMarkPickedUp', () => {
+    const yo = { role: 'mensajero', userId: 'm1' } as const
+    it('el mensajero marca «Recogido» en su propia recogida', () => {
+      expect(canMarkPickedUp(yo, { type: 'recogida', courierId: 'm1' })).toBe(true)
+    })
+    it('el mensajero no lo marca en la recogida de otro', () => {
+      expect(canMarkPickedUp(yo, { type: 'recogida', courierId: 'm2' })).toBe(false)
+    })
+    it('el mensajero no lo marca en su propia entrega', () => {
+      expect(canMarkPickedUp(yo, { type: 'entrega', courierId: 'm1' })).toBe(false)
+    })
+    it.each(['admin', 'recepcion'] as const)('%s lo marca en cualquier recogida', (role) => {
+      expect(canMarkPickedUp({ role, userId: 'r1' }, { type: 'recogida', courierId: 'm2' })).toBe(
+        true,
+      )
+    })
+    it.each(['admin', 'recepcion'] as const)('%s no lo marca en una entrega', (role) => {
+      expect(canMarkPickedUp({ role, userId: 'r1' }, { type: 'entrega', courierId: 'm2' })).toBe(
+        false,
+      )
+    })
+    it('el técnico no lo marca', () => {
+      expect(
+        canMarkPickedUp({ role: 'tecnico', userId: 't1' }, { type: 'recogida', courierId: 't1' }),
+      ).toBe(false)
+    })
+  })
+
+  // #118: «En camino al laboratorio» se deriva, sin estado nuevo (ADR 16).
+  describe('isInTransitToLab', () => {
+    const recogido = { doneAt: '2026-10-05T15:32:00.000Z', courierName: 'Luis' }
+    it('por recoger, sin pendiente y con la recogida hecha: viene en camino', () => {
+      expect(isInTransitToLab('por_recoger', null, recogido)).toBe(true)
+    })
+    it('con la recogida aún pendiente no viene en camino', () => {
+      expect(isInTransitToLab('por_recoger', { type: 'recogida', courierId: 'm1' }, recogido)).toBe(
+        false,
+      )
+    })
+    it('ya recibido (nuevo) no viene en camino', () => {
+      expect(isInTransitToLab('nuevo', null, recogido)).toBe(false)
+    })
+    it('por recoger sin recogida hecha no viene en camino', () => {
+      expect(isInTransitToLab('por_recoger', null, null)).toBe(false)
+      expect(isInTransitToLab('por_recoger', undefined, undefined)).toBe(false)
+    })
+  })
+
+  it('rótulo de lo que viene en camino', () => {
+    expect(IN_TRANSIT_TO_LAB).toBe('En camino al laboratorio')
+  })
+
+  it('la línea de lo recogido dice quién y a qué hora', () => {
+    expect(pickedUpLine('Luis', '10:32')).toBe('Recogido por Luis a las 10:32')
+  })
+
+  it('el historial tiene el evento «Recibido en el laboratorio» (received)', () => {
+    expect(CASE_EVENT_TYPES).toContain('received')
+    expect(CASE_EVENT_TYPES).toContain('picked_up')
   })
 })
