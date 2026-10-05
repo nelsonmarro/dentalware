@@ -39,8 +39,11 @@ export function FormDialog({
   // antes de que Radix mueva el foco dentro del diálogo.
   const opener = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
-    if (open && document.activeElement instanceof HTMLElement) {
-      opener.current = document.activeElement
+    // Safari en el iPhone no enfoca un botón al tocarlo: si el foco estaba en el `body`, no hay
+    // a quién volver y se usa el `h1`.
+    if (open) {
+      const active = document.activeElement
+      opener.current = active instanceof HTMLElement && active !== document.body ? active : null
     }
   }, [open])
 

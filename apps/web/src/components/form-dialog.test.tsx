@@ -72,4 +72,30 @@ describe('FormDialog', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus())
   })
+
+  // Safari en el iPhone no enfoca un botón al tocarlo: el foco estaba en el `body` al abrir, y
+  // devolverlo allí es perderlo.
+  it('si nada tenía el foco al abrir, al cerrar va al h1 de la página', async () => {
+    function Abierto() {
+      const [open, setOpen] = useState(true)
+      return (
+        <main>
+          <h1>Entregas</h1>
+          <FormDialog
+            open={open}
+            onOpenChange={setOpen}
+            title="Marcar entregado"
+            footer={<button onClick={() => setOpen(false)}>Volver</button>}
+          >
+            <p>Contenido</p>
+          </FormDialog>
+        </main>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Abierto />)
+    await user.click(await screen.findByRole('button', { name: 'Volver' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus())
+  })
 })
