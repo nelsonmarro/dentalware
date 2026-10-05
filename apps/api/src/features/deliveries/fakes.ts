@@ -93,9 +93,10 @@ export function fakeDeliveriesRepo(
       const matches = [...rows.values()].filter((r) => {
         if (q.courierId && r.courierId !== q.courierId) return false
         if (r.scheduledFor === q.day) return true
-        if (!q.includeOverdue || r.scheduledFor >= q.day) return false
-        // Pendiente atrasada, o recogida hecha cuyo trabajo sigue por recoger (en camino, #118).
-        if (r.status === 'pendiente') return true
+        if (!q.includeOverdue) return false
+        // Pendiente atrasada, o recogida hecha cuyo trabajo sigue por recoger (en camino, #118),
+        // sea cual sea su fecha.
+        if (r.status === 'pendiente') return r.scheduledFor < q.day
         return (
           r.type === 'recogida' &&
           r.status === 'hecha' &&

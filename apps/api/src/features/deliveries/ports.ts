@@ -67,8 +67,8 @@ export interface DeliveriesRepository {
   markDone(id: string, doneAt: Date, proofAttachmentId: string | null): Promise<boolean>
   /** Cierra como fallida solo si sigue `pendiente`; `false` si otra operación la cerró antes. */
   markFailed(id: string, reason: string, at: Date): Promise<boolean>
-  /** Las del día; con `includeOverdue`, también las pendientes de días anteriores y las
-   * recogidas hechas en días anteriores cuyo trabajo sigue por recoger (en camino, #118). */
+  /** Las del día; con `includeOverdue`, también las pendientes de días anteriores y toda
+   * recogida hecha cuyo trabajo sigue por recoger, sea cual sea su fecha (en camino, #118). */
   listForDay(q: {
     day: string
     courierId?: string

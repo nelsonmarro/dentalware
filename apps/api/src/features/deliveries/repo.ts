@@ -107,21 +107,21 @@ export function createDeliveriesRepo(db: Db | Tx) {
      * join a `clinics` pasa siempre por `cases`.
      */
     async listForDay(q) {
-      const before = sql`${deliveries.scheduledFor} < ${q.day}`
       const conds = [
         q.includeOverdue
           ? // `or(...)` solo devuelve `undefined` sin condiciones; con las tres fijas de abajo
             // siempre hay una `SQL` real, así que el `!` no oculta un caso posible.
             or(
               eq(deliveries.scheduledFor, q.day),
-              and(eq(deliveries.status, 'pendiente'), before),
-              // En camino al laboratorio (#118): recogida hecha antes de hoy cuyo trabajo sigue
-              // por recoger; sale de la lista cuando recepción marca «Recibido».
+              and(eq(deliveries.status, 'pendiente'), sql`${deliveries.scheduledFor} < ${q.day}`),
+              // En camino al laboratorio (#118): recogida hecha cuyo trabajo sigue por recoger,
+              // sea cual sea su fecha (también la marcada «Recogido» antes de su día); sale de la
+              // lista cuando recepción marca «Recibido». Cada fila sale una vez aunque cumpla
+              // varias ramas del `or`.
               and(
                 eq(deliveries.type, 'recogida'),
                 eq(deliveries.status, 'hecha'),
                 eq(cases.status, 'por_recoger'),
-                before,
               ),
             )!
           : eq(deliveries.scheduledFor, q.day),

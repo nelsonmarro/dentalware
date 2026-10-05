@@ -184,6 +184,35 @@ describe('features/deliveries/service', () => {
       const otroDia = await service.list({ dia: '2026-10-09' }, { userId: 'a1', role: 'admin' })
       expect(otroDia).toEqual([])
     })
+
+    // Ruling de la Tarea 2 (#118): la recogida adelantada (marcada «Recogido» antes de su día)
+    // también viene en camino hoy, y la de hoy no sale dos veces.
+    it('hoy incluye toda recogida en camino sin mirar su fecha, una sola vez', async () => {
+      const { service } = makeService({
+        cases: new Map([
+          ['c1', { ...CASE_REF, status: 'por_recoger' }],
+          ['c2', { ...CASE_REF, code: '26-00002', status: 'por_recoger' }],
+        ]),
+        seed: [
+          makeRow({
+            id: 'adelantada',
+            caseId: 'c1',
+            type: 'recogida',
+            status: 'hecha',
+            scheduledFor: '2026-10-12',
+          }),
+          makeRow({
+            id: 'de-hoy',
+            caseId: 'c2',
+            type: 'recogida',
+            status: 'hecha',
+            scheduledFor: '2026-10-10',
+          }),
+        ],
+      })
+      const hoy = await service.list({ dia: '2026-10-10' }, { userId: 'a1', role: 'admin' })
+      expect(hoy.map((d) => d.id)).toEqual(['adelantada', 'de-hoy'])
+    })
   })
 
   describe('fail', () => {

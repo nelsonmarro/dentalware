@@ -381,6 +381,30 @@ describe('features/deliveries/repo', () => {
       expect(await repo.listForDay({ day: '2026-09-10', includeOverdue: true })).toEqual([])
     })
 
+    // Ruling de la Tarea 2 (#118): una recogida marcada «Recogido» antes de su día programado
+    // también viene en camino hoy; la de hoy no sale dos veces.
+    it('con includeOverdue trae toda recogida en camino, sin mirar su fecha, y una sola vez', async () => {
+      const repo = createDeliveriesRepo(ctx.db)
+      const porRecoger = async (patientRef: string, scheduledFor: string) => {
+        const caseId = await createCase({ patientRef })
+        await ctx.db
+          .update(ctx.schema.cases)
+          .set({ status: 'por_recoger' })
+          .where(eq(ctx.schema.cases.id, caseId))
+        const d = await repo.create({ caseId, type: 'recogida', courierId, scheduledFor })
+        await repo.markDone(d.id, new Date('2026-09-10T15:00:00Z'), null)
+      }
+      await porRecoger('Adelantada', '2026-09-12')
+      await porRecoger('De hoy', '2026-09-10')
+
+      const hoy = await repo.listForDay({ day: '2026-09-10', includeOverdue: true })
+      expect(hoy.map((d) => d.case.patientRef)).toEqual(['Adelantada', 'De hoy'])
+
+      // Otro día concreto (sin includeOverdue) solo trae lo programado para ese día.
+      const otroDia = await repo.listForDay({ day: '2026-09-10', includeOverdue: false })
+      expect(otroDia.map((d) => d.case.patientRef)).toEqual(['De hoy'])
+    })
+
     it('devuelve el código, el alias del paciente, la dirección y el teléfono de la clínica, y el nombre del mensajero', async () => {
       const repo = createDeliveriesRepo(ctx.db)
       const caseId = await createCase({ patientRef: 'Paciente 7' })
