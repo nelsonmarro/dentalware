@@ -17,6 +17,11 @@ import { cases } from '../cases/schema.ts'
 export const deliveryTypeEnum = pgEnum('delivery_type', DELIVERY_TYPES)
 export const deliveryStatusEnum = pgEnum('delivery_status', DELIVERY_STATUSES)
 
+/** Nombre (el que genera drizzle-kit) de la FK `deliveries.proof_attachment_id → attachments.id`.
+ * Los repos traducen solo la violación de esta FK a un error de dominio; un test lo compara con
+ * `pg_constraint`. */
+export const DELIVERY_PROOF_FK = 'deliveries_proof_attachment_id_attachments_id_fkey'
+
 export const deliveries = pgTable(
   'deliveries',
   {
@@ -36,7 +41,8 @@ export const deliveries = pgTable(
     // solo cuándo se completó una `hecha`: `markFailed` y `markDone` escriben aquí.
     doneAt: timestamp('done_at', { withTimezone: true }),
     // RESTRICT: la constancia de una entrega no se borra (UX4-06). El servicio de adjuntos ya lo
-    // comprueba antes; la FK cierra la carrera con «Marcar entregado» y el repo la traduce a 409.
+    // comprueba antes; la FK cierra la carrera con «Marcar entregado» y el repo de adjuntos la
+    // traduce a 409 (nombre en `DELIVERY_PROOF_FK`).
     proofAttachmentId: uuid('proof_attachment_id').references(() => attachments.id, {
       onDelete: 'restrict',
     }),

@@ -1,9 +1,10 @@
 import { caseInputSchema } from '@dentalware/shared'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { testPassword } from '../../test/passwords.ts'
 import { createUser, setupTestDb, truncateAll } from '../../test/setup.ts'
 import { createCasesRepo } from '../cases/repo.ts'
+import { DELIVERY_PROOF_FK } from '../deliveries/schema.ts'
 import { AttachmentInUseError } from './errors.ts'
 import { createAttachmentsRepo } from './repo.ts'
 
@@ -111,5 +112,39 @@ describe('features/attachments/repo', () => {
         .where(eq(ctx.schema.deliveries.id, delivery!.id))
       expect(row?.proofAttachmentId).toBe(id)
     })
+
+    // M-1: solo la FK de la constancia de una entrega es «constancia en uso». Otra tabla que
+    // referencie un adjunto (p. ej. el comprobante de un pago) no puede responder con ese mensaje:
+    // la violación sale tal cual.
+    it('relanza la violación de otra FK que referencia el adjunto, sin traducirla', async () => {
+      const repo = createAttachmentsRepo(ctx.db)
+      const id = await proof('comprobante.jpg')
+      await ctx.db.execute(
+        sql`create table "test_attachment_refs" ("attachment_id" uuid references "attachments"("id") on delete restrict)`,
+      )
+      try {
+        await ctx.db.execute(sql`insert into "test_attachment_refs" values (${id})`)
+        const error = await repo.remove(id).then(
+          () => undefined,
+          (e: unknown) => e,
+        )
+        expect(error).toBeInstanceOf(Error)
+        expect(error).not.toBeInstanceOf(AttachmentInUseError)
+        expect((error as Error).cause).toMatchObject({ code: '23503' })
+        expect(await repo.byId(id)).toBeDefined()
+      } finally {
+        await ctx.db.execute(sql`drop table if exists "test_attachment_refs"`)
+      }
+    })
+  })
+
+  it('la FK de la constancia de una entrega se llama como DELIVERY_PROOF_FK', async () => {
+    expect(DELIVERY_PROOF_FK).toBe('deliveries_proof_attachment_id_attachments_id_fkey')
+    const { rows } = await ctx.db.execute<{ conname: string }>(
+      sql`select conname from pg_constraint where contype = 'f' and conrelid = 'deliveries'::regclass and confrelid = 'attachments'::regclass`,
+    )
+    expect(rows.map((r) => r.conname)).toEqual([
+      'deliveries_proof_attachment_id_attachments_id_fkey',
+    ])
   })
 })
