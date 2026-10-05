@@ -10,7 +10,7 @@ interface CaseViewTabsProps {
 }
 
 /** Pestañas de las vistas rápidas de `/trabajos`. En móvil la lista hace scroll horizontal:
- * al montar y al cambiar de vista lleva la pestaña activa a la vista (UX4-04). */
+ * al montar y al cambiar de vista lleva la pestaña activa a la vista (UX4-03). */
 export function CaseViewTabs({ value, onChange }: CaseViewTabsProps) {
   const listRef = useRef<HTMLDivElement>(null)
   const today = toIsoDate(new Date())

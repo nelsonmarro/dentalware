@@ -382,12 +382,12 @@ Ola en la rama `fix/revision-ui-ux-it4` (plan `8164306`, 10 tareas). Commits de 
 | UX4-03 | Corregido | `6bae268`, `e6243b6`, `e32f51b` |
 | UX4-04 | Corregido («Vencen mañana» hasta el siguiente día hábil; el viernes, «Vencen hasta el lunes») | `f86ae91`, `1e97d52` |
 | UX4-05 | Corregido | `56ece50`, `c780577`, `cc77cb7`, `0088c68`, `9c5c814` |
-| UX4-06 | Corregido (la constancia se sube al confirmar; la de la entrega se distingue y no se borra, ni en carrera con «Marcar entregado») | `868f9e5`, `385ecaa`, `8570551`, `dcde13d`, `5c67677`, `ae4e129`, `9264e0f` |
+| UX4-06 | Corregido (la constancia se sube al confirmar; la de la entrega se distingue y no se borra, ni en carrera con «Marcar entregado») | `868f9e5`, `385ecaa`, `8570551`, `dcde13d`, `5c67677`, `ae4e129`, `9264e0f`, `334a6d9`, `3d5a59c`, `0148f39`, `60e6eab` |
 | UX4-07 | Corregido | `ed3cd51`, `fcc63a5`, `ab9327a` |
 | UX4-08 | Corregido | `fcfb7d3`, `fcc63a5` |
 | UX4-09 | Corregido | `83b63ae`, `44aa8db`, `fcc63a5` |
 | UX4-10 | Corregido (decisión de Nelson: «Recibido» solo lo marcan admin y recepción) | `2032c4b` |
-| UX4-11 | Corregido (aviso global sin conexión; las acciones siguen en pausa y se envían al volver la señal) | `0ba4d02` |
+| UX4-11 | Corregido (aviso global sin conexión; las acciones siguen en pausa y se envían al volver la señal, sin poder repetirlas) | `0ba4d02`, `20a9d59`, `41123fd` |
 | UX4-12 | Corregido | `2c5161c`, `f45adad`, `7490919`, `68c3aac`, `798dc19` |
 | UX4-13 | Post-MVP (#117): reasignar el mensajero de una recogida o entrega | — |
 | UX4-14 | Corregido | `98985e4` |
@@ -402,9 +402,19 @@ Ola en la rama `fix/revision-ui-ux-it4` (plan `8164306`, 10 tareas). Commits de 
 | UX4-23 | Corregido | `6c074e0` |
 | UX4-24 | Corregido | `5f73dc5` |
 | UX4-25 | Corregido | `7d7ddea` |
-| UX4-26 | Corregido (sin red, la navegación no tapa la pantalla y «Entregas» dice que el día se cargará al volver la señal) | `c47dda5`, `20a9d59` |
+| UX4-26 | Corregido (sin red, la navegación no tapa la pantalla y «Entregas» dice que el día se cargará al volver la señal) | `c47dda5`, `20a9d59`, `fcaff7e` |
 
 Cierre (Tarea 10): `9264e0f` cierra la carrera borrar contra «Marcar entregado» con la FK `RESTRICT`; `3503f95` anota en `conventions.md` §5 y en `architecture.md` lo nuevo de la ola (contexto y foco de los diálogos, «Anulada», motivos frecuentes, `ClinicContact`/`map-link`, reglas del día de `GET /api/entregas`); `ab9327a` amplía el barrido táctil a «Entregas» del mensajero, sus diálogos y la ficha corta de un trabajo enviado. Con un build de producción (`vite preview` y service worker activo), sin red se navega entre «Entregas», «Trabajos» e «Inicio» sin caer en la página de Chrome sin conexión y con el aviso «Sin conexión» a la vista; una recarga completa sin red también recibe la app del service worker, y sin sesión conocida en memoria sale el error del router (lo previsto en el plan).
+
+Revisión final de la rama (`.superpowers/sdd/2026-10-04-ola-fixes-ui-ux-it4/final-review.md`), sin Critical ni Important; sus nueve Minor se corrigieron en una ronda corta:
+
+- **M-1** `334a6d9`: el repo de adjuntos solo traduce la violación de `DELIVERY_PROOF_FK`; otra FK que apunte a un adjunto sale tal cual.
+- **M-2** `3d5a59c`: «Marcar entregado» con una constancia borrada antes de ligarla responde 422 en `constanciaId`, no 500.
+- **M-3** `0148f39`: tras ese 422, el reintento vuelve a subir la foto.
+- **M-4** `41123fd`: sin red, una entrega o un «No se pudo» en pausa no se repite desde la tarjeta, la barra ni los diálogos, y lo dicen con texto.
+- **M-5** `fcaff7e`: `getAppSession` solo usa la sesión conocida si `onlineManager` está sin conexión.
+- **M-6 y M-7** `60e6eab`: fuera `DELIVERY_STATUS_LABEL` y la rama 409 de `isProofRejected`, sin uso.
+- **M-8 y M-9**, en el commit de docs que cierra la ronda: puertos de `attachments` hacia entregas y traducción de FK en `architecture.md` §3, la viñeta «Permisos» de `conventions.md` §4 en frases cortas y el comentario de `case-view-tabs.tsx` (UX4-03).
 
 Diferidos, con su motivo (ledger):
 
