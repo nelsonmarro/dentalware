@@ -497,6 +497,10 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await group.getByRole('button', { name: 'No se pudo' }).click()
     const dialog = page.getByRole('dialog', { name: 'No se pudo entregar' })
     await expect(dialog.getByLabel('Nueva fecha')).toBeVisible()
+    // UX4-12: los chips de motivo frecuente también miden 44 px.
+    await expect(
+      dialog.getByRole('group', { name: 'Motivos frecuentes' }).getByRole('button'),
+    ).toHaveCount(4)
     await expectTouchTargets(dialog, TOUCH_CONTROLS)
   })
 
@@ -622,6 +626,8 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     async ({ page, browser }) => {
       await page.goto('/')
       await expect(page.getByRole('heading', { name: 'Inicio' })).toBeVisible()
+      // UX4-22: la tarjeta «Entregas de hoy» de admin y recepción entra en el barrido.
+      await expect(page.getByRole('link', { name: /^Entregas de hoy \d/ })).toBeVisible()
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,

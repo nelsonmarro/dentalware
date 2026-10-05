@@ -245,6 +245,10 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         // Hoy: queda fallida, con su motivo y sin acciones.
         await expect(parada.getByText('Fallida', { exact: true })).toBeVisible()
         await expect(parada.getByText(`Motivo: ${motivo}`)).toBeVisible()
+        // UX4-18: dice para cuándo quedó.
+        await expect(
+          parada.getByText(`Nueva fecha: ${tomorrowIso().split('-').reverse().join('/')}`),
+        ).toBeVisible()
         await expect(parada.getByRole('button', { name: 'Marcar entregado' })).toHaveCount(0)
         await expect(courierPage.getByText('0 pendientes')).toBeVisible()
 
