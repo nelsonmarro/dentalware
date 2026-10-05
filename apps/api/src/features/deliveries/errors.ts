@@ -26,3 +26,12 @@ export class DeliveryInputError extends Error {
     this.path = path
   }
 }
+
+/** `markDone` liga una constancia que ya no existe: se borró entre la lectura del servicio y el
+ * `UPDATE` (la FK `DELIVERY_PROOF_FK` lo impide y el repo traduce la violación). `cases` la
+ * reexporta (ADR 26) y la responde como una constancia no válida (422). */
+export class DeliveryProofMissingError extends Error {
+  constructor() {
+    super('La constancia de la entrega ya no existe.')
+  }
+}

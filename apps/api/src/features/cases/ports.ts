@@ -246,7 +246,8 @@ export interface DeliveryLog {
     caseId: string,
     type: DeliveryType,
   ): Promise<{ id: string; courierId: string } | undefined>
-  /** Cierra como hecha solo si sigue `pendiente`; `false` si otra operación la cerró antes. */
+  /** Cierra como hecha solo si sigue `pendiente`; `false` si otra operación la cerró antes.
+   * Lanza `DeliveryProofMissingError` si la constancia ya no existe (se borró antes de ligarla). */
   markDone(id: string, doneAt: Date, proofAttachmentId: string | null): Promise<boolean>
   /** Cierra sin hacerla una entrega o recogida pendiente (p. ej. al cancelar el trabajo), solo si
    * sigue `pendiente`; `false` si otra operación la cerró antes. */

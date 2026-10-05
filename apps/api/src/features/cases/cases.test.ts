@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { CASE_VIEWS, toIsoDate } from '@dentalware/shared'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
 import { testPassword } from '../../test/passwords.ts'
@@ -1033,6 +1033,46 @@ describe('/api/trabajos', () => {
         const [entrega] = await entregasDe(id)
         expect(entrega).toMatchObject({ status: 'hecha', proofAttachmentId: constanciaId })
         expect(entrega!.doneAt).not.toBeNull()
+      })
+
+      // M-2 de la revisión final: recepción borra la constancia «sin usar» entre la lectura del
+      // servicio y el `UPDATE` que la liga a la entrega. Un trigger de prueba la borra justo antes
+      // de ese `UPDATE`, en la misma transacción: la FK salta y debe salir 422, no 500.
+      it('si la constancia se borra antes de ligarla a la entrega responde 422, no 500', async () => {
+        const id = await crearEnviado()
+        const constanciaId = await adjuntoDe(id)
+        await ctx.db.execute(sql`create function test_borra_constancia() returns trigger
+          language plpgsql as $$ begin
+            delete from attachments where id = new.proof_attachment_id;
+            return new;
+          end $$`)
+        await ctx.db.execute(sql`create trigger test_borra_constancia before update on deliveries
+          for each row when (new.proof_attachment_id is not null)
+          execute function test_borra_constancia()`)
+        try {
+          const res = await app.request(
+            `/api/trabajos/${id}/acciones`,
+            req(mensajero, 'POST', { accion: 'marcar_entregado', constanciaId }),
+          )
+          expect(res.status).toBe(422)
+          expect(await res.json()).toEqual({
+            message: 'Datos inválidos',
+            issues: [
+              { path: 'constanciaId', message: 'La foto de constancia no es de este trabajo.' },
+            ],
+          })
+        } finally {
+          await ctx.db.execute(sql`drop trigger if exists test_borra_constancia on deliveries`)
+          await ctx.db.execute(sql`drop function if exists test_borra_constancia()`)
+        }
+        // Todo se deshizo: el trabajo sigue enviado y su entrega pendiente.
+        const [entrega] = await entregasDe(id)
+        expect(entrega).toMatchObject({ status: 'pendiente', proofAttachmentId: null })
+        const [trabajo] = await ctx.db
+          .select({ status: ctx.schema.cases.status })
+          .from(ctx.schema.cases)
+          .where(eq(ctx.schema.cases.id, id))
+        expect(trabajo?.status).toBe('enviado')
       })
 
       // UX4-07/09: la ficha dice con quién sale y para cuándo, y después quién lo entregó y con

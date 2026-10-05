@@ -59,7 +59,8 @@ export interface DeliveriesRepository {
   /** Ids de las constancias de un trabajo que referencia una entrega hecha (UX4-06): cumple el
    * puerto `DeliveryProofLookup` de `attachments` en la raíz de composición. */
   linkedProofIds(caseId: string): Promise<string[]>
-  /** Cierra como hecha solo si sigue `pendiente`; `false` si otra operación la cerró antes. */
+  /** Cierra como hecha solo si sigue `pendiente`; `false` si otra operación la cerró antes.
+   * Lanza `DeliveryProofMissingError` si la constancia ya no existe. */
   markDone(id: string, doneAt: Date, proofAttachmentId: string | null): Promise<boolean>
   /** Cierra como fallida solo si sigue `pendiente`; `false` si otra operación la cerró antes. */
   markFailed(id: string, reason: string, at: Date): Promise<boolean>

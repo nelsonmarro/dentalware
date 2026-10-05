@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { testPassword } from '../../test/passwords.ts'
 import { createUser, setupTestDb, truncateAll } from '../../test/setup.ts'
 import { createCasesRepo } from '../cases/repo.ts'
+import { DeliveryProofMissingError } from './errors.ts'
 import { createCouriersQuery, createDeliveriesRepo } from './repo.ts'
 
 describe('features/deliveries/repo', () => {
@@ -146,6 +147,26 @@ describe('features/deliveries/repo', () => {
       expect(row?.status).toBe('hecha')
       expect(row?.doneAt).toEqual(doneAt)
       expect(row?.proofAttachmentId).toBe(attachment!.id)
+    })
+
+    // M-2: la constancia se borró antes de ligarla. La FK salta y el adaptador la traduce a un
+    // error de dominio; la entrega sigue pendiente.
+    it('markDone con una constancia que ya no existe lanza DeliveryProofMissingError', async () => {
+      const repo = createDeliveriesRepo(ctx.db)
+      const caseId = await createCase()
+      const created = await repo.create({
+        caseId,
+        type: 'entrega',
+        courierId,
+        scheduledFor: '2026-09-10',
+      })
+
+      await expect(
+        repo.markDone(created.id, new Date(), '00000000-0000-4000-8000-000000000000'),
+      ).rejects.toBeInstanceOf(DeliveryProofMissingError)
+
+      const row = await repo.byId(created.id)
+      expect(row).toMatchObject({ status: 'pendiente', proofAttachmentId: null, doneAt: null })
     })
 
     it('markFailed fija fallida y el motivo', async () => {

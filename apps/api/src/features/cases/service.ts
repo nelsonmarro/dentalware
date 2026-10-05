@@ -39,7 +39,13 @@ import {
 } from '@dentalware/shared'
 import type { Clock } from '../../lib/clock.ts'
 import type { RequestContext } from '../../lib/request-context.ts'
-import { CaseForbiddenError, CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
+import {
+  CaseForbiddenError,
+  CaseInputError,
+  CaseNotFoundError,
+  CaseStateError,
+  DeliveryProofMissingError,
+} from './errors.ts'
 import type {
   AttachmentsQuery,
   CaseDeliveriesQuery,
@@ -48,6 +54,7 @@ import type {
   CasesRepository,
   CaseTransitionPatch,
   CouriersLookup,
+  DeliveryLog,
   Named,
   StagesQuery,
   UnitOfWork,
@@ -132,6 +139,25 @@ const EVENT_TYPE_FOR_ACTION: Record<CaseActionInput['accion'], CaseEventType> = 
  * mitad de una fase desactivada. */
 function stagePositionKnown(activeStages: readonly StageRef[], currentStageId: string | null) {
   return currentStageId !== null && activeStages.some((s) => s.id === currentStageId)
+}
+
+/** Cierra la entrega con su constancia. Si la constancia se borró después de validarla (recepción
+ * borra una «sin usar» a la vez), la FK lo impide y se responde como a una constancia no válida
+ * (422, M-2): la transacción se deshace y el mensajero vuelve a subir la foto. */
+async function markDoneWithProof(
+  deliveries: DeliveryLog,
+  id: string,
+  now: Date,
+  constanciaId: string,
+) {
+  try {
+    return await deliveries.markDone(id, now, constanciaId)
+  } catch (e) {
+    if (e instanceof DeliveryProofMissingError) {
+      throw new CaseInputError(CONSTANCIA_INVALIDA, 'constanciaId')
+    }
+    throw e
+  }
 }
 
 export function createCasesService(deps: {
@@ -382,7 +408,7 @@ export function createCasesService(deps: {
               throw new CaseInputError(CONSTANCIA_INVALIDA, 'constanciaId')
             }
             const now = deps.clock.now()
-            if (pending && !(await deliveries.markDone(pending.id, now, constanciaId))) {
+            if (pending && !(await markDoneWithProof(deliveries, pending.id, now, constanciaId))) {
               throw new CaseStateError(DELIVERY_ALREADY_CLOSED_MESSAGE)
             }
             patch.deliveredAt = now

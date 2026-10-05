@@ -1,3 +1,6 @@
+// Contrato del puerto `DeliveryLog.markDone` (ADR 26: un error es contrato, no adaptador).
+export { DeliveryProofMissingError } from '../deliveries/errors.ts'
+
 export class CaseInputError extends Error {
   path: string
   constructor(message: string, path = '') {

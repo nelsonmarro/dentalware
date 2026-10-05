@@ -1,6 +1,12 @@
 import type { CaseStatus, RemakeInput } from '@dentalware/shared'
 import { describe, expect, it } from 'vitest'
-import { CaseForbiddenError, CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
+import {
+  CaseForbiddenError,
+  CaseInputError,
+  CaseNotFoundError,
+  CaseStateError,
+  DeliveryProofMissingError,
+} from './errors.ts'
 import {
   caseDetailFixture,
   caseInputFixture,
@@ -1338,6 +1344,25 @@ describe('envío y entrega', () => {
       expect(deliveries.rows.get('d1')!.status).toBe('pendiente')
     },
   )
+
+  // M-2: la constancia existía al leerla, pero se borró antes de ligarla a la entrega. El
+  // adaptador lo dice con `DeliveryProofMissingError` y el servicio responde como a una
+  // constancia inválida (422), no con un error sin traducir (500).
+  it('si la constancia desaparece al ligarla, lanza CaseInputError en constanciaId', async () => {
+    const deliveries = fakeDeliveryLog([entregaDeMario])
+    deliveries.log.markDone = () => Promise.reject(new DeliveryProofMissingError())
+    const { service, rows } = servicioConEntrega(
+      completo({ id: '1', status: 'enviado', total: '90.00' }),
+      { deliveries },
+    )
+    const error = await service.action('1', entregar('a1'), admin).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(CaseInputError)
+    expect(error).toMatchObject({
+      message: 'La foto de constancia no es de este trabajo.',
+      path: 'constanciaId',
+    })
+    expect(rows.get('1')!.status).toBe('enviado')
+  })
 })
 
 // Revisión final del PR 1 de la Iteración 4 (I-1): cancelar un trabajo cierra su recogida o
