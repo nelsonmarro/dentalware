@@ -7,6 +7,7 @@ import {
   type DeliveryType,
 } from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Check } from 'lucide-react'
 import { useForm, useWatch } from 'react-hook-form'
 import type { z } from 'zod'
 import { FormDialog } from '@/components/form-dialog'
@@ -80,7 +81,7 @@ export function FailDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={TITLE[delivery.type]}
-      context={`${delivery.case.code} · ${delivery.clinic.name}`}
+      context={{ code: delivery.case.code, label: delivery.clinic.name }}
       description={DESCRIPTION[delivery.type]}
       footer={
         <>
@@ -116,6 +117,8 @@ export function FailDialog({
                   })
                 }
               >
+                {/* M-8 (revisión T9): el pulsado no se distingue solo por el color. */}
+                {motivo === reason && <Check aria-hidden />}
                 {reason}
               </Button>
             ))}

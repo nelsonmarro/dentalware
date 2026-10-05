@@ -131,4 +131,16 @@ describe('FailDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Falta pago' }))
     await waitFor(() => expect(screen.queryByText('Escribe el motivo')).not.toBeInTheDocument())
   })
+
+  // M-8 de la revisión de la Tarea 9: el chip pulsado no se distingue solo por el color.
+  it('el motivo frecuente pulsado lleva un check', async () => {
+    const { user } = renderWithProviders(
+      <FailDialog delivery={entrega} open onOpenChange={() => {}} />,
+    )
+    const cerrada = screen.getByRole('button', { name: 'Clínica cerrada' })
+    expect(cerrada.querySelector('svg')).toBeNull()
+    await user.click(cerrada)
+    expect(cerrada.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByRole('button', { name: 'Falta pago' }).querySelector('svg')).toBeNull()
+  })
 })

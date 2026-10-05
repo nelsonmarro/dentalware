@@ -76,7 +76,7 @@ export function DeliverDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Marcar entregado"
-      context={`${c.code} · ${c.clinic.name}`}
+      context={{ code: c.code, label: c.clinic.name }}
       description={
         hidesPrices(role)
           ? 'Se registrará la entrega con la fecha de hoy. No hay ninguna acción para deshacerlo.'

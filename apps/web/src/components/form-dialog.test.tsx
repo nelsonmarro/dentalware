@@ -45,7 +45,7 @@ describe('FormDialog', () => {
         open
         onOpenChange={() => {}}
         title="No se pudo entregar"
-        context="26-00087 · Clínica Sur"
+        context={{ code: '26-00087', label: 'Clínica Sur' }}
         description="La entrega queda como fallida."
         footer={null}
       >
@@ -55,6 +55,9 @@ describe('FormDialog', () => {
     expect(screen.getByRole('dialog')).toHaveAccessibleDescription(
       '26-00087 · Clínica Sur La entrega queda como fallida.',
     )
+    // M-7 de la revisión de la Tarea 9: la monoespaciada, solo para el código.
+    expect(screen.getByText('26-00087')).toHaveClass('font-mono')
+    expect(screen.getByText('26-00087').parentElement).not.toHaveClass('font-mono')
   })
 
   it('al cerrar, el foco vuelve al disparador', async () => {
