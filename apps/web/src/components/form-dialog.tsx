@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { useReturnFocus } from './use-return-focus'
 
 export function FormDialog({
   open,
@@ -34,29 +35,13 @@ export function FormDialog({
    */
   size?: 'default' | 'wide'
 }) {
-  // Quien abrió el diálogo. Se abre controlado (sin `DialogTrigger`), así que Radix no sabe a
-  // quién devolver el foco y lo dejaba en el `body`. Se toma en un efecto de layout, que corre
-  // antes de que Radix mueva el foco dentro del diálogo.
-  const opener = useRef<HTMLElement | null>(null)
-  useLayoutEffect(() => {
-    // Safari en el iPhone no enfoca un botón al tocarlo: si el foco estaba en el `body`, no hay
-    // a quién volver y se usa el `h1`.
-    if (open) {
-      const active = document.activeElement
-      opener.current = active instanceof HTMLElement && active !== document.body ? active : null
-    }
-  }, [open])
+  const returnFocus = useReturnFocus(open)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        // Al cerrar, el foco vuelve a quien lo abrió; si ya no está (la acción lo quitó, p. ej.
-        // la tarjeta que dejó de estar pendiente), al `h1` de la página, nunca al `body`.
-        onCloseAutoFocus={(event) => {
-          event.preventDefault()
-          const target = opener.current?.isConnected ? opener.current : pageHeading()
-          target?.focus()
-        }}
+        // Al cerrar, el foco vuelve a quien lo abrió, o al `h1` (`useReturnFocus`).
+        onCloseAutoFocus={returnFocus}
         className={cn(
           'max-h-[90svh] overflow-x-hidden overflow-y-auto',
           size === 'wide' ? 'max-w-[calc(100%-1rem)] sm:max-w-4xl' : 'sm:max-w-lg',
@@ -79,12 +64,4 @@ export function FormDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-/** El `h1` de la página, enfocable por programa (`tabIndex=-1`) sin entrar en el orden del
- * tabulador. */
-function pageHeading(): HTMLElement | null {
-  const h1 = document.querySelector<HTMLElement>('h1')
-  if (h1 && !h1.hasAttribute('tabindex')) h1.tabIndex = -1
-  return h1
 }

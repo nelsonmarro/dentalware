@@ -8,6 +8,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { useReturnFocus } from './use-return-focus'
 
 export function ConfirmDialog({
   open,
@@ -28,9 +29,11 @@ export function ConfirmDialog({
   pending?: boolean
   onConfirm: () => void
 }) {
+  // Controlado, sin disparador: el foco vuelve a quien lo abrió o al `h1` (M-9, T9).
+  const returnFocus = useReturnFocus(open)
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent onCloseAutoFocus={returnFocus}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>

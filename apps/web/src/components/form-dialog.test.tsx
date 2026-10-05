@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FormDialog } from './form-dialog'
 
 /** Una página con su `h1` y un disparador que, si `removesTrigger`, desaparece al cerrar (como
@@ -33,6 +33,10 @@ function Page({ removesTrigger }: { removesTrigger: boolean }) {
     </main>
   )
 }
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 describe('FormDialog', () => {
   it('nombra sobre qué actúa al abrir la descripción', () => {
@@ -97,5 +101,21 @@ describe('FormDialog', () => {
     await user.click(await screen.findByRole('button', { name: 'Volver' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus())
+  })
+
+  // I-1 de la revisión de la Tarea 9: devolver el foco no desplaza la página (con la lista de
+  // «Entregas» desplazada, el mensajero no pierde su sitio), igual que enfoca Radix.
+  it('devuelve el foco sin desplazar la página', async () => {
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus')
+    const user = userEvent.setup()
+    render(<Page removesTrigger />)
+    await user.click(screen.getByRole('button', { name: 'Marcar entregado' }))
+    await user.click(await screen.findByRole('button', { name: 'Confirmar' }))
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus())
+    const h1 = screen.getByRole('heading', { level: 1 })
+    const calls = focus.mock.contexts
+      .map((ctx, i) => [ctx, focus.mock.calls[i]?.[0]] as const)
+      .filter(([ctx]) => ctx === h1)
+    expect(calls.map(([, opts]) => opts)).toEqual([{ preventScroll: true }])
   })
 })
