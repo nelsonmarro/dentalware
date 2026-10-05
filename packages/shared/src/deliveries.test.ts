@@ -28,6 +28,7 @@ import {
   isInTransitToLab,
   IN_TRANSIT_TO_LAB,
   pickedUpLine,
+  offersPickUp,
 } from './deliveries.ts'
 import { CASE_EVENT_TYPES } from './case-events.ts'
 
@@ -192,10 +193,37 @@ describe('entregas', () => {
     it('la suya no necesita motivo: su tarea ya dice qué hacer', () => {
       expect(courierNoActionReason(pendiente('entrega', 'm1'), 'm1')).toBeNull()
     })
-    // UX4-10: la recogida la cierra recepción al llegar; el mensajero sabe que no le toca.
-    it('su recogida dice que recepción la marca al llegar', () => {
-      expect(courierNoActionReason(pendiente('recogida', 'm1'), 'm1')).toBe(
-        'Recepción lo marca como recibido al llegar al laboratorio.',
+    // #118: en su recogida pendiente tiene «Recogido»; no necesita motivo.
+    it('su recogida pendiente no necesita motivo: tiene «Recogido»', () => {
+      expect(courierNoActionReason(pendiente('recogida', 'm1'), 'm1')).toBeNull()
+    })
+    // #118: ya recogida, viene en camino; el mensajero sabe que lo demás lo hace recepción.
+    it('ya recogida (en camino) dice que recepción lo marca al llegar', () => {
+      expect(courierNoActionReason(null, 'm1', true)).toBe(
+        'Recogido. Recepción lo marca como recibido al llegar al laboratorio.',
+      )
+    })
+  })
+
+  // #118, decisión 4 del plan: en la UI «Recogido» es del mensajero. Admin y recepción, que la
+  // API sí deja, ven «Recibido», que también la cierra: no se les ponen tres botones.
+  describe('offersPickUp', () => {
+    it('al mensajero se le ofrece en su recogida', () => {
+      expect(
+        offersPickUp({ role: 'mensajero', userId: 'm1' }, { type: 'recogida', courierId: 'm1' }),
+      ).toBe(true)
+    })
+    it('al mensajero no se le ofrece en la ajena ni en su entrega', () => {
+      expect(
+        offersPickUp({ role: 'mensajero', userId: 'm1' }, { type: 'recogida', courierId: 'm2' }),
+      ).toBe(false)
+      expect(
+        offersPickUp({ role: 'mensajero', userId: 'm1' }, { type: 'entrega', courierId: 'm1' }),
+      ).toBe(false)
+    })
+    it.each(['admin', 'recepcion', 'tecnico'] as const)('a %s no se le ofrece', (role) => {
+      expect(offersPickUp({ role, userId: 'm1' }, { type: 'recogida', courierId: 'm1' })).toBe(
+        false,
       )
     })
   })

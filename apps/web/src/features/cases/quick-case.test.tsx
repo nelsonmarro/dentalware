@@ -13,6 +13,7 @@ import { toIsoDate } from '@dentalware/shared'
 import { ApiError } from '@/lib/api-error'
 import type { Stage } from '@/features/stages/api'
 import type * as ApiModule from './api'
+import type * as DeliveriesApi from '@/features/deliveries/api'
 import type { CaseDetail } from './api'
 import { QuickCase } from './quick-case'
 
@@ -33,11 +34,17 @@ const { fetchAttachments, uploadAttachment } = vi.hoisted(() => ({
 }))
 vi.mock('./attachments-api', () => ({ fetchAttachments, uploadAttachment }))
 vi.mock('@/features/stages/api', () => ({ fetchStages: vi.fn() }))
+const { pickUpDelivery } = vi.hoisted(() => ({ pickUpDelivery: vi.fn() }))
+vi.mock('@/features/deliveries/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof DeliveriesApi>()),
+  pickUpDelivery,
+}))
 
 import { fetchStages } from '@/features/stages/api'
 
 beforeEach(() => {
   changeStage.mockReset()
+  pickUpDelivery.mockReset()
   postCaseAction.mockReset()
   fetchCaseByCode.mockReset()
   uploadAttachment.mockReset()
@@ -130,6 +137,7 @@ function caso(overrides: Partial<CaseDetail> = {}): CaseDetail {
     items: [],
     pendingDelivery: null,
     lastDelivered: null,
+    lastPickedUp: null,
     ...overrides,
   } as unknown as CaseDetail
 }
@@ -141,6 +149,7 @@ function pendiente(
   extra: { courierName?: string; scheduledFor?: string } = {},
 ): NonNullable<CaseDetail['pendingDelivery']> {
   return {
+    id: 'd1',
     type,
     courierId,
     courierName: extra.courierName ?? 'Mario Mensajero',
@@ -578,8 +587,8 @@ describe('QuickCase', () => {
       expect(within(dialog).getByText('Mario Mensajero')).toBeInTheDocument()
     })
 
-    // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar al laboratorio.
-    it('en su propia recogida dice adónde ir y que recepción la marca al llegar, sin «Recibido»', async () => {
+    // #118: en la clínica marca «Recogido»; «Recibido» lo marca recepción al llegar (UX4-10).
+    it('en su propia recogida dice adónde ir y le ofrece «Recogido» en grande, sin «Recibido»', async () => {
       fetchCaseByCode.mockResolvedValue({
         case: caso({
           status: 'por_recoger',
@@ -588,13 +597,63 @@ describe('QuickCase', () => {
         missing: [],
       })
       vi.mocked(fetchStages).mockResolvedValue(fases)
+      pickUpDelivery.mockResolvedValue({ id: 'd1', status: 'hecha' })
+      const user = userEvent.setup()
       renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
 
       expect(await screen.findByText('Recoger hoy en Clínica Uno')).toBeInTheDocument()
-      expect(
-        screen.getByText('Recepción lo marca como recibido al llegar al laboratorio.'),
-      ).toBeInTheDocument()
+      const boton = screen.getByRole('button', { name: 'Recogido' })
+      expect(boton).toHaveClass('h-14', 'w-full')
+      expect(screen.queryByText(/Recepción lo marca/)).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Recibido' })).not.toBeInTheDocument()
+      await user.click(boton)
+      await waitFor(() => expect(pickUpDelivery).toHaveBeenCalledWith('d1'))
+      expect(postCaseAction).not.toHaveBeenCalled()
+    })
+
+    it('ya recogida (en camino) dice que recepción la marca al llegar, sin botones', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({
+          status: 'por_recoger',
+          pendingDelivery: null,
+          lastPickedUp: { doneAt: '2026-10-05T15:32:00.000Z', courierName: 'Mario Mensajero' },
+        }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      expect(
+        await screen.findByText(
+          'Recogido. Recepción lo marca como recibido al llegar al laboratorio.',
+        ),
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/no tiene una entrega pendiente/)).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Recogido|Recibido/ })).not.toBeInTheDocument()
+    })
+
+    it('en su entrega no le ofrece «Recogido»: la cierra con «Marcar entregado»', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ status: 'enviado', pendingDelivery: pendiente('entrega', mario.id) }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      expect(await screen.findByRole('button', { name: 'Marcar entregado' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Recogido' })).not.toBeInTheDocument()
+    })
+
+    it('en la recogida de otro mensajero no le ofrece «Recogido»', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ status: 'por_recoger', pendingDelivery: pendiente('recogida', 'otro') }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      expect(await screen.findByText(/Esta recogida la tiene/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Recogido' })).not.toBeInTheDocument()
     })
 
     // M-4: una entrega asignada a otro mensajero no le ofrece la acción (la API daría 403).

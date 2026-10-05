@@ -1583,7 +1583,9 @@ describe('entrega pendiente en el detalle', () => {
   it('un trabajo por recoger trae su recogida pendiente con mensajero y fecha', async () => {
     const service = servicio('por_recoger', [entrega('recogida', 'pendiente', 'u9')])
     const { case: found } = await service.detail('1', mensajero)
+    // #118: con su id, para que la ficha corta marque «Recogido» sobre esa recogida.
     expect(found.pendingDelivery).toEqual({
+      id: 'd-recogida-pendiente',
       type: 'recogida',
       courierId: 'u9',
       courierName: 'Luis Mensajero',
@@ -1598,6 +1600,7 @@ describe('entrega pendiente en el detalle', () => {
     ])
     const { case: found } = await service.detailByCode('26-00042', mensajero)
     expect(found.pendingDelivery).toEqual({
+      id: 'd-entrega-pendiente',
       type: 'entrega',
       courierId: 'u3',
       courierName: 'Mario Mensajero',

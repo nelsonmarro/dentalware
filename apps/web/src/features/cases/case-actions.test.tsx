@@ -315,6 +315,7 @@ describe('CaseActions', () => {
         case={caso({
           status: 'enviado',
           pendingDelivery: {
+            id: 'd1',
             type: 'entrega',
             courierId: yo.id,
             courierName: 'Mario',
@@ -344,6 +345,7 @@ describe('CaseActions', () => {
         case={caso({
           status: 'enviado',
           pendingDelivery: {
+            id: 'd1',
             type: 'entrega',
             courierId: yo.id,
             courierName: 'Mario',
@@ -386,6 +388,7 @@ describe('CaseActions', () => {
           case={caso({
             status: 'por_recoger',
             pendingDelivery: {
+              id: 'd1',
               type: 'recogida',
               courierId: 'otro',
               courierName: 'Mario',
@@ -407,6 +410,7 @@ describe('CaseActions', () => {
           case={caso({
             status: 'por_recoger',
             pendingDelivery: {
+              id: 'd1',
               type: 'recogida',
               courierId: yo.id,
               courierName: 'Mario',
@@ -427,6 +431,7 @@ describe('CaseActions', () => {
           case={caso({
             status: 'enviado',
             pendingDelivery: {
+              id: 'd1',
               type: 'entrega',
               courierId: 'otro',
               courierName: 'Mario',
@@ -447,6 +452,7 @@ describe('CaseActions', () => {
           case={caso({
             status: 'enviado',
             pendingDelivery: {
+              id: 'd1',
               type: 'entrega',
               courierId: 'otro',
               courierName: 'Mario',
@@ -540,6 +546,7 @@ describe('CaseActions', () => {
         case: caso({
           status: 'enviado',
           pendingDelivery: {
+            id: 'd1',
             type: 'entrega',
             courierId: 'm1',
             courierName: 'Mario',
@@ -562,6 +569,7 @@ describe('CaseActions', () => {
         case: caso({
           status: 'enviado',
           pendingDelivery: {
+            id: 'd1',
             type: 'entrega',
             courierId: yo.id,
             courierName: 'Mario',

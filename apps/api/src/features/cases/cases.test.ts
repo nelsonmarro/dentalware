@@ -1099,6 +1099,7 @@ describe('/api/trabajos', () => {
           ).case
         const enviado = await ficha()
         expect(enviado.pendingDelivery).toEqual({
+          id: expect.any(String),
           type: 'entrega',
           courierId: mensajeroId,
           courierName: 'Mensajero',
@@ -1206,7 +1207,13 @@ describe('/api/trabajos', () => {
             case: { pendingDelivery: unknown }
           }
         ).case.pendingDelivery
+      // #118: con el id de la recogida, el que marca «Recogido» desde la ficha corta.
+      const [recogida] = await ctx.db
+        .select({ id: ctx.schema.deliveries.id })
+        .from(ctx.schema.deliveries)
+        .where(eq(ctx.schema.deliveries.caseId, id))
       expect(await ficha()).toEqual({
+        id: recogida!.id,
         type: 'recogida',
         courierId: mensajeroId,
         courierName: 'Mensajero',

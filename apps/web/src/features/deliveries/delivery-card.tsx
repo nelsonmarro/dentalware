@@ -9,14 +9,17 @@ import {
   deliveryNextStep,
   deliveryOutcome,
   isActionableDelivery,
+  isDeliveryInTransit,
   isOverdueDelivery,
+  offersPickUp,
+  pickedUpLine,
   type UserRole,
 } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { AlertChip } from '@/features/cases/alert-chip'
-import { formatDate } from '@/features/cases/date-format'
+import { formatDate, formatTimestampTime } from '@/features/cases/date-format'
 import { DeliverDialog } from '@/features/cases/deliver-dialog'
 import { QueuedNotice } from '@/features/cases/queued-notice'
 import { useCaseBusy } from '@/features/cases/use-case-busy'
@@ -27,6 +30,8 @@ import { DELIVERY_TYPE_COLOR } from './delivery-colors'
 import { DeliveryStatusChip } from './delivery-status-chip'
 import { DeliveryTypeChip } from './delivery-type-chip'
 import { FailDialog } from './fail-dialog'
+import { InTransitChip } from './in-transit-chip'
+import { PickUpButton } from './pick-up-button'
 
 /**
  * Una recogida o entrega de la lista del día (ENT-5): tipo, código (enlace a la ficha corta),
@@ -36,7 +41,9 @@ import { FailDialog } from './fail-dialog'
  * cancelación del trabajo (ruling de la Tarea 6) se ve «Anulada» con el motivo de la
  * cancelación (UX4-17), nunca como fallida reprogramable; las cerradas antes de cancelar
  * conservan su estado real y dicen que el trabajo se canceló. La fallida dice su nueva fecha
- * (UX4-18).
+ * (UX4-18). En una recogida, el mensajero marca «Recogido» en la clínica; después la tarjeta
+ * dice «En camino al laboratorio», quién y a qué hora, y recepción la cierra con «Recibido»
+ * al llegar (#118).
  */
 export function DeliveryCard({
   delivery: d,
@@ -62,6 +69,8 @@ export function DeliveryCard({
   // Cancelar cierra la pendiente en la misma transacción; el estado del trabajo es solo una
   // red por si una pendiente de un trabajo cancelado llegara igual: nunca es accionable.
   const pending = isActionableDelivery(d)
+  // #118: recogida hecha y trabajo aún por recoger. No está cerrada del todo: espera «Recibido».
+  const inTransit = isDeliveryInTransit(d)
   // UX4-17: lo cerrado de un trabajo cancelado lo dice; la anulada, con el motivo.
   const cancelNote =
     d.case.status === 'cancelado' && !pending ? cancelledDeliveryNote(d.failedReason) : null
@@ -71,13 +80,20 @@ export function DeliveryCard({
   const assignment = { type: d.type, courierId: d.courier.id }
   const own = canActOnDelivery({ role, userId }, closing, assignment)
   const canClose =
-    pending && own && availableActions(d.case.status).includes(closing) && canPerform(role, closing)
+    (pending || inTransit) &&
+    own &&
+    availableActions(d.case.status).includes(closing) &&
+    canPerform(role, closing)
+  // #118, decisión 4: en la UI «Recogido» es del mensajero, en la suya (`offersPickUp`).
+  const canPickUp = pending && offersPickUp({ role, userId }, assignment)
   // «No se pudo»: misma regla que la API (`canFailDelivery`, `POST /api/entregas/:id/fallida`).
   // No depende de quién cierra la entrega (UX4-10): el mensajero no marca «Recibido», pero sí
   // «No se pudo» en su recogida.
   const canFail = pending && canFailDelivery({ role, userId }, assignment)
-  // UX4-10: quien la tiene pero no la cierra (el mensajero en su recogida) sabe qué sigue.
-  const nextStep = canFail && !canClose ? deliveryNextStep(role, d.type) : null
+  // UX4-10: quien no la cierra sabe qué sigue; en la recogida en camino, el mensajero lee que
+  // «Recibido» lo marca recepción al llegar.
+  const nextStep = inTransit && !canClose ? deliveryNextStep(role, d.type) : null
+  const actionable = canClose || canPickUp || canFail
   const overdue = pending && isOverdueDelivery(d, today)
 
   // UX4-05: cada diálogo vive mientras su acción siga disponible. Si la entrega deja de estar
@@ -95,7 +111,7 @@ export function DeliveryCard({
       className={cn(
         'flex flex-col gap-3 rounded-lg border-l-4 bg-card p-3 ring-1 ring-foreground/10 md:flex-row md:items-center md:justify-between',
         // Atenuada sin `opacity`: bajaría el texto por debajo de AA. Fondo apagado y sin sombra.
-        !pending && 'bg-muted/60 ring-foreground/5',
+        !pending && !inTransit && 'bg-muted/60 ring-foreground/5',
       )}
       style={{ borderLeftColor: DELIVERY_TYPE_COLOR[d.type] }}
     >
@@ -113,7 +129,7 @@ export function DeliveryCard({
             <AlertChip tone="destructive">Urgente</AlertChip>
           )}
           {overdue && <AlertChip tone="amber">Atrasada</AlertChip>}
-          {outcome && <DeliveryStatusChip outcome={outcome} />}
+          {inTransit ? <InTransitChip /> : outcome && <DeliveryStatusChip outcome={outcome} />}
         </div>
         <div className="flex flex-col gap-0.5">
           {d.case.patientRef && <p className="text-sm">{d.case.patientRef}</p>}
@@ -131,17 +147,27 @@ export function DeliveryCard({
             </p>
           )}
           {cancelNote && <p className="text-sm text-muted-foreground">{cancelNote}</p>}
+          {inTransit && d.doneAt && (
+            <p className="text-sm">{pickedUpLine(d.courier.name, formatTimestampTime(d.doneAt))}</p>
+          )}
           {nextStep && <p className="text-sm text-muted-foreground">{nextStep}</p>}
-          {queued && (canClose || canFail) && <QueuedNotice />}
+          {queued && actionable && <QueuedNotice />}
         </div>
       </div>
-      {(canClose || canFail) && (
+      {actionable && (
         // UX4-20: ancho mínimo común, para que las acciones se alineen de tarjeta en tarjeta.
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
           {canClose && (
             <Button className="w-full sm:w-auto sm:min-w-40" disabled={busy} onClick={close}>
               {CASE_ACTION_LABEL[closing]}
             </Button>
+          )}
+          {canPickUp && (
+            <PickUpButton
+              deliveryId={d.id}
+              caseId={d.case.id}
+              className="w-full sm:w-auto sm:min-w-40"
+            />
           )}
           {canFail && (
             <Button

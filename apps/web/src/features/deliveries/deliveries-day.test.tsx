@@ -6,13 +6,20 @@ import { renderWithQueryAndRouter } from '@/test/render'
 import type { DeliveryItem } from './api'
 import { DeliveriesDay } from './deliveries-day'
 
-const { fetchDeliveries, failDelivery, postCaseAction, uploadAttachment } = vi.hoisted(() => ({
-  fetchDeliveries: vi.fn(),
-  failDelivery: vi.fn(),
-  postCaseAction: vi.fn(),
-  uploadAttachment: vi.fn(),
+const { fetchDeliveries, failDelivery, pickUpDelivery, postCaseAction, uploadAttachment } =
+  vi.hoisted(() => ({
+    fetchDeliveries: vi.fn(),
+    failDelivery: vi.fn(),
+    pickUpDelivery: vi.fn(),
+    postCaseAction: vi.fn(),
+    uploadAttachment: vi.fn(),
+  }))
+vi.mock('./api', () => ({
+  fetchDeliveries,
+  failDelivery,
+  pickUpDelivery,
+  fetchCouriers: vi.fn(),
 }))
-vi.mock('./api', () => ({ fetchDeliveries, failDelivery, fetchCouriers: vi.fn() }))
 vi.mock('@/features/cases/api', () => ({ postCaseAction }))
 vi.mock('@/features/cases/attachments-api', () => ({ uploadAttachment }))
 
@@ -49,6 +56,7 @@ const clinica = (id: string, name: string) => ({ id, name, address: null, city: 
 beforeEach(() => {
   fetchDeliveries.mockReset()
   failDelivery.mockReset()
+  pickUpDelivery.mockReset()
   postCaseAction.mockReset()
   uploadAttachment.mockReset()
   // Sábado 2026-10-03, mediodía local: «hoy» de las pruebas de «Atrasada».
@@ -144,22 +152,46 @@ describe('DeliveriesDay', () => {
     expect(await screen.findByText('Urgente')).toBeInTheDocument()
   })
 
-  // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar al laboratorio.
-  it('al mensajero, su recogida pendiente le ofrece «No se pudo» y le dice que recepción la marca al llegar', async () => {
+  // #118: el mensajero marca «Recogido» en la clínica; «Recibido» lo marca recepción al llegar
+  // al laboratorio (UX4-10).
+  it('al mensajero, su recogida pendiente le ofrece «Recogido» (primero, al primer toque) y «No se pudo»', async () => {
     fetchDeliveries.mockResolvedValue([
       entrega({
         type: 'recogida',
         case: { ...entrega().case, id: 'c9', status: 'por_recoger' },
       }),
     ])
+    pickUpDelivery.mockResolvedValue({ id: 'd1', status: 'hecha' })
+    const { user } = renderWithQueryAndRouter(
+      <DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />,
+    )
+
+    const tarjeta = await screen.findByRole('listitem')
+    expect(
+      within(tarjeta)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['Recogido', 'No se pudo'])
+    expect(within(tarjeta).queryByRole('button', { name: 'Recibido' })).not.toBeInTheDocument()
+    // Ya tiene su botón: no hace falta decirle que recepción la marca.
+    expect(within(tarjeta).queryByText(/Recepción lo marca/)).not.toBeInTheDocument()
+    await user.click(within(tarjeta).getByRole('button', { name: 'Recogido' }))
+    await waitFor(() => expect(pickUpDelivery).toHaveBeenCalledWith('d1'))
+    expect(postCaseAction).not.toHaveBeenCalled()
+  })
+
+  it('a un mensajero no le ofrece «Recogido» en la recogida de otro', async () => {
+    fetchDeliveries.mockResolvedValue([
+      entrega({
+        type: 'recogida',
+        courier: { id: 'm2', name: 'Otro Mensajero' },
+        case: { ...entrega().case, status: 'por_recoger' },
+      }),
+    ])
     renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
 
     const tarjeta = await screen.findByRole('listitem')
-    expect(within(tarjeta).getByRole('button', { name: 'No se pudo' })).toBeInTheDocument()
-    expect(within(tarjeta).queryByRole('button', { name: 'Recibido' })).not.toBeInTheDocument()
-    expect(
-      within(tarjeta).getByText('Recepción lo marca como recibido al llegar al laboratorio.'),
-    ).toBeInTheDocument()
+    expect(within(tarjeta).queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('a recepción, una recogida pendiente le ofrece «Recibido» (se envía al primer toque) y «No se pudo»', async () => {
@@ -181,6 +213,8 @@ describe('DeliveriesDay', () => {
       within(tarjeta).queryByRole('button', { name: 'Marcar entregado' }),
     ).not.toBeInTheDocument()
     expect(within(tarjeta).queryByText(/Recepción lo marca/)).not.toBeInTheDocument()
+    // #118, decisión 4: a recepción no se le ofrece «Recogido»; «Recibido» también la cierra.
+    expect(within(tarjeta).queryByRole('button', { name: 'Recogido' })).not.toBeInTheDocument()
     await user.click(within(tarjeta).getByRole('button', { name: 'Recibido' }))
     await waitFor(() =>
       expect(postCaseAction).toHaveBeenCalledWith('c9', { accion: 'recibir', motivo: null }),
@@ -232,6 +266,85 @@ describe('DeliveriesDay', () => {
     const dialog = await screen.findByRole('dialog', { name: 'No se pudo entregar' })
     expect(within(dialog).getByLabelText('Motivo')).toBeInTheDocument()
     expect(within(dialog).getByLabelText('Nueva fecha')).toBeInTheDocument()
+  })
+
+  // #118: recogida hecha con el trabajo aún por recoger: viene en camino al laboratorio.
+  describe('en camino al laboratorio', () => {
+    // A las 10:32 locales del día de la prueba: la tarjeta formatea a la hora local.
+    const recogidaA = new Date('2026-10-03T10:32:00').toISOString()
+    const enCamino = (over: Partial<DeliveryItem> = {}) =>
+      entrega({
+        type: 'recogida',
+        status: 'hecha',
+        doneAt: recogidaA,
+        case: { ...entrega().case, id: 'c9', status: 'por_recoger' },
+        ...over,
+      })
+
+    it('lo dice con texto, quién y a qué hora, y a recepción le ofrece «Recibido»', async () => {
+      fetchDeliveries.mockResolvedValue([enCamino()])
+      postCaseAction.mockResolvedValue({})
+      const { user } = renderWithQueryAndRouter(
+        <DeliveriesDay day="2026-10-03" role="recepcion" userId="r1" />,
+      )
+
+      const tarjeta = await screen.findByRole('listitem')
+      expect(within(tarjeta).getByText('En camino al laboratorio')).toBeInTheDocument()
+      expect(
+        within(tarjeta).getByText('Recogido por Mario Mensajero a las 10:32'),
+      ).toBeInTheDocument()
+      // No es «Hecha»: aún falta que llegue.
+      expect(within(tarjeta).queryByText('Hecha')).not.toBeInTheDocument()
+      expect(
+        within(tarjeta)
+          .getAllByRole('button')
+          .map((b) => b.textContent),
+      ).toEqual(['Recibido'])
+      await user.click(within(tarjeta).getByRole('button', { name: 'Recibido' }))
+      await waitFor(() =>
+        expect(postCaseAction).toHaveBeenCalledWith('c9', { accion: 'recibir', motivo: null }),
+      )
+    })
+
+    it('al mensajero no le ofrece nada y le dice qué sigue', async () => {
+      fetchDeliveries.mockResolvedValue([enCamino()])
+      renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)
+
+      const tarjeta = await screen.findByRole('listitem')
+      expect(within(tarjeta).getByText('En camino al laboratorio')).toBeInTheDocument()
+      expect(within(tarjeta).queryByRole('button')).not.toBeInTheDocument()
+      expect(
+        within(tarjeta).getByText('Recepción lo marca como recibido al llegar al laboratorio.'),
+      ).toBeInTheDocument()
+    })
+
+    it('el resumen del día la cuenta en camino, no como hecha', async () => {
+      fetchDeliveries.mockResolvedValue([
+        // Recogida de ayer que sigue en camino.
+        enCamino({ id: 'd1', scheduledFor: '2026-10-02' }),
+        entrega({
+          id: 'd2',
+          status: 'hecha',
+          doneAt: recogidaA,
+          case: { ...entrega().case, id: 'c2', status: 'entregado' },
+        }),
+      ])
+      renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="recepcion" userId="r1" />)
+
+      expect(await screen.findByText('0 pendientes · 1 en camino · 1 hecha')).toBeInTheDocument()
+    })
+
+    it('recibida (trabajo nuevo) se ve hecha, sin «En camino» ni acciones', async () => {
+      fetchDeliveries.mockResolvedValue([
+        enCamino({ case: { ...entrega().case, id: 'c9', status: 'nuevo' } }),
+      ])
+      renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="recepcion" userId="r1" />)
+
+      const tarjeta = await screen.findByRole('listitem')
+      expect(within(tarjeta).getByText('Hecha')).toBeInTheDocument()
+      expect(within(tarjeta).queryByText('En camino al laboratorio')).not.toBeInTheDocument()
+      expect(within(tarjeta).queryByRole('button')).not.toBeInTheDocument()
+    })
   })
 
   it('una entrega hecha va al final de su grupo, con su estado y sin acciones', async () => {

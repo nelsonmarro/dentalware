@@ -524,6 +524,7 @@ export function fakeDeliveryLog(
       return {
         pending: pending
           ? {
+              id: pending.id,
               type: pending.type,
               courierId: pending.courierId,
               courierName: nameOf(pending.courierId),

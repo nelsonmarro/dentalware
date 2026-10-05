@@ -18,6 +18,17 @@ export function formatTimestampDate(timestamp: string, timeZone?: string): strin
   }).format(new Date(timestamp))
 }
 
+/** Hora **local** en 24 h (`HH:MM`) de un timestamp UTC (#118: «Recogido por Luis a las 10:32»).
+ * Mismo criterio que `formatTimestampDate`: `timeZone` solo en tests. */
+export function formatTimestampTime(timestamp: string, timeZone?: string): string {
+  return new Intl.DateTimeFormat('es-EC', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone,
+  }).format(new Date(timestamp))
+}
+
 /** El día de algo programado, para insertarlo en una frase (UX4-07/09): «hoy» o «el dd/mm/aaaa»
  * («Entregar hoy en …», «Sale el 09/10/2026 con …»). `today` es `AAAA-MM-DD` local. */
 export function dayPhrase(date: string, today: string): string {

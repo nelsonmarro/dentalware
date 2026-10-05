@@ -238,6 +238,7 @@ export function createCaseDeliveryInfoQuery(db: Db | Tx) {
     async deliveryInfo(caseId) {
       const [pending] = await db
         .select({
+          id: deliveries.id,
           type: deliveries.type,
           courierId: deliveries.courierId,
           courierName: users.name,

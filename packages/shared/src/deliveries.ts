@@ -123,8 +123,10 @@ export const DELIVERY_CLOSING_ACTION: Record<DeliveryType, CaseAction> = {
 export type DeliveryAssignment = { type: DeliveryType; courierId: string }
 
 /** La entrega o recogida pendiente de un trabajo, tal como la trae su ficha (UX4-07/09): de qué
- * tipo es, quién la tiene y para qué día está programada. Sin dinero. */
+ * tipo es, quién la tiene y para qué día está programada. Con su `id`, para que la ficha corta
+ * del mensajero marque «Recogido» sobre ella (#118). Sin dinero. */
 export type PendingDelivery = DeliveryAssignment & {
+  id: string
   courierName: string
   /** `YYYY-MM-DD`. */
   scheduledFor: string
@@ -208,6 +210,19 @@ export function canMarkPickedUp(
   return hasRole(DELIVERY_ROLES, actor.role) && isOwnDelivery(actor.userId, delivery)
 }
 
+/**
+ * ¿Se le **ofrece** «Recogido» a `actor` en la UI (#118, decisión 4 del plan)? Solo al mensajero
+ * en su recogida (`canMarkPickedUp`). Admin y recepción pueden marcarla en la API, pero la UI no
+ * se lo ofrece: ven «Recibido», que también la cierra si el trabajo llega en mano, y así no hay
+ * tres botones en la tarjeta.
+ */
+export function offersPickUp(
+  actor: { role: UserRole; userId: string },
+  delivery: DeliveryAssignment,
+): boolean {
+  return !hasRole(DELIVERY_MANAGE_ROLES, actor.role) && canMarkPickedUp(actor, delivery)
+}
+
 /** La última recogida hecha de un trabajo (#118): cuándo la recogió y quién. Sin dinero. */
 export type LastPickedUp = {
   /** Timestamp ISO (UTC); formatea el cliente. */
@@ -270,20 +285,25 @@ export const OTHER_COURIER_REASON: Record<DeliveryType, (courierName: string) =>
 export const NO_PENDING_DELIVERY_FOR_COURIER =
   'Este trabajo no tiene una entrega pendiente para ti.'
 
+/** Qué sigue en la ficha corta del mensajero cuando el trabajo ya viene en camino (#118): la
+ * recogida está hecha y «Recibido» lo marca recepción al llegar. */
+export const PICKED_UP_NEXT_STEP = `Recogido. ${DELIVERY_NEXT_STEP.recogida}`
+
 /**
  * Por qué el mensajero no tiene acción en la ficha corta (UX4-08): la recogida o entrega es de
- * otro, o no hay ninguna pendiente. En la suya, su tarea («Recoger hoy en …») ya dice qué hacer;
- * solo se suma qué sigue si la cierra otro (`deliveryNextStep`, UX4-10: su recogida la marca
- * recepción al llegar).
+ * otro, o no hay ninguna pendiente. En la suya no hace falta: su tarea («Recoger hoy en …») dice
+ * qué hacer y tiene su botón («Recogido» en la recogida, #118). Si el trabajo ya viene en camino
+ * (`inTransit`, `isInTransitToLab`), dice que lo recogió y que lo demás es de recepción.
  */
 export function courierNoActionReason(
   pending: Pick<PendingDelivery, 'type' | 'courierId' | 'courierName'> | null | undefined,
   userId: string,
+  inTransit = false,
 ): string | null {
-  if (!pending) return NO_PENDING_DELIVERY_FOR_COURIER
+  if (!pending) return inTransit ? PICKED_UP_NEXT_STEP : NO_PENDING_DELIVERY_FOR_COURIER
   if (!isOwnDelivery(userId, pending))
     return OTHER_COURIER_REASON[pending.type](pending.courierName)
-  return deliveryNextStep('mensajero', pending.type)
+  return null
 }
 
 /** Línea de la entrega pendiente en la ficha completa (UX4-09), por tipo; `when` lo formatea el

@@ -316,6 +316,7 @@ describe('ProductionPanel', () => {
           status: 'enviado',
           currentStageId: null,
           pendingDelivery: {
+            id: 'd1',
             type: 'entrega',
             courierId: 'm1',
             courierName: 'Mario Mensajero',

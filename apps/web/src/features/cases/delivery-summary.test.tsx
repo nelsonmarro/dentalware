@@ -11,7 +11,13 @@ describe('DeliverySummary', () => {
   it('una recogida pendiente dice para cuándo y con quién', () => {
     render(
       <DeliverySummary
-        pending={{ type: 'recogida', courierId: 'm1', courierName: 'Mario', scheduledFor: hoy }}
+        pending={{
+          id: 'd1',
+          type: 'recogida',
+          courierId: 'm1',
+          courierName: 'Mario',
+          scheduledFor: hoy,
+        }}
         lastDelivered={null}
       />,
     )
@@ -22,6 +28,7 @@ describe('DeliverySummary', () => {
     render(
       <DeliverySummary
         pending={{
+          id: 'd1',
           type: 'entrega',
           courierId: 'm1',
           courierName: 'Mario',

@@ -18,3 +18,8 @@ export const DELIVERY_OUTCOME_COLOR: Record<DeliveryOutcome, string> = {
   fallida: STATUS_COLOR.cancelado,
   anulada: STATUS_COLOR.por_recoger,
 }
+
+/** Color de «En camino al laboratorio» (#118): el verde azulado de «Nuevo», el estado al que
+ * pasa el trabajo cuando recepción lo recibe; distinto del gris de la recogida pendiente y del
+ * verde de lo ya hecho. Contraste AA probado en `status-chip.test.tsx`. */
+export const IN_TRANSIT_COLOR = STATUS_COLOR.nuevo

@@ -31,3 +31,12 @@ export async function failDelivery(id: string, input: DeliveryFailInput) {
     ).json()
   ).entrega
 }
+
+/** `POST /api/entregas/:id/recogido` (#118): el mensajero recogió en la clínica. Cierra la
+ * recogida sin cambiar el estado del trabajo, que sigue por recoger hasta «Recibido». 409 si ya
+ * no estaba pendiente (`DELIVERY_NOT_PENDING_MESSAGE`). */
+export async function pickUpDelivery(id: string) {
+  return (
+    await (await throwIfNotOk(await entregas[':id'].recogido.$post({ param: { id } }))).json()
+  ).entrega
+}
