@@ -340,8 +340,9 @@ describe('ProductionPanel', () => {
           status: 'por_recoger',
           currentStageId: null,
           pendingDelivery: null,
+          // Hoy a las 10:32 locales: recogido hoy, solo la hora.
           lastPickedUp: {
-            doneAt: new Date('2026-10-05T10:32:00').toISOString(),
+            doneAt: new Date(new Date().setHours(10, 32, 0, 0)).toISOString(),
             courierName: 'Mario Mensajero',
           },
         })}

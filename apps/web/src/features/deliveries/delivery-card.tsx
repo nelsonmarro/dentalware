@@ -12,14 +12,13 @@ import {
   isDeliveryInTransit,
   isOverdueDelivery,
   offersPickUp,
-  pickedUpLine,
   type UserRole,
 } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { AlertChip } from '@/features/cases/alert-chip'
-import { formatDate, formatTimestampTime } from '@/features/cases/date-format'
+import { formatDate } from '@/features/cases/date-format'
 import { DeliverDialog } from '@/features/cases/deliver-dialog'
 import { QueuedNotice } from '@/features/cases/queued-notice'
 import { useCaseBusy } from '@/features/cases/use-case-busy'
@@ -32,6 +31,7 @@ import { DeliveryTypeChip } from './delivery-type-chip'
 import { FailDialog } from './fail-dialog'
 import { InTransitChip } from './in-transit-chip'
 import { PickUpButton } from './pick-up-button'
+import { pickedUpText } from './picked-up-text'
 
 /**
  * Una recogida o entrega de la lista del día (ENT-5): tipo, código (enlace a la ficha corta),
@@ -148,7 +148,7 @@ export function DeliveryCard({
           )}
           {cancelNote && <p className="text-sm text-muted-foreground">{cancelNote}</p>}
           {inTransit && d.doneAt && (
-            <p className="text-sm">{pickedUpLine(d.courier.name, formatTimestampTime(d.doneAt))}</p>
+            <p className="text-sm">{pickedUpText(d.courier.name, d.doneAt, today)}</p>
           )}
           {nextStep && <p className="text-sm text-muted-foreground">{nextStep}</p>}
           {queued && actionable && <QueuedNotice />}

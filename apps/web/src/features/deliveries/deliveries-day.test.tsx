@@ -306,6 +306,22 @@ describe('DeliveriesDay', () => {
       )
     })
 
+    // M-4: lo recogido ayer y aún en camino no se lee como de hoy.
+    it('recogido otro día dice qué día', async () => {
+      fetchDeliveries.mockResolvedValue([
+        enCamino({
+          scheduledFor: '2026-10-02',
+          doneAt: new Date('2026-10-02T10:32:00').toISOString(),
+        }),
+      ])
+      renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="recepcion" userId="r1" />)
+
+      const tarjeta = await screen.findByRole('listitem')
+      expect(
+        within(tarjeta).getByText('Recogido por Mario Mensajero el 02/10 a las 10:32'),
+      ).toBeInTheDocument()
+    })
+
     it('al mensajero no le ofrece nada y le dice qué sigue', async () => {
       fetchDeliveries.mockResolvedValue([enCamino()])
       renderWithQueryAndRouter(<DeliveriesDay day="2026-10-03" role="mensajero" userId="m1" />)

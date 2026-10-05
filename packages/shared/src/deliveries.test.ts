@@ -403,6 +403,10 @@ describe('entregas', () => {
   it('la línea de lo recogido dice quién y a qué hora', () => {
     expect(pickedUpLine('Luis', '10:32')).toBe('Recogido por Luis a las 10:32')
   })
+  // M-4 (revisión final de #118): lo recogido otro día lleva la fecha.
+  it('lo recogido otro día dice también qué día', () => {
+    expect(pickedUpLine('Luis', '10:32', '04/10')).toBe('Recogido por Luis el 04/10 a las 10:32')
+  })
 
   it('el historial tiene el evento «Recibido en el laboratorio» (received)', () => {
     expect(CASE_EVENT_TYPES).toContain('received')

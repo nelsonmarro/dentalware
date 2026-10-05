@@ -29,6 +29,20 @@ export function formatTimestampTime(timestamp: string, timeZone?: string): strin
   }).format(new Date(timestamp))
 }
 
+/** Día y mes **locales** (`dd/mm`) de un timestamp UTC (M-4 de #118: «Recogido por Luis el
+ * 04/10 a las 10:32»). `timeZone` solo en tests. */
+export function formatTimestampDayMonth(timestamp: string, timeZone?: string): string {
+  // `Intl` en `es-EC` quita el cero del día cuando no hay año («4/10»): se arma con las partes.
+  const parts = new Intl.DateTimeFormat('es-EC', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone,
+  }).formatToParts(new Date(timestamp))
+  const part = (type: 'day' | 'month') =>
+    (parts.find((p) => p.type === type)?.value ?? '').padStart(2, '0')
+  return `${part('day')}/${part('month')}`
+}
+
 /** El día de algo programado, para insertarlo en una frase (UX4-07/09): «hoy» o «el dd/mm/aaaa»
  * («Entregar hoy en …», «Sale el 09/10/2026 con …»). `today` es `AAAA-MM-DD` local. */
 export function dayPhrase(date: string, today: string): string {

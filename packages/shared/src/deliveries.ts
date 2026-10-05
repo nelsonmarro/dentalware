@@ -254,9 +254,13 @@ export function inTransitCancelNote(
   return `${lastPickedUp.courierName} ya lo recogió y viene en camino al laboratorio.`
 }
 
-/** «Recogido por Luis a las 10:32» (#118); `time` ya formateada por el cliente. */
-export function pickedUpLine(courierName: string, time: string): string {
-  return `Recogido por ${courierName} a las ${time}`
+/** «Recogido por Luis a las 10:32» (#118); `time` y `date` («04/10») ya formateadas por el
+ * cliente. Lo recogido otro día lleva la fecha («Recogido por Luis el 04/10 a las 10:32», M-4
+ * de la revisión final): lo que sigue en camino desde ayer no se lee como de hoy. */
+export function pickedUpLine(courierName: string, time: string, date?: string | null): string {
+  return date
+    ? `Recogido por ${courierName} el ${date} a las ${time}`
+    : `Recogido por ${courierName} a las ${time}`
 }
 
 /** Quién cierra cada tipo de entrega cuando no es quien la ve (UX4-10). `Record` exhaustivo. */

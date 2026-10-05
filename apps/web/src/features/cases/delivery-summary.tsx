@@ -3,7 +3,6 @@ import {
   IN_TRANSIT_TO_LAB,
   isInTransitToLab,
   pendingDeliveryLine,
-  pickedUpLine,
   toIsoDate,
   type CaseStatus,
   type LastDelivered,
@@ -12,7 +11,8 @@ import {
 } from '@dentalware/shared'
 import { PackageCheck, Truck } from 'lucide-react'
 import { attachmentUrl } from './attachments-api'
-import { dayPhrase, formatTimestampDate, formatTimestampTime } from './date-format'
+import { pickedUpText } from '@/features/deliveries/picked-up-text'
+import { dayPhrase, formatTimestampDate } from './date-format'
 
 /**
  * La recogida o entrega del trabajo en una línea (UX4-09): «Recogida programada para hoy con
@@ -48,7 +48,7 @@ export function DeliverySummary({
       <p className="flex items-start gap-2 text-base">
         <Truck aria-hidden className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
         <span className="min-w-0">
-          {`${IN_TRANSIT_TO_LAB} · ${pickedUpLine(lastPickedUp.courierName, formatTimestampTime(lastPickedUp.doneAt))}`}
+          {`${IN_TRANSIT_TO_LAB} · ${pickedUpText(lastPickedUp.courierName, lastPickedUp.doneAt, toIsoDate(new Date()))}`}
         </span>
       </p>
     )

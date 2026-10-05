@@ -1,6 +1,6 @@
 import { toIsoDate } from '@dentalware/shared'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DeliverySummary } from './delivery-summary'
 
 const hoy = toIsoDate(new Date())
@@ -93,10 +93,10 @@ describe('DeliverySummary', () => {
   })
 
   // #118: recepción ve lo que viene en camino, quién lo recogió y a qué hora.
-  const recogido = {
-    doneAt: new Date('2026-10-05T10:32:00').toISOString(),
-    courierName: 'Mario',
-  }
+  // Hoy a las 10:32 locales: recogido hoy, solo la hora.
+  const hoyALas = new Date()
+  hoyALas.setHours(10, 32, 0, 0)
+  const recogido = { doneAt: hoyALas.toISOString(), courierName: 'Mario' }
 
   it('lo que viene en camino dice quién lo recogió y a qué hora', () => {
     render(
@@ -122,5 +122,30 @@ describe('DeliverySummary', () => {
       />,
     )
     expect(container).toBeEmptyDOMElement()
+  })
+
+  // M-4 (revisión final de #118): lo recogido otro día lleva la fecha.
+  describe('con el reloj fijo', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+    it('lo recogido ayer dice el día', () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-10-05T12:00:00'))
+      render(
+        <DeliverySummary
+          status="por_recoger"
+          pending={null}
+          lastDelivered={null}
+          lastPickedUp={{
+            doneAt: new Date('2026-10-04T10:32:00').toISOString(),
+            courierName: 'Mario',
+          }}
+        />,
+      )
+      expect(
+        screen.getByText('En camino al laboratorio · Recogido por Mario el 04/10 a las 10:32'),
+      ).toBeInTheDocument()
+    })
   })
 })
