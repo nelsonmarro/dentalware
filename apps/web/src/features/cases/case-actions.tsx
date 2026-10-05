@@ -12,6 +12,7 @@ import {
   requiresDeliveryForm,
   requiresReason,
   hasRole,
+  inTransitCancelNote,
 } from '@dentalware/shared'
 import { useState, type ComponentType } from 'react'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -232,6 +233,12 @@ export function CaseActions({
           }}
           action={dialogAction}
           {...REASON_DIALOG[dialogAction]}
+          // M-1 (#118): cancelar lo que ya recogió el mensajero lo dice con su nombre.
+          note={
+            dialogAction === 'cancelar'
+              ? inTransitCancelNote(c.status, c.pendingDelivery, c.lastPickedUp)
+              : null
+          }
           pending={action.isPending}
           onConfirm={(input) => {
             action.mutate(input, { onSuccess: () => setDialogAction(null) })

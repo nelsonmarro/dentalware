@@ -29,6 +29,7 @@ import {
   IN_TRANSIT_TO_LAB,
   pickedUpLine,
   offersPickUp,
+  inTransitCancelNote,
 } from './deliveries.ts'
 import { CASE_EVENT_TYPES } from './case-events.ts'
 
@@ -374,6 +375,24 @@ describe('entregas', () => {
     it('por recoger sin recogida hecha no viene en camino', () => {
       expect(isInTransitToLab('por_recoger', null, null)).toBe(false)
       expect(isInTransitToLab('por_recoger', undefined, undefined)).toBe(false)
+    })
+  })
+
+  // M-1 (revisión final de #118): al cancelar un trabajo en camino, quien cancela sabe que el
+  // mensajero ya lo tiene.
+  describe('inTransitCancelNote', () => {
+    const recogido = { doneAt: '2026-10-05T15:32:00.000Z', courierName: 'Luis' }
+    it('en camino dice quién lo recogió', () => {
+      expect(inTransitCancelNote('por_recoger', null, recogido)).toBe(
+        'Luis ya lo recogió y viene en camino al laboratorio.',
+      )
+    })
+    it('con la recogida pendiente o ya recibido no dice nada', () => {
+      expect(
+        inTransitCancelNote('por_recoger', { type: 'recogida', courierId: 'm1' }, recogido),
+      ).toBeNull()
+      expect(inTransitCancelNote('nuevo', null, recogido)).toBeNull()
+      expect(inTransitCancelNote('por_recoger', null, null)).toBeNull()
     })
   })
 

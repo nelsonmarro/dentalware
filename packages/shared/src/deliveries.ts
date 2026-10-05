@@ -242,6 +242,18 @@ export function isInTransitToLab(
 
 export const IN_TRANSIT_TO_LAB = 'En camino al laboratorio'
 
+/** Línea del diálogo de cancelar un trabajo que viene en camino (#118, M-1 de la revisión
+ * final): el mensajero ya lo tiene en la mano, y quien cancela debe saberlo. `null` si no viene
+ * en camino (`isInTransitToLab`). */
+export function inTransitCancelNote(
+  status: CaseStatus,
+  pending: DeliveryAssignment | null | undefined,
+  lastPickedUp: LastPickedUp | null | undefined,
+): string | null {
+  if (!lastPickedUp || !isInTransitToLab(status, pending, lastPickedUp)) return null
+  return `${lastPickedUp.courierName} ya lo recogió y viene en camino al laboratorio.`
+}
+
 /** «Recogido por Luis a las 10:32» (#118); `time` ya formateada por el cliente. */
 export function pickedUpLine(courierName: string, time: string): string {
   return `Recogido por ${courierName} a las ${time}`
