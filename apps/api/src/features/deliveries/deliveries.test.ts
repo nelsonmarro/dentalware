@@ -697,6 +697,25 @@ describe('/api/entregas', () => {
       expect((await createDeliveriesRepo(ctx.db).byId(entrega.id))?.status).toBe('pendiente')
     })
 
+    it('tras «Recogido», la ficha trae la última recogida para recepción y para el mensajero, sin dinero', async () => {
+      const { caseId, deliveryId } = await porRecoger()
+      type Ficha = {
+        case: { lastPickedUp: unknown; pendingDelivery: unknown; total: string | null }
+      }
+      const ficha = async (cookie: string) =>
+        ((await (await get(`/api/trabajos/${caseId}`, cookie)).json()) as Ficha).case
+      expect((await ficha(recepcion)).lastPickedUp).toBeNull()
+
+      expect((await recogido(deliveryId, mensajero)).status).toBe(200)
+      const esperado = { doneAt: '2026-10-10T12:00:00.000Z', courierName: 'Zoila Mensajera' }
+      const deRecepcion = await ficha(recepcion)
+      expect(deRecepcion.lastPickedUp).toEqual(esperado)
+      expect(deRecepcion.pendingDelivery).toBeNull()
+      const delMensajero = await ficha(mensajero)
+      expect(delMensajero.lastPickedUp).toEqual(esperado)
+      expect(delMensajero.total).toBeNull()
+    })
+
     it('con un id que no es uuid responde 422', async () => {
       expect((await recogido('no-es-uuid', mensajero)).status).toBe(422)
     })

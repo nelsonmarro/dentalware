@@ -32,6 +32,7 @@ import {
   type CaseInput,
   type CaseListQuery,
   type LastDelivered,
+  type LastPickedUp,
   type RemakeInput,
   type StageChangeInput,
   type StageRef,
@@ -188,11 +189,16 @@ export function createCasesService(deps: {
       ...info.lastDelivered,
       doneAt: info.lastDelivered.doneAt.toISOString(),
     }
+    const lastPickedUp: LastPickedUp | null = info.lastPickedUp && {
+      ...info.lastPickedUp,
+      doneAt: info.lastPickedUp.doneAt.toISOString(),
+    }
     return {
       // La entrega pendiente (con su mensajero, M-4: la web la usa con `canActOnDelivery` para no
       // ofrecerle a un mensajero la acción de una entrega ajena) y la última entrega hecha
-      // (UX4-09). Sin dinero: viajan igual para todos los roles.
-      case: { ...masked, pendingDelivery: info.pending, lastDelivered },
+      // (UX4-09), y la última recogida hecha («En camino al laboratorio», #118). Sin dinero:
+      // viajan igual para todos los roles.
+      case: { ...masked, pendingDelivery: info.pending, lastDelivered, lastPickedUp },
       missing: readiness(found, hasDoc),
     }
   }

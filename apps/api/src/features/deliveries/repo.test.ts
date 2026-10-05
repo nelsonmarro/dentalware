@@ -5,7 +5,7 @@ import { testPassword } from '../../test/passwords.ts'
 import { createUser, setupTestDb, truncateAll } from '../../test/setup.ts'
 import { createCasesRepo } from '../cases/repo.ts'
 import { DeliveryProofMissingError } from './errors.ts'
-import { createCouriersQuery, createDeliveriesRepo } from './repo.ts'
+import { createCaseDeliveryInfoQuery, createCouriersQuery, createDeliveriesRepo } from './repo.ts'
 
 describe('features/deliveries/repo', () => {
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
@@ -451,6 +451,73 @@ describe('features/deliveries/repo', () => {
       await repo.create({ caseId: caseEnA, type: 'entrega', courierId, scheduledFor: '2026-09-10' })
       const items = await repo.listForDay({ day: '2026-09-10', includeOverdue: false })
       expect(items.map((i) => i.clinic.name)).toEqual(['Sonrisa', 'Zeta Dental'])
+    })
+  })
+
+  // #118: «Recogido» lee el nombre del mensajero en la misma transacción que cierra la recogida.
+  describe('byIdWithCourier', () => {
+    it('trae la entrega con el nombre de su mensajero; undefined si no existe', async () => {
+      const repo = createDeliveriesRepo(ctx.db)
+      const caseId = await createCase()
+      const d = await repo.create({
+        caseId,
+        type: 'recogida',
+        courierId,
+        scheduledFor: '2026-09-10',
+      })
+      expect(await repo.byIdWithCourier(d.id)).toEqual({
+        ...(await repo.byId(d.id)),
+        courierName: 'Beto Mensajero',
+      })
+      expect(await repo.byIdWithCourier('00000000-0000-4000-8000-000000000000')).toBeUndefined()
+    })
+  })
+
+  // #118: la ficha dice quién recogió el trabajo y cuándo («En camino al laboratorio»).
+  describe('createCaseDeliveryInfoQuery', () => {
+    it('lastPickedUp es la última recogida hecha, sin contar fallidas ni entregas', async () => {
+      const repo = createDeliveriesRepo(ctx.db)
+      const caseId = await createCase()
+      const otroId = await createUser(ctx.auth, ctx.db, {
+        email: 'zoe@t.local',
+        password: testPassword(),
+        name: 'Zoe Mensajera',
+        role: 'mensajero',
+      })
+      const cerrar = async (
+        type: 'recogida' | 'entrega',
+        who: string,
+        at: string,
+        how: 'hecha' | 'fallida' = 'hecha',
+      ) => {
+        const d = await repo.create({ caseId, type, courierId: who, scheduledFor: '2026-09-10' })
+        if (how === 'hecha') await repo.markDone(d.id, new Date(at), null)
+        else await repo.markFailed(d.id, 'Clínica cerrada', new Date(at))
+      }
+      // La más nueva se inserta primero: el orden lo da `doneAt`, no la inserción.
+      await cerrar('recogida', otroId, '2026-09-10T15:32:00Z')
+      await cerrar('recogida', courierId, '2026-09-09T10:00:00Z')
+      await cerrar('recogida', courierId, '2026-09-11T09:00:00Z', 'fallida')
+      await cerrar('entrega', courierId, '2026-09-12T10:00:00Z')
+
+      const info = await createCaseDeliveryInfoQuery(ctx.db).deliveryInfo(caseId)
+      expect(info.lastPickedUp).toEqual({
+        doneAt: new Date('2026-09-10T15:32:00Z'),
+        courierName: 'Zoe Mensajera',
+      })
+      expect(info.lastDelivered).toMatchObject({ courierName: 'Beto Mensajero' })
+    })
+
+    it('sin recogida hecha lastPickedUp es null', async () => {
+      const caseId = await createCase()
+      await createDeliveriesRepo(ctx.db).create({
+        caseId,
+        type: 'recogida',
+        courierId,
+        scheduledFor: '2026-09-10',
+      })
+      const info = await createCaseDeliveryInfoQuery(ctx.db).deliveryInfo(caseId)
+      expect(info.lastPickedUp).toBeNull()
     })
   })
 

@@ -257,13 +257,15 @@ export interface DeliveryLog {
 /**
  * Lectura de las entregas de un trabajo para su ficha (UX4-07/09), fuera de la transacción:
  * la pendiente (como mucho una: un trabajo está por recoger o enviado, no las dos cosas) y la
- * última entrega hecha, con el nombre del mensajero. Lo cumple `createCaseDeliveryInfoQuery` de
+ * última entrega hecha y la última recogida hecha (#118), con el nombre del mensajero. Lo cumple `createCaseDeliveryInfoQuery` de
  * `deliveries` en la raíz de composición (ADR 24/34). Sin dinero.
  */
 export interface CaseDeliveriesQuery {
   deliveryInfo(caseId: string): Promise<{
     pending: PendingDelivery | null
     lastDelivered: { doneAt: Date; courierName: string; proofAttachmentId: string | null } | null
+    /** La última recogida hecha («Recogido», #118), para «En camino al laboratorio». */
+    lastPickedUp: { doneAt: Date; courierName: string } | null
   }>
 }
 

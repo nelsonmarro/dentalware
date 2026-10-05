@@ -1646,6 +1646,39 @@ describe('entrega pendiente en el detalle', () => {
     expect(found.lastDelivered).toBeNull()
   })
 
+  // #118: «En camino al laboratorio · Recogido por … a las …».
+  it('un trabajo recogido trae la última recogida hecha con su mensajero (detalle y ficha corta)', async () => {
+    const service = servicio('por_recoger', [
+      entrega('recogida', 'fallida', 'u3', {
+        id: 'fallida',
+        doneAt: new Date('2026-10-04T09:00:00Z'),
+      }),
+      entrega('recogida', 'hecha', 'u3', {
+        id: 'vieja',
+        doneAt: new Date('2026-10-01T10:00:00Z'),
+      }),
+      entrega('recogida', 'hecha', 'u9', {
+        id: 'nueva',
+        doneAt: new Date('2026-10-03T15:32:00Z'),
+      }),
+      entrega('entrega', 'hecha', 'u3', {
+        id: 'entrega',
+        doneAt: new Date('2026-10-05T10:00:00Z'),
+      }),
+    ])
+    const esperado = { doneAt: '2026-10-03T15:32:00.000Z', courierName: 'Luis Mensajero' }
+    expect((await service.detail('1', recepcionCtx)).case.lastPickedUp).toEqual(esperado)
+    expect((await service.detailByCode('26-00042', mensajero)).case.lastPickedUp).toEqual(esperado)
+  })
+
+  it('sin recogida hecha la última recogida es null (una entrega hecha no cuenta)', async () => {
+    const service = servicio('por_recoger', [
+      entrega('recogida', 'pendiente'),
+      entrega('entrega', 'hecha', 'u3', { doneAt: new Date('2026-10-02T10:00:00Z') }),
+    ])
+    expect((await service.detail('1', admin)).case.lastPickedUp).toBeNull()
+  })
+
   // UX4-07: la ficha corta lleva al mensajero a la clínica (mapa y llamada).
   it('la clínica del detalle trae dirección y teléfono', async () => {
     const service = servicio('enviado', [])

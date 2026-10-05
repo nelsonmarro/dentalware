@@ -4,6 +4,7 @@ import { isForeignKeyViolation } from '../../db/pg-errors.ts'
 import { users } from '../../db/schema/auth.ts'
 import { cases } from '../cases/schema.ts'
 import { clinics } from '../clinics/schema.ts'
+import type { DeliveryType } from '@dentalware/shared'
 import type {
   CaseDeliveryInfoQuery,
   CaseEventLog,
@@ -218,10 +219,10 @@ export function createCouriersQuery(db: Db | Tx) {
 }
 
 /**
- * La entrega pendiente y la última entrega hecha de un trabajo, con el nombre del mensajero
- * (UX4-07/09): dos lecturas con join a `users` (ADR 24, solo lectura). La pendiente es como mucho
- * una (`deliveries_one_pending_idx` por tipo, y un trabajo está por recoger o enviado, no las dos
- * cosas); la última hecha es solo de tipo `entrega` (una recogida hecha no es «entregado»).
+ * La entrega pendiente, la última entrega hecha y la última recogida hecha de un trabajo, con el
+ * nombre del mensajero (UX4-07/09, #118): tres lecturas con join a `users` (ADR 24, solo lectura).
+ * La pendiente es como mucho una (`deliveries_one_pending_idx` por tipo, y un trabajo está por
+ * recoger o enviado, no las dos cosas); una recogida hecha no es «entregado», ni al revés.
  */
 export function createCaseDeliveryInfoQuery(db: Db | Tx) {
   return {
@@ -237,28 +238,39 @@ export function createCaseDeliveryInfoQuery(db: Db | Tx) {
         .innerJoin(users, eq(deliveries.courierId, users.id))
         .where(and(eq(deliveries.caseId, caseId), eq(deliveries.status, 'pendiente')))
         .limit(1)
-      const [last] = await db
-        .select({
-          doneAt: deliveries.doneAt,
-          courierName: users.name,
-          proofAttachmentId: deliveries.proofAttachmentId,
-        })
-        .from(deliveries)
-        .innerJoin(users, eq(deliveries.courierId, users.id))
-        .where(
-          and(
-            eq(deliveries.caseId, caseId),
-            eq(deliveries.type, 'entrega'),
-            eq(deliveries.status, 'hecha'),
-            isNotNull(deliveries.doneAt),
-          ),
-        )
-        .orderBy(desc(deliveries.doneAt))
-        .limit(1)
+      // La última hecha de cada tipo: la entrega («Entregado el … por …») y la recogida
+      // («Recogido por … a las …», #118).
+      const lastDone = async (type: DeliveryType) => {
+        const [last] = await db
+          .select({
+            doneAt: deliveries.doneAt,
+            courierName: users.name,
+            proofAttachmentId: deliveries.proofAttachmentId,
+          })
+          .from(deliveries)
+          .innerJoin(users, eq(deliveries.courierId, users.id))
+          .where(
+            and(
+              eq(deliveries.caseId, caseId),
+              eq(deliveries.type, type),
+              eq(deliveries.status, 'hecha'),
+              isNotNull(deliveries.doneAt),
+            ),
+          )
+          .orderBy(desc(deliveries.doneAt))
+          .limit(1)
+        // `doneAt` no es nulo por el `isNotNull` de arriba; Drizzle no estrecha el tipo.
+        return last?.doneAt ? { ...last, doneAt: last.doneAt } : null
+      }
+      const lastDelivered = await lastDone('entrega')
+      const lastPickedUp = await lastDone('recogida')
       return {
         pending: pending ?? null,
-        // `doneAt` no es nulo por el `isNotNull` de arriba; Drizzle no estrecha el tipo.
-        lastDelivered: last?.doneAt ? { ...last, doneAt: last.doneAt } : null,
+        lastDelivered,
+        lastPickedUp: lastPickedUp && {
+          doneAt: lastPickedUp.doneAt,
+          courierName: lastPickedUp.courierName,
+        },
       }
     },
   } satisfies CaseDeliveryInfoQuery

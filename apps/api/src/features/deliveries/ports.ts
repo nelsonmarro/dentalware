@@ -86,6 +86,8 @@ export interface CaseDeliveryInfoQuery {
   deliveryInfo(caseId: string): Promise<{
     pending: PendingDelivery | null
     lastDelivered: { doneAt: Date; courierName: string; proofAttachmentId: string | null } | null
+    /** La última recogida hecha («Recogido», #118), para «En camino al laboratorio». */
+    lastPickedUp: { doneAt: Date; courierName: string } | null
   }>
 }
 
