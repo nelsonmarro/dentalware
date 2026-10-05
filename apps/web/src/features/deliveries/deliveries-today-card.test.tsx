@@ -18,12 +18,19 @@ describe('DeliveriesTodayCard', () => {
     expect(fetchDeliveries).toHaveBeenCalledWith({ dia: expect.any(String) })
   })
 
-  it('un fallo al cargar no se muestra como cero', async () => {
+  // M-5 de la revisión de la Tarea 9: el fallo se pinta con `LoadError` (convención §5), con
+  // `role="alert"` y «Reintentar», nunca como cero.
+  it('un fallo al cargar ofrece reintentar y no se muestra como cero', async () => {
     fetchDeliveries.mockRejectedValue(new TypeError('Failed to fetch'))
-    renderWithQueryAndRouter(<DeliveriesTodayCard />)
-    expect(
-      await screen.findByRole('link', { name: 'Entregas de hoy, no se pudo cargar' }),
-    ).toBeInTheDocument()
+    const { user } = renderWithQueryAndRouter(<DeliveriesTodayCard />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No se pudieron cargar las entregas de hoy.',
+    )
     expect(screen.queryByText('0')).not.toBeInTheDocument()
+    const retry = screen.getByRole('button', { name: 'Reintentar' })
+    expect(retry).not.toHaveFocus()
+    fetchDeliveries.mockResolvedValue([])
+    await user.click(retry)
+    expect(await screen.findByRole('link', { name: 'Entregas de hoy 0' })).toBeInTheDocument()
   })
 })

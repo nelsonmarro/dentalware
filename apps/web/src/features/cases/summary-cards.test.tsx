@@ -134,4 +134,13 @@ describe('SummaryCards', () => {
     expect(grid).not.toHaveClass('lg:grid-cols-6')
     expect(grid.lastElementChild).toHaveTextContent('Extra')
   })
+
+  // M-5 de la revisión de la Tarea 9: la tarjeta extra (las entregas) no depende del resumen de
+  // trabajos; si este falla, sigue ahí junto al aviso.
+  it('si falla el resumen, la tarjeta extra sigue a la vista', async () => {
+    fetchSummary.mockRejectedValue(new TypeError('Failed to fetch'))
+    renderWithProviders(<SummaryCards extra={<a href="/extra">Extra</a>} />)
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Extra' })).toBeInTheDocument()
+  })
 })

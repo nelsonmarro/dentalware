@@ -36,8 +36,17 @@ export function SummaryCards({ extra }: { extra?: ReactNode } = {}) {
 
   // UX3-02: antes de este cambio, un fallo de red dejaba las seis tarjetas en "—" con
   // `aria-label` "cargando" para siempre — un estado de carga permanente, no un error.
+  // La tarjeta extra (las entregas) no depende del resumen de trabajos: si este falla, sigue a
+  // la vista junto al aviso (M-5, revisión T9).
   if (summary.isError) {
-    return <LoadError onRetry={() => void summary.refetch()} />
+    return (
+      <div className="flex flex-col gap-3">
+        <LoadError onRetry={() => void summary.refetch()} />
+        {extra && (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{extra}</div>
+        )}
+      </div>
+    )
   }
 
   return (
