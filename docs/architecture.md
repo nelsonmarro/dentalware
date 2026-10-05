@@ -47,7 +47,7 @@ packages/shared (máquina de estados, dinero, FDI, readiness, schemas zod)
 
 `app.ts` (`createApp(deps)`) es la raíz de composición: construye adaptadores, arma servicios y monta rutas. `main.ts` es lo único que toca el mundo real. Implementación de referencia: `features/cases`.
 
-**Entregas** (`features/deliveries`, Iteración 4): recogidas y entregas del día, «No se pudo» y lista de mensajeros, con su propio `UnitOfWork`. Las transiciones del trabajo que abren o cierran una entrega viven en `cases` y escriben por su puerto `DeliveryLog` (ADR 34). La ficha del trabajo lee su entrega pendiente y la última hecha por el puerto de lectura `CaseDeliveriesQuery` de `cases`, que cumple `createCaseDeliveryInfoQuery` de `deliveries` en `app.ts`.
+**Entregas** (`features/deliveries`, Iteración 4): recogidas y entregas del día, «No se pudo» y lista de mensajeros, con su propio `UnitOfWork`. Las transiciones del trabajo que abren o cierran una entrega viven en `cases` y escriben por su puerto `DeliveryLog` (ADR 34). La ficha del trabajo lee su entrega pendiente y la última hecha por el puerto de lectura `CaseDeliveriesQuery` de `cases`, que cumple `createCaseDeliveryInfoQuery` de `deliveries` en `app.ts`. Reglas del día (`GET /api/entregas`): el mensajero solo ve las suyas; el día de hoy suma las pendientes atrasadas; cada fila trae la ciudad de la clínica (para el mapa) y, si es fallida, `rescheduledFor`, la fecha de la pendiente que creó «No se pudo» (`null` en la anulada por cancelación). «No se pudo» no acepta una fecha anterior a hoy ni un motivo con el prefijo de la cancelación (422).
 
 **Cuándo hace falta `service.ts`**: siempre en una feature nueva, o si la feature usa más de un puerto, tiene reglas o autorización más allá de `requireRole`, necesita transacción, enmascara por rol u orquesta varios pasos. Un CRUD simple (`clinics`, `doctors`, `stages`, `lab-settings`) puede llamar al repo desde la ruta; con su primera regla gana servicio en ese mismo PR. Las features viejas se migran cuando se tocan (boy-scout): faltan `users` (Drizzle en la ruta) y `products` (reglas en la ruta), excluidas del lint de rutas hasta entonces.
 
@@ -56,7 +56,7 @@ packages/shared (máquina de estados, dinero, FDI, readiness, schemas zod)
 - `features/<f>/api.ts` es la única frontera con la red (`hc<AppType>` + `throwIfNotOk`). `use-*.ts` es la capa de aplicación (TanStack Query). Componentes y `routes/` son adaptadores de UI, sin reglas: totales, estados y readiness vienen de `shared`.
 - **Identidad**: `authClient` confinado en `features/auth/`; el resto usa `getSession`/`signIn`/`signOut`/`useSession`. `getSessionStatus()` distingue `ok`, `anonymous` e `invalid-role`; un rol desconocido nunca cuenta como rol. Sin red, `getAppSession()` (el `beforeLoad` de `_app`) deja pasar con la última sesión válida conocida: la API sigue exigiendo sesión en cada petición (UX4-26).
 - **Estado**: el servidor es la fuente de verdad, la URL guarda vista, filtros y página, y no hay store global.
-- **Componentes transversales**: `FormDialog`, `ConfirmDialog`, `DataGrid` (`docs/data-grid.md`) y `Combobox`. Una sola UI responsive.
+- **Componentes transversales**: `FormDialog` y `ConfirmDialog` (con `useReturnFocus`), `DataGrid` (`docs/data-grid.md`), `Combobox`, `LoadError`, `OfflineNotice` y `ClinicContact` (con `lib/map-link.ts`). Una sola UI responsive.
 - **PWA**: shell cacheado con `autoUpdate`, sin escritura offline; cámara vía `<input capture>`.
 
 ## 4. Fronteras verificadas por `pnpm lint`
@@ -88,7 +88,7 @@ En la API, los tests y `fakes.ts` quedan fuera de estas reglas. En la web sí en
 
 - **Configuración**: `lab_settings`, `users` (+ Better Auth), `clinics`, `doctors`, `product_categories`, `products`, `clinic_product_prices` y `stages`.
 - **Operación**: `cases` (con `parent_case_id` para las repeticiones), `case_items`, `case_events`, `attachments`, `case_tryins` y `case_sequences`.
-- **Entregas**: `deliveries` (recogida o entrega, mensajero, fecha, estado `pendiente`/`hecha`/`fallida` y motivo).
+- **Entregas**: `deliveries` (recogida o entrega, mensajero, fecha, estado `pendiente`/`hecha`/`fallida`, motivo y constancia; `proof_attachment_id` con `ON DELETE RESTRICT`).
 - **Previstas**: `account_adjustments`, `payments` y `payment_allocations`.
 
 Saldo de clínica = Σ entregados + Σ ajustes − Σ pagos. Se calcula, no se guarda.
