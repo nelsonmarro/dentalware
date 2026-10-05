@@ -237,7 +237,7 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         await parada.getByRole('button', { name: 'No se pudo' }).click()
 
         const dialog = courierPage.getByRole('dialog', { name: 'No se pudo entregar' })
-        await dialog.getByLabel('Motivo').fill(motivo)
+        await dialog.getByLabel('Motivo', { exact: true }).fill(motivo)
         await dialog.getByLabel('Nueva fecha').fill(tomorrowIso())
         await dialog.getByRole('button', { name: 'Reprogramar' }).click()
         await expect(toasts(courierPage).getByText(/^Reprogramada para el /)).toBeVisible()
