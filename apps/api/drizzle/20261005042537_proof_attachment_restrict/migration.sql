@@ -1,0 +1,1 @@
+ALTER TABLE "deliveries" DROP CONSTRAINT "deliveries_proof_attachment_id_attachments_id_fkey", ADD CONSTRAINT "deliveries_proof_attachment_id_attachments_id_fkey" FOREIGN KEY ("proof_attachment_id") REFERENCES "attachments"("id") ON DELETE RESTRICT;

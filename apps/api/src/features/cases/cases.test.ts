@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { CASE_VIEWS, toIsoDate } from '@dentalware/shared'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
 import { testPassword } from '../../test/passwords.ts'
@@ -1035,6 +1035,100 @@ describe('/api/trabajos', () => {
         expect(entrega!.doneAt).not.toBeNull()
       })
 
+      // M-2 de la revisión final: recepción borra la constancia «sin usar» entre la lectura del
+      // servicio y el `UPDATE` que la liga a la entrega. Un trigger de prueba la borra justo antes
+      // de ese `UPDATE`, en la misma transacción: la FK salta y debe salir 422, no 500.
+      it('si la constancia se borra antes de ligarla a la entrega responde 422, no 500', async () => {
+        const id = await crearEnviado()
+        const constanciaId = await adjuntoDe(id)
+        await ctx.db.execute(sql`create function test_borra_constancia() returns trigger
+          language plpgsql as $$ begin
+            delete from attachments where id = new.proof_attachment_id;
+            return new;
+          end $$`)
+        await ctx.db.execute(sql`create trigger test_borra_constancia before update on deliveries
+          for each row when (new.proof_attachment_id is not null)
+          execute function test_borra_constancia()`)
+        try {
+          const res = await app.request(
+            `/api/trabajos/${id}/acciones`,
+            req(mensajero, 'POST', { accion: 'marcar_entregado', constanciaId }),
+          )
+          expect(res.status).toBe(422)
+          expect(await res.json()).toEqual({
+            message: 'Datos inválidos',
+            issues: [
+              { path: 'constanciaId', message: 'La foto de constancia no es de este trabajo.' },
+            ],
+          })
+        } finally {
+          await ctx.db.execute(sql`drop trigger if exists test_borra_constancia on deliveries`)
+          await ctx.db.execute(sql`drop function if exists test_borra_constancia()`)
+        }
+        // Todo se deshizo: el trabajo sigue enviado y su entrega pendiente.
+        const [entrega] = await entregasDe(id)
+        expect(entrega).toMatchObject({ status: 'pendiente', proofAttachmentId: null })
+        const [trabajo] = await ctx.db
+          .select({ status: ctx.schema.cases.status })
+          .from(ctx.schema.cases)
+          .where(eq(ctx.schema.cases.id, id))
+        expect(trabajo?.status).toBe('enviado')
+      })
+
+      // UX4-07/09: la ficha dice con quién sale y para cuándo, y después quién lo entregó y con
+      // qué constancia; la clínica trae dirección y teléfono para el mensajero. Sin dinero.
+      it('GET /api/trabajos/:id trae la entrega pendiente, la última hecha y la clínica con dirección', async () => {
+        await ctx.db
+          .update(ctx.schema.clinics)
+          .set({ address: 'Av. Amazonas N34-12', city: 'Quito', phone: '02 255 1234' })
+          .where(eq(ctx.schema.clinics.id, clinicId))
+        const id = await crearEnviado()
+        type Ficha = {
+          case: {
+            pendingDelivery: unknown
+            lastDelivered: unknown
+            clinic: unknown
+            total: string | null
+          }
+        }
+        const ficha = async () =>
+          (
+            (await (
+              await app.request(`/api/trabajos/${id}`, req(mensajero, 'GET'))
+            ).json()) as Ficha
+          ).case
+        const enviado = await ficha()
+        expect(enviado.pendingDelivery).toEqual({
+          type: 'entrega',
+          courierId: mensajeroId,
+          courierName: 'Mensajero',
+          scheduledFor: hoy,
+        })
+        expect(enviado.lastDelivered).toBeNull()
+        expect(enviado.clinic).toEqual({
+          id: clinicId,
+          name: 'Sonrisa',
+          address: 'Av. Amazonas N34-12',
+          // UX4-21: el mapa busca la dirección en su ciudad.
+          city: 'Quito',
+          phone: '02 255 1234',
+        })
+        expect(enviado.total).toBeNull()
+
+        const constanciaId = await adjuntoDe(id)
+        await app.request(
+          `/api/trabajos/${id}/acciones`,
+          req(mensajero, 'POST', { accion: 'marcar_entregado', constanciaId }),
+        )
+        const entregado = await ficha()
+        expect(entregado.pendingDelivery).toBeNull()
+        expect(entregado.lastDelivered).toEqual({
+          doneAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+          courierName: 'Mensajero',
+          proofAttachmentId: constanciaId,
+        })
+      })
+
       it('otro mensajero no entrega una entrega que no es suya (403)', async () => {
         const { otro } = await otroMensajero()
         const id = await crearEnviado()
@@ -1112,10 +1206,15 @@ describe('/api/trabajos', () => {
             case: { pendingDelivery: unknown }
           }
         ).case.pendingDelivery
-      expect(await ficha()).toEqual({ type: 'recogida', courierId: mensajeroId })
+      expect(await ficha()).toEqual({
+        type: 'recogida',
+        courierId: mensajeroId,
+        courierName: 'Mensajero',
+        scheduledFor: hoy,
+      })
       await app.request(
         `/api/trabajos/${id}/acciones`,
-        req(mensajero, 'POST', { accion: 'recibir' }),
+        req(recepcion, 'POST', { accion: 'recibir' }),
       )
       expect(await ficha()).toBeNull()
     })
@@ -1132,11 +1231,31 @@ describe('/api/trabajos', () => {
       })
     })
 
-    it('el mensajero de la recogida la recibe (200): el trabajo pasa a nuevo', async () => {
+    // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar al laboratorio.
+    it('el mensajero no recibe ni su propia recogida (403): sigue por recoger', async () => {
       const id = await crearPorRecoger()
       const res = await app.request(
         `/api/trabajos/${id}/acciones`,
         req(mensajero, 'POST', { accion: 'recibir' }),
+      )
+      expect(res.status).toBe(403)
+      const [recogida] = await ctx.db
+        .select()
+        .from(ctx.schema.deliveries)
+        .where(eq(ctx.schema.deliveries.caseId, id))
+      expect(recogida).toMatchObject({ status: 'pendiente' })
+      const [trabajo] = await ctx.db
+        .select()
+        .from(ctx.schema.cases)
+        .where(eq(ctx.schema.cases.id, id))
+      expect(trabajo!.status).toBe('por_recoger')
+    })
+
+    it('recepción recibe la recogida (200): el trabajo pasa a nuevo', async () => {
+      const id = await crearPorRecoger()
+      const res = await app.request(
+        `/api/trabajos/${id}/acciones`,
+        req(recepcion, 'POST', { accion: 'recibir' }),
       )
       expect(res.status).toBe(200)
       const { case: recibido } = (await res.json()) as { case: { status: string } }
@@ -2049,13 +2168,44 @@ describe('/api/trabajos', () => {
     })
   })
 
-  // CAL-2 (#80, Tarea 8): "vencen mañana" es el siguiente día *hábil* tras hoy (ADR 30), no el
-  // día de calendario siguiente. Reloj fijo en viernes para que "mañana" salte el fin de
-  // semana: un trabajo que vence el sábado no debe contar, y uno que vence el lunes (el
-  // siguiente día hábil real) sí. Con la mutación "+1 día natural" en vez de `addBusinessDays`,
-  // el lunes dejaría de contar (mañana sería el sábado) y este test lo detecta.
-  describe('vencen_manana (CAL-2)', () => {
-    const VIERNES = '2026-10-02'
+  // CAL-2 (#80) y UX4-04: «vencen mañana» cubre `hoy < fecha efectiva ≤ siguiente día hábil`
+  // (ADR 30), para que un trabajo que vence el sábado salga el viernes y no se pierda. Se prueba
+  // con reloj fijo en viernes (el siguiente hábil salta el fin de semana) y en domingo (el
+  // siguiente hábil es mañana). Fechas literales: 2026-10-02 viernes, 03 sábado, 04 domingo,
+  // 05 lunes, 06 martes.
+  describe.each([
+    {
+      dia: 'viernes',
+      hoy: '2026-10-02',
+    },
+    {
+      dia: 'domingo',
+      hoy: '2026-10-04',
+    },
+  ])('vencen_manana en $dia (CAL-2, UX4-04)', ({ hoy, dia }) => {
+    const FECHAS: Record<string, string> = {
+      'hoy mismo': hoy,
+      'el sábado': '2026-10-03',
+      'el domingo': '2026-10-04',
+      'el lunes': '2026-10-05',
+      'el martes': '2026-10-06',
+    }
+    const ESPERADO: Record<string, Record<string, boolean>> = {
+      viernes: {
+        'hoy mismo': false,
+        'el sábado': true,
+        'el domingo': true,
+        'el lunes': true,
+        'el martes': false,
+      },
+      domingo: {
+        'hoy mismo': false,
+        'el sábado': false,
+        'el domingo': false,
+        'el lunes': true,
+        'el martes': false,
+      },
+    }
     let vencenMananaApp: ReturnType<typeof createApp>
 
     beforeAll(() => {
@@ -2064,30 +2214,25 @@ describe('/api/trabajos', () => {
         db: ctx.db,
         webOrigin: ctx.config.WEB_ORIGIN,
         storage: ctx.storage,
-        clock: { today: () => VIERNES, now: () => new Date(`${VIERNES}T12:00:00Z`) },
+        clock: { today: () => hoy, now: () => new Date(`${hoy}T12:00:00Z`) },
       })
     })
 
-    it('el lunes (siguiente día hábil) cuenta; el sábado y un trabajo terminado no', async () => {
-      const lunesId = await createOne(recepcion, { patientRef: 'Vence el lunes' })
-      await ctx.db
-        .update(ctx.schema.cases)
-        .set({ status: 'en_proceso', promisedDate: '2026-10-05' })
-        .where(eq(ctx.schema.cases.id, lunesId))
-
-      const sabadoId = await createOne(recepcion, { patientRef: 'Vence el sábado' })
-      await ctx.db
-        .update(ctx.schema.cases)
-        .set({ status: 'en_proceso', promisedDate: '2026-10-03' })
-        .where(eq(ctx.schema.cases.id, sabadoId))
-
-      const terminadoLunesId = await createOne(recepcion, {
-        patientRef: 'Terminado, vencía el lunes',
-      })
+    it('cuenta según la fecha y estado; el contador del resumen coincide con la lista', async () => {
+      const ids: Record<string, string> = {}
+      for (const [nombre, fecha] of Object.entries(FECHAS)) {
+        const id = await createOne(recepcion, { patientRef: `Vence ${nombre} (${dia})` })
+        await ctx.db
+          .update(ctx.schema.cases)
+          .set({ status: 'en_proceso', promisedDate: fecha })
+          .where(eq(ctx.schema.cases.id, id))
+        ids[nombre] = id
+      }
+      const terminadoId = await createOne(recepcion, { patientRef: `Terminado (${dia})` })
       await ctx.db
         .update(ctx.schema.cases)
         .set({ status: 'terminado', promisedDate: '2026-10-05' })
-        .where(eq(ctx.schema.cases.id, terminadoLunesId))
+        .where(eq(ctx.schema.cases.id, terminadoId))
 
       const listaRes = await vencenMananaApp.request(
         '/api/trabajos?vista=vencen_manana',
@@ -2098,12 +2243,13 @@ describe('/api/trabajos', () => {
         cases: { id: string }[]
         total: number
       }
-      const ids = lista.map((c) => c.id)
+      const enLista = lista.map((c) => c.id)
 
-      expect(ids).toContain(lunesId)
-      expect(ids).not.toContain(sabadoId)
-      expect(ids).not.toContain(terminadoLunesId)
-      expect(total).toBe(1)
+      for (const [nombre, id] of Object.entries(ids)) {
+        expect(enLista.includes(id), `${nombre} (hoy ${dia})`).toBe(ESPERADO[dia]![nombre])
+      }
+      expect(enLista).not.toContain(terminadoId)
+      expect(total).toBe(Object.values(ESPERADO[dia]!).filter(Boolean).length)
 
       // ADR 32: el contador del resumen coincide con el total de la lista de su misma vista.
       const resumenRes = await vencenMananaApp.request('/api/trabajos/resumen', req(admin, 'GET'))

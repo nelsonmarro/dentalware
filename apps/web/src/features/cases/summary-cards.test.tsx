@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-router'
 import { render, screen } from '@testing-library/react'
 import type { ReactElement } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type * as ApiModule from './api'
 import { SummaryCards } from './summary-cards'
 
@@ -45,6 +45,8 @@ const SUMMARY: CaseSummary = {
 }
 
 describe('SummaryCards', () => {
+  afterEach(() => vi.useRealTimers())
+
   // UX3-02: antes, un fallo de red dejaba las tarjetas en "—" para siempre (un estado de carga
   // permanente, no un error que se pueda reintentar).
   it('un fallo de red ofrece reintentar, en vez de dejar los contadores en "—" para siempre', async () => {
@@ -70,12 +72,23 @@ describe('SummaryCards', () => {
     expect(await screen.findByRole('link', { name: /Atrasados 0/ })).toBeInTheDocument()
   })
 
-  // CAL-2 (#80, Tarea 8): la tarjeta «Vencen mañana» enlaza a su vista, como las demás.
-  it('muestra la tarjeta «Vencen mañana» y enlaza a su lista', async () => {
+  // CAL-2 (#80) y UX4-04: la tarjeta enlaza a su vista y su rótulo depende del día. Fecha
+  // fija (solo `Date`, para no frenar a react-query): domingo 2026-10-04 y viernes 2026-10-02.
+  it('el domingo la tarjeta dice «Vencen mañana» y enlaza a su lista', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-04T12:00:00') })
     fetchSummary.mockResolvedValue(SUMMARY)
     renderWithProviders(<SummaryCards />)
 
     const card = await screen.findByRole('link', { name: /Vencen mañana 6/ })
+    expect(card).toHaveAttribute('href', expect.stringContaining('vista=vencen_manana'))
+  })
+
+  it('el viernes la tarjeta dice «Vencen hasta el lunes» y sigue enlazando a la misma vista', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-02T12:00:00') })
+    fetchSummary.mockResolvedValue(SUMMARY)
+    renderWithProviders(<SummaryCards />)
+
+    const card = await screen.findByRole('link', { name: /Vencen hasta el lunes 6/ })
     expect(card).toHaveAttribute('href', expect.stringContaining('vista=vencen_manana'))
   })
 
@@ -107,5 +120,27 @@ describe('SummaryCards', () => {
 
     const card = await screen.findByRole('link', { name: 'En curso 5' })
     expect(card).not.toHaveTextContent(/en prueba/)
+  })
+
+  // UX4-22: siete tarjetas en seis columnas dejaban «Listos» sola en otra fila. Con cuatro
+  // columnas las filas quedan parejas, y una tarjeta extra (las entregas de recepción) cierra la
+  // segunda fila.
+  it('acomoda las tarjetas en filas de cuatro y añade al final la que le pasen', async () => {
+    fetchSummary.mockResolvedValue(SUMMARY)
+    renderWithProviders(<SummaryCards extra={<a href="/extra">Extra</a>} />)
+    const listos = await screen.findByRole('link', { name: /^Listos/ })
+    const grid = listos.parentElement!
+    expect(grid).toHaveClass('lg:grid-cols-4')
+    expect(grid).not.toHaveClass('lg:grid-cols-6')
+    expect(grid.lastElementChild).toHaveTextContent('Extra')
+  })
+
+  // M-5 de la revisión de la Tarea 9: la tarjeta extra (las entregas) no depende del resumen de
+  // trabajos; si este falla, sigue ahí junto al aviso.
+  it('si falla el resumen, la tarjeta extra sigue a la vista', async () => {
+    fetchSummary.mockRejectedValue(new TypeError('Failed to fetch'))
+    renderWithProviders(<SummaryCards extra={<a href="/extra">Extra</a>} />)
+    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Extra' })).toBeInTheDocument()
   })
 })

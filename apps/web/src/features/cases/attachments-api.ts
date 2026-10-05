@@ -17,7 +17,13 @@ export type Attachment = {
   uploadedBy: { id: string; name: string } | null
   url: string
   thumbUrl: string | null
+  /** La constancia que cerró una entrega hecha (UX4-06): no se puede borrar. */
+  linkedToDelivery: boolean
 }
+
+/** Dónde se sirve el original de un adjunto (el mismo `url` que trae su DTO), para enlazarlo
+ * desde lo que solo conoce el id, como el evento `delivered` del historial (UX4-16). */
+export const attachmentUrl = (id: string) => `/api/adjuntos/${id}`
 
 export async function fetchAttachments(caseId: string): Promise<Attachment[]> {
   return (

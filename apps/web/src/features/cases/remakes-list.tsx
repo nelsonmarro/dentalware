@@ -52,7 +52,7 @@ export function RemakesList({ caseId }: { caseId: string }) {
               <Link
                 to="/trabajos/$caseId"
                 params={{ caseId: r.id }}
-                className="font-mono text-sm text-primary underline underline-offset-2"
+                className="inline-flex min-h-11 items-center font-mono text-sm text-primary underline underline-offset-2"
               >
                 {r.code}
               </Link>

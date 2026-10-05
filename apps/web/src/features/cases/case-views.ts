@@ -1,5 +1,5 @@
 import type { CaseListQuery, CaseStatus, CaseView } from '@dentalware/shared'
-import { caseListQuerySchema, isActiveForDates } from '@dentalware/shared'
+import { caseListQuerySchema, isActiveForDates, nextBusinessDayLabel } from '@dentalware/shared'
 
 export const CASE_VIEW_LABEL: Record<CaseView, string> = {
   nuevos: 'Nuevos',
@@ -10,6 +10,12 @@ export const CASE_VIEW_LABEL: Record<CaseView, string> = {
   en_prueba: 'En prueba',
   listos: 'Listos',
   todos: 'Todos',
+}
+
+/** Rótulo de una vista para `today` (`YYYY-MM-DD`): «vencen_manana» dice el día cuando el
+ * siguiente día hábil no es mañana (UX4-04); el resto, su rótulo fijo. */
+export function caseViewLabel(view: CaseView, today: string): string {
+  return view === 'vencen_manana' ? nextBusinessDayLabel(today) : CASE_VIEW_LABEL[view]
 }
 
 /** Estados en los que la ficha muestra la fase de producción (M-3, ola de fixes del PR 1,

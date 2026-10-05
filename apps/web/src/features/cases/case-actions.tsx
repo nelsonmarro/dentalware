@@ -5,9 +5,7 @@ import type {
   UserRole,
 } from '@dentalware/shared'
 import {
-  availableActions,
-  canActOnDelivery,
-  canPerform,
+  actionsFor,
   canRemake,
   CASE_ACTION_LABEL,
   REMAKE_ROLES,
@@ -25,6 +23,8 @@ import { CaseActionDialog } from './case-action-dialog'
 import { DeliverDialog } from './deliver-dialog'
 import { RemakeDialog } from './remake-dialog'
 import { ShipDialog, type DeliverySelf } from './ship-dialog'
+import { QueuedNotice } from './queued-notice'
+import { useCaseBusy } from './use-case-busy'
 import { useCaseAction } from './use-cases'
 
 /** Orden en la barra: el primario primero (arriba en la pila móvil), luego los secundarios y
@@ -135,17 +135,24 @@ export function CaseActions({
   const [formAction, setFormAction] = useState<ActionRequiringDeliveryForm | null>(null)
   const [confirm, setConfirm] = useState<({ action: CaseAction } & ActionDialogCopy) | null>(null)
   const action = useCaseAction(c.id)
+  // M-4: una acción de este trabajo en curso o en pausa (también la de un diálogo ya cerrado
+  // con «Volver», o la de la tarjeta de «Entregas») bloquea la barra.
+  const { busy, queued } = useCaseBusy(c.id)
 
-  // `canActOnDelivery` (M-4): a un mensajero no se le ofrece «Recibido» ni «Marcar entregado»
-  // de una recogida o entrega asignada a otro (la API respondería 403).
-  const actions = availableActions(c.status)
-    .filter((a) => canPerform(role, a))
-    .filter((a) => canActOnDelivery({ role, userId: self.id }, a, c.pendingDelivery))
+  // `actionsFor` (shared): estado ∩ rol ∩ `canActOnDelivery` (M-4): a un mensajero no se le
+  // ofrece «Recibido» ni «Marcar entregado» de una recogida o entrega asignada a otro (la API
+  // respondería 403). La ficha corta usa la misma regla para explicar por qué no hay acción.
+  const actions = actionsFor({ role, userId: self.id }, c.status, c.pendingDelivery)
     .map((a) => ({ action: a, variant: actionVariant(a, hasNextStage) }))
     .sort((x, y) => VARIANT_ORDER[x.variant] - VARIANT_ORDER[y.variant])
   // `RemakeDialog` no recibe `role`: este guardián es toda la defensa de la UI (I-3 de la
   // revisión de la Tarea 9; la API responde 403 de todos modos).
   const showRemake = hasRole(REMAKE_ROLES, role) && canRemake(c.status)
+
+  // UX4-05: el diálogo de entrega o envío se cierra en cuanto su acción deja de estar disponible
+  // (otra persona canceló, envió o entregó el trabajo: lo trae el refresco tras un 409 o
+  // cualquier otro). Nunca queda abierto sobre el estado nuevo con su botón habilitado.
+  if (formAction && !actions.some((a) => a.action === formAction)) setFormAction(null)
 
   // Sin acciones ni «Repetir» no se monta nada: ni un contenedor vacío (UX3-25).
   if (actions.length === 0 && !showRemake) return null
@@ -185,7 +192,7 @@ export function CaseActions({
             key={a}
             variant={variant}
             className={size === 'large' ? 'h-14 w-full text-base' : 'w-full sm:w-auto'}
-            disabled={(a === 'aceptar' && missing.length > 0) || action.isPending}
+            disabled={(a === 'aceptar' && missing.length > 0) || busy}
             onClick={() => run(a)}
           >
             {CASE_ACTION_LABEL[a]}
@@ -199,12 +206,13 @@ export function CaseActions({
             key={a}
             variant={variant}
             className="w-full sm:ml-auto sm:w-auto"
-            disabled={action.isPending}
+            disabled={busy}
             onClick={() => run(a)}
           >
             {CASE_ACTION_LABEL[a]}
           </Button>
         ))}
+      {queued && <QueuedNotice className="sm:basis-full" />}
       {DeliveryDialog && (
         <DeliveryDialog
           case={c}

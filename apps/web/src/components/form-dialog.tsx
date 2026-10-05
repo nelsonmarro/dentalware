@@ -8,11 +8,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { useReturnFocus } from './use-return-focus'
 
 export function FormDialog({
   open,
   onOpenChange,
   title,
+  context,
   description,
   children,
   footer,
@@ -21,6 +23,10 @@ export function FormDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   title: string
+  /** Sobre qué se actúa («26-00087 · Clínica Sur», UX4-12): abre la descripción, para que quien
+   * tiene la lista tapada por el diálogo compruebe que eligió el bueno. El código va en
+   * monoespaciada; el resto, no. */
+  context?: { code: string; label: string }
   description?: string
   children: ReactNode
   footer: ReactNode
@@ -30,9 +36,13 @@ export function FormDialog({
    */
   size?: 'default' | 'wide'
 }) {
+  const returnFocus = useReturnFocus(open)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        // Al cerrar, el foco vuelve a quien lo abrió, o al `h1` (`useReturnFocus`).
+        onCloseAutoFocus={returnFocus}
         className={cn(
           'max-h-[90svh] overflow-x-hidden overflow-y-auto',
           size === 'wide' ? 'max-w-[calc(100%-1rem)] sm:max-w-4xl' : 'sm:max-w-lg',
@@ -40,7 +50,17 @@ export function FormDialog({
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
+          {(context || description) && (
+            <DialogDescription>
+              {context && (
+                <span className="block font-medium text-foreground">
+                  <span className="font-mono">{context.code}</span> · {context.label}
+                </span>
+              )}
+              {context && description && ' '}
+              {description}
+            </DialogDescription>
+          )}
         </DialogHeader>
         {children}
         <DialogFooter className="gap-2">{footer}</DialogFooter>

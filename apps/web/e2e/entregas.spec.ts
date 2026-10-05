@@ -130,7 +130,8 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         .first()
         .textContent())!
 
-      // 2. El mensajero ve la recogida en su inicio y en «Entregas», y marca «Recibido».
+      // 2. El mensajero ve la recogida en su inicio y en «Entregas»; «Recibido» lo marca
+      // recepción al llegar al laboratorio (UX4-10), y a él solo le queda «No se pudo».
       const courierContext = await browser.newContext()
       try {
         const courierPage = await courierContext.newPage()
@@ -144,10 +145,25 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         await courierPage.goto('/entregas')
         await expect(courierPage.getByRole('heading', { level: 1, name: 'Entregas' })).toBeVisible()
         const parada = courierPage.getByRole('region', { name: clinic.name })
-        await parada.getByRole('button', { name: 'Recibido' }).click()
-        await expect(toasts(courierPage).getByText('Trabajo recibido')).toBeVisible()
-        await expect(parada.getByText('Hecha', { exact: true })).toBeVisible()
+        await expect(
+          parada.getByText('Recepción lo marca como recibido al llegar al laboratorio.'),
+        ).toBeVisible()
+        await expect(parada.getByRole('button', { name: 'No se pudo' })).toBeVisible()
         await expect(parada.getByRole('button', { name: 'Recibido' })).toHaveCount(0)
+
+        // 2b. Recepción recibe el trabajo al llegar, desde «Entregas».
+        await page.goto('/entregas')
+        await expect(page.getByRole('heading', { level: 1, name: 'Entregas' })).toBeVisible()
+        const llegada = page
+          .getByRole('region', { name: clinic.name })
+          .getByRole('listitem')
+          .filter({ hasText: code })
+        await llegada.getByRole('button', { name: 'Recibido' }).click()
+        await expect(toasts(page).getByText('Trabajo recibido')).toBeVisible()
+        await expect(llegada.getByText('Hecha', { exact: true })).toBeVisible()
+        await courierPage.reload()
+        await expect(parada.getByText('Hecha', { exact: true })).toBeVisible()
+        await expect(parada.getByRole('button', { name: 'No se pudo' })).toHaveCount(0)
 
         // 3. Recepción acepta y finaliza (por API) y marca enviado con el mensajero.
         await runAction(page, caseId, { accion: 'aceptar' })
@@ -175,11 +191,24 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         await courierContext.close()
       }
 
-      // 5. La ficha dice «Entregado» y «Adjuntos» tiene la constancia.
+      // 5. La ficha dice «Entregado» y «Adjuntos» tiene la constancia, marcada como la de la
+      // entrega y sin «Eliminar» (UX4-06); el historial la enlaza (UX4-16).
       await page.reload()
       await expect(page.getByText('Entregado', { exact: true })).toBeVisible()
       await page.getByRole('tab', { name: 'Adjuntos (1)' }).click()
       await expect(page.getByRole('img', { name: 'foto.png' })).toBeVisible()
+      await expect(page.getByText('Constancia de entrega')).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Eliminar foto.png' })).toHaveCount(0)
+      await page.getByRole('tab', { name: /^Historial/ }).click()
+      // Acotado al historial: el panel «Entrega» también enlaza la constancia (UX4-09).
+      await expect(
+        page
+          .getByRole('tabpanel', { name: /^Historial/ })
+          .getByRole('link', { name: 'Ver constancia' }),
+      ).toHaveAttribute('href', /^\/api\/adjuntos\/[0-9a-f-]+$/)
+      await expect(
+        page.getByRole('region', { name: 'Entrega' }).getByRole('link', { name: 'Ver constancia' }),
+      ).toBeVisible()
     },
   )
 
@@ -208,7 +237,7 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         await parada.getByRole('button', { name: 'No se pudo' }).click()
 
         const dialog = courierPage.getByRole('dialog', { name: 'No se pudo entregar' })
-        await dialog.getByLabel('Motivo').fill(motivo)
+        await dialog.getByLabel('Motivo', { exact: true }).fill(motivo)
         await dialog.getByLabel('Nueva fecha').fill(tomorrowIso())
         await dialog.getByRole('button', { name: 'Reprogramar' }).click()
         await expect(toasts(courierPage).getByText(/^Reprogramada para el /)).toBeVisible()
@@ -216,6 +245,10 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         // Hoy: queda fallida, con su motivo y sin acciones.
         await expect(parada.getByText('Fallida', { exact: true })).toBeVisible()
         await expect(parada.getByText(`Motivo: ${motivo}`)).toBeVisible()
+        // UX4-18: dice para cuándo quedó.
+        await expect(
+          parada.getByText(`Nueva fecha: ${tomorrowIso().split('-').reverse().join('/')}`),
+        ).toBeVisible()
         await expect(parada.getByRole('button', { name: 'Marcar entregado' })).toHaveCount(0)
         await expect(courierPage.getByText('0 pendientes')).toBeVisible()
 
@@ -240,7 +273,7 @@ test.describe('Entregas (Iteración 4, #35)', () => {
       await page.goto(`/trabajos/${trabajo.id}`)
       await expect(page.getByText('Enviado', { exact: true })).toBeVisible()
       await page.getByRole('tab', { name: /^Historial/ }).click()
-      await expect(page.getByText('Entrega o recogida fallida')).toBeVisible()
+      await expect(page.getByText('Entrega fallida', { exact: true })).toBeVisible()
     },
   )
 
@@ -286,8 +319,8 @@ test.describe('Entregas (Iteración 4, #35)', () => {
   )
 
   // CAL-2: el contador «Vencen mañana» del inicio coincide con el total de su lista. Con el
-  // reloj real, «mañana» es el siguiente día hábil (`addBusinessDays`, el de la vista), así que
-  // el trabajo cae en la vista el día de la semana que sea.
+  // reloj real, la vista llega hasta el siguiente día hábil (`addBusinessDays`) y su rótulo dice
+  // «Vencen mañana» o «Vencen hasta el lunes» (UX4-04), así que el test no depende del día de la semana.
   test(
     '«Vencen mañana»: el contador del inicio coincide con la lista',
     { tag: '@clave' },
@@ -305,7 +338,7 @@ test.describe('Entregas (Iteración 4, #35)', () => {
       // contador y leer la lista, se vuelve a leer todo.
       await expect(async () => {
         await page.goto('/')
-        const card = page.getByRole('link', { name: /^Vencen mañana \d+$/ })
+        const card = page.getByRole('link', { name: /^Vencen (mañana|hasta el \S+) \d+$/ })
         await expect(card).toBeVisible()
         const count = Number((await card.getAttribute('aria-label'))!.split(' ').pop())
         expect(count).toBeGreaterThanOrEqual(1)
@@ -318,6 +351,47 @@ test.describe('Entregas (Iteración 4, #35)', () => {
 
       await page.getByLabel('Buscar por código, paciente o caja').fill(trabajo.code)
       await expect(page.getByRole('link', { name: trabajo.code })).toBeVisible()
+    },
+  )
+})
+
+// UX4-11 y UX4-26: sin red, cambiar de día no tapa la pantalla con el error del router y la app
+// avisa que lo marcado se enviará al volver la señal. Fuera del `describe` de arriba porque sin
+// red el navegador sí escribe en consola los `fetch` fallidos; aquí solo se exige que no quede
+// ninguna excepción sin capturar.
+test.describe('Entregas sin red', () => {
+  test(
+    'cambiar de día sin red deja la pantalla, la navegación y el aviso de sin conexión',
+    { tag: '@clave' },
+    async ({ page, context }) => {
+      const pageErrors: string[] = []
+      page.on('pageerror', (error) => pageErrors.push(error.message))
+      await loginAsAdmin(page)
+      await page.goto('/entregas')
+      await expect(page.getByRole('heading', { level: 1, name: 'Entregas' })).toBeVisible()
+      const aviso = page.getByRole('status').filter({
+        hasText: 'Sin conexión: lo que marques se enviará al volver la señal',
+      })
+      await expect(aviso).toHaveCount(0)
+
+      try {
+        await context.setOffline(true)
+        await expect(aviso).toBeVisible()
+
+        await page.getByRole('button', { name: 'Día siguiente' }).click()
+
+        await expect(page).toHaveURL(new RegExp(`dia=${tomorrowIso()}`))
+        await expect(page.getByText('No hay conexión con el servidor')).toHaveCount(0)
+        await expect(page.getByRole('heading', { level: 1, name: 'Entregas' })).toBeVisible()
+        await expect(
+          page.getByRole('navigation', { name: /^Principal/ }).filter({ visible: true }),
+        ).toHaveCount(1)
+      } finally {
+        await context.setOffline(false)
+      }
+
+      await expect(aviso).toHaveCount(0)
+      expect(pageErrors).toEqual([])
     },
   )
 })

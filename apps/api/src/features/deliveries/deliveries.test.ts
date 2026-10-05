@@ -301,7 +301,28 @@ describe('/api/entregas', () => {
 
       const eventos = await createCasesRepo(ctx.db).events(caseId)
       const evento = eventos.find((e) => e.type === 'delivery_failed')
-      expect(evento).toMatchObject({ toValue: '2026-10-12', reason: 'No había nadie' })
+      expect(evento).toMatchObject({
+        fromValue: 'entrega',
+        toValue: '2026-10-12',
+        reason: 'No había nadie',
+      })
+    })
+
+    // UX4-10: «Recibido» es de recepción, pero «No se pudo» en su recogida sigue siendo suyo.
+    it('el mensajero marca «No se pudo» en su propia recogida', async () => {
+      const caseId = await createCase()
+      const created = await createDeliveriesRepo(ctx.db).create({
+        caseId,
+        type: 'recogida',
+        courierId: mensajeroId,
+        scheduledFor: '2026-10-10',
+      })
+      const res = await post(`/api/entregas/${created.id}/fallida`, mensajero, {
+        motivo: 'Clínica cerrada',
+        nuevaFecha: '2026-10-12',
+      })
+      expect(res.status).toBe(200)
+      expect((await createDeliveriesRepo(ctx.db).byId(created.id))?.status).toBe('fallida')
     })
 
     it('admin reprograma la de cualquier mensajero', async () => {
@@ -366,6 +387,54 @@ describe('/api/entregas', () => {
         nuevaFecha: '2026-10-09',
       })
       expect(res.status).toBe(422)
+    })
+
+    // M-4 de la revisión de la Tarea 9 (UX4-17): el prefijo de cancelación marca una entrega
+    // anulada; un «No se pudo» no puede usarlo.
+    it('un motivo que empieza como el de la cancelación responde 422', async () => {
+      const caseId = await createCase()
+      const created = await createDeliveriesRepo(ctx.db).create({
+        caseId,
+        type: 'entrega',
+        courierId: mensajeroId,
+        scheduledFor: '2026-10-10',
+      })
+      const res = await post(`/api/entregas/${created.id}/fallida`, mensajero, {
+        motivo: 'Trabajo cancelado: no era',
+        nuevaFecha: '2026-10-12',
+      })
+      expect(res.status).toBe(422)
+      const body = (await res.json()) as { issues: { message: string }[] }
+      expect(body.issues.map((i) => i.message)).toContain(
+        'El motivo no puede empezar por «Trabajo cancelado:»',
+      )
+      expect((await createDeliveriesRepo(ctx.db).byId(created.id))?.status).toBe('pendiente')
+    })
+
+    // M-4 de la revisión de la Tarea 9 (UX4-18/21): tras «No se pudo», la lista del día dice a
+    // qué fecha quedó y trae la ciudad de la clínica.
+    it('tras «No se pudo», la lista del día trae la nueva fecha y la ciudad', async () => {
+      await ctx.db.update(ctx.schema.clinics).set({ city: 'Quito' })
+      const caseId = await createCase()
+      const created = await createDeliveriesRepo(ctx.db).create({
+        caseId,
+        type: 'entrega',
+        courierId: mensajeroId,
+        scheduledFor: '2026-10-10',
+      })
+      const fail = await post(`/api/entregas/${created.id}/fallida`, mensajero, {
+        motivo: 'Clínica cerrada',
+        nuevaFecha: '2026-10-13',
+      })
+      expect(fail.status).toBe(200)
+      const res = await get('/api/entregas?dia=2026-10-10', mensajero)
+      const { entregas } = (await res.json()) as {
+        entregas: { id: string; rescheduledFor: string | null; clinic: { city: string | null } }[]
+      }
+      expect(entregas.find((e) => e.id === created.id)).toMatchObject({
+        rescheduledFor: '2026-10-13',
+        clinic: { city: 'Quito' },
+      })
     })
 
     it('técnico recibe 403', async () => {

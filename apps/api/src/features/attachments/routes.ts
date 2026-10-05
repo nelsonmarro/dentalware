@@ -11,12 +11,13 @@ import type { AppEnv } from '../auth/session.ts'
 import { ctxFrom, requireAuth, requireRole } from '../auth/session.ts'
 import {
   AttachmentForbiddenError,
+  AttachmentInUseError,
   AttachmentNotFoundError,
   CaseNotFoundError,
   FileTooLargeError,
   UnsupportedFileError,
 } from './errors.ts'
-import type { AttachmentRecord } from './ports.ts'
+import type { AttachmentView } from './ports.ts'
 import { asciiSafeName } from './service.ts'
 import type { AttachmentsService } from './service.ts'
 
@@ -29,13 +30,14 @@ function toHttp(e: unknown): never {
   if (e instanceof AttachmentForbiddenError)
     throw new HTTPException(403, { message: 'Sin permiso' })
   if (e instanceof AttachmentNotFoundError) throw new HTTPException(404, { message: e.message })
+  if (e instanceof AttachmentInUseError) throw new HTTPException(409, { message: e.message })
   if (e instanceof FileTooLargeError) throw new HTTPException(413, { message: e.message })
   if (e instanceof UnsupportedFileError) throw new HTTPException(415, { message: e.message })
   throw e
 }
 
-/** Serializa un `AttachmentRecord` al DTO que consume la web (contrato de la ruta HTTP). */
-function toDto(a: AttachmentRecord) {
+/** Serializa un `AttachmentView` al DTO que consume la web (contrato de la ruta HTTP). */
+function toDto(a: AttachmentView) {
   return {
     id: a.id,
     caseId: a.caseId,
@@ -49,6 +51,7 @@ function toDto(a: AttachmentRecord) {
     uploadedBy: a.uploader,
     url: `/api/adjuntos/${a.id}`,
     thumbUrl: a.thumbPath ? `/api/adjuntos/${a.id}/miniatura` : null,
+    linkedToDelivery: a.linkedToDelivery,
   }
 }
 

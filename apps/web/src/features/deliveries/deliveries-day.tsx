@@ -1,4 +1,12 @@
-import { isOverdueDelivery, toIsoDate, type UserRole } from '@dentalware/shared'
+import {
+  compareStopDeliveries,
+  DELIVERY_MANAGE_ROLES,
+  deliveryDaySummary,
+  hasRole,
+  isActionableDelivery,
+  toIsoDate,
+  type UserRole,
+} from '@dentalware/shared'
 import { EmptyState } from '@/components/empty-state'
 import { LoadError } from '@/components/load-error'
 import type { DeliveryItem } from './api'
@@ -7,15 +15,9 @@ import { useDeliveries } from './use-deliveries'
 
 type Group = { clinic: DeliveryItem['clinic']; deliveries: DeliveryItem[] }
 
-/** Lo que queda por hacer, primero: pendientes (las atrasadas antes, luego por fecha) y al final
- * las cerradas y las de trabajos cancelados (que ya no se hacen). */
-function rank(d: DeliveryItem, today: string): number {
-  if (d.status !== 'pendiente' || d.case.status === 'cancelado') return 2
-  return isOverdueDelivery(d, today) ? 0 : 1
-}
-
 /** Agrupa por clínica, en orden alfabético (como recorre la ruta quien la lee en papel), y
- * ordena cada grupo con `rank`. */
+ * ordena cada parada con `compareStopDeliveries` (shared): lo que queda por hacer primero, y de
+ * eso lo urgente, luego lo atrasado y luego por fecha (UX4-19); lo cerrado al final. */
 function groupByClinic(items: DeliveryItem[], today: string): Group[] {
   const groups = new Map<string, Group>()
   for (const d of items) {
@@ -27,15 +29,7 @@ function groupByClinic(items: DeliveryItem[], today: string): Group[] {
     .sort((a, b) => a.clinic.name.localeCompare(b.clinic.name, 'es'))
     .map((g) => ({
       ...g,
-      deliveries: g.deliveries
-        .map((d, i) => ({ d, i }))
-        .sort(
-          (x, y) =>
-            rank(x.d, today) - rank(y.d, today) ||
-            x.d.scheduledFor.localeCompare(y.d.scheduledFor) ||
-            x.i - y.i,
-        )
-        .map(({ d }) => d),
+      deliveries: [...g.deliveries].sort((a, b) => compareStopDeliveries(a, b, today)),
     }))
 }
 
@@ -62,46 +56,51 @@ export function DeliveriesDay({
   const today = toIsoDate(new Date())
   const q = useDeliveries(day, courierId)
 
-  if (q.isPending) return <p className="text-sm text-muted-foreground">Cargando…</p>
+  if (q.isPending) {
+    // Sin red la consulta queda en pausa (`fetchStatus: 'paused'`) y «Cargando…» no terminaría
+    // nunca: se dice que espera la señal (UX4-26). Al volver la red se carga sola.
+    return (
+      <p className="text-sm text-muted-foreground">
+        {q.fetchStatus === 'paused'
+          ? 'Sin conexión: este día se cargará al volver la señal.'
+          : 'Cargando…'}
+      </p>
+    )
+  }
   if (q.isError) return <LoadError onRetry={() => void q.refetch()} />
 
-  const items = compact
-    ? q.data.filter((d) => d.status === 'pendiente' && d.case.status !== 'cancelado')
-    : q.data
+  const items = compact ? q.data.filter(isActionableDelivery) : q.data
   if (items.length === 0) {
     const mineToday = role === 'mensajero' && day === today
     // En compacto, que no quede nada pendiente no es lo mismo que no haber tenido entregas.
     const allDone = compact && q.data.length > 0
+    // UX4-23: el vacío dice la salida (otro día con las flechas), salvo en el inicio, que no
+    // las tiene. Mismo ancho que la lista (UX4-20).
     return (
-      <EmptyState
-        title={
-          allDone
-            ? 'Terminaste las entregas de hoy.'
-            : mineToday
-              ? 'No tienes entregas hoy'
-              : 'No hay entregas ni recogidas este día.'
-        }
-      />
+      <div className="max-w-4xl">
+        <EmptyState
+          title={
+            allDone
+              ? 'Terminaste las entregas de hoy.'
+              : mineToday
+                ? 'No tienes entregas hoy.'
+                : 'No hay entregas ni recogidas este día.'
+          }
+          description={compact ? undefined : 'Usa las flechas para ver otro día.'}
+        />
+      </div>
     )
   }
 
-  const pending = items.filter((d) => rank(d, today) < 2)
-  const overdue = items.filter((d) => rank(d, today) === 0)
-  const done = items.filter((d) => d.status === 'hecha')
+  // Quien administra entregas ve las de todos: el nombre del mensajero orienta a recepción.
+  // Con el filtro por mensajero ya se sabe de quién son: no se repite (UX4-20).
+  const showCourier = hasRole(DELIVERY_MANAGE_ROLES, role) && !courierId
 
   return (
     <div className="flex max-w-4xl min-w-0 flex-col gap-4">
       {!compact && (
-        <p className="text-sm text-muted-foreground">
-          {[
-            `${pending.length} ${pending.length === 1 ? 'pendiente' : 'pendientes'}`,
-            overdue.length > 0 &&
-              `${overdue.length} ${overdue.length === 1 ? 'atrasada' : 'atrasadas'}`,
-            done.length > 0 && `${done.length} ${done.length === 1 ? 'hecha' : 'hechas'}`,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </p>
+        // UX4-18: también lo que no se pudo y lo anulado, para que el día cuadre.
+        <p className="text-sm text-muted-foreground">{deliveryDaySummary(items, today)}</p>
       )}
       {groupByClinic(items, today).map((g) => (
         <ClinicGroup
@@ -111,6 +110,7 @@ export function DeliveriesDay({
           role={role}
           userId={userId}
           today={today}
+          showCourier={showCourier}
         />
       ))}
     </div>

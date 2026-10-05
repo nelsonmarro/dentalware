@@ -18,7 +18,7 @@ const CASE_REF: DeliveryCaseRef = {
   patientRef: 'Paciente 1',
   status: 'en_proceso',
   priority: 'normal',
-  clinic: { id: 'cl1', name: 'Clínica A', address: null, phone: null },
+  clinic: { id: 'cl1', name: 'Clínica A', address: null, city: null, phone: null },
 }
 
 function makeRow(over: Partial<DeliveryRow> = {}): DeliveryRow {
@@ -161,11 +161,32 @@ describe('features/deliveries/service', () => {
         {
           caseId: 'c1',
           type: 'delivery_failed',
+          fromValue: 'entrega',
           toValue: '2026-10-12',
           reason: 'No había nadie',
           actorId: 'mensajero-1',
         },
       ])
+    })
+
+    it('la lista del día dice a qué fecha se reprogramó la fallida (UX4-18)', async () => {
+      const { service } = makeService({ seed: [makeRow({ id: 'd1' })] })
+      const admin = { userId: 'a1', role: 'admin' } as const
+      await service.fail('d1', { motivo: 'Clínica cerrada', nuevaFecha: '2026-10-13' }, admin)
+      const [fallida] = await service.list({ dia: '2026-10-10' }, admin)
+      expect(fallida).toMatchObject({ id: 'd1', status: 'fallida', rescheduledFor: '2026-10-13' })
+    })
+
+    it('el evento de una recogida fallida guarda el tipo en fromValue (UX4-16)', async () => {
+      const { service, events } = makeService({
+        seed: [makeRow({ id: 'd1', type: 'recogida', courierId: 'mensajero-1' })],
+      })
+      await service.fail(
+        'd1',
+        { motivo: 'Cerrado', nuevaFecha: '2026-10-12' },
+        { userId: 'mensajero-1', role: 'mensajero' },
+      )
+      expect(events).toEqual([expect.objectContaining({ fromValue: 'recogida' })])
     })
 
     it('de una entrega que ya no está pendiente responde con el literal de shared (409)', async () => {

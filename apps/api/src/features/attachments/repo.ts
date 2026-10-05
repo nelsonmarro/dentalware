@@ -1,6 +1,9 @@
 import { eq } from 'drizzle-orm'
 import type { Db } from '../../db/index.ts'
+import { isForeignKeyViolation } from '../../db/pg-errors.ts'
 import type { AttachmentsQuery } from '../cases/ports.ts'
+import { DELIVERY_PROOF_FK } from '../deliveries/schema.ts'
+import { AttachmentInUseError } from './errors.ts'
 import type { AttachmentsRepository } from './ports.ts'
 import { attachments } from './schema.ts'
 
@@ -29,7 +32,15 @@ export function createAttachmentsRepo(db: Db) {
         with: { uploader: { columns: { id: true, name: true } } },
       }),
     async remove(id) {
-      await db.delete(attachments).where(eq(attachments.id, id))
+      try {
+        await db.delete(attachments).where(eq(attachments.id, id))
+      } catch (e) {
+        // `deliveries.proof_attachment_id` (`ON DELETE RESTRICT`): la constancia la ligó una
+        // entrega entre la comprobación del servicio y este DELETE. La violación de cualquier
+        // otra FK que apunte a un adjunto no es «constancia en uso» y sale tal cual.
+        if (isForeignKeyViolation(e, DELIVERY_PROOF_FK)) throw new AttachmentInUseError()
+        throw e
+      }
     },
     async hasDocument(caseId) {
       const found = await db.query.attachments.findFirst({

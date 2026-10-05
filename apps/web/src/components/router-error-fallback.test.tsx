@@ -2,14 +2,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getSession } from '@/features/auth/session'
+import { getAppSession } from '@/features/auth/session'
 import { createAppRouter } from '@/router'
 
-// `getSession` (no `authClient`: ese import está restringido fuera de `features/auth/**` por
+// `getAppSession` (no `authClient`: ese import está restringido fuera de `features/auth/**` por
 // `pnpm lint`, docs/architecture.md §3.5) es la frontera que `_app.tsx` llama en su
 // `beforeLoad`. El fallo real que dispara el `errorComponent` (UX3-02) es que esa promesa se
-// rechace cuando no hay red.
-vi.mock('@/features/auth/session', () => ({ getSession: vi.fn() }))
+// rechace cuando no hay red y no se conocía ninguna sesión (con una sesión ya conocida deja pasar,
+// UX4-26: eso lo prueba `features/auth/offline-routing.test.tsx`).
+vi.mock('@/features/auth/session', () => ({ getAppSession: vi.fn() }))
 
 function renderApp(initialPath: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -27,11 +28,11 @@ function renderApp(initialPath: string) {
 
 describe('RouterErrorFallback (defaultErrorComponent)', () => {
   beforeEach(() => {
-    vi.mocked(getSession).mockReset()
+    vi.mocked(getAppSession).mockReset()
   })
 
   it('un fallo de red al cargar la sesión muestra el error en español, no el genérico del router', async () => {
-    vi.mocked(getSession).mockRejectedValue(new TypeError('Failed to fetch'))
+    vi.mocked(getAppSession).mockRejectedValue(new TypeError('Failed to fetch'))
 
     renderApp('/trabajos')
 
@@ -41,7 +42,7 @@ describe('RouterErrorFallback (defaultErrorComponent)', () => {
   })
 
   it('ofrece "Reintentar" y una salida a Inicio, ambos de objetivo táctil adecuado', async () => {
-    vi.mocked(getSession).mockRejectedValue(new TypeError('Failed to fetch'))
+    vi.mocked(getAppSession).mockRejectedValue(new TypeError('Failed to fetch'))
 
     renderApp('/trabajos')
 
@@ -52,22 +53,22 @@ describe('RouterErrorFallback (defaultErrorComponent)', () => {
   })
 
   it('"Reintentar" vuelve a pedir la sesión (router.invalidate), no solo limpia el error en pantalla', async () => {
-    vi.mocked(getSession).mockRejectedValue(new TypeError('Failed to fetch'))
+    vi.mocked(getAppSession).mockRejectedValue(new TypeError('Failed to fetch'))
 
     renderApp('/trabajos')
     const retry = await screen.findByRole('button', { name: 'Reintentar' })
-    const callsBefore = vi.mocked(getSession).mock.calls.length
+    const callsBefore = vi.mocked(getAppSession).mock.calls.length
 
     retry.click()
 
     await waitFor(() =>
-      expect(vi.mocked(getSession).mock.calls.length).toBeGreaterThan(callsBefore),
+      expect(vi.mocked(getAppSession).mock.calls.length).toBeGreaterThan(callsBefore),
     )
   })
 
   // Ronda de fixes 1 (hallazgo Important de accesibilidad): mismo criterio que `LoadError`.
   it('anuncia el mensaje con role="alert" y enfoca "Reintentar" al montar', async () => {
-    vi.mocked(getSession).mockRejectedValue(new TypeError('Failed to fetch'))
+    vi.mocked(getAppSession).mockRejectedValue(new TypeError('Failed to fetch'))
 
     renderApp('/trabajos')
 

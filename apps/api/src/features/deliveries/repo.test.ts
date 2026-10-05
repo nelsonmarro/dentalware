@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { testPassword } from '../../test/passwords.ts'
 import { createUser, setupTestDb, truncateAll } from '../../test/setup.ts'
 import { createCasesRepo } from '../cases/repo.ts'
+import { DeliveryProofMissingError } from './errors.ts'
 import { createCouriersQuery, createDeliveriesRepo } from './repo.ts'
 
 describe('features/deliveries/repo', () => {
@@ -24,7 +25,12 @@ describe('features/deliveries/repo', () => {
     await truncateAll(ctx.db)
     const [clinic] = await ctx.db
       .insert(ctx.schema.clinics)
-      .values({ name: 'Sonrisa', address: 'Av. Amazonas 123', phone: '099-000-0000' })
+      .values({
+        name: 'Sonrisa',
+        address: 'Av. Amazonas 123',
+        city: 'Quito',
+        phone: '099-000-0000',
+      })
       .returning()
     clinicId = clinic!.id
     const [doctor] = await ctx.db
@@ -143,6 +149,26 @@ describe('features/deliveries/repo', () => {
       expect(row?.proofAttachmentId).toBe(attachment!.id)
     })
 
+    // M-2: la constancia se borró antes de ligarla. La FK salta y el adaptador la traduce a un
+    // error de dominio; la entrega sigue pendiente.
+    it('markDone con una constancia que ya no existe lanza DeliveryProofMissingError', async () => {
+      const repo = createDeliveriesRepo(ctx.db)
+      const caseId = await createCase()
+      const created = await repo.create({
+        caseId,
+        type: 'entrega',
+        courierId,
+        scheduledFor: '2026-09-10',
+      })
+
+      await expect(
+        repo.markDone(created.id, new Date(), '00000000-0000-4000-8000-000000000000'),
+      ).rejects.toBeInstanceOf(DeliveryProofMissingError)
+
+      const row = await repo.byId(created.id)
+      expect(row).toMatchObject({ status: 'pendiente', proofAttachmentId: null, doneAt: null })
+    })
+
     it('markFailed fija fallida y el motivo', async () => {
       const repo = createDeliveriesRepo(ctx.db)
       const caseId = await createCase()
@@ -194,6 +220,46 @@ describe('features/deliveries/repo', () => {
 
       const row = await repo.byId(created.id)
       expect(row).toMatchObject({ status: 'fallida', failedReason: 'Clínica cerrada', doneAt: at })
+    })
+  })
+
+  // UX4-06: el puerto `DeliveryProofLookup` de adjuntos.
+  describe('linkedProofIds', () => {
+    async function proof(caseId: string, name: string) {
+      const [a] = await ctx.db
+        .insert(ctx.schema.attachments)
+        .values({
+          caseId,
+          kind: 'constancia',
+          filename: name,
+          mime: 'image/jpeg',
+          size: 100,
+          storagePath: `x/${name}`,
+          uploadedBy: courierId,
+        })
+        .returning()
+      return a!.id
+    }
+
+    it('devuelve solo las constancias de entregas hechas del trabajo', async () => {
+      const repo = createDeliveriesRepo(ctx.db)
+      const caseId = await createCase()
+      const otherCase = await createCase()
+      const hecha = await proof(caseId, 'hecha.jpg')
+      const fallida = await proof(caseId, 'fallida.jpg')
+      const ajena = await proof(otherCase, 'ajena.jpg')
+      await proof(caseId, 'sin-usar.jpg')
+      const base = { courierId, scheduledFor: '2026-09-10' }
+      await ctx.db.insert(ctx.schema.deliveries).values([
+        { ...base, caseId, type: 'entrega', status: 'hecha', proofAttachmentId: hecha },
+        // Una fallida no cierra con foto, pero si la tuviera no sería «de la entrega».
+        { ...base, caseId, type: 'recogida', status: 'fallida', proofAttachmentId: fallida },
+        { ...base, caseId: otherCase, type: 'entrega', status: 'hecha', proofAttachmentId: ajena },
+        { ...base, caseId: otherCase, type: 'recogida', status: 'hecha' },
+      ])
+
+      expect(await repo.linkedProofIds(caseId)).toEqual([hecha])
+      expect(await repo.linkedProofIds(otherCase)).toEqual([ajena])
     })
   })
 
@@ -295,9 +361,53 @@ describe('features/deliveries/repo', () => {
           status: 'nuevo',
           priority: 'normal',
         },
-        clinic: { name: 'Sonrisa', address: 'Av. Amazonas 123', phone: '099-000-0000' },
+        clinic: {
+          name: 'Sonrisa',
+          address: 'Av. Amazonas 123',
+          city: 'Quito',
+          phone: '099-000-0000',
+        },
+        rescheduledFor: null,
         courier: { name: 'Beto Mensajero' },
       })
+    })
+
+    // UX4-18: la fallida dice para cuándo se reprogramó: la fecha de la siguiente entrega del
+    // mismo trabajo y tipo (la que creó «No se pudo»), no la de otra posterior.
+    it('una fallida trae la fecha a la que se reprogramó; la cerrada por cancelación, ninguna', async () => {
+      const repo = createDeliveriesRepo(ctx.db)
+      const caseId = await createCase()
+      const primera = await repo.create({
+        caseId,
+        type: 'entrega',
+        courierId,
+        scheduledFor: '2026-09-10',
+      })
+      await repo.markFailed(primera.id, 'Clínica cerrada', new Date('2026-09-10T15:00:00Z'))
+      // Otro tipo del mismo trabajo, creado antes de la reprogramación, no cuenta como tal.
+      await repo.create({ caseId, type: 'recogida', courierId, scheduledFor: '2026-09-11' })
+      const segunda = await repo.create({
+        caseId,
+        type: 'entrega',
+        courierId,
+        scheduledFor: '2026-09-14',
+      })
+      await repo.markFailed(segunda.id, 'Nadie para recibir', new Date('2026-09-14T15:00:00Z'))
+      await repo.create({ caseId, type: 'entrega', courierId, scheduledFor: '2026-09-16' })
+      const otro = await createCase()
+      const cancelada = await repo.create({
+        caseId: otro,
+        type: 'entrega',
+        courierId,
+        scheduledFor: '2026-09-10',
+      })
+      await repo.markFailed(cancelada.id, 'Trabajo cancelado: x', new Date('2026-09-10T16:00:00Z'))
+
+      const dia10 = await repo.listForDay({ day: '2026-09-10', includeOverdue: false })
+      expect(dia10.find((d) => d.id === primera.id)?.rescheduledFor).toBe('2026-09-14')
+      expect(dia10.find((d) => d.id === cancelada.id)?.rescheduledFor).toBeNull()
+      const dia14 = await repo.listForDay({ day: '2026-09-14', includeOverdue: false })
+      expect(dia14.find((d) => d.id === segunda.id)?.rescheduledFor).toBe('2026-09-16')
     })
 
     it('no devuelve ningún campo de dinero', async () => {
@@ -313,6 +423,7 @@ describe('features/deliveries/repo', () => {
           'scheduledFor',
           'doneAt',
           'failedReason',
+          'rescheduledFor',
           'case',
           'clinic',
           'courier',

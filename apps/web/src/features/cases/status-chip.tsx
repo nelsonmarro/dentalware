@@ -29,7 +29,7 @@ export function StatusChip({ status }: { status: CaseStatus }) {
     <span
       data-status={status}
       style={{ '--chip': STATUS_COLOR[status] } as CSSProperties}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--chip)]/40 bg-[color:var(--chip)]/10 px-2 py-0.5 text-xs font-medium text-[color:var(--chip)]"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[color:var(--chip)]/40 bg-[color:var(--chip)]/10 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-[color:var(--chip)]"
     >
       <span aria-hidden className="size-1.5 rounded-full bg-[color:var(--chip)]" />
       {CASE_STATUS_LABEL[status]}

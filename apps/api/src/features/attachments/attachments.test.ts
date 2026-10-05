@@ -1,4 +1,4 @@
-import { caseInputSchema } from '@dentalware/shared'
+import { caseInputSchema, DELIVERY_PROOF_LOCKED_MESSAGE } from '@dentalware/shared'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import sharp from 'sharp'
@@ -26,6 +26,8 @@ describe('/api/adjuntos', () => {
   let tecnico: string
   let mensajero: string
   let adminId: string
+  let mensajeroId: string
+  let otroMensajeroId: string
   let caseId: string
 
   beforeAll(async () => {
@@ -61,7 +63,13 @@ describe('/api/adjuntos', () => {
       name: 'Ana Técnico',
       role: 'tecnico',
     })
-    await createUser(ctx.auth, ctx.db, {
+    otroMensajeroId = await createUser(ctx.auth, ctx.db, {
+      email: 'mens2@t.local',
+      password: testPassword(),
+      name: 'Otro mensajero',
+      role: 'mensajero',
+    })
+    mensajeroId = await createUser(ctx.auth, ctx.db, {
       email: 'mens@t.local',
       password: mensajeroPwd,
       name: 'Mensajero',
@@ -320,7 +328,15 @@ describe('/api/adjuntos', () => {
     expect(await ctx.db.query.attachments.findMany({ where: { caseId } })).toEqual([])
   })
 
-  it('el mensajero sube una constancia que es una imagen (201)', async () => {
+  /** Deja una entrega o recogida pendiente del trabajo asignada a `courierId`. */
+  function pendingDelivery(type: 'entrega' | 'recogida', courierId: string) {
+    return ctx.db
+      .insert(ctx.schema.deliveries)
+      .values({ caseId, type, courierId, scheduledFor: '2026-10-05' })
+  }
+
+  it('el mensajero sube la constancia de su entrega pendiente (201)', async () => {
+    await pendingDelivery('entrega', mensajeroId)
     const buf = await jpegFixture(300, 200)
     const res = await upload(
       mensajero,
@@ -332,7 +348,45 @@ describe('/api/adjuntos', () => {
     expect(attachment).toMatchObject({ kind: 'constancia', mime: 'image/jpeg' })
   })
 
+  // UX4-01: el mensajero solo sube la constancia de una entrega pendiente suya.
+  it.each([
+    {
+      caso: 'la entrega pendiente es de otro mensajero',
+      setup: () => pendingDelivery('entrega', otroMensajeroId),
+    },
+    { caso: 'el trabajo no tiene entrega pendiente', setup: async () => {} },
+    {
+      caso: 'lo pendiente es una recogida suya',
+      setup: () => pendingDelivery('recogida', mensajeroId),
+    },
+  ])('el mensajero no sube una constancia si $caso (403)', async ({ setup }) => {
+    await setup()
+    const buf = await jpegFixture(300, 200)
+    const res = await upload(
+      mensajero,
+      new File([buf], 'constancia.jpg', { type: 'image/jpeg' }),
+      'constancia',
+    )
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ message: 'Sin permiso' })
+    expect(await ctx.db.query.attachments.findMany({ where: { caseId } })).toEqual([])
+    const events = await ctx.db.query.caseEvents.findMany({ where: { caseId } })
+    expect(events.some((e) => e.type === 'attachment_added')).toBe(false)
+  })
+
+  it('recepción sube la constancia de la entrega de un mensajero (201)', async () => {
+    await pendingDelivery('entrega', mensajeroId)
+    const buf = await jpegFixture(300, 200)
+    const res = await upload(
+      recepcion,
+      new File([buf], 'constancia.jpg', { type: 'image/jpeg' }),
+      'constancia',
+    )
+    expect(res.status).toBe(201)
+  })
+
   it('una constancia que no es imagen responde 415', async () => {
+    await pendingDelivery('entrega', mensajeroId)
     const pdf = Buffer.from('%PDF-1.4\ncontenido')
     const res = await upload(
       mensajero,
@@ -360,5 +414,71 @@ describe('/api/adjuntos', () => {
     const buf = await jpegFixture(300, 200)
     const res = await upload(tecnico, new File([buf], 'foto.jpg', { type: 'image/jpeg' }), 'photo')
     expect(res.status).toBe(201)
+  })
+
+  // UX4-06: la constancia que cerró una entrega se distingue de una sin usar y no se borra.
+  describe('constancia de una entrega hecha', () => {
+    async function twoProofsOneLinked() {
+      const ids: string[] = []
+      for (const name of ['buena.jpg', 'sobrante.jpg']) {
+        const buf = await jpegFixture(300, 200)
+        const res = await upload(
+          recepcion,
+          new File([buf], name, { type: 'image/jpeg' }),
+          'constancia',
+        )
+        ids.push(((await res.json()) as { attachment: { id: string } }).attachment.id)
+      }
+      const [linked, unused] = ids as [string, string]
+      await ctx.db.insert(ctx.schema.deliveries).values({
+        caseId,
+        type: 'entrega',
+        courierId: mensajeroId,
+        scheduledFor: '2026-10-05',
+        status: 'hecha',
+        doneAt: new Date(),
+        proofAttachmentId: linked,
+      })
+      return { linked, unused }
+    }
+
+    function remove(id: string) {
+      return app.request(`/api/adjuntos/${id}`, {
+        method: 'DELETE',
+        headers: { cookie: recepcion, origin: ctx.config.WEB_ORIGIN },
+      })
+    }
+
+    it('la lista marca cuál está ligada a la entrega', async () => {
+      const { linked, unused } = await twoProofsOneLinked()
+      const res = await app.request(`/api/adjuntos/trabajo/${caseId}`, {
+        headers: { cookie: mensajero },
+      })
+      const { attachments } = (await res.json()) as {
+        attachments: { id: string; linkedToDelivery: boolean }[]
+      }
+      expect(Object.fromEntries(attachments.map((a) => [a.id, a.linkedToDelivery]))).toEqual({
+        [linked]: true,
+        [unused]: false,
+      })
+    })
+
+    it('borrar la ligada responde 409 con el literal de shared y no la borra', async () => {
+      const { linked } = await twoProofsOneLinked()
+      const res = await remove(linked)
+      expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({ message: DELIVERY_PROOF_LOCKED_MESSAGE })
+      expect(await ctx.db.query.attachments.findFirst({ where: { id: linked } })).toBeDefined()
+      expect(await ctx.storage.exists(`${caseId}/${linked}.jpg`)).toBe(true)
+      const entrega = await ctx.db.query.deliveries.findFirst({ where: { caseId } })
+      expect(entrega?.proofAttachmentId).toBe(linked)
+    })
+
+    it('borrar una sin usar responde 204', async () => {
+      const { unused } = await twoProofsOneLinked()
+      const res = await remove(unused)
+      expect(res.status).toBe(204)
+      expect(await ctx.db.query.attachments.findFirst({ where: { id: unused } })).toBeUndefined()
+    })
   })
 })

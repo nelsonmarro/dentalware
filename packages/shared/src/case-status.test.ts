@@ -13,6 +13,8 @@ import {
   canPerform,
   canRemake,
   CASE_ACTION_LABEL,
+  CASE_PHASE,
+  CASE_PHASE_TITLE,
   CASE_ACTION_ROLES,
   CASE_ACTIONS,
   CASE_STATUS_LABEL,
@@ -72,10 +74,16 @@ describe('estados y acciones', () => {
 })
 
 describe('recibir (Iteración 4, ENT-1)', () => {
-  it('recibir lleva de por recoger a nuevo y lo pueden hacer admin, recepción y mensajero', () => {
+  it('recibir lleva de por recoger a nuevo', () => {
     expect(applyAction('por_recoger', 'recibir')).toEqual({ ok: true, status: 'nuevo' })
     expect(applyAction('nuevo', 'recibir').ok).toBe(false)
-    expect(canPerform('mensajero', 'recibir')).toBe(true)
+  })
+
+  // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar el trabajo al
+  // laboratorio, no el mensajero al recogerlo en la clínica.
+  it('recibir solo lo hacen admin y recepción', () => {
+    expect(CASE_TRANSITIONS.recibir.roles).toEqual(['admin', 'recepcion'])
+    expect(canPerform('mensajero', 'recibir')).toBe(false)
     expect(canPerform('tecnico', 'recibir')).toBe(false)
   })
 
@@ -387,5 +395,29 @@ describe('CASE_ACTION_ROLES', () => {
     const union = new Set(Object.values(CASE_TRANSITIONS).flatMap((t) => t.roles))
     expect(new Set(CASE_ACTION_ROLES)).toEqual(union)
     expect(CASE_ACTION_ROLES).toHaveLength(union.size)
+  })
+})
+
+// UX4-24: el panel de la ficha se llama por lo que toca hacer, no siempre «Producción».
+describe('fase del trabajo para el panel de la ficha', () => {
+  it('cada estado cae en recogida, producción o entrega', () => {
+    expect(CASE_PHASE).toEqual({
+      por_recoger: 'recogida',
+      nuevo: 'produccion',
+      en_proceso: 'produccion',
+      en_espera: 'produccion',
+      en_prueba: 'produccion',
+      terminado: 'entrega',
+      enviado: 'entrega',
+      entregado: 'entrega',
+      cancelado: 'produccion',
+    })
+  })
+  it('títulos del panel por fase', () => {
+    expect(CASE_PHASE_TITLE).toEqual({
+      recogida: 'Recogida',
+      produccion: 'Producción',
+      entrega: 'Entrega',
+    })
   })
 })

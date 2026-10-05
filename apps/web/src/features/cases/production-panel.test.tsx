@@ -90,6 +90,7 @@ function caso(overrides: Partial<CaseDetail> = {}): CaseDetail {
     stage: null,
     items: [],
     pendingDelivery: null,
+    lastDelivered: null,
     ...overrides,
   } as unknown as CaseDetail
 }
@@ -283,7 +284,7 @@ describe('ProductionPanel', () => {
         stages={fases}
       />,
     )
-    await screen.findByRole('region', { name: 'Producción' })
+    await screen.findByRole('region', { name: 'Entrega' })
     expect(screen.queryByRole('button', { name: 'Repetir' })).not.toBeInTheDocument()
   })
 
@@ -304,6 +305,71 @@ describe('ProductionPanel', () => {
     for (const el of panel.querySelectorAll('div')) {
       expect(el.childNodes.length, el.outerHTML).toBeGreaterThan(0)
     }
+  })
+
+  // UX4-09: la entrega va en el mismo panel que su acción.
+  it('en un trabajo enviado dice con quién salió y para cuándo', async () => {
+    renderWithProviders(
+      <ProductionPanel
+        self={yo}
+        case={caso({
+          status: 'enviado',
+          currentStageId: null,
+          pendingDelivery: {
+            type: 'entrega',
+            courierId: 'm1',
+            courierName: 'Mario Mensajero',
+            scheduledFor: '2999-10-09',
+          },
+        })}
+        missing={[]}
+        role="recepcion"
+        stages={fases}
+      />,
+    )
+    expect(await screen.findByText('Sale el 09/10/2999 con Mario Mensajero')).toBeInTheDocument()
+  })
+
+  // UX4-24: el panel se llama por lo que toca hacer y, al traer o llevar el trabajo, la acción
+  // va antes que el técnico responsable.
+  it.each([
+    ['por_recoger', 'Recogida', 'Recibido'],
+    ['terminado', 'Entrega', 'Marcar enviado'],
+    ['enviado', 'Entrega', 'Marcar entregado'],
+  ] as const)(
+    'en «%s» el panel se llama «%s» y «%s» va antes del técnico',
+    async (status, titulo, accion) => {
+      renderWithProviders(
+        <ProductionPanel
+          self={yo}
+          case={caso({ status, currentStageId: null })}
+          missing={[]}
+          role="recepcion"
+          stages={fases}
+        />,
+      )
+      const panel = await screen.findByRole('region', { name: titulo })
+      expect(within(panel).getByRole('heading', { level: 2, name: titulo })).toBeInTheDocument()
+      const boton = within(panel).getByRole('button', { name: accion })
+      const tecnico = within(panel).getByText('Técnico responsable')
+      expect(boton.compareDocumentPosition(tecnico) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    },
+  )
+
+  it('en producción el técnico va antes de las acciones', async () => {
+    renderWithProviders(
+      <ProductionPanel
+        self={yo}
+        case={caso({ status: 'nuevo', currentStageId: null })}
+        missing={[]}
+        role="recepcion"
+        stages={fases}
+      />,
+    )
+    const panel = await screen.findByRole('region', { name: 'Producción' })
+    const tecnico = within(panel).getByText('Técnico responsable')
+    const boton = within(panel).getByRole('button', { name: 'Aceptar' })
+    expect(tecnico.compareDocumentPosition(boton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   // M-5 (revisión de la Tarea 4): ids de `useId()`, no escritos a mano, para que dos paneles

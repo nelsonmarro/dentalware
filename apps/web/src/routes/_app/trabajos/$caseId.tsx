@@ -13,7 +13,7 @@ import { PhotosTab } from '@/features/cases/photos-tab'
 import { ProductionPanel } from '@/features/cases/production-panel'
 import { RemakesList } from '@/features/cases/remakes-list'
 import { useAttachments } from '@/features/cases/use-attachments'
-import { useAddComment, useCase, useEvents } from '@/features/cases/use-cases'
+import { useAddComment, useCase, useCaseRemakes, useEvents } from '@/features/cases/use-cases'
 import { useStages } from '@/features/stages/use-stages'
 import { isNotFoundError } from '@/lib/api-error'
 
@@ -27,6 +27,7 @@ function CasePage() {
   const navigate = useNavigate()
   const q = useCase(caseId)
   const events = useEvents(caseId)
+  const remakes = useCaseRemakes(caseId)
   const attachments = useAttachments(caseId)
   const addComment = useAddComment(caseId)
   // `true` (incluir inactivos): `StageControl` (en `ProductionPanel`) necesita resolver el nombre de la fase
@@ -63,6 +64,7 @@ function CasePage() {
         missing={q.data.missing}
         role={user.role}
         events={events.data ?? []}
+        remakes={remakes.data ?? []}
       />
       <ProductionPanel
         case={q.data.case}

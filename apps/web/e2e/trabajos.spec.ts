@@ -467,6 +467,30 @@ test.describe('Trabajos', () => {
     },
   )
 
+  // UX4-03: con ocho vistas, «Vencen mañana» se montaba sobre sus vecinas (el texto no cabía en
+  // su pestaña). Ninguna pestaña puede recortar su texto y la página no hace scroll horizontal.
+  test('las pestañas de vistas no se solapan', { tag: '@clave' }, async ({ page }) => {
+    await page.goto('/trabajos')
+    await expect(page.getByRole('heading', { name: 'Trabajos', level: 1 })).toBeVisible()
+    const tabs = page.getByRole('tab')
+    await expect(tabs).toHaveCount(8)
+    const sizes = await tabs.evaluateAll((els) =>
+      els.map((el) => ({
+        name: el.textContent ?? '',
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+      })),
+    )
+    for (const t of sizes) {
+      expect(t.scrollWidth, `pestaña «${t.name}»`).toBeLessThanOrEqual(t.clientWidth)
+    }
+    const page_ = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }))
+    expect(page_.scrollWidth).toBeLessThanOrEqual(page_.clientWidth)
+  })
+
   test('pausa un trabajo con motivo y lo reanuda', { tag: '@clave' }, async ({ page }) => {
     const { clinic, doctor } = await createClinicWithDoctor(page)
     const product = await createProduct(page)

@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { onlineManager } from '@tanstack/react-query'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { authClient } from './auth-client'
-import { getSession, getSessionStatus, signIn, signOut } from './session'
+import { getAppSession, getSession, getSessionStatus, signIn, signOut } from './session'
 
 vi.mock('./auth-client', () => ({
   authClient: {
@@ -178,5 +179,105 @@ describe('signOut', () => {
     await signOut()
 
     expect(authClient.signOut).toHaveBeenCalledOnce()
+  })
+})
+
+// UX4-26: sin red, `_app` pregunta la sesión en cada navegación (cambiar de día en «Entregas»
+// incluido) y el rechazo de la red tapaba la pantalla entera con el error del router. Si ya se
+// conocía una sesión válida en esta pestaña, se deja pasar; la API sigue exigiendo sesión y la
+// consulta de la pantalla muestra su propio `LoadError` o sus datos en caché.
+describe('getAppSession', () => {
+  type Result = Awaited<ReturnType<typeof authClient.getSession>>
+  const ana = { id: 'u1', name: 'Ana', email: 'ana@labo.test', role: 'mensajero' }
+  const ok = { data: { user: ana }, error: null } as Result
+  const anonymous = { data: null, error: null } as Result
+  const sinRed = new TypeError('Failed to fetch')
+
+  beforeEach(async () => {
+    // Parte siempre sin sesión conocida: una respuesta sin sesión la olvida.
+    vi.mocked(authClient.getSession).mockReset()
+    vi.mocked(authClient.getSession).mockResolvedValue(anonymous)
+    await getAppSession()
+    // «Sin red» es lo que dice `onlineManager` (el mismo que pausa las mutaciones y pinta el
+    // aviso); los casos de abajo que simulan el rechazo de `fetch` también lo ponen sin red.
+    onlineManager.setOnline(false)
+  })
+  afterEach(() => {
+    onlineManager.setOnline(true)
+  })
+
+  it('con red devuelve el usuario de la sesión', async () => {
+    vi.mocked(authClient.getSession).mockResolvedValue(ok)
+
+    expect(await getAppSession()).toEqual(ana)
+  })
+
+  it('sin red y con una sesión ya conocida devuelve esa sesión', async () => {
+    vi.mocked(authClient.getSession).mockResolvedValueOnce(ok).mockRejectedValueOnce(sinRed)
+    await getAppSession()
+
+    expect(await getAppSession()).toEqual(ana)
+  })
+
+  it('sin red y sin sesión conocida falla como antes', async () => {
+    vi.mocked(authClient.getSession).mockRejectedValue(sinRed)
+
+    await expect(getAppSession()).rejects.toBe(sinRed)
+  })
+
+  it('una respuesta sin sesión (401, sesión caducada) olvida la sesión conocida', async () => {
+    vi.mocked(authClient.getSession)
+      .mockResolvedValueOnce(ok)
+      .mockResolvedValueOnce(anonymous)
+      .mockRejectedValueOnce(sinRed)
+    await getAppSession()
+
+    expect(await getAppSession()).toBeNull()
+    await expect(getAppSession()).rejects.toBe(sinRed)
+  })
+
+  it('un rol no válido olvida la sesión conocida', async () => {
+    vi.mocked(authClient.getSession)
+      .mockResolvedValueOnce(ok)
+      .mockResolvedValueOnce({
+        data: { user: { ...ana, role: 'superadmin' } },
+        error: null,
+      } as Result)
+      .mockRejectedValueOnce(sinRed)
+    await getAppSession()
+
+    expect(await getAppSession()).toBeNull()
+    await expect(getAppSession()).rejects.toBe(sinRed)
+  })
+
+  it('cerrar sesión olvida la sesión conocida', async () => {
+    vi.mocked(authClient.getSession).mockResolvedValueOnce(ok).mockRejectedValueOnce(sinRed)
+    vi.mocked(authClient.signOut).mockResolvedValue(
+      {} as Awaited<ReturnType<typeof authClient.signOut>>,
+    )
+    await getAppSession()
+
+    await signOut()
+
+    await expect(getAppSession()).rejects.toBe(sinRed)
+  })
+
+  // M-5 de la revisión final: un `TypeError` con red es un fallo de programación del cliente de
+  // auth, no «sin red»; dejar pasar con la sesión conocida lo ocultaría.
+  it('con red, un TypeError no usa la sesión conocida', async () => {
+    const bug = new TypeError("Cannot read properties of undefined (reading 'user')")
+    vi.mocked(authClient.getSession).mockResolvedValueOnce(ok).mockRejectedValueOnce(bug)
+    onlineManager.setOnline(true)
+    await getAppSession()
+
+    await expect(getAppSession()).rejects.toBe(bug)
+  })
+
+  it('un fallo que no es de red no usa la sesión conocida', async () => {
+    const otro = new Error('respuesta ilegible')
+    vi.mocked(authClient.getSession).mockResolvedValueOnce(ok).mockRejectedValueOnce(otro)
+    await getAppSession()
+
+    await expect(getAppSession()).rejects.toBe(otro)
   })
 })

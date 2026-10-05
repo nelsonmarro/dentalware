@@ -41,4 +41,15 @@ describe('deliveryFailSchema', () => {
       deliveryFailSchema.safeParse({ motivo: 'No había nadie', nuevaFecha: '2026-10-05' }).success,
     ).toBe(true)
   })
+
+  // UX4-17: el prefijo de cancelación es lo que marca una entrega anulada; un «No se pudo» que
+  // lo usara se vería como si el trabajo se hubiera cancelado.
+  it('rechaza un motivo que empiece como el de la cancelación del trabajo', () => {
+    const r = deliveryFailSchema.safeParse({
+      motivo: '  Trabajo cancelado: era broma',
+      nuevaFecha: '2026-10-05',
+    })
+    expect(r.success).toBe(false)
+    expect(r.error?.issues[0]?.message).toBe('El motivo no puede empezar por «Trabajo cancelado:»')
+  })
 })

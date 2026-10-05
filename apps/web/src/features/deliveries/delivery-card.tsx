@@ -1,13 +1,14 @@
 import {
   availableActions,
   canActOnDelivery,
+  canFailDelivery,
   canPerform,
+  cancelledDeliveryNote,
   CASE_ACTION_LABEL,
   DELIVERY_CLOSING_ACTION,
-  DELIVERY_MANAGE_ROLES,
-  DELIVERY_ROLES,
-  hasRole,
-  isClosedByCancellation,
+  deliveryNextStep,
+  deliveryOutcome,
+  isActionableDelivery,
   isOverdueDelivery,
   type UserRole,
 } from '@dentalware/shared'
@@ -15,8 +16,10 @@ import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { AlertChip } from '@/features/cases/alert-chip'
+import { formatDate } from '@/features/cases/date-format'
 import { DeliverDialog } from '@/features/cases/deliver-dialog'
-import { StatusChip } from '@/features/cases/status-chip'
+import { QueuedNotice } from '@/features/cases/queued-notice'
+import { useCaseBusy } from '@/features/cases/use-case-busy'
 import { useCaseAction } from '@/features/cases/use-cases'
 import { cn } from '@/lib/utils'
 import type { DeliveryItem } from './api'
@@ -29,40 +32,58 @@ import { FailDialog } from './fail-dialog'
  * Una recogida o entrega de la lista del día (ENT-5): tipo, código (enlace a la ficha corta),
  * paciente, «Urgente» y «Atrasada», y la acción que la cierra con los **mismos** diálogos de la
  * ficha. Una pendiente ofrece su acción (un solo primario) y «No se pudo»; una cerrada queda
- * atenuada con su estado y sin acciones. La que cerró la cancelación del trabajo (ruling de la
- * Tarea 6: `fallida` con el prefijo de cancelación, `isClosedByCancellation`) se ve «Cancelado»,
- * nunca como fallida reprogramable; las cerradas antes de cancelar conservan su estado real.
+ * atenuada con su resultado (`deliveryOutcome`), sin acciones ni «Urgente». La que cerró la
+ * cancelación del trabajo (ruling de la Tarea 6) se ve «Anulada» con el motivo de la
+ * cancelación (UX4-17), nunca como fallida reprogramable; las cerradas antes de cancelar
+ * conservan su estado real y dicen que el trabajo se canceló. La fallida dice su nueva fecha
+ * (UX4-18).
  */
 export function DeliveryCard({
   delivery: d,
   role,
   userId,
   today,
+  showCourier,
 }: {
   delivery: DeliveryItem
   role: UserRole
   /** Quien usa la app: el mensajero solo actúa sobre sus propias entregas. */
   userId: string
   today: string
+  /** «Mensajero: …» en la tarjeta: lo decide la lista (`DeliveriesDay`). */
+  showCourier: boolean
 }) {
   const [dialog, setDialog] = useState<'entregar' | 'fallida' | null>(null)
   const action = useCaseAction(d.case.id)
-  const cancelled = isClosedByCancellation(d)
+  // M-4: cualquier acción de este trabajo en curso o en pausa (también la de un diálogo ya
+  // cerrado con «Volver») bloquea las dos acciones de la tarjeta.
+  const { busy, queued } = useCaseBusy(d.case.id)
+  const outcome = deliveryOutcome(d)
   // Cancelar cierra la pendiente en la misma transacción; el estado del trabajo es solo una
   // red por si una pendiente de un trabajo cancelado llegara igual: nunca es accionable.
-  const pending = d.status === 'pendiente' && d.case.status !== 'cancelado'
+  const pending = isActionableDelivery(d)
+  // UX4-17: lo cerrado de un trabajo cancelado lo dice; la anulada, con el motivo.
+  const cancelNote =
+    d.case.status === 'cancelado' && !pending ? cancelledDeliveryNote(d.failedReason) : null
   const closing = DELIVERY_CLOSING_ACTION[d.type]
   // Misma regla que la API y la ficha (`canActOnDelivery`, M-3): una sola fuente para «el
   // mensajero solo actúa sobre lo suyo»; admin y recepción, sobre cualquiera.
-  const own = canActOnDelivery({ role, userId }, closing, { type: d.type, courierId: d.courier.id })
+  const assignment = { type: d.type, courierId: d.courier.id }
+  const own = canActOnDelivery({ role, userId }, closing, assignment)
   const canClose =
     pending && own && availableActions(d.case.status).includes(closing) && canPerform(role, closing)
-  // «No se pudo»: quien puede cerrar la entrega también puede reprogramarla (la API exige lo
-  // mismo en `POST /api/entregas/:id/fallida`).
-  const canFail = pending && own && hasRole(DELIVERY_ROLES, role)
+  // «No se pudo»: misma regla que la API (`canFailDelivery`, `POST /api/entregas/:id/fallida`).
+  // No depende de quién cierra la entrega (UX4-10): el mensajero no marca «Recibido», pero sí
+  // «No se pudo» en su recogida.
+  const canFail = pending && canFailDelivery({ role, userId }, assignment)
+  // UX4-10: quien la tiene pero no la cierra (el mensajero en su recogida) sabe qué sigue.
+  const nextStep = canFail && !canClose ? deliveryNextStep(role, d.type) : null
   const overdue = pending && isOverdueDelivery(d, today)
-  // Quien administra entregas ve las de todos: el nombre del mensajero orienta a recepción.
-  const showCourier = hasRole(DELIVERY_MANAGE_ROLES, role)
+
+  // UX4-05: cada diálogo vive mientras su acción siga disponible. Si la entrega deja de estar
+  // pendiente (otra persona canceló el trabajo o la cerró; lo trae el refresco tras un 409 o
+  // cualquier otro), se cierra en vez de quedar abierto sobre el estado nuevo.
+  if ((dialog === 'entregar' && !canClose) || (dialog === 'fallida' && !canFail)) setDialog(null)
 
   function close() {
     if (closing === 'marcar_entregado') setDialog('entregar')
@@ -88,36 +109,45 @@ export function DeliveryCard({
           >
             {d.case.code}
           </Link>
-          {d.case.priority === 'urgente' && <AlertChip tone="destructive">Urgente</AlertChip>}
-          {overdue && <AlertChip tone="amber">Atrasada</AlertChip>}
-          {cancelled ? (
-            <StatusChip status="cancelado" />
-          ) : (
-            d.status !== 'pendiente' && <DeliveryStatusChip status={d.status} />
+          {pending && d.case.priority === 'urgente' && (
+            <AlertChip tone="destructive">Urgente</AlertChip>
           )}
+          {overdue && <AlertChip tone="amber">Atrasada</AlertChip>}
+          {outcome && <DeliveryStatusChip outcome={outcome} />}
         </div>
         <div className="flex flex-col gap-0.5">
           {d.case.patientRef && <p className="text-sm">{d.case.patientRef}</p>}
           {showCourier && (
             <p className="text-sm text-muted-foreground">{`Mensajero: ${d.courier.name}`}</p>
           )}
-          {d.status === 'fallida' && !cancelled && d.failedReason && (
+          {outcome === 'fallida' && d.failedReason && (
             <p className="text-sm text-muted-foreground">{`Motivo: ${d.failedReason}`}</p>
           )}
+          {/* M-1 (revisión T9): si el trabajo se canceló después, la reprogramada quedó
+              anulada y la fecha prometería una visita que ya no existe. */}
+          {outcome === 'fallida' && d.rescheduledFor && !cancelNote && (
+            <p className="text-sm text-muted-foreground">
+              {`Nueva fecha: ${formatDate(d.rescheduledFor)}`}
+            </p>
+          )}
+          {cancelNote && <p className="text-sm text-muted-foreground">{cancelNote}</p>}
+          {nextStep && <p className="text-sm text-muted-foreground">{nextStep}</p>}
+          {queued && (canClose || canFail) && <QueuedNotice />}
         </div>
       </div>
       {(canClose || canFail) && (
+        // UX4-20: ancho mínimo común, para que las acciones se alineen de tarjeta en tarjeta.
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
           {canClose && (
-            <Button className="w-full sm:w-auto" disabled={action.isPending} onClick={close}>
+            <Button className="w-full sm:w-auto sm:min-w-40" disabled={busy} onClick={close}>
               {CASE_ACTION_LABEL[closing]}
             </Button>
           )}
           {canFail && (
             <Button
               variant="outline"
-              className="w-full sm:w-auto"
-              disabled={action.isPending}
+              className="w-full sm:w-auto sm:min-w-40"
+              disabled={busy}
               onClick={() => setDialog('fallida')}
             >
               No se pudo
@@ -127,7 +157,8 @@ export function DeliveryCard({
       )}
       {dialog === 'entregar' && (
         <DeliverDialog
-          case={d.case}
+          case={{ ...d.case, clinic: d.clinic }}
+          role={role}
           open
           onOpenChange={(open) => {
             if (!open) setDialog(null)

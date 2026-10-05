@@ -1,4 +1,5 @@
-import type { UserRole } from '@dentalware/shared'
+import { DELIVERY_MANAGE_ROLES, hasRole, type UserRole } from '@dentalware/shared'
+import { DeliveriesTodayCard } from '@/features/deliveries/deliveries-today-card'
 import { MyDeliveriesToday } from '@/features/deliveries/my-deliveries-today'
 import { MyCases } from './my-cases'
 import { SummaryCards } from './summary-cards'
@@ -11,7 +12,9 @@ import { SummaryCards } from './summary-cards'
  * cualquier otro componente de features, en vez de dejarla sin cubrir dentro de la ruta.
  *
  * El mensajero (INI-3, #105) ve sus entregas de hoy **en lugar de** los contadores: no le
- * dicen qué hacer. `role === 'mensajero'` es identidad (quién es), no un permiso.
+ * dicen qué hacer. `role === 'mensajero'` es identidad (quién es), no un permiso. Quien
+ * administra entregas (`DELIVERY_MANAGE_ROLES`) suma la tarjeta de las entregas de hoy junto a
+ * los contadores (UX4-22).
  */
 export function HomeSummary({ role, userId }: { role: UserRole; userId: string }) {
   if (role === 'mensajero') return <MyDeliveriesToday userId={userId} />
@@ -20,7 +23,9 @@ export function HomeSummary({ role, userId }: { role: UserRole; userId: string }
       {/* UX3-28: el técnico abre su inicio con lo suyo; los contadores del laboratorio,
           después (a 390 px empujaban «Mis trabajos» bajo el pliegue). */}
       {role === 'tecnico' && <MyCases technicianId={userId} />}
-      <SummaryCards />
+      <SummaryCards
+        extra={hasRole(DELIVERY_MANAGE_ROLES, role) ? <DeliveriesTodayCard /> : undefined}
+      />
     </>
   )
 }

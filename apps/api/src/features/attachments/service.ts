@@ -1,22 +1,30 @@
-import { ATTACHMENT_UPLOAD_ROLES, DELIVERY_ROLES, hasRole } from '@dentalware/shared'
+import {
+  ATTACHMENT_UPLOAD_ROLES,
+  canActOnDelivery,
+  DELIVERY_ROLES,
+  hasRole,
+} from '@dentalware/shared'
 import { ALLOWED_MIME, isImage, MAX_UPLOAD_BYTES } from '../../lib/upload-policy.ts'
 import type { IdGenerator } from '../../lib/ids.ts'
 import type { RequestContext } from '../../lib/request-context.ts'
 import type { Storage } from '../../lib/storage.ts'
 import {
   AttachmentForbiddenError,
+  AttachmentInUseError,
   AttachmentNotFoundError,
   CaseNotFoundError,
   FileTooLargeError,
   UnsupportedFileError,
 } from './errors.ts'
 import type {
-  AttachmentRecord,
   AttachmentsRepository,
+  AttachmentView,
   CaseEventLog,
   CasesQuery,
+  DeliveryProofLookup,
   ImageProcessor,
   OpenedFile,
+  PendingDeliveryLookup,
   UploadInput,
 } from './ports.ts'
 
@@ -32,6 +40,7 @@ export function createAttachmentsService(deps: {
   attachments: AttachmentsRepository
   cases: CasesQuery
   events: CaseEventLog
+  deliveries: PendingDeliveryLookup & DeliveryProofLookup
   storage: Storage
   images: ImageProcessor
   ids: IdGenerator
@@ -43,17 +52,24 @@ export function createAttachmentsService(deps: {
   }
 
   return {
-    list(caseId: string): Promise<AttachmentRecord[]> {
-      return deps.attachments.byCase(caseId)
+    /** Los adjuntos del trabajo, con `linkedToDelivery` en la constancia que cerró una entrega
+     * (UX4-06): la web la distingue de una sin usar y no ofrece borrarla. */
+    async list(caseId: string): Promise<AttachmentView[]> {
+      const [rows, linked] = await Promise.all([
+        deps.attachments.byCase(caseId),
+        deps.deliveries.linkedProofIds(caseId),
+      ])
+      return rows.map((r) => ({ ...r, linkedToDelivery: linked.includes(r.id) }))
     },
 
     /**
-     * Comprueba que el rol puede subir este tipo de adjunto y reproduce el flujo previo de la
+     * Comprueba que el rol puede subir este tipo de adjunto (y, si es una constancia, que puede
+     * cerrar la entrega pendiente del trabajo) y reproduce el flujo previo de la
      * ruta: comprobar trabajo, tamaño, MIME permitido (una constancia solo puede ser imagen),
      * normalizar imagen (o validar la firma del PDF), guardar original + miniatura y
      * registrar el evento `attachment_added`.
      */
-    async upload(input: UploadInput, ctx: RequestContext): Promise<AttachmentRecord> {
+    async upload(input: UploadInput, ctx: RequestContext): Promise<AttachmentView> {
       // La constancia de entrega la sube quien entrega (`DELIVERY_ROLES`, mensajero incluido);
       // cualquier otro tipo, o sin tipo, solo `ATTACHMENT_UPLOAD_ROLES` (decisión 5 del plan).
       const isProof = input.kind === 'constancia'
@@ -61,6 +77,16 @@ export function createAttachmentsService(deps: {
         throw new AttachmentForbiddenError()
       }
       if (!(await deps.cases.exists(input.caseId))) throw new CaseNotFoundError()
+      // UX4-01: la constancia es la de la entrega que cierra `marcar_entregado`, así que exige
+      // el mismo permiso: el mensajero solo sube la de su entrega pendiente; admin y recepción,
+      // la de cualquiera (también sin entrega pendiente, la tolerancia de esa acción).
+      if (isProof) {
+        const pending = await deps.deliveries.pendingFor(input.caseId, 'entrega')
+        const asDelivery = pending && { type: 'entrega' as const, courierId: pending.courierId }
+        if (!canActOnDelivery(ctx, 'marcar_entregado', asDelivery)) {
+          throw new AttachmentForbiddenError()
+        }
+      }
       if (input.size > MAX_UPLOAD_BYTES) {
         throw new FileTooLargeError('El archivo supera los 25 MB')
       }
@@ -121,7 +147,8 @@ export function createAttachmentsService(deps: {
         toValue: row.filename,
         actorId: ctx.userId,
       })
-      return row
+      // Recién subida, ninguna entrega la referencia todavía.
+      return { ...row, linkedToDelivery: false }
     },
 
     async open(id: string): Promise<OpenedFile> {
@@ -141,6 +168,12 @@ export function createAttachmentsService(deps: {
 
     async remove(id: string, ctx: RequestContext): Promise<void> {
       const a = await mustGetAttachment(id)
+      // UX4-06: la constancia de una entrega hecha no se borra (la entrega quedaría «Hecha» sin
+      // foto). Una sin usar, sí. Si «Marcar entregado» la liga tras esta comprobación, la FK
+      // (RESTRICT) para el borrado y el repo lanza el mismo error: el archivo se borra después.
+      if ((await deps.deliveries.linkedProofIds(a.caseId)).includes(a.id)) {
+        throw new AttachmentInUseError()
+      }
       await deps.attachments.remove(a.id)
       await deps.storage.remove(a.storagePath)
       if (a.thumbPath) await deps.storage.remove(a.thumbPath)

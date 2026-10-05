@@ -1,10 +1,11 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { AppShell } from '@/components/app-shell'
-import { getSession } from '@/features/auth/session'
+import { getAppSession } from '@/features/auth/session'
 
 export const Route = createFileRoute('/_app')({
   beforeLoad: async ({ location }) => {
-    const user = await getSession()
+    // Sin red y con una sesión ya conocida deja pasar (UX4-26, ver `getAppSession`).
+    const user = await getAppSession()
     if (!user) throw redirect({ to: '/login', search: { redirect: location.href } })
     return { user }
   },

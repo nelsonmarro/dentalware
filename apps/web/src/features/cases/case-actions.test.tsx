@@ -1,15 +1,20 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { onlineManager } from '@tanstack/react-query'
+import { act, screen, waitFor, within } from '@testing-library/react'
+import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiError } from '@/lib/api-error'
 import { renderWithProviders } from '@/test/render'
 import type { CaseDetail } from './api'
 import { CaseActions } from './case-actions'
 import { useCase } from './use-cases'
 
-const { postCaseAction, fetchCase } = vi.hoisted(() => ({
+const { postCaseAction, fetchCase, uploadAttachment } = vi.hoisted(() => ({
   postCaseAction: vi.fn(),
   fetchCase: vi.fn(),
+  uploadAttachment: vi.fn(),
 }))
 vi.mock('./api', () => ({ postCaseAction, fetchCase }))
+vi.mock('./attachments-api', () => ({ uploadAttachment }))
 vi.mock('@/features/deliveries/api', () => ({
   fetchCouriers: vi.fn().mockResolvedValue([{ id: 'm1', name: 'Bruno Mensajero' }]),
 }))
@@ -62,6 +67,7 @@ function caso(overrides: Partial<CaseDetail> = {}): CaseDetail {
     stage: null,
     items: [],
     pendingDelivery: null,
+    lastDelivered: null,
     ...overrides,
   } as unknown as CaseDetail
 }
@@ -306,7 +312,15 @@ describe('CaseActions', () => {
     const { user } = renderWithProviders(
       <CaseActions
         self={yo}
-        case={caso({ status: 'enviado', pendingDelivery: { type: 'entrega', courierId: yo.id } })}
+        case={caso({
+          status: 'enviado',
+          pendingDelivery: {
+            type: 'entrega',
+            courierId: yo.id,
+            courierName: 'Mario',
+            scheduledFor: '2026-10-04',
+          },
+        })}
         missing={[]}
         role="mensajero"
       />,
@@ -319,6 +333,50 @@ describe('CaseActions', () => {
     expect(postCaseAction).not.toHaveBeenCalled()
   })
 
+  // M-4 de la revisión final de la ola It4: sin red, la entrega enviada desde el diálogo queda
+  // en pausa; tras «Volver», la barra (también la de la ficha corta) no deja repetirla.
+  it('sin red, tras «Volver» de una entrega en pausa la barra no deja repetirla y lo dice', async () => {
+    uploadAttachment.mockResolvedValue({ id: 'a1', url: '/api/adjuntos/a1', thumbUrl: null })
+    postCaseAction.mockResolvedValue({ id: 'c1', status: 'entregado' })
+    const { user } = renderWithProviders(
+      <CaseActions
+        self={yo}
+        case={caso({
+          status: 'enviado',
+          pendingDelivery: {
+            type: 'entrega',
+            courierId: yo.id,
+            courierName: 'Mario',
+            scheduledFor: '2026-10-04',
+          },
+        })}
+        missing={[]}
+        role="mensajero"
+        size="large"
+      />,
+    )
+    const barra = await screen.findByRole('group', { name: 'Acciones del trabajo' })
+    try {
+      act(() => onlineManager.setOnline(false))
+      await user.click(within(barra).getByRole('button', { name: 'Marcar entregado' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Marcar entregado' })
+      await user.upload(
+        within(dialog).getByLabelText('Foto de constancia'),
+        new File(['contenido'], 'foto.png', { type: 'image/png' }),
+      )
+      await user.click(within(dialog).getByRole('button', { name: 'Marcar entregado' }))
+      await user.click(within(dialog).getByRole('button', { name: 'Volver' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+      expect(within(barra).getByRole('button', { name: 'Marcar entregado' })).toBeDisabled()
+      expect(within(barra).getByText('Se enviará al volver la señal.')).toBeInTheDocument()
+    } finally {
+      act(() => onlineManager.setOnline(true))
+    }
+    await waitFor(() => expect(postCaseAction).toHaveBeenCalledTimes(1))
+    expect(uploadAttachment).toHaveBeenCalledTimes(1)
+  })
+
   // M-4 (revisión final del PR 1 de la Iteración 4): el mensajero solo ve la acción de la
   // entrega que tiene asignada (`canActOnDelivery`); la API respondería 403 a la de otro.
   describe('entregas de otro mensajero', () => {
@@ -327,7 +385,12 @@ describe('CaseActions', () => {
         <CaseActions
           case={caso({
             status: 'por_recoger',
-            pendingDelivery: { type: 'recogida', courierId: 'otro' },
+            pendingDelivery: {
+              type: 'recogida',
+              courierId: 'otro',
+              courierName: 'Mario',
+              scheduledFor: '2026-10-04',
+            },
           })}
           self={yo}
           missing={[]}
@@ -337,19 +400,25 @@ describe('CaseActions', () => {
       expect(container).toBeEmptyDOMElement()
     })
 
-    it('a un mensajero le ofrece «Recibido» de su propia recogida', () => {
-      renderWithProviders(
+    // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar al laboratorio.
+    it('a un mensajero no le ofrece «Recibido» ni de su propia recogida', () => {
+      const { container } = renderWithProviders(
         <CaseActions
           case={caso({
             status: 'por_recoger',
-            pendingDelivery: { type: 'recogida', courierId: yo.id },
+            pendingDelivery: {
+              type: 'recogida',
+              courierId: yo.id,
+              courierName: 'Mario',
+              scheduledFor: '2026-10-04',
+            },
           })}
           self={yo}
           missing={[]}
           role="mensajero"
         />,
       )
-      expect(screen.getByRole('button', { name: 'Recibido' })).toBeInTheDocument()
+      expect(container).toBeEmptyDOMElement()
     })
 
     it('a un mensajero no le ofrece «Marcar entregado» de una entrega asignada a otro', () => {
@@ -357,7 +426,12 @@ describe('CaseActions', () => {
         <CaseActions
           case={caso({
             status: 'enviado',
-            pendingDelivery: { type: 'entrega', courierId: 'otro' },
+            pendingDelivery: {
+              type: 'entrega',
+              courierId: 'otro',
+              courierName: 'Mario',
+              scheduledFor: '2026-10-04',
+            },
           })}
           self={yo}
           missing={[]}
@@ -372,7 +446,12 @@ describe('CaseActions', () => {
         <CaseActions
           case={caso({
             status: 'enviado',
-            pendingDelivery: { type: 'entrega', courierId: 'otro' },
+            pendingDelivery: {
+              type: 'entrega',
+              courierId: 'otro',
+              courierName: 'Mario',
+              scheduledFor: '2026-10-04',
+            },
           })}
           self={yo}
           missing={[]}
@@ -437,5 +516,76 @@ describe('CaseActions', () => {
 
     await waitFor(() => expect(finalizarBtn).not.toBeDisabled())
     expect(postCaseAction).toHaveBeenCalledTimes(1)
+  })
+  // UX4-05: el diálogo de entrega o de envío se cierra en cuanto su acción deja de estar
+  // disponible (otra persona canceló o cerró el trabajo); nunca queda abierto sobre el estado
+  // nuevo con su botón habilitado.
+  describe('diálogo de entrega sobre un estado que cambió', () => {
+    /** La ficha: la barra pinta el trabajo que trae `useCase`, como `CaseDetailTab`. */
+    function Ficha({ role }: { role: 'recepcion' | 'mensajero' }) {
+      const { data } = useCase('c1')
+      if (!data) return null
+      return <CaseActions self={yo} case={data.case} missing={[]} role={role} />
+    }
+
+    it('se cierra si al refrescar la acción ya no está disponible', async () => {
+      fetchCase.mockResolvedValueOnce({ case: caso({ status: 'terminado' }), missing: [] })
+      const { user, client } = renderWithProviders(<Ficha role="recepcion" />)
+      await user.click(await screen.findByRole('button', { name: 'Marcar enviado' }))
+      await screen.findByRole('dialog', { name: 'Marcar enviado' })
+
+      // Otra persona ya lo envió; la ficha se refresca (foco, otra mutación…) y la barra sigue
+      // montada con «Marcar entregado», pero «Marcar enviado» ya no existe.
+      fetchCase.mockResolvedValueOnce({
+        case: caso({
+          status: 'enviado',
+          pendingDelivery: {
+            type: 'entrega',
+            courierId: 'm1',
+            courierName: 'Mario',
+            scheduledFor: '2026-10-04',
+          },
+        }),
+        missing: [],
+      })
+      await client.invalidateQueries({ queryKey: ['trabajos'] })
+
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Marcar enviado' })).not.toBeInTheDocument(),
+      )
+    })
+
+    it('un 409 al marcar enviado refresca la ficha, avisa una vez y cierra el diálogo', async () => {
+      const avisos = vi.spyOn(toast, 'error')
+      fetchCase.mockResolvedValueOnce({ case: caso({ status: 'terminado' }), missing: [] })
+      fetchCase.mockResolvedValueOnce({
+        case: caso({
+          status: 'enviado',
+          pendingDelivery: {
+            type: 'entrega',
+            courierId: yo.id,
+            courierName: 'Mario',
+            scheduledFor: '2026-10-04',
+          },
+        }),
+        missing: [],
+      })
+      postCaseAction.mockRejectedValueOnce(
+        new ApiError('No se puede "Marcar enviado": el trabajo está en estado "Enviado".', 409),
+      )
+      const { user } = renderWithProviders(<Ficha role="mensajero" />)
+      await user.click(await screen.findByRole('button', { name: 'Marcar enviado' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Marcar enviado' })
+      await user.click(within(dialog).getByRole('button', { name: 'Marcar enviado' }))
+
+      await waitFor(() => expect(postCaseAction).toHaveBeenCalled())
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Marcar enviado' })).not.toBeInTheDocument(),
+      )
+      // La barra sigue montada con la acción que sí toca ahora, y el 409 avisa una sola vez.
+      expect(screen.getByRole('button', { name: 'Marcar entregado' })).toBeInTheDocument()
+      expect(avisos).toHaveBeenCalledTimes(1)
+      avisos.mockRestore()
+    })
   })
 })

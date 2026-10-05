@@ -172,6 +172,19 @@ describe('CaseHistory', () => {
     ],
     [
       'delivery_failed',
+      { fromValue: 'recogida', toValue: '2026-10-06', reason: 'Clínica cerrada' },
+      'Recogida fallida',
+      'Motivo: Clínica cerrada — nueva fecha 06/10/2026',
+    ],
+    [
+      'delivery_failed',
+      { fromValue: 'entrega', toValue: '2026-10-06', reason: 'Clínica cerrada' },
+      'Entrega fallida',
+      'Motivo: Clínica cerrada — nueva fecha 06/10/2026',
+    ],
+    // Los eventos anteriores a UX4-16 no guardan el tipo: siguen con el texto genérico.
+    [
+      'delivery_failed',
       { toValue: '2026-10-06', reason: 'Clínica cerrada' },
       'Entrega o recogida fallida',
       'Motivo: Clínica cerrada — nueva fecha 06/10/2026',
@@ -191,6 +204,26 @@ describe('CaseHistory', () => {
     },
   )
 
+  // UX4-16: el evento con constancia enlaza la foto, que se abre aparte.
+  it('un evento delivered con constancia enlaza «Ver constancia» a la imagen', async () => {
+    renderWithProviders(
+      <CaseHistory
+        case={caso()}
+        stages={[]}
+        events={[
+          event({
+            type: 'delivered',
+            fromValue: 'enviado',
+            toValue: '9b2f7c1e-0000-4000-8000-000000000001',
+          }),
+        ]}
+      />,
+    )
+    const link = await screen.findByRole('link', { name: 'Ver constancia' })
+    expect(link).toHaveAttribute('href', '/api/adjuntos/9b2f7c1e-0000-4000-8000-000000000001')
+    expect(link).toHaveAttribute('target', '_blank')
+  })
+
   // Revisión final del PR 1 de la Iteración 4 (M-1): un `delivered` de la Iteración 3 guarda el
   // estado (`entregado`) en `toValue` y no tiene foto; no puede decir que la tiene.
   it('un evento delivered anterior a la Iteración 4 (sin constancia) no dice que tiene foto', async () => {
@@ -204,6 +237,7 @@ describe('CaseHistory', () => {
     const item = await screen.findByRole('listitem')
     expect(within(item).getByText('Entregado')).toBeInTheDocument()
     expect(item).not.toHaveTextContent('Con foto de constancia')
+    expect(within(item).queryByRole('link')).not.toBeInTheDocument()
   })
 
   it('una pausa muestra su motivo', async () => {

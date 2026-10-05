@@ -1,15 +1,18 @@
-import { and, asc, eq, isNull, or, sql } from 'drizzle-orm'
+import { aliasedTable, and, asc, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { Db, Tx } from '../../db/index.ts'
+import { isForeignKeyViolation } from '../../db/pg-errors.ts'
 import { users } from '../../db/schema/auth.ts'
 import { cases } from '../cases/schema.ts'
 import { clinics } from '../clinics/schema.ts'
 import type {
+  CaseDeliveryInfoQuery,
   CaseEventLog,
   CouriersQuery,
   DeliveriesRepository,
   DeliveriesUnitOfWork,
 } from './ports.ts'
-import { deliveries } from './schema.ts'
+import { DeliveryProofMissingError } from './errors.ts'
+import { DELIVERY_PROOF_FK, deliveries } from './schema.ts'
 
 /**
  * Repositorio de entregas/recogidas: `createDeliveriesRepo(db | Tx) satisfies
@@ -43,17 +46,38 @@ export function createDeliveriesRepo(db: Db | Tx) {
       return row
     },
 
+    async linkedProofIds(caseId) {
+      const rows = await db
+        .select({ id: deliveries.proofAttachmentId })
+        .from(deliveries)
+        .where(
+          and(
+            eq(deliveries.caseId, caseId),
+            eq(deliveries.status, 'hecha'),
+            isNotNull(deliveries.proofAttachmentId),
+          ),
+        )
+      return rows.flatMap((r) => (r.id ? [r.id] : []))
+    },
+
     // Cierres condicionales (I-1 de la revisión final del PR 2): solo cierran una entrega que
     // sigue `pendiente`. Si dos transacciones cierran la misma a la vez, la segunda espera el
     // bloqueo de fila de la primera, Postgres re-evalúa el `WHERE` sobre la fila confirmada y no
     // actualiza nada: devuelve `false` en vez de pisar «hecha» con «fallida» (o al revés).
+    // Si la constancia se borró entre la lectura del servicio y este UPDATE, la FK salta y se
+    // traduce a `DeliveryProofMissingError` (M-2): la otra violación sale tal cual.
     async markDone(id, doneAt, proofAttachmentId) {
-      const rows = await db
-        .update(deliveries)
-        .set({ status: 'hecha', doneAt, proofAttachmentId })
-        .where(and(eq(deliveries.id, id), eq(deliveries.status, 'pendiente')))
-        .returning({ id: deliveries.id })
-      return rows.length > 0
+      try {
+        const rows = await db
+          .update(deliveries)
+          .set({ status: 'hecha', doneAt, proofAttachmentId })
+          .where(and(eq(deliveries.id, id), eq(deliveries.status, 'pendiente')))
+          .returning({ id: deliveries.id })
+        return rows.length > 0
+      } catch (e) {
+        if (isForeignKeyViolation(e, DELIVERY_PROOF_FK)) throw new DeliveryProofMissingError()
+        throw e
+      }
     },
 
     async markFailed(id, reason, at) {
@@ -84,6 +108,20 @@ export function createDeliveriesRepo(db: Db | Tx) {
       ]
       if (q.courierId) conds.push(eq(deliveries.courierId, q.courierId))
 
+      // UX4-18: la fecha a la que se reprogramó una fallida es la de la siguiente entrega del
+      // mismo trabajo y tipo (la que creó «No se pudo» en la misma transacción). La cerrada por
+      // la cancelación no tiene siguiente: queda `null`.
+      const next = aliasedTable(deliveries, 'next_delivery')
+      const nextFrom = sql`${deliveries} as ${sql.identifier('next_delivery')}`
+      const rescheduledFor = sql<string | null>`case when ${deliveries.status} = 'fallida' then (
+        select ${next.scheduledFor} from ${nextFrom}
+        where ${next.caseId} = ${deliveries.caseId}
+          and ${next.type} = ${deliveries.type}
+          and ${next.createdAt} > ${deliveries.createdAt}
+        order by ${next.createdAt} asc
+        limit 1
+      ) end`
+
       const rows = await db
         .select({
           id: deliveries.id,
@@ -92,6 +130,7 @@ export function createDeliveriesRepo(db: Db | Tx) {
           scheduledFor: deliveries.scheduledFor,
           doneAt: deliveries.doneAt,
           failedReason: deliveries.failedReason,
+          rescheduledFor,
           caseId: cases.id,
           caseCode: cases.code,
           casePatientRef: cases.patientRef,
@@ -100,6 +139,7 @@ export function createDeliveriesRepo(db: Db | Tx) {
           clinicId: clinics.id,
           clinicName: clinics.name,
           clinicAddress: clinics.address,
+          clinicCity: clinics.city,
           clinicPhone: clinics.phone,
           courierId: users.id,
           courierName: users.name,
@@ -118,6 +158,7 @@ export function createDeliveriesRepo(db: Db | Tx) {
         scheduledFor: r.scheduledFor,
         doneAt: r.doneAt,
         failedReason: r.failedReason,
+        rescheduledFor: r.rescheduledFor,
         case: {
           id: r.caseId,
           code: r.caseCode,
@@ -129,6 +170,7 @@ export function createDeliveriesRepo(db: Db | Tx) {
           id: r.clinicId,
           name: r.clinicName,
           address: r.clinicAddress,
+          city: r.clinicCity,
           phone: r.clinicPhone,
         },
         courier: { id: r.courierId, name: r.courierName },
@@ -163,4 +205,51 @@ export function createCouriersQuery(db: Db | Tx) {
         .orderBy(asc(users.name))
     },
   } satisfies CouriersQuery
+}
+
+/**
+ * La entrega pendiente y la última entrega hecha de un trabajo, con el nombre del mensajero
+ * (UX4-07/09): dos lecturas con join a `users` (ADR 24, solo lectura). La pendiente es como mucho
+ * una (`deliveries_one_pending_idx` por tipo, y un trabajo está por recoger o enviado, no las dos
+ * cosas); la última hecha es solo de tipo `entrega` (una recogida hecha no es «entregado»).
+ */
+export function createCaseDeliveryInfoQuery(db: Db | Tx) {
+  return {
+    async deliveryInfo(caseId) {
+      const [pending] = await db
+        .select({
+          type: deliveries.type,
+          courierId: deliveries.courierId,
+          courierName: users.name,
+          scheduledFor: deliveries.scheduledFor,
+        })
+        .from(deliveries)
+        .innerJoin(users, eq(deliveries.courierId, users.id))
+        .where(and(eq(deliveries.caseId, caseId), eq(deliveries.status, 'pendiente')))
+        .limit(1)
+      const [last] = await db
+        .select({
+          doneAt: deliveries.doneAt,
+          courierName: users.name,
+          proofAttachmentId: deliveries.proofAttachmentId,
+        })
+        .from(deliveries)
+        .innerJoin(users, eq(deliveries.courierId, users.id))
+        .where(
+          and(
+            eq(deliveries.caseId, caseId),
+            eq(deliveries.type, 'entrega'),
+            eq(deliveries.status, 'hecha'),
+            isNotNull(deliveries.doneAt),
+          ),
+        )
+        .orderBy(desc(deliveries.doneAt))
+        .limit(1)
+      return {
+        pending: pending ?? null,
+        // `doneAt` no es nulo por el `isNotNull` de arriba; Drizzle no estrecha el tipo.
+        lastDelivered: last?.doneAt ? { ...last, doneAt: last.doneAt } : null,
+      }
+    },
+  } satisfies CaseDeliveryInfoQuery
 }

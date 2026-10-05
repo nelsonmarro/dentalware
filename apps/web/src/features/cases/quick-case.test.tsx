@@ -9,6 +9,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { toIsoDate } from '@dentalware/shared'
 import { ApiError } from '@/lib/api-error'
 import type { Stage } from '@/features/stages/api'
 import type * as ApiModule from './api'
@@ -116,14 +117,35 @@ function caso(overrides: Partial<CaseDetail> = {}): CaseDetail {
     createdBy: 'user-1',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
-    clinic: { id: 'clinica-1', name: 'Clínica Uno' },
+    clinic: {
+      id: 'clinica-1',
+      name: 'Clínica Uno',
+      address: 'Av. 6 de Diciembre N24-1',
+      city: 'Quito',
+      phone: '02 222 3344',
+    },
     doctor: { id: 'doctor-1', name: 'Dr. Gómez' },
     technician: null,
     stage: { id: 'f1', name: 'Modelado', color: '#0F766E' },
     items: [],
     pendingDelivery: null,
+    lastDelivered: null,
     ...overrides,
   } as unknown as CaseDetail
+}
+
+/** La entrega o recogida pendiente tal como la trae la ficha (UX4-07). */
+function pendiente(
+  type: 'recogida' | 'entrega',
+  courierId: string,
+  extra: { courierName?: string; scheduledFor?: string } = {},
+): NonNullable<CaseDetail['pendingDelivery']> {
+  return {
+    type,
+    courierId,
+    courierName: extra.courierName ?? 'Mario Mensajero',
+    scheduledFor: extra.scheduledFor ?? toIsoDate(new Date()),
+  }
 }
 
 /** Quien usa la app (`self`, obligatorio donde un mensajero llega al envío). */
@@ -139,6 +161,24 @@ describe('QuickCase', () => {
     expect(await screen.findByRole('heading', { level: 1, name: '26-00123' })).toBeInTheDocument()
     expect(screen.getByText('Juan Pérez')).toBeInTheDocument()
     expect(screen.getByText('Modelado')).toBeInTheDocument()
+  })
+
+  // UX4-14 (M-6 de la revisión de la Tarea 9): con un paciente largo, lo que se ajusta es su
+  // texto (`min-w-0`, `break-words`), no el chip de estado, que no se encoge ni se parte.
+  it('con un paciente largo, el texto se ajusta y el chip de estado no se encoge', async () => {
+    fetchCaseByCode.mockResolvedValue({
+      case: caso({ patientRef: 'María Fernanda Villacís Andrade de Cevallos' }),
+      missing: [],
+    })
+    vi.mocked(fetchStages).mockResolvedValue(fases)
+    renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
+
+    const paciente = await screen.findByText('María Fernanda Villacís Andrade de Cevallos')
+    expect(paciente).toHaveClass('break-words')
+    expect(paciente.parentElement).toHaveClass('min-w-0')
+    const chip = screen.getByText('En proceso')
+    expect(chip.parentElement).toBe(paciente.parentElement?.parentElement)
+    expect(chip).toHaveClass('shrink-0', 'whitespace-nowrap')
   })
 
   it('avanza la fase y muestra la fase nueva tras la mutación', async () => {
@@ -212,7 +252,9 @@ describe('QuickCase', () => {
   // UX3-22: lo que el técnico necesita saber en el banco es para cuándo es y si urge; antes
   // solo lo decía la ficha completa.
   describe('entrega y urgencia', () => {
-    it('dice la fecha de entrega comprometida', async () => {
+    // UX4-07: «Entrega» se confundía con el día de la entrega del mensajero; es la fecha
+    // comprometida con la clínica.
+    it('dice la fecha comprometida con ese nombre', async () => {
       fetchCaseByCode.mockResolvedValue({
         case: caso({ dueDate: '2999-03-01', promisedDate: '2999-03-04' }),
         missing: [],
@@ -221,10 +263,11 @@ describe('QuickCase', () => {
 
       renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
-      expect(await screen.findByText('Entrega: 04/03/2999')).toBeInTheDocument()
+      expect(await screen.findByText('Fecha comprometida: 04/03/2999')).toBeInTheDocument()
+      expect(screen.queryByText(/^Entrega:/)).not.toBeInTheDocument()
     })
 
-    it('sin fecha comprometida dice la deseada', async () => {
+    it('sin fecha comprometida dice la deseada, con su nombre', async () => {
       fetchCaseByCode.mockResolvedValue({
         case: caso({ dueDate: '2999-03-01', promisedDate: null }),
         missing: [],
@@ -233,11 +276,11 @@ describe('QuickCase', () => {
 
       renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
-      expect(await screen.findByText('Entrega: 01/03/2999')).toBeInTheDocument()
+      expect(await screen.findByText('Fecha deseada: 01/03/2999')).toBeInTheDocument()
     })
 
-    // M-2 (revisión de la Tarea 5): «Entrega: —» no se lee; se dice con palabras.
-    it('sin ninguna fecha dice «Entrega: sin fecha»', async () => {
+    // M-2 (revisión de la Tarea 5): «—» no se lee; se dice con palabras.
+    it('sin ninguna fecha dice «Fecha comprometida: sin fecha»', async () => {
       fetchCaseByCode.mockResolvedValue({
         case: caso({ dueDate: null, promisedDate: null }),
         missing: [],
@@ -246,7 +289,7 @@ describe('QuickCase', () => {
 
       renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
-      expect(await screen.findByText('Entrega: sin fecha')).toBeInTheDocument()
+      expect(await screen.findByText('Fecha comprometida: sin fecha')).toBeInTheDocument()
     })
 
     it('un trabajo urgente lo dice con texto', async () => {
@@ -267,7 +310,7 @@ describe('QuickCase', () => {
 
       renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
-      await screen.findByText('Entrega: 04/03/2999')
+      await screen.findByText('Fecha comprometida: 04/03/2999')
       expect(screen.queryByText('Urgente')).not.toBeInTheDocument()
       expect(screen.queryByText('Atrasado')).not.toBeInTheDocument()
       expect(screen.queryByText('Vence hoy')).not.toBeInTheDocument()
@@ -316,7 +359,7 @@ describe('QuickCase', () => {
 
       renderWithProviders(<QuickCase self={yo} code="26-00123" role="tecnico" />)
 
-      await screen.findByText('Entrega: 15/01/2020')
+      await screen.findByText('Fecha comprometida: 15/01/2020')
       expect(screen.queryByText('Atrasado')).not.toBeInTheDocument()
     })
   })
@@ -509,17 +552,11 @@ describe('QuickCase', () => {
     const mario = { id: 'm7', name: 'Mario Mensajero' }
 
     it.each([
-      ['por_recoger', 'Recibido'],
       ['terminado', 'Marcar enviado'],
       ['enviado', 'Marcar entregado'],
     ] as const)('en «%s» ve «%s» grande y a todo el ancho', async (status, accion) => {
-      // La recogida o la entrega pendiente es suya (M-4); «Marcar enviado» no depende de ella.
-      const pendingDelivery =
-        status === 'por_recoger'
-          ? ({ type: 'recogida', courierId: mario.id } as const)
-          : status === 'enviado'
-            ? ({ type: 'entrega', courierId: mario.id } as const)
-            : null
+      // La entrega pendiente es suya (M-4); «Marcar enviado» no depende de ella.
+      const pendingDelivery = status === 'enviado' ? pendiente('entrega', mario.id) : null
       fetchCaseByCode.mockResolvedValue({ case: caso({ status, pendingDelivery }), missing: [] })
       vi.mocked(fetchStages).mockResolvedValue(fases)
       renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
@@ -541,29 +578,29 @@ describe('QuickCase', () => {
       expect(within(dialog).getByText('Mario Mensajero')).toBeInTheDocument()
     })
 
-    it('«Recibido» se envía al primer toque', async () => {
+    // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar al laboratorio.
+    it('en su propia recogida dice adónde ir y que recepción la marca al llegar, sin «Recibido»', async () => {
       fetchCaseByCode.mockResolvedValue({
         case: caso({
           status: 'por_recoger',
-          pendingDelivery: { type: 'recogida', courierId: mario.id },
+          pendingDelivery: pendiente('recogida', mario.id),
         }),
         missing: [],
       })
       vi.mocked(fetchStages).mockResolvedValue(fases)
-      postCaseAction.mockResolvedValue(caso({ status: 'nuevo' }))
-      const user = userEvent.setup()
       renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
 
-      await user.click(await screen.findByRole('button', { name: 'Recibido' }))
-      await waitFor(() =>
-        expect(postCaseAction).toHaveBeenCalledWith('c1', { accion: 'recibir', motivo: null }),
-      )
+      expect(await screen.findByText('Recoger hoy en Clínica Uno')).toBeInTheDocument()
+      expect(
+        screen.getByText('Recepción lo marca como recibido al llegar al laboratorio.'),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Recibido' })).not.toBeInTheDocument()
     })
 
     // M-4: una entrega asignada a otro mensajero no le ofrece la acción (la API daría 403).
     it('no ve «Marcar entregado» de una entrega asignada a otro mensajero', async () => {
       fetchCaseByCode.mockResolvedValue({
-        case: caso({ status: 'enviado', pendingDelivery: { type: 'entrega', courierId: 'otro' } }),
+        case: caso({ status: 'enviado', pendingDelivery: pendiente('entrega', 'otro') }),
         missing: [],
       })
       vi.mocked(fetchStages).mockResolvedValue(fases)
@@ -571,6 +608,126 @@ describe('QuickCase', () => {
 
       expect(await screen.findByRole('heading', { name: '26-00123' })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Marcar entregado' })).not.toBeInTheDocument()
+    })
+
+    // UX4-08: sin acción, la ficha corta dice por qué (no parece un fallo de la app).
+    it('en la recogida de otro mensajero dice quién la tiene', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({
+          status: 'por_recoger',
+          pendingDelivery: pendiente('recogida', 'otro', { courierName: 'Luis Mensajero T7' }),
+        }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      expect(
+        await screen.findByText('Esta recogida la tiene Luis Mensajero T7.'),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Recibido' })).not.toBeInTheDocument()
+      // No es su tarea: ni «Recoger hoy en …» ni la dirección.
+      expect(screen.queryByText(/^Recoger /)).not.toBeInTheDocument()
+    })
+
+    it('sin entrega pendiente dice que no hay nada para él', async () => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'nuevo' }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      expect(
+        await screen.findByText('Este trabajo no tiene una entrega pendiente para ti.'),
+      ).toBeInTheDocument()
+    })
+
+    it('con una acción disponible no muestra motivo', async () => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'terminado' }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      expect(await screen.findByRole('button', { name: 'Marcar enviado' })).toBeInTheDocument()
+      expect(screen.queryByText(/no tiene una entrega pendiente/)).not.toBeInTheDocument()
+    })
+
+    it('admin no ve motivos de mensajero', async () => {
+      fetchCaseByCode.mockResolvedValue({ case: caso({ status: 'nuevo' }), missing: [] })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="admin" self={mario} />)
+
+      await screen.findByRole('heading', { level: 1, name: '26-00123' })
+      expect(screen.queryByText(/no tiene una entrega pendiente/)).not.toBeInTheDocument()
+    })
+
+    // UX4-07: al mensajero que escanea el QR la ficha le dice qué hacer, cuándo y dónde.
+    it('con su entrega de hoy dice «Entregar hoy en {clínica}» con dirección y teléfono', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({ status: 'enviado', pendingDelivery: pendiente('entrega', mario.id) }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      expect(await screen.findByText('Entregar hoy en Clínica Uno')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /Av\. 6 de Diciembre N24-1/ })).toHaveAttribute(
+        'href',
+        'https://www.google.com/maps/search/?api=1&query=Av.%206%20de%20Diciembre%20N24-1%2C%20Quito',
+      )
+      expect(screen.getByRole('link', { name: /02 222 3344/ })).toHaveAttribute(
+        'href',
+        'tel:022223344',
+      )
+      // La fecha comprometida con la clínica no es el día de su entrega: no se le muestra.
+      expect(screen.queryByText(/^Fecha comprometida/)).not.toBeInTheDocument()
+    })
+
+    it('con su recogida de otro día dice «Recoger el {fecha} en {clínica}»', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({
+          status: 'por_recoger',
+          pendingDelivery: pendiente('recogida', mario.id, { scheduledFor: '2999-10-09' }),
+        }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      expect(await screen.findByText('Recoger el 09/10/2999 en Clínica Uno')).toBeInTheDocument()
+      expect(screen.queryByText('Atrasada')).not.toBeInTheDocument()
+    })
+
+    it('con su entrega de un día pasado lo avisa con «Atrasada»', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({
+          status: 'enviado',
+          pendingDelivery: pendiente('entrega', mario.id, { scheduledFor: '2020-01-15' }),
+        }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      expect(await screen.findByText('Entregar el 15/01/2020 en Clínica Uno')).toBeInTheDocument()
+      expect(screen.getByText('Atrasada')).toBeInTheDocument()
+    })
+
+    it('la clínica sin dirección ni teléfono no deja botones vacíos', async () => {
+      fetchCaseByCode.mockResolvedValue({
+        case: caso({
+          status: 'enviado',
+          clinic: { id: 'clinica-1', name: 'Clínica Uno', address: null, city: null, phone: null },
+          pendingDelivery: pendiente('entrega', mario.id),
+        }),
+        missing: [],
+      })
+      vi.mocked(fetchStages).mockResolvedValue(fases)
+      renderWithProviders(<QuickCase code="26-00123" role="mensajero" self={mario} />)
+
+      await screen.findByText('Entregar hoy en Clínica Uno')
+      expect(screen.queryByRole('link', { name: /^Abrir en el mapa/ })).not.toBeInTheDocument()
+      expect(
+        screen.queryAllByRole('link').filter((a) => a.getAttribute('href')?.startsWith('tel:')),
+      ).toEqual([])
+      expect(screen.getByText('Sin dirección registrada')).toBeInTheDocument()
     })
 
     it('técnico y admin no cambian: sin acciones de entrega en la ficha corta', async () => {

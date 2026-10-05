@@ -1,13 +1,17 @@
+import type { DeliveryType } from '@dentalware/shared'
 import { Readable } from 'node:stream'
 import type { IdGenerator } from '../../lib/ids.ts'
 import { assertStorageKey, type Storage } from '../../lib/storage.ts'
+import { AttachmentInUseError } from './errors.ts'
 import type {
   AttachmentRecord,
   AttachmentsRepository,
   CaseEventLog,
   CasesQuery,
+  DeliveryProofLookup,
   ImageProcessor,
   NewAttachment,
+  PendingDeliveryLookup,
 } from './ports.ts'
 
 /** Almacenamiento en memoria: suficiente para probar el flujo sin disco. Cumple el mismo
@@ -62,8 +66,13 @@ export const fixedIds = (ids: string[]): IdGenerator => {
   }
 }
 
-/** Repositorio en memoria: suficiente para probar orquestación y errores. */
-export function fakeAttachmentsRepo(seed: AttachmentRecord[] = []): AttachmentsRepository {
+/** Repositorio en memoria: suficiente para probar orquestación y errores. `referencedIds` imita
+ * la FK `deliveries.proof_attachment_id` (RESTRICT): esos adjuntos no se borran, como en el repo
+ * real, que traduce la violación a `AttachmentInUseError`. */
+export function fakeAttachmentsRepo(
+  seed: AttachmentRecord[] = [],
+  { referencedIds = [] }: { referencedIds?: string[] } = {},
+): AttachmentsRepository {
   const rows = new Map(seed.map((r) => [r.id, r]))
   return {
     async insert(row: NewAttachment) {
@@ -92,6 +101,7 @@ export function fakeAttachmentsRepo(seed: AttachmentRecord[] = []): AttachmentsR
       return [...rows.values()].filter((r) => r.caseId === caseId)
     },
     async remove(id) {
+      if (referencedIds.includes(id)) throw new AttachmentInUseError()
       rows.delete(id)
     },
   }
@@ -110,3 +120,14 @@ export function recordingEvents() {
   }
   return { log, events }
 }
+
+/** Entregas en memoria: las pendientes (como mucho una por trabajo y tipo, igual que la BD) y
+ * las constancias que referencian una entrega hecha. */
+export const pendingDeliveriesWith = (
+  rows: { caseId: string; type: DeliveryType; courierId: string }[],
+  proofs: { caseId: string; attachmentId: string }[] = [],
+): PendingDeliveryLookup & DeliveryProofLookup => ({
+  pendingFor: async (caseId, type) => rows.find((r) => r.caseId === caseId && r.type === type),
+  linkedProofIds: async (caseId) =>
+    proofs.filter((p) => p.caseId === caseId).map((p) => p.attachmentId),
+})

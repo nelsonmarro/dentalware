@@ -1,6 +1,9 @@
 import {
   ATTACHMENT_UPLOAD_ROLES,
+  actionsFor,
   canChangeStage,
+  courierNoActionReason,
+  courierTaskTitle,
   DELIVERY_MANAGE_ROLES,
   DELIVERY_ROLES,
   STAGE_CHANGE_BLOCKED_REASON,
@@ -8,20 +11,22 @@ import {
   toIsoDate,
   type UserRole,
   hasRole,
+  isOwnDelivery,
 } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { Camera } from 'lucide-react'
-import { useRef } from 'react'
+import { useId, useRef } from 'react'
 import { EmptyState } from '@/components/empty-state'
 import { LoadError } from '@/components/load-error'
 import { Button } from '@/components/ui/button'
+import { ClinicContact } from '@/components/clinic-contact'
 import { useStages } from '@/features/stages/use-stages'
 import { isNotFoundError } from '@/lib/api-error'
 import { AlertChip } from './alert-chip'
 import { isPhoto } from './attachment-kind'
 import { CaseActions } from './case-actions'
 import { dueBadge, isStageVisible } from './case-views'
-import { formatDate } from './date-format'
+import { dayPhrase, formatDate } from './date-format'
 import { StatusChip } from './status-chip'
 import { useAttachments } from './use-attachments'
 import { stageNavigation } from './stage-navigation'
@@ -75,6 +80,7 @@ export function QuickCase({
   const caseId = q.data?.case.id
   const changeStage = useChangeStage(caseId ?? '')
   const photoInputRef = useRef<HTMLInputElement>(null)
+  const taskTitleId = useId()
   const { handleFiles, progress } = usePhotoUpload(caseId ?? '')
   const attachments = useAttachments(caseId ?? '')
 
@@ -107,7 +113,21 @@ export function QuickCase({
   // UX3-22: la misma fecha y el mismo semáforo que la lista y «Mis trabajos» (`dueBadge`):
   // un terminado con la fecha pasada no está «atrasado» en ningún sitio.
   const dueDate = c.promisedDate ?? c.dueDate
-  const badge = dueBadge(dueDate, toIsoDate(new Date()), c.status)
+  const today = toIsoDate(new Date())
+  const badge = dueBadge(dueDate, today, c.status)
+  // UX4-07: el rótulo dice qué fecha es. «Entrega» se leía como el día de la entrega del
+  // mensajero; es la fecha comprometida con la clínica (o, sin ella, la deseada).
+  const dateLabel = c.promisedDate || !c.dueDate ? 'Fecha comprometida' : 'Fecha deseada'
+  const courier = deliversOnly(role)
+  // UX4-07: la entrega o recogida que le toca a este mensajero: qué hacer, cuándo y dónde.
+  const myTask = courier && isOwnDelivery(self.id, c.pendingDelivery) ? c.pendingDelivery : null
+  // UX4-08: sin acción, el mensajero sabe por qué (la tiene otro, o no hay ninguna pendiente)
+  // en vez de una ficha muda que parece un fallo. Misma regla que la barra (`actionsFor`). En
+  // su recogida, qué sigue (UX4-10): «Recibido» lo marca recepción al llegar.
+  const noActionReason =
+    courier && actionsFor({ role, userId: self.id }, c.status, c.pendingDelivery).length === 0
+      ? courierNoActionReason(c.pendingDelivery, self.id)
+      : null
   // Misma fuente que la ficha completa (`stageNavigation`): qué fase sigue, si es la última y
   // si la actual está desactivada.
   const nav = stageNavigation(stages.data ?? [], c.currentStageId, stages.isError)
@@ -137,23 +157,40 @@ export function QuickCase({
 
   return (
     <div className="flex flex-col gap-5">
+      {/* UX4-14: lo que se ajusta con un paciente largo es su texto (`min-w-0`), no el chip. */}
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="font-mono text-2xl font-semibold">{c.code}</h1>
-          <p className="text-lg">{c.patientRef}</p>
+          <p className="text-lg break-words">{c.patientRef}</p>
         </div>
         <StatusChip status={c.status} />
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 empty:hidden">
         {/* M-2: sin fecha, con palabras; el «—» de `formatDate` no se lee en voz alta ni de un
-            vistazo. */}
-        <span className="text-base font-medium">
-          {`Entrega: ${dueDate ? formatDate(dueDate) : 'sin fecha'}`}
-        </span>
+            vistazo. Al mensajero no se le muestra (UX4-07): su fecha es la de su tarea, abajo. */}
+        {!courier && (
+          <span className="text-base font-medium">
+            {`${dateLabel}: ${dueDate ? formatDate(dueDate) : 'sin fecha'}`}
+          </span>
+        )}
         {c.priority === 'urgente' && <AlertChip tone="destructive">Urgente</AlertChip>}
-        {badge === 'atrasado' && <AlertChip tone="destructive">Atrasado</AlertChip>}
-        {badge === 'hoy' && <AlertChip tone="amber">Vence hoy</AlertChip>}
+        {!courier && badge === 'atrasado' && <AlertChip tone="destructive">Atrasado</AlertChip>}
+        {!courier && badge === 'hoy' && <AlertChip tone="amber">Vence hoy</AlertChip>}
       </div>
+      {myTask && (
+        <section
+          aria-labelledby={taskTitleId}
+          className="flex min-w-0 flex-col gap-3 rounded-xl border-t-4 border-t-primary bg-card p-4 ring-1 ring-foreground/10"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 id={taskTitleId} className="font-heading text-lg leading-tight font-semibold">
+              {courierTaskTitle(myTask.type, dayPhrase(myTask.scheduledFor, today), c.clinic.name)}
+            </h2>
+            {myTask.scheduledFor < today && <AlertChip tone="destructive">Atrasada</AlertChip>}
+          </div>
+          <ClinicContact clinic={c.clinic} />
+        </section>
+      )}
       {/* UX3-23: misma regla que la ficha completa (`case-header`, `stage-control`): fuera de
           producción la fase guardada ya no describe el trabajo (un terminado no está en
           «Recepción»). */}
@@ -162,6 +199,7 @@ export function QuickCase({
           <span>Fase:</span> <span className="font-medium text-foreground">{c.stage.name}</span>
         </p>
       )}
+      {noActionReason && <p className="text-base">{noActionReason}</p>}
       {blockedReason && <p className="text-sm text-muted-foreground">{blockedReason}</p>}
       {stagesProblem && <p className="text-sm text-muted-foreground">{stagesProblem}</p>}
       {canControl && last && (
@@ -169,7 +207,7 @@ export function QuickCase({
           Es la última fase: usa la ficha completa para finalizar el trabajo.
         </p>
       )}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 empty:hidden">
         {canControl && !last && (
           <Button
             className="h-14 w-full text-base"
@@ -184,7 +222,7 @@ export function QuickCase({
         {/* El mensajero: su acción de entrega, en grande, solo si la entrega es suya (M-4,
             `canActOnDelivery` dentro de `CaseActions`). Admin, recepción y técnico producen y
             siguen con «Avanzar fase» (la ficha completa tiene el resto). */}
-        {deliversOnly(role) && (
+        {courier && (
           <CaseActions case={c} missing={q.data.missing} role={role} self={self} size="large" />
         )}
         {canUpload && (

@@ -1,4 +1,10 @@
-import type { CasePriority, CaseStatus, DeliveryStatus, DeliveryType } from '@dentalware/shared'
+import type {
+  CasePriority,
+  CaseStatus,
+  DeliveryStatus,
+  DeliveryType,
+  PendingDelivery,
+} from '@dentalware/shared'
 // Solo tipos: la forma de fila se deriva del schema (mismo ruling que `cases/ports.ts`, ADR 25).
 import type { deliveries } from './schema.ts'
 
@@ -24,6 +30,9 @@ export type DeliveryListItem = {
    * fallida antes de reprogramar (`fallida`) — no solo la de una entrega completada. */
   doneAt: Date | null
   failedReason: string | null
+  /** Fallida: la fecha a la que «No se pudo» la reprogramó (UX4-18); `null` en el resto y en
+   * la que cerró la cancelación del trabajo, que no se reprograma. */
+  rescheduledFor: string | null
   case: {
     id: string
     code: string
@@ -31,7 +40,14 @@ export type DeliveryListItem = {
     status: CaseStatus
     priority: CasePriority
   }
-  clinic: { id: string; name: string; address: string | null; phone: string | null }
+  clinic: {
+    id: string
+    name: string
+    address: string | null
+    /** Para que el mapa busque la dirección en su ciudad (UX4-21). */
+    city: string | null
+    phone: string | null
+  }
   courier: { id: string; name: string }
 }
 
@@ -40,7 +56,11 @@ export interface DeliveriesRepository {
   byId(id: string): Promise<DeliveryRow | undefined>
   /** La entrega pendiente de un tipo para un trabajo (como mucho una). */
   pendingFor(caseId: string, type: DeliveryType): Promise<DeliveryRow | undefined>
-  /** Cierra como hecha solo si sigue `pendiente`; `false` si otra operación la cerró antes. */
+  /** Ids de las constancias de un trabajo que referencia una entrega hecha (UX4-06): cumple el
+   * puerto `DeliveryProofLookup` de `attachments` en la raíz de composición. */
+  linkedProofIds(caseId: string): Promise<string[]>
+  /** Cierra como hecha solo si sigue `pendiente`; `false` si otra operación la cerró antes.
+   * Lanza `DeliveryProofMissingError` si la constancia ya no existe. */
   markDone(id: string, doneAt: Date, proofAttachmentId: string | null): Promise<boolean>
   /** Cierra como fallida solo si sigue `pendiente`; `false` si otra operación la cerró antes. */
   markFailed(id: string, reason: string, at: Date): Promise<boolean>
@@ -53,6 +73,18 @@ export interface DeliveriesRepository {
 }
 
 export type Named = { id: string; name: string }
+
+/**
+ * Lectura de las entregas de un trabajo para su ficha (UX4-07/09): la pendiente y la última
+ * entrega hecha, con el nombre del mensajero. Cumple estructuralmente el puerto
+ * `CaseDeliveriesQuery` de `cases` en la raíz de composición (ADR 24/34). Sin dinero.
+ */
+export interface CaseDeliveryInfoQuery {
+  deliveryInfo(caseId: string): Promise<{
+    pending: PendingDelivery | null
+    lastDelivered: { doneAt: Date; courierName: string; proofAttachmentId: string | null } | null
+  }>
+}
 
 /** Puerto de OTRA feature (usuarios, ADR 24/29): mensajeros activos para el selector, sin
  * exponer correo, rol ni baneo — mismo patrón que `UsersQuery.activeTechnicians` de `cases`. */
@@ -69,6 +101,8 @@ export interface CaseEventLog {
   addEvent(e: {
     caseId: string
     type: 'delivery_failed'
+    /** El tipo de lo que falló (`recogida`/`entrega`), para que el historial lo nombre (UX4-16). */
+    fromValue: DeliveryType
     toValue: string
     reason: string
     actorId: string

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { toastApiError } from '@/lib/api-error'
+import { ApiError, toastApiError } from '@/lib/api-error'
 import { queryKeys } from '@/lib/query-keys'
 import { deleteAttachment, fetchAttachments, uploadAttachment } from './attachments-api'
 
@@ -36,6 +36,13 @@ export function useDeleteAttachment(caseId: string) {
       void qc.invalidateQueries({ queryKey: queryKeys.caseEvents(caseId) })
       toast.success('Adjunto eliminado')
     },
-    onError: toastApiError,
+    // Convención §5: un 409 (la constancia quedó ligada a una entrega hecha) espera el refresco
+    // de los adjuntos y después avisa, para que la lista ya no ofrezca borrarla.
+    onError: async (error) => {
+      if (error instanceof ApiError && error.status === 409) {
+        await qc.invalidateQueries({ queryKey: queryKeys.attachments(caseId) })
+      }
+      toastApiError(error)
+    },
   })
 }

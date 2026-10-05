@@ -27,6 +27,7 @@ import type {
 import { CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type {
   AttachmentsQuery,
+  CaseDeliveriesQuery,
   CaseDetail,
   CaseEventRow,
   CasesRepository,
@@ -86,7 +87,13 @@ export function caseDetailFixture(over: Partial<CaseDetail> = {}): CaseDetail {
     createdBy: 'u1',
     createdAt: new Date('2026-09-09T12:00:00Z'),
     updatedAt: new Date('2026-09-09T12:00:00Z'),
-    clinic: { id: CLINIC_ID, name: 'Sonrisa' },
+    clinic: {
+      id: CLINIC_ID,
+      name: 'Sonrisa',
+      address: 'Av. Amazonas N34-12',
+      city: 'Quito',
+      phone: '02 255 1234',
+    },
     doctor: { id: DOCTOR_ID, name: 'Dr. Pérez' },
     technician: null,
     stage: null,
@@ -190,10 +197,15 @@ function matchesView(view: CaseView | undefined, today: string, r: CaseDetail): 
     case 'vencen_hoy':
       return activeForDates && effectiveDate === today
     case 'vencen_manana': {
-      // Mismo cálculo que `viewCondition` (`repo.ts`, CAL-2): el siguiente día *hábil*, no el
-      // día de calendario siguiente.
+      // Mismo cálculo que `viewCondition` (`repo.ts`, CAL-2, UX4-04): hasta el siguiente día
+      // *hábil*, sin incluir hoy.
       const siguienteDiaHabil = toIsoDate(addBusinessDays(new Date(`${today}T00:00:00`), 1, []))
-      return activeForDates && effectiveDate === siguienteDiaHabil
+      return (
+        activeForDates &&
+        effectiveDate !== null &&
+        effectiveDate > today &&
+        effectiveDate <= siguienteDiaHabil
+      )
     }
     case 'atrasados':
       return activeForDates && effectiveDate !== null && effectiveDate < today
@@ -489,10 +501,41 @@ export type FakeDelivery = {
 /** `DeliveryLog` en memoria (Iteración 4): suficiente para probar que el servicio programa,
  * encuentra y cierra la entrega pendiente. El repositorio completo de entregas y su fake viven
  * en la feature `deliveries`; aquí solo lo que el puerto de `cases` necesita. */
-export function fakeDeliveryLog(seed: FakeDelivery[] = []) {
+export function fakeDeliveryLog(
+  seed: FakeDelivery[] = [],
+  /** Nombre de cada mensajero por id; sin él, el nombre es el id. */
+  courierNames: Record<string, string> = {},
+) {
   const rows = new Map(seed.map((r) => [r.id, r]))
   let seq = seed.length
-  const log: DeliveryLog = {
+  const nameOf = (id: string) => courierNames[id] ?? id
+  // Un mismo almacén en memoria cumple el puerto de escritura (`DeliveryLog`) y la lectura de
+  // la ficha (`CaseDeliveriesQuery`), como en la API los cumple la misma tabla.
+  const log: DeliveryLog & CaseDeliveriesQuery = {
+    async deliveryInfo(caseId) {
+      const mine = [...rows.values()].filter((r) => r.caseId === caseId)
+      const pending = mine.find((r) => r.status === 'pendiente')
+      const last = mine
+        .filter((r) => r.type === 'entrega' && r.status === 'hecha' && r.doneAt)
+        .sort((a, b) => b.doneAt!.getTime() - a.doneAt!.getTime())[0]
+      return {
+        pending: pending
+          ? {
+              type: pending.type,
+              courierId: pending.courierId,
+              courierName: nameOf(pending.courierId),
+              scheduledFor: pending.scheduledFor,
+            }
+          : null,
+        lastDelivered: last
+          ? {
+              doneAt: last.doneAt!,
+              courierName: nameOf(last.courierId),
+              proofAttachmentId: last.proofAttachmentId,
+            }
+          : null,
+      }
+    },
     async create(d) {
       seq += 1
       const id = `d${seq}`

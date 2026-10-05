@@ -1,6 +1,12 @@
 import type { CaseStatus, RemakeInput } from '@dentalware/shared'
 import { describe, expect, it } from 'vitest'
-import { CaseForbiddenError, CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
+import {
+  CaseForbiddenError,
+  CaseInputError,
+  CaseNotFoundError,
+  CaseStateError,
+  DeliveryProofMissingError,
+} from './errors.ts'
 import {
   caseDetailFixture,
   caseInputFixture,
@@ -891,17 +897,31 @@ describe('resumen del día', () => {
     expect(r.todos).toBe(1)
   })
 
-  // CAL-2 (#80, Tarea 8): "vencen mañana" es el siguiente día hábil (ADR 30), no el día
-  // de calendario siguiente. '2026-09-18' es viernes: "mañana" es el lunes '2026-09-21',
-  // nunca el sábado '2026-09-19'.
-  it('"vencen mañana" cuenta el siguiente día hábil, saltando el fin de semana', async () => {
+  // CAL-2 (#80) y UX4-04: «vencen mañana» es `hoy < fecha ≤ siguiente día hábil` (ADR 30).
+  // '2026-09-18' es viernes: entran el sábado 19 y el lunes 21, no hoy ni el martes 22.
+  it('"vencen mañana" llega hasta el siguiente día hábil, incluido el fin de semana', async () => {
     const service = servicioParaResumen(
       [
         completo({ id: '1', status: 'en_proceso', promisedDate: '2026-09-21', dueDate: null }),
         completo({ id: '2', status: 'en_proceso', promisedDate: '2026-09-19', dueDate: null }),
         completo({ id: '3', status: 'terminado', promisedDate: '2026-09-21', dueDate: null }),
+        completo({ id: '4', status: 'en_proceso', promisedDate: '2026-09-18', dueDate: null }),
+        completo({ id: '5', status: 'en_proceso', promisedDate: '2026-09-22', dueDate: null }),
       ],
       '2026-09-18',
+    )
+    const r = await service.summary()
+    expect(r.vencen_manana).toBe(2)
+  })
+
+  it('"vencen mañana" el domingo solo cuenta el lunes', async () => {
+    const service = servicioParaResumen(
+      [
+        completo({ id: '1', status: 'en_proceso', promisedDate: '2026-09-21', dueDate: null }),
+        completo({ id: '2', status: 'en_proceso', promisedDate: '2026-09-19', dueDate: null }),
+        completo({ id: '3', status: 'en_proceso', promisedDate: '2026-09-20', dueDate: null }),
+      ],
+      '2026-09-20',
     )
     const r = await service.summary()
     expect(r.vencen_manana).toBe(1)
@@ -1022,9 +1042,19 @@ describe('recogida', () => {
     expect(rows.size).toBe(0)
   })
 
-  it('el mensajero asignado recibe: el trabajo pasa a nuevo, la recogida queda hecha y hay evento picked_up', async () => {
+  // UX4-10 (Nelson, 2026-10-04): «Recibido» lo marca recepción al llegar al laboratorio.
+  it('el mensajero no recibe ni su propia recogida: la recogida sigue pendiente', async () => {
+    const { service, rows, deliveries } = porRecogerDeMario()
+    await expect(
+      service.action('1', { accion: 'recibir', motivo: null }, mensajero),
+    ).rejects.toBeInstanceOf(CaseForbiddenError)
+    expect(rows.get('1')!.status).toBe('por_recoger')
+    expect(deliveries.rows.get('d1')!.status).toBe('pendiente')
+  })
+
+  it('recepción recibe: el trabajo pasa a nuevo, la recogida queda hecha y hay evento picked_up', async () => {
     const { service, deliveries } = porRecogerDeMario()
-    const c = await service.action('1', { accion: 'recibir', motivo: null }, mensajero)
+    const c = await service.action('1', { accion: 'recibir', motivo: null }, recepcion)
     expect(c.status).toBe('nuevo')
     expect(deliveries.rows.get('d1')).toMatchObject({
       status: 'hecha',
@@ -1036,7 +1066,7 @@ describe('recogida', () => {
       type: 'picked_up',
       fromValue: 'por_recoger',
       toValue: 'nuevo',
-      actorId: 'u3',
+      actorId: recepcion.userId,
     })
   })
 
@@ -1314,6 +1344,25 @@ describe('envío y entrega', () => {
       expect(deliveries.rows.get('d1')!.status).toBe('pendiente')
     },
   )
+
+  // M-2: la constancia existía al leerla, pero se borró antes de ligarla a la entrega. El
+  // adaptador lo dice con `DeliveryProofMissingError` y el servicio responde como a una
+  // constancia inválida (422), no con un error sin traducir (500).
+  it('si la constancia desaparece al ligarla, lanza CaseInputError en constanciaId', async () => {
+    const deliveries = fakeDeliveryLog([entregaDeMario])
+    deliveries.log.markDone = () => Promise.reject(new DeliveryProofMissingError())
+    const { service, rows } = servicioConEntrega(
+      completo({ id: '1', status: 'enviado', total: '90.00' }),
+      { deliveries },
+    )
+    const error = await service.action('1', entregar('a1'), admin).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(CaseInputError)
+    expect(error).toMatchObject({
+      message: 'La foto de constancia no es de este trabajo.',
+      path: 'constanciaId',
+    })
+    expect(rows.get('1')!.status).toBe('enviado')
+  })
 })
 
 // Revisión final del PR 1 de la Iteración 4 (I-1): cancelar un trabajo cierra su recogida o
@@ -1474,20 +1523,22 @@ describe('entrega pendiente en el detalle', () => {
     type: 'recogida' | 'entrega',
     status: 'pendiente' | 'hecha' | 'fallida',
     courierId = 'u3',
+    extra: { id?: string; doneAt?: Date | null; proofAttachmentId?: string | null } = {},
   ) => ({
-    id: `d-${type}-${status}`,
+    id: extra.id ?? `d-${type}-${status}`,
     caseId: '1',
     type,
     courierId,
     scheduledFor: '2026-10-03',
     status,
-    doneAt: null,
-    proofAttachmentId: null,
+    doneAt: extra.doneAt ?? null,
+    proofAttachmentId: extra.proofAttachmentId ?? null,
   })
+  const nombres = { u3: 'Mario Mensajero', u9: 'Luis Mensajero' }
 
   function servicio(status: CaseStatus, seed: ReturnType<typeof entrega>[]) {
     const { repo } = fakeCasesRepo([completo({ id: '1', code: '26-00042', status })])
-    const deliveries = fakeDeliveryLog(seed)
+    const deliveries = fakeDeliveryLog(seed, nombres)
     return createCasesService({
       cases: repo,
       attachments: fakeAttachmentsQuery(true),
@@ -1500,10 +1551,16 @@ describe('entrega pendiente en el detalle', () => {
     })
   }
 
-  it('un trabajo por recoger trae su recogida pendiente y el mensajero asignado', async () => {
+  // UX4-07: la ficha corta del mensajero dice para qué día y con quién, no solo el id.
+  it('un trabajo por recoger trae su recogida pendiente con mensajero y fecha', async () => {
     const service = servicio('por_recoger', [entrega('recogida', 'pendiente', 'u9')])
     const { case: found } = await service.detail('1', mensajero)
-    expect(found.pendingDelivery).toEqual({ type: 'recogida', courierId: 'u9' })
+    expect(found.pendingDelivery).toEqual({
+      type: 'recogida',
+      courierId: 'u9',
+      courierName: 'Luis Mensajero',
+      scheduledFor: '2026-10-03',
+    })
   })
 
   it('la ficha corta por código trae la entrega pendiente de un trabajo enviado', async () => {
@@ -1512,12 +1569,73 @@ describe('entrega pendiente en el detalle', () => {
       entrega('entrega', 'pendiente', 'u3'),
     ])
     const { case: found } = await service.detailByCode('26-00042', mensajero)
-    expect(found.pendingDelivery).toEqual({ type: 'entrega', courierId: 'u3' })
+    expect(found.pendingDelivery).toEqual({
+      type: 'entrega',
+      courierId: 'u3',
+      courierName: 'Mario Mensajero',
+      scheduledFor: '2026-10-03',
+    })
   })
 
   it('sin entrega pendiente trae null aunque haya entregas cerradas', async () => {
     const service = servicio('entregado', [entrega('entrega', 'hecha')])
     const { case: found } = await service.detail('1', admin)
     expect(found.pendingDelivery).toBeNull()
+  })
+
+  // UX4-09: «Entregado el 04/10 por … · Ver constancia».
+  it('un trabajo entregado trae la última entrega hecha con mensajero y constancia', async () => {
+    const service = servicio('entregado', [
+      entrega('entrega', 'hecha', 'u9', {
+        id: 'vieja',
+        doneAt: new Date('2026-10-01T15:00:00Z'),
+        proofAttachmentId: 'a1',
+      }),
+      entrega('entrega', 'hecha', 'u3', {
+        id: 'nueva',
+        doneAt: new Date('2026-10-03T16:30:00Z'),
+        proofAttachmentId: 'a2',
+      }),
+      entrega('recogida', 'hecha', 'u9', {
+        id: 'recogida',
+        doneAt: new Date('2026-10-04T10:00:00Z'),
+      }),
+    ])
+    const { case: found } = await service.detail('1', mensajero)
+    expect(found.lastDelivered).toEqual({
+      doneAt: '2026-10-03T16:30:00.000Z',
+      courierName: 'Mario Mensajero',
+      proofAttachmentId: 'a2',
+    })
+  })
+
+  it('sin entrega hecha la última entrega es null (una recogida hecha no cuenta)', async () => {
+    const service = servicio('nuevo', [
+      entrega('recogida', 'hecha', 'u9', { doneAt: new Date('2026-10-02T10:00:00Z') }),
+      entrega('entrega', 'fallida'),
+    ])
+    const { case: found } = await service.detail('1', admin)
+    expect(found.lastDelivered).toBeNull()
+  })
+
+  // UX4-07: la ficha corta lleva al mensajero a la clínica (mapa y llamada).
+  it('la clínica del detalle trae dirección y teléfono', async () => {
+    const service = servicio('enviado', [])
+    const { case: found } = await service.detail('1', mensajero)
+    expect(found.clinic).toEqual({
+      id: expect.any(String),
+      name: 'Sonrisa',
+      address: 'Av. Amazonas N34-12',
+      city: 'Quito',
+      phone: '02 255 1234',
+    })
+  })
+
+  it('el mensajero sigue sin ver dinero con la entrega en el detalle', async () => {
+    const service = servicio('enviado', [entrega('entrega', 'pendiente', 'u3')])
+    const { case: found } = await service.detail('1', mensajero)
+    expect(found.total).toBeNull()
+    expect(found.remakeChargePct).toBeNull()
+    expect(found.items.every((i) => i.unitPrice === null && i.lineTotal === null)).toBe(true)
   })
 })

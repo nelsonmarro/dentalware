@@ -17,3 +17,9 @@ export function formatTimestampDate(timestamp: string, timeZone?: string): strin
     timeZone,
   }).format(new Date(timestamp))
 }
+
+/** El día de algo programado, para insertarlo en una frase (UX4-07/09): «hoy» o «el dd/mm/aaaa»
+ * («Entregar hoy en …», «Sale el 09/10/2026 con …»). `today` es `AAAA-MM-DD` local. */
+export function dayPhrase(date: string, today: string): string {
+  return date === today ? 'hoy' : `el ${formatDate(date)}`
+}

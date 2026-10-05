@@ -21,6 +21,7 @@ import { createCasesService } from './features/cases/service.ts'
 import { clinicsRoutes } from './features/clinics/routes.ts'
 import {
   createCouriersQuery,
+  createCaseDeliveryInfoQuery,
   createDeliveriesRepo,
   drizzleDeliveriesUnitOfWork,
 } from './features/deliveries/repo.ts'
@@ -74,9 +75,9 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
       findActiveCourier: async (userId) =>
         (await couriersQuery.activeCouriers()).find((c) => c.id === userId),
     },
-    // Lectura de la entrega pendiente para la ficha (M-4), fuera de la transacción; las
-    // escrituras de entregas siguen dentro de `uow.run`.
-    deliveries: createDeliveriesRepo(db),
+    // Lectura de la entrega pendiente y de la última hecha para la ficha (M-4, UX4-07/09),
+    // fuera de la transacción; las escrituras de entregas siguen dentro de `uow.run`.
+    deliveries: createCaseDeliveryInfoQuery(db),
     // Sin `tryins` aquí: el servicio solo accede a pruebas en boca dentro de `uow.run`
     // (transaccional, ADR 19). Una instancia suelta invitaría a escribir fuera de la tx.
     uow: casesUow,
@@ -103,6 +104,9 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     attachments: attachmentsRepo,
     cases: { exists: async (id) => (await casesRepo.byId(id)) !== undefined },
     events: { add: (e) => casesRepo.addEvent(e) },
+    // `PendingDeliveryLookup` y `DeliveryProofLookup` los declara `attachments`; aquí se cumplen
+    // con el repo de `deliveries` (ADR 34), sin que una feature importe el `repo.ts` de la otra.
+    deliveries: createDeliveriesRepo(db),
     storage,
     images: sharpImages,
     ids: ids ?? randomIds,

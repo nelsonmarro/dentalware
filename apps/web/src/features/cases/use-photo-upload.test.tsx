@@ -187,23 +187,7 @@ describe('usePhotoUpload', () => {
     expect(onUploaded).not.toHaveBeenCalled()
   })
 
-  // ENT-4 (Iteración 4): la constancia de entrega sube por el mismo endpoint con su tipo.
-  it('con kind «constancia» lo envía en el formulario de la subida', async () => {
-    uploadAttachment.mockResolvedValue({ id: 'a1' })
-    const { result } = renderHook(() => usePhotoUpload('caso-1', { kind: 'constancia' }), {
-      wrapper,
-    })
-    const file = new File(['contenido'], 'foto.png', { type: 'image/png' })
-
-    await act(async () => {
-      await result.current.handleFiles(fileList([file]))
-    })
-
-    const form = uploadAttachment.mock.calls[0]![1] as FormData
-    expect(form.get('kind')).toBe('constancia')
-  })
-
-  it('sin kind no lo envía (la API decide el tipo por el archivo)', async () => {
+  it('no fija el tipo del adjunto: la API lo decide por el archivo', async () => {
     uploadAttachment.mockResolvedValue({ id: 'a1' })
     const { result } = renderHook(() => usePhotoUpload('caso-1'), { wrapper })
     const file = new File(['contenido'], 'foto.png', { type: 'image/png' })

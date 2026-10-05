@@ -8,6 +8,7 @@ import type {
   CaseStatus,
   CaseSummary,
   DeliveryType,
+  PendingDelivery,
   PricingUnit,
   RemakeInput,
   StageRef,
@@ -20,7 +21,9 @@ export type CaseDetail = typeof cases.$inferSelect & {
   // `clinic`/`doctor` van con `optional: false` en `relations.ts` (FK NOT NULL en
   // `cases`): Drizzle Relations v2 los tipa como presentes, no `| null` (ver
   // docs/architecture.md §3). `technician`/`stage` sí son opcionales de verdad.
-  clinic: Named
+  // Dirección y teléfono (UX4-07): la ficha corta del mensajero lleva a la clínica (mapa y
+  // llamada). No son dinero: los ve cualquier rol, igual que en «Entregas».
+  clinic: Named & { address: string | null; city: string | null; phone: string | null }
   doctor: Named
   technician: Named | null
   stage: { id: string; name: string; color: string } | null
@@ -243,11 +246,25 @@ export interface DeliveryLog {
     caseId: string,
     type: DeliveryType,
   ): Promise<{ id: string; courierId: string } | undefined>
-  /** Cierra como hecha solo si sigue `pendiente`; `false` si otra operación la cerró antes. */
+  /** Cierra como hecha solo si sigue `pendiente`; `false` si otra operación la cerró antes.
+   * Lanza `DeliveryProofMissingError` si la constancia ya no existe (se borró antes de ligarla). */
   markDone(id: string, doneAt: Date, proofAttachmentId: string | null): Promise<boolean>
   /** Cierra sin hacerla una entrega o recogida pendiente (p. ej. al cancelar el trabajo), solo si
    * sigue `pendiente`; `false` si otra operación la cerró antes. */
   markFailed(id: string, reason: string, at: Date): Promise<boolean>
+}
+
+/**
+ * Lectura de las entregas de un trabajo para su ficha (UX4-07/09), fuera de la transacción:
+ * la pendiente (como mucho una: un trabajo está por recoger o enviado, no las dos cosas) y la
+ * última entrega hecha, con el nombre del mensajero. Lo cumple `createCaseDeliveryInfoQuery` de
+ * `deliveries` en la raíz de composición (ADR 24/34). Sin dinero.
+ */
+export interface CaseDeliveriesQuery {
+  deliveryInfo(caseId: string): Promise<{
+    pending: PendingDelivery | null
+    lastDelivered: { doneAt: Date; courierName: string; proofAttachmentId: string | null } | null
+  }>
 }
 
 /** Pruebas en boca (`case_tryins`): abiertas por trabajo, cerradas al recibirlas de vuelta. */

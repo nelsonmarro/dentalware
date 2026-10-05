@@ -8,7 +8,7 @@ import type {
 } from '@dentalware/shared'
 import { toast } from 'sonner'
 import { ApiError, toastApiError } from '@/lib/api-error'
-import { queryKeys } from '@/lib/query-keys'
+import { mutationKeys, queryKeys } from '@/lib/query-keys'
 import type { CaseListQueryInput } from './api'
 import {
   assignTechnician,
@@ -105,6 +105,7 @@ export function useCaseAction(id: string) {
   const invalidate = useInvalidateCases()
   const onError = useConflictAwareError()
   return useMutation({
+    mutationKey: mutationKeys.caseAction(id),
     mutationFn: (input: CaseActionInput) => postCaseAction(id, input),
     onSuccess: async (_updated, input) => {
       await invalidate()

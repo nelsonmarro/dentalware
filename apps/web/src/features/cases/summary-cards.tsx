@@ -1,8 +1,9 @@
 import type { CaseView } from '@dentalware/shared'
-import { CASE_VIEWS } from '@dentalware/shared'
+import { CASE_VIEWS, toIsoDate } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 import { LoadError } from '@/components/load-error'
-import { CASE_VIEW_LABEL } from './case-views'
+import { caseViewLabel } from './case-views'
 import { STATUS_COLOR } from './status-chip'
 import { useSummary } from './use-summary'
 
@@ -27,17 +28,31 @@ const VIEW_COLOR: Record<CaseView, string> = {
 
 const SUMMARY_VIEWS = CASE_VIEWS.filter((v): v is Exclude<CaseView, 'todos'> => v !== 'todos')
 
-export function SummaryCards() {
+/** `extra`: una tarjeta más al final de la rejilla (las entregas del día de recepción,
+ * UX4-22), que la compone quien sabe del rol (`HomeSummary`). */
+export function SummaryCards({ extra }: { extra?: ReactNode } = {}) {
   const summary = useSummary()
+  const today = toIsoDate(new Date())
 
   // UX3-02: antes de este cambio, un fallo de red dejaba las seis tarjetas en "—" con
   // `aria-label` "cargando" para siempre — un estado de carga permanente, no un error.
+  // La tarjeta extra (las entregas) no depende del resumen de trabajos: si este falla, sigue a
+  // la vista junto al aviso (M-5, revisión T9).
   if (summary.isError) {
-    return <LoadError onRetry={() => void summary.refetch()} />
+    return (
+      <div className="flex flex-col gap-3">
+        <LoadError onRetry={() => void summary.refetch()} />
+        {extra && (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{extra}</div>
+        )}
+      </div>
+    )
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    // UX4-22: cuatro columnas en escritorio. Con seis, las siete tarjetas dejaban «Listos» sola
+    // en la segunda fila; con cuatro, 4 + 3 (técnico) o 4 + 4 con las entregas de recepción.
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
       {SUMMARY_VIEWS.map((vista) => {
         const count = summary.data?.[vista]
         // "En curso" ya incluye los trabajos "en prueba" (ruling PR 2, T12: `viewCondition` en
@@ -57,8 +72,8 @@ export function SummaryCards() {
             // en el nombre: quien usa lector de pantalla necesita la misma aclaración.
             aria-label={
               count === undefined
-                ? `${CASE_VIEW_LABEL[vista]}, cargando`
-                : [`${CASE_VIEW_LABEL[vista]} ${count}`, note].filter(Boolean).join(', ')
+                ? `${caseViewLabel(vista, today)}, cargando`
+                : [`${caseViewLabel(vista, today)} ${count}`, note].filter(Boolean).join(', ')
             }
             className="flex min-h-[88px] flex-col justify-between gap-2 rounded-xl border-l-4 bg-card p-4 ring-1 ring-foreground/10 transition-colors hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             style={{ borderLeftColor: VIEW_COLOR[vista] }}
@@ -66,13 +81,14 @@ export function SummaryCards() {
             {/* La nota va con el rótulo, arriba: el número queda abajo en todas las tarjetas
                 (con tres hijos, `justify-between` lo subía en «En curso»). */}
             <span className="flex flex-col gap-0.5">
-              <span className="text-sm text-muted-foreground">{CASE_VIEW_LABEL[vista]}</span>
+              <span className="text-sm text-muted-foreground">{caseViewLabel(vista, today)}</span>
               {note && <span className="text-xs text-muted-foreground">{note}</span>}
             </span>
             <span className="font-mono text-2xl font-semibold tabular-nums">{count ?? '—'}</span>
           </Link>
         )
       })}
+      {extra}
     </div>
   )
 }

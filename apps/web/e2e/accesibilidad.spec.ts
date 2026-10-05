@@ -4,6 +4,7 @@ import {
   createCourier,
   createProduct,
   expectTouchTargets,
+  FOTO_PATH,
   login,
   loginAsAdmin,
   shipAndDeliver,
@@ -24,6 +25,8 @@ async function createCase(
     teeth?: number[]
     dueDate?: string
     prescription?: string
+    /** «Programar recogida» al crear (ENT-1): el trabajo nace `por_recoger`. */
+    recogida?: { mensajeroId: string; fecha: string }
   },
 ) {
   const res = await page.request.post('/api/trabajos', {
@@ -43,6 +46,7 @@ async function createCase(
           discountPct: 0,
         },
       ],
+      ...(opts.recogida ? { recogida: opts.recogida } : {}),
     },
   })
   expect(res.ok()).toBe(true)
@@ -332,6 +336,44 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // UX4-02 y UX4-25: los enlaces entre el original y su repetición (aviso «Repetido» y bloque
+  // «Repeticiones» en el original; «Repetición de …» en la ficha de la repetición).
+  test(
+    'ficha de un original y de su repetición: enlaces entre ambos',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, created.id, accion)
+      }
+      const courier = await createCourier(page)
+      await shipAndDeliver(page, created.id, courier.id)
+      const remake = await page.request.post(`/api/trabajos/${created.id}/repetir`, {
+        data: { motivo: 'Fractura (E2E)', responsabilidad: 'laboratorio', cobroPct: 0 },
+      })
+      expect(remake.ok()).toBe(true)
+      const { case: child } = (await remake.json()) as { case: { id: string; code: string } }
+
+      await page.goto(`/trabajos/${created.id}`)
+      await expect(page.getByRole('link', { name: `Repetido: ${child.code}` })).toBeVisible()
+      await expectTouchTargets(page, 'a[href]:has-text("Repetido:")')
+      await expect(page.getByRole('heading', { name: 'Repeticiones' })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+      await expectTouchTargets(page, 'a[href]:has-text("' + child.code + '")')
+
+      await page.goto(`/trabajos/${child.id}`)
+      const enlace = page.getByRole('link', { name: `Repetición de ${created.code}` })
+      await expect(enlace).toBeVisible()
+      await expectTouchTargets(page, 'a[href]:has-text("Repetición de")')
+    },
+  )
+
   // Iteración 4 (ENT-1): la sección plegable del formulario, abierta.
   test(
     'nuevo trabajo: sección «Programar recogida» abierta',
@@ -459,8 +501,122 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await group.getByRole('button', { name: 'No se pudo' }).click()
     const dialog = page.getByRole('dialog', { name: 'No se pudo entregar' })
     await expect(dialog.getByLabel('Nueva fecha')).toBeVisible()
+    // UX4-12: los chips de motivo frecuente también miden 44 px.
+    await expect(
+      dialog.getByRole('group', { name: 'Motivos frecuentes' }).getByRole('button'),
+    ).toHaveCount(4)
     await expectTouchTargets(dialog, TOUCH_CONTROLS)
   })
+
+  // Ola UI/UX It4: «Entregas» del mensajero (sin filtro de mensajero, con el día), con su
+  // recogida y su entrega, el diálogo «No se pudo recoger» con los motivos frecuentes y
+  // «Marcar entregado» con la foto ya elegida («Cambiar foto»).
+  test(
+    'entregas del mensajero: su recogida, su entrega y los diálogos',
+    { tag: '@extendida' },
+    async ({ page, browser }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page, {
+        address: 'Av. Amazonas N34-120 y Atahualpa',
+        phone: '099 123 4567',
+      })
+      const product = await createProduct(page)
+      const courier = await createCourier(page)
+      const enviado = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, enviado.id, accion)
+      }
+      const shipped = await page.request.post(`/api/trabajos/${enviado.id}/acciones`, {
+        data: { accion: 'marcar_enviado', envio: { mensajeroId: courier.id, fecha: todayIso() } },
+      })
+      expect(shipped.ok()).toBe(true)
+      const porRecoger = await createCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+        recogida: { mensajeroId: courier.id, fecha: todayIso() },
+      })
+
+      const courierContext = await browser.newContext()
+      try {
+        const courierPage = await courierContext.newPage()
+        await login(courierPage, { email: courier.email, password: courier.password })
+        await courierPage.goto('/entregas')
+        await expect(courierPage.getByRole('heading', { level: 1, name: 'Entregas' })).toBeVisible()
+        const group = courierPage.getByRole('region', { name: clinic.name })
+        await expect(group.getByRole('link', { name: porRecoger.code })).toBeVisible()
+        await expect(group.getByRole('button', { name: 'Marcar entregado' })).toBeVisible()
+        await expect(group.getByRole('button', { name: 'No se pudo' })).toHaveCount(2)
+        expect(
+          await courierPage.evaluate(
+            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+          ),
+        ).toBe(true)
+        await expectTouchTargets(courierPage, TOUCH_CONTROLS)
+
+        const recogida = group.getByRole('listitem').filter({ hasText: porRecoger.code })
+        await recogida.getByRole('button', { name: 'No se pudo' }).click()
+        const fail = courierPage.getByRole('dialog', { name: 'No se pudo recoger' })
+        await expect(
+          fail.getByRole('group', { name: 'Motivos frecuentes' }).getByRole('button'),
+        ).toHaveCount(4)
+        await expectTouchTargets(fail, TOUCH_CONTROLS)
+        await fail.getByRole('button', { name: 'Volver' }).click()
+        await expect(fail).toBeHidden()
+
+        await group.getByRole('button', { name: 'Marcar entregado' }).click()
+        const deliver = courierPage.getByRole('dialog', { name: 'Marcar entregado' })
+        await deliver.getByLabel('Foto de constancia').setInputFiles(FOTO_PATH)
+        await expect(deliver.getByRole('button', { name: 'Cambiar foto' })).toBeVisible()
+        await expectTouchTargets(deliver, TOUCH_CONTROLS)
+      } finally {
+        await courierContext.close()
+      }
+    },
+  )
+
+  // UX4-07: la ficha corta de un trabajo enviado le dice al mensajero adónde ir (mapa y teléfono
+  // de la clínica) y le da su acción.
+  test(
+    'ficha corta del mensajero: trabajo enviado con el contacto de la clínica',
+    { tag: '@extendida' },
+    async ({ page, browser }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page, {
+        address: 'Av. Amazonas N34-120 y Atahualpa',
+        phone: '099 123 4567',
+      })
+      const product = await createProduct(page)
+      const courier = await createCourier(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, created.id, accion)
+      }
+      const shipped = await page.request.post(`/api/trabajos/${created.id}/acciones`, {
+        data: { accion: 'marcar_enviado', envio: { mensajeroId: courier.id, fecha: todayIso() } },
+      })
+      expect(shipped.ok()).toBe(true)
+
+      const courierContext = await browser.newContext()
+      try {
+        const courierPage = await courierContext.newPage()
+        await login(courierPage, { email: courier.email, password: courier.password })
+        await courierPage.goto(`/t/${created.code}`)
+        await expect(courierPage.getByRole('button', { name: 'Marcar entregado' })).toBeVisible()
+        await expect(courierPage.getByRole('link', { name: /Av\. Amazonas N34-120/ })).toBeVisible()
+        await expect(courierPage.getByRole('link', { name: /099 123 4567/ })).toBeVisible()
+        await expectTouchTargets(courierPage, TOUCH_CONTROLS)
+      } finally {
+        await courierContext.close()
+      }
+    },
+  )
 
   // INI-3 (#105): el inicio del mensajero, con su ruta de hoy agrupada por clínica.
   test(
@@ -584,6 +740,8 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     async ({ page, browser }) => {
       await page.goto('/')
       await expect(page.getByRole('heading', { name: 'Inicio' })).toBeVisible()
+      // UX4-22: la tarjeta «Entregas de hoy» de admin y recepción entra en el barrido.
+      await expect(page.getByRole('link', { name: /^Entregas de hoy \d/ })).toBeVisible()
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
