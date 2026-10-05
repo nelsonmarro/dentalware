@@ -24,13 +24,6 @@ export const DELIVERY_FAILED_LABEL: Record<DeliveryType, string> = {
   entrega: 'Entrega fallida',
 }
 
-/** `Record` exhaustivo: un estado de entrega nuevo no compila sin su rótulo. */
-export const DELIVERY_STATUS_LABEL: Record<DeliveryStatus, string> = {
-  pendiente: 'Pendiente',
-  hecha: 'Hecha',
-  fallida: 'Fallida',
-}
-
 /** Quién administra entregas: crea, reprograma y ve las de cualquier mensajero
  * (`GET /api/entregas/mensajeros`, decisión 8 del plan). */
 export const DELIVERY_MANAGE_ROLES = ['admin', 'recepcion'] as const satisfies readonly UserRole[]

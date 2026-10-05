@@ -302,13 +302,11 @@ describe('DeliverDialog', () => {
     )
   })
 
-  // Tarea 1 + UX4-05: si la entrega ya no es suya (403) o el trabajo cambió (409) cuando sube la
-  // foto, se avisa una vez y el diálogo se cierra, igual que ante el 409 de la acción.
-  it.each([
-    [403, 'Sin permiso'],
-    [409, 'El trabajo ya no tiene una entrega pendiente'],
-  ])('un %i al subir la foto avisa una vez y cierra el diálogo', async (status, message) => {
-    uploadAttachment.mockRejectedValue(new ApiError(message, status))
+  // Tarea 1 + UX4-05: si la entrega ya no es suya (403) cuando sube la foto, se avisa una vez y
+  // el diálogo se cierra, igual que ante el 409 de la acción. La subida nunca responde 409 (M-7).
+  it('un 403 al subir la foto avisa una vez y cierra el diálogo', async () => {
+    const message = 'Sin permiso'
+    uploadAttachment.mockRejectedValue(new ApiError(message, 403))
     const onOpenChange = vi.fn()
     const { user, elegir, marcar } = await abrir(onOpenChange)
     await elegir()

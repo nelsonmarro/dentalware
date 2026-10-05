@@ -5,7 +5,6 @@ import {
   DELIVERY_MANAGE_ROLES,
   DELIVERY_NOT_PENDING_MESSAGE,
   DELIVERY_ROLES,
-  DELIVERY_STATUS_LABEL,
   DELIVERY_TYPE_LABEL,
   DELIVERY_ALREADY_CLOSED_MESSAGE,
   DELIVERY_CLOSED_BY_ACTION,
@@ -30,11 +29,6 @@ import {
 describe('entregas', () => {
   it('rótulos', () => {
     expect(DELIVERY_TYPE_LABEL).toEqual({ recogida: 'Recogida', entrega: 'Entrega' })
-    expect(DELIVERY_STATUS_LABEL).toEqual({
-      pendiente: 'Pendiente',
-      hecha: 'Hecha',
-      fallida: 'Fallida',
-    })
   })
   it('roles', () => {
     expect(DELIVERY_MANAGE_ROLES).toEqual(['admin', 'recepcion'])

@@ -23,7 +23,7 @@ import { isProofRejected, useUploadProof } from './use-upload-proof'
  * constancia ya subida de esa misma foto, salvo que la API la rechace (422 en `constanciaId`):
  * entonces el reintento la vuelve a subir.
  *
- * Un 409 de la acción, o un 403/409 de la subida (la entrega ya no es suya o el trabajo cambió),
+ * Un 409 de la acción, o un 403 de la subida (la entrega ya no es suya),
  * avisa una vez y cierra el diálogo (UX4-05); cualquier otro fallo avisa y deja reintentar.
  */
 /** 422 de la acción en `constanciaId`: la constancia subida ya no vale. */

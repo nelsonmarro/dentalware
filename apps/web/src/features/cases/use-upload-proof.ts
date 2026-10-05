@@ -5,9 +5,11 @@ import { compressImage } from '@/lib/image-compress'
 import { mutationKeys, queryKeys } from '@/lib/query-keys'
 import { uploadAttachment } from './attachments-api'
 
-/** La subida dice que la entrega ya no es de quien sube (403) o que el trabajo cambió (409). */
+/** La subida dice que la entrega ya no es de quien sube (403): ya la cerró otra persona, se
+ * canceló el trabajo o se reasignó. `POST /api/adjuntos/trabajo/:id` nunca responde 409 (solo el
+ * borrado de una constancia ligada, M-7), así que no se espera aquí. */
 export function isProofRejected(err: unknown): boolean {
-  return err instanceof ApiError && (err.status === 403 || err.status === 409)
+  return err instanceof ApiError && err.status === 403
 }
 
 /**
@@ -15,7 +17,7 @@ export function isProofRejected(err: unknown): boolean {
  * nunca al elegirla, para que «Volver», Escape o «Cambiar foto» no dejen constancias huérfanas.
  * Comprime en el cliente y sube con `kind=constancia`. No avisa del éxito (UX4-15): el aviso de
  * la entrega es el de la acción. Un fallo avisa una vez; si la API la rechaza porque la entrega
- * ya no es suya o el trabajo cambió (403/409), refresca todo lo del trabajo antes de avisar,
+ * ya no es suya (403), refresca todo lo del trabajo antes de avisar,
  * igual que `useConflictAwareError`, para que quien la abrió vea el estado real.
  */
 export function useUploadProof(caseId: string) {
