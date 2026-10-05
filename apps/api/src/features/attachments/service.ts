@@ -168,8 +168,9 @@ export function createAttachmentsService(deps: {
 
     async remove(id: string, ctx: RequestContext): Promise<void> {
       const a = await mustGetAttachment(id)
-      // UX4-06: la constancia de una entrega hecha no se borra (la FK es `ON DELETE SET NULL`:
-      // la entrega quedaría «Hecha» sin foto, sin ninguna señal). Una sin usar, sí.
+      // UX4-06: la constancia de una entrega hecha no se borra (la entrega quedaría «Hecha» sin
+      // foto). Una sin usar, sí. Si «Marcar entregado» la liga tras esta comprobación, la FK
+      // (RESTRICT) para el borrado y el repo lanza el mismo error: el archivo se borra después.
       if ((await deps.deliveries.linkedProofIds(a.caseId)).includes(a.id)) {
         throw new AttachmentInUseError()
       }

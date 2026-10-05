@@ -35,8 +35,10 @@ export const deliveries = pgTable(
     // También es el momento en que se cerró una entrega `fallida` (antes de reprogramar), no
     // solo cuándo se completó una `hecha`: `markFailed` y `markDone` escriben aquí.
     doneAt: timestamp('done_at', { withTimezone: true }),
+    // RESTRICT: la constancia de una entrega no se borra (UX4-06). El servicio de adjuntos ya lo
+    // comprueba antes; la FK cierra la carrera con «Marcar entregado» y el repo la traduce a 409.
     proofAttachmentId: uuid('proof_attachment_id').references(() => attachments.id, {
-      onDelete: 'set null',
+      onDelete: 'restrict',
     }),
     failedReason: text('failed_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

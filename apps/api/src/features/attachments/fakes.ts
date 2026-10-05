@@ -2,6 +2,7 @@ import type { DeliveryType } from '@dentalware/shared'
 import { Readable } from 'node:stream'
 import type { IdGenerator } from '../../lib/ids.ts'
 import { assertStorageKey, type Storage } from '../../lib/storage.ts'
+import { AttachmentInUseError } from './errors.ts'
 import type {
   AttachmentRecord,
   AttachmentsRepository,
@@ -65,8 +66,13 @@ export const fixedIds = (ids: string[]): IdGenerator => {
   }
 }
 
-/** Repositorio en memoria: suficiente para probar orquestación y errores. */
-export function fakeAttachmentsRepo(seed: AttachmentRecord[] = []): AttachmentsRepository {
+/** Repositorio en memoria: suficiente para probar orquestación y errores. `referencedIds` imita
+ * la FK `deliveries.proof_attachment_id` (RESTRICT): esos adjuntos no se borran, como en el repo
+ * real, que traduce la violación a `AttachmentInUseError`. */
+export function fakeAttachmentsRepo(
+  seed: AttachmentRecord[] = [],
+  { referencedIds = [] }: { referencedIds?: string[] } = {},
+): AttachmentsRepository {
   const rows = new Map(seed.map((r) => [r.id, r]))
   return {
     async insert(row: NewAttachment) {
@@ -95,6 +101,7 @@ export function fakeAttachmentsRepo(seed: AttachmentRecord[] = []): AttachmentsR
       return [...rows.values()].filter((r) => r.caseId === caseId)
     },
     async remove(id) {
+      if (referencedIds.includes(id)) throw new AttachmentInUseError()
       rows.delete(id)
     },
   }

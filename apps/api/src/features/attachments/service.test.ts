@@ -243,6 +243,31 @@ describe('createAttachmentsService', () => {
       expect(eventLog.some((e) => e.type === 'attachment_removed')).toBe(false)
     })
 
+    // Carrera con «Marcar entregado»: la comprobación previa dice «sin usar», pero la entrega la
+    // liga antes del borrado. La FK (RESTRICT) lo impide y el repo lo traduce al mismo error.
+    it('si una entrega la liga antes del borrado, lanza AttachmentInUseError y no borra el archivo', async () => {
+      const attachments = fakeAttachmentsRepo([], { referencedIds: ['id-1'] })
+      const { log: events, events: eventLog } = recordingEvents()
+      const storage = memoryStorage()
+      const service = createAttachmentsService({
+        attachments,
+        cases: casesQueryWith(['c1']),
+        events,
+        deliveries: pendingDeliveriesWith([]),
+        storage,
+        images: fakeImages,
+        ids: fixedIds(['id-1']),
+      })
+      await service.upload(uploadOf(constancia), admin)
+
+      const err = await service.remove('id-1', admin).catch((e: unknown) => e)
+
+      expect(err).toBeInstanceOf(AttachmentInUseError)
+      expect(await storage.exists('c1/id-1.jpg')).toBe(true)
+      expect(await storage.exists('c1/id-1.thumb.webp')).toBe(true)
+      expect(eventLog.some((e) => e.type === 'attachment_removed')).toBe(false)
+    })
+
     it('una constancia sin usar se borra', async () => {
       const { service, storage } = build(['id-1'], [], [{ caseId: 'c1', attachmentId: 'otra' }])
       await service.upload(uploadOf(constancia), admin)
