@@ -17,9 +17,15 @@ import type { DeliveriesService } from './service.ts'
 // no necesita la lista de mensajeros ni el técnico programa entregas.
 const canManage = requireRole(...DELIVERY_MANAGE_ROLES)
 
-// Lista del día y entrega fallida: admin, recepción y el propio mensajero (decisión 4 del
-// plan); el servicio vuelve a comprobar que actúa sobre lo suyo.
+// Lista del día, entrega fallida y «Recogido»: admin, recepción y el propio mensajero
+// (decisión 4 del plan); el servicio vuelve a comprobar que actúa sobre lo suyo.
 const canAct = requireRole(...DELIVERY_ROLES)
+
+/** Cuerpo del 422 de un `DeliveryInputError`: el mismo contrato que `validate`. */
+const inputIssues = (e: DeliveryInputError) => ({
+  message: 'Datos inválidos',
+  issues: [{ path: e.path, message: e.message }],
+})
 
 /** Traduce los errores de dominio del servicio a la respuesta HTTP que espera la web. */
 function toHttp(e: unknown): never {
@@ -28,8 +34,8 @@ function toHttp(e: unknown): never {
   throw e as Error
 }
 
-/** `/api/entregas` (Iteración 4): lista de mensajeros (Tarea 5) más la lista del día y la
- * entrega fallida con reprogramación (Tarea 6, ENT-4/ENT-5). */
+/** `/api/entregas` (Iteración 4): lista de mensajeros (Tarea 5), la lista del día, la entrega
+ * fallida con reprogramación (Tarea 6, ENT-4/ENT-5) y «Recogido» (#118). */
 export const deliveriesRoutes = (service: DeliveriesService) =>
   new Hono<AppEnv>()
     .get('/mensajeros', canManage, async (c) =>
@@ -52,12 +58,19 @@ export const deliveriesRoutes = (service: DeliveriesService) =>
           )
           return c.json({ entrega }, 200)
         } catch (e) {
-          if (e instanceof DeliveryInputError)
-            return c.json(
-              { message: 'Datos inválidos', issues: [{ path: e.path, message: e.message }] },
-              422,
-            )
+          if (e instanceof DeliveryInputError) return c.json(inputIssues(e), 422)
           toHttp(e)
         }
       },
     )
+    // «Recogido» (#118): sin cuerpo; el servicio comprueba que es una recogida (422), que el
+    // mensajero actúa sobre la suya (`canMarkPickedUp`, 403) y que sigue pendiente (409).
+    .post('/:id/recogido', canAct, validate('param', idParamSchema), async (c) => {
+      try {
+        const entrega = await service.pickUp(c.req.valid('param').id, ctxFrom(c))
+        return c.json({ entrega }, 200)
+      } catch (e) {
+        if (e instanceof DeliveryInputError) return c.json(inputIssues(e), 422)
+        toHttp(e)
+      }
+    })

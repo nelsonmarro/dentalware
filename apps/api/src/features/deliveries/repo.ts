@@ -31,6 +31,16 @@ export function createDeliveriesRepo(db: Db | Tx) {
       return row
     },
 
+    async byIdWithCourier(id) {
+      const [row] = await db
+        .select({ delivery: deliveries, courierName: users.name })
+        .from(deliveries)
+        .innerJoin(users, eq(deliveries.courierId, users.id))
+        .where(eq(deliveries.id, id))
+        .limit(1)
+      return row && { ...row.delivery, courierName: row.courierName }
+    },
+
     async pendingFor(caseId, type) {
       const [row] = await db
         .select()

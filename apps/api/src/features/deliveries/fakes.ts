@@ -60,6 +60,10 @@ export function fakeDeliveriesRepo(
     async byId(id) {
       return rows.get(id)
     },
+    async byIdWithCourier(id) {
+      const row = rows.get(id)
+      return row && { ...row, courierName: couriers.get(row.courierId) ?? 'Mensajero' }
+    },
     async pendingFor(caseId, type) {
       return [...rows.values()].find(
         (r) => r.caseId === caseId && r.type === type && r.status === 'pendiente',
@@ -136,8 +140,8 @@ export const fakeCouriersQuery = (couriers: Named[] = []): CouriersQuery => ({
   activeCouriers: async () => couriers,
 })
 
-/** Evento del trabajo en memoria (para `service.test.ts` de `fail`, sin Postgres): guarda
- * cada `delivery_failed` que escribe el servicio, visible para la aserción del test. */
+/** Evento del trabajo en memoria (para `service.test.ts` de `fail` y `pickUp`, sin Postgres):
+ * guarda cada `delivery_failed` y `picked_up` que escribe el servicio, visible para el test. */
 export function fakeCaseEventLog() {
   const events: Parameters<CaseEventLog['addEvent']>[0][] = []
   const log: CaseEventLog = {

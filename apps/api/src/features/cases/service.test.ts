@@ -1052,7 +1052,7 @@ describe('recogida', () => {
     expect(deliveries.rows.get('d1')!.status).toBe('pendiente')
   })
 
-  it('recepción recibe: el trabajo pasa a nuevo, la recogida queda hecha y hay evento picked_up', async () => {
+  it('recepción recibe: el trabajo pasa a nuevo, la recogida queda hecha y hay evento received', async () => {
     const { service, deliveries } = porRecogerDeMario()
     const c = await service.action('1', { accion: 'recibir', motivo: null }, recepcion)
     expect(c.status).toBe('nuevo')
@@ -1063,11 +1063,39 @@ describe('recogida', () => {
     })
     const eventos = await service.events('1', admin)
     expect(eventos.at(-1)).toMatchObject({
-      type: 'picked_up',
+      type: 'received',
       fromValue: 'por_recoger',
       toValue: 'nuevo',
       actorId: recepcion.userId,
     })
+  })
+
+  // #118: el mensajero ya marcó «Recogido» (la recogida está hecha) y el trabajo sigue por
+  // recoger; «Recibido» no la vuelve a cerrar ni duplica eventos.
+  it('«Recibido» tras «Recogido» pasa a nuevo, no toca la recogida y escribe un solo received', async () => {
+    const recogidaEn = new Date('2026-10-03T10:32:00Z')
+    const { service, deliveries } = servicioConRecogida(
+      [completo({ id: '1', status: 'por_recoger' })],
+      fakeDeliveryLog([
+        {
+          id: 'd1',
+          caseId: '1',
+          type: 'recogida',
+          courierId: 'u3',
+          scheduledFor: '2026-10-03',
+          status: 'hecha',
+          doneAt: recogidaEn,
+          proofAttachmentId: null,
+        },
+      ]),
+    )
+    const antes = (await service.events('1', admin)).length
+    const c = await service.action('1', { accion: 'recibir', motivo: null }, recepcion)
+    expect(c.status).toBe('nuevo')
+    expect(deliveries.rows.get('d1')).toMatchObject({ status: 'hecha', doneAt: recogidaEn })
+    const nuevos = (await service.events('1', admin)).slice(antes)
+    expect(nuevos).toHaveLength(1)
+    expect(nuevos[0]).toMatchObject({ type: 'received', fromValue: 'por_recoger' })
   })
 
   it('otro mensajero no puede recibir una recogida que no es suya', async () => {
