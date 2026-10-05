@@ -246,6 +246,38 @@ describe('DeliverDialog', () => {
     })
   })
 
+  // M-3 de la revisión final: la acción falló con la constancia ya subida, y recepción borró
+  // esa «constancia sin usar». La API responde 422 en `constanciaId`: el reintento vuelve a subir
+  // la foto en vez de mandar otra vez un id que ya no existe.
+  it('un 422 en constanciaId olvida la constancia subida: el reintento vuelve a subirla', async () => {
+    uploadAttachment
+      .mockResolvedValueOnce(constancia)
+      .mockResolvedValueOnce({ ...constancia, id: 'a2' })
+    postCaseAction
+      .mockRejectedValueOnce(
+        new ApiError('Datos inválidos', 422, [
+          { path: 'constanciaId', message: 'La foto de constancia no es de este trabajo.' },
+        ]),
+      )
+      .mockResolvedValueOnce({ id: 'c1', status: 'entregado' })
+    const onOpenChange = vi.fn()
+    const { user, elegir, marcar } = await abrir(onOpenChange)
+    await elegir()
+    await user.click(marcar())
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(marcar()).toBeEnabled())
+    await user.click(marcar())
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(uploadAttachment).toHaveBeenCalledTimes(2)
+    expect(postCaseAction).toHaveBeenLastCalledWith('c1', {
+      accion: 'marcar_entregado',
+      motivo: null,
+      constanciaId: 'a2',
+    })
+  })
+
   it('un fallo de subida avisa una vez, no envía la acción y deja reintentar', async () => {
     uploadAttachment.mockRejectedValue(new ApiError('El archivo supera los 25 MB', 413))
     const onOpenChange = vi.fn()

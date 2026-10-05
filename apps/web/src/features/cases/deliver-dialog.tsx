@@ -18,11 +18,21 @@ import { isProofRejected, useUploadProof } from './use-upload-proof'
  * «Marcar entregado» la sube como adjunto `constancia` y después cierra la entrega con su id.
  * Así «Volver», Escape o «Cambiar foto» no dejan constancias huérfanas, y la entrega avisa una
  * sola vez (UX4-15). Si la acción falla después de subir (sin red), reintentar reutiliza la
- * constancia ya subida de esa misma foto.
+ * constancia ya subida de esa misma foto, salvo que la API la rechace (422 en `constanciaId`):
+ * entonces el reintento la vuelve a subir.
  *
  * Un 409 de la acción, o un 403/409 de la subida (la entrega ya no es suya o el trabajo cambió),
  * avisa una vez y cierra el diálogo (UX4-05); cualquier otro fallo avisa y deja reintentar.
  */
+/** 422 de la acción en `constanciaId`: la constancia subida ya no vale. */
+function isProofInvalid(err: unknown): boolean {
+  return (
+    err instanceof ApiError &&
+    err.status === 422 &&
+    err.issues.some((issue) => issue.path === 'constanciaId')
+  )
+}
+
 export function DeliverDialog({
   case: c,
   role,
@@ -66,6 +76,9 @@ export function DeliverDialog({
         // refrescó y avisó (una vez); el diálogo no sigue abierto sobre el estado nuevo.
         onError: (err) => {
           if (err instanceof ApiError && err.status === 409) onOpenChange(false)
+          // M-3: la API ya no acepta esa constancia (p. ej. recepción borró la «sin usar» tras un
+          // fallo anterior): el siguiente toque vuelve a subir la foto.
+          if (isProofInvalid(err)) uploaded.current = null
         },
       },
     )
