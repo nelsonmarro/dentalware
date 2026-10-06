@@ -30,6 +30,7 @@ import {
   pickedUpLine,
   offersPickUp,
   inTransitCancelNote,
+  canHandleDelivery,
 } from './deliveries.ts'
 import { CASE_EVENT_TYPES } from './case-events.ts'
 
@@ -203,6 +204,23 @@ describe('entregas', () => {
       expect(courierNoActionReason(null, 'm1', true)).toBe(
         'Recogido. Recepción lo marca como recibido al llegar al laboratorio.',
       )
+    })
+  })
+
+  // M-6 (revisión final de #118): quién puede saber algo de una entrega, sin mirar su tipo ni
+  // su estado. A quien no, la API responde 403 antes de decir si está cerrada o qué tipo es.
+  describe('canHandleDelivery', () => {
+    it('el mensajero, solo la suya', () => {
+      expect(canHandleDelivery({ role: 'mensajero', userId: 'm1' }, { courierId: 'm1' })).toBe(true)
+      expect(canHandleDelivery({ role: 'mensajero', userId: 'm1' }, { courierId: 'm2' })).toBe(
+        false,
+      )
+    })
+    it.each(['admin', 'recepcion'] as const)('%s, cualquiera', (role) => {
+      expect(canHandleDelivery({ role, userId: 'r1' }, { courierId: 'm2' })).toBe(true)
+    })
+    it('el técnico, ninguna, ni aunque figure como asignado', () => {
+      expect(canHandleDelivery({ role: 'tecnico', userId: 't1' }, { courierId: 't1' })).toBe(false)
     })
   })
 

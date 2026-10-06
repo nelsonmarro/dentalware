@@ -667,6 +667,26 @@ describe('/api/entregas', () => {
       expect((await recogido(deliveryId, tecnico)).status).toBe(403)
     })
 
+    // M-6 (revisión final): 403 antes que 409 o 422, sin revelar nada de una entrega ajena.
+    it('el mensajero en una ajena ya cerrada o que es una entrega recibe 403, no 409 ni 422', async () => {
+      const { deliveryId } = await porRecoger(otroMensajeroId)
+      expect((await recogido(deliveryId, recepcion)).status).toBe(200)
+      expect((await recogido(deliveryId, mensajero)).status).toBe(403)
+
+      const entrega = await createDeliveriesRepo(ctx.db).create({
+        caseId: await createCase(),
+        type: 'entrega',
+        courierId: otroMensajeroId,
+        scheduledFor: '2026-10-10',
+      })
+      expect((await recogido(entrega.id, mensajero)).status).toBe(403)
+    })
+
+    it('una que no existe responde 409', async () => {
+      const res = await recogido('00000000-0000-4000-8000-000000000000', mensajero)
+      expect(res.status).toBe(409)
+    })
+
     it('sin sesión responde 403', async () => {
       const { deliveryId } = await porRecoger()
       expect((await recogido(deliveryId, '')).status).toBe(403)

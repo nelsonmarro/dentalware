@@ -182,6 +182,21 @@ export function canActOnDelivery(
 }
 
 /**
+ * ¿Puede `actor` saber algo de `delivery`, sea del tipo o en el estado que sea (M-6 de la
+ * revisión final de #118)? Quien administra entregas, de cualquiera; el mensajero
+ * (`DELIVERY_ROLES`), solo de la suya. La API lo comprueba antes que el estado o el tipo, así
+ * que a quien no puede actuar sobre una entrega ajena le responde 403 sin revelar si está
+ * cerrada o qué tipo es.
+ */
+export function canHandleDelivery(
+  actor: { role: UserRole; userId: string },
+  delivery: { courierId: string },
+): boolean {
+  if (hasRole(DELIVERY_MANAGE_ROLES, actor.role)) return true
+  return hasRole(DELIVERY_ROLES, actor.role) && isOwnDelivery(actor.userId, delivery)
+}
+
+/**
  * ¿Puede `actor` marcar «No se pudo» en `delivery` (ENT-5)? Quien administra entregas, en
  * cualquiera; el mensajero (`DELIVERY_ROLES`), solo en la suya, sea recogida o entrega. No
  * depende de quién puede cerrarla (UX4-10: la recogida la recibe recepción). Una sola fuente
@@ -191,8 +206,7 @@ export function canFailDelivery(
   actor: { role: UserRole; userId: string },
   delivery: DeliveryAssignment,
 ): boolean {
-  if (hasRole(DELIVERY_MANAGE_ROLES, actor.role)) return true
-  return hasRole(DELIVERY_ROLES, actor.role) && isOwnDelivery(actor.userId, delivery)
+  return canHandleDelivery(actor, delivery)
 }
 
 /**
@@ -205,9 +219,7 @@ export function canMarkPickedUp(
   actor: { role: UserRole; userId: string },
   delivery: DeliveryAssignment,
 ): boolean {
-  if (delivery.type !== 'recogida') return false
-  if (hasRole(DELIVERY_MANAGE_ROLES, actor.role)) return true
-  return hasRole(DELIVERY_ROLES, actor.role) && isOwnDelivery(actor.userId, delivery)
+  return delivery.type === 'recogida' && canHandleDelivery(actor, delivery)
 }
 
 /**

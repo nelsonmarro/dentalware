@@ -418,6 +418,31 @@ describe('features/deliveries/service', () => {
       },
     )
 
+    // M-6 (revisión final): a quien no puede actuar sobre ella, 403 antes que 409 o 422, para
+    // no revelar si una entrega ajena está cerrada o qué tipo es.
+    it.each([
+      ['hecha', 'recogida'],
+      ['fallida', 'recogida'],
+      ['pendiente', 'entrega'],
+    ] as const)(
+      'el mensajero en una ajena (%s, %s) recibe 403, no 409 ni 422',
+      async (status, type) => {
+        const { service, events } = makeService({
+          seed: [recogida({ courierId: 'mensajero-2', status, type })],
+          couriers,
+        })
+        await expect(service.pickUp('d1', yo)).rejects.toThrow(DeliveryForbiddenError)
+        expect(events).toEqual([])
+      },
+    )
+
+    it('el técnico recibe 403 aunque la recogida ya esté cerrada', async () => {
+      const { service } = makeService({ seed: [recogida({ status: 'hecha' })], couriers })
+      await expect(service.pickUp('d1', { userId: 't1', role: 'tecnico' })).rejects.toThrow(
+        DeliveryForbiddenError,
+      )
+    })
+
     it('una que no existe responde 409', async () => {
       const { service } = makeService({ couriers })
       await expect(service.pickUp('no-existe', yo)).rejects.toThrow(DeliveryNotPendingError)
