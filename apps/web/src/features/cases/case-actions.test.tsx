@@ -68,6 +68,7 @@ function caso(overrides: Partial<CaseDetail> = {}): CaseDetail {
     items: [],
     pendingDelivery: null,
     lastDelivered: null,
+    lastPickedUp: null,
     ...overrides,
   } as unknown as CaseDetail
 }
@@ -153,6 +154,36 @@ describe('CaseActions', () => {
     expect(within(dialog).getByRole('button', { name: confirmar })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Volver' })).toBeInTheDocument()
     expect(within(dialog).queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument()
+  })
+
+  // M-1 (revisión final de #118): cancelar un trabajo que viene en camino dice que el
+  // mensajero ya lo tiene; sin recogida hecha, el diálogo no lo dice.
+  it('cancelar un trabajo en camino dice que el mensajero ya lo recogió', async () => {
+    const { user } = renderWithProviders(
+      <CaseActions
+        self={yo}
+        case={caso({
+          status: 'por_recoger',
+          pendingDelivery: null,
+          lastPickedUp: { doneAt: '2026-10-05T15:32:00.000Z', courierName: 'Luis Ortega' },
+        })}
+        missing={[]}
+        role="recepcion"
+      />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Cancelar trabajo' }))
+    const dialog = screen.getByRole('dialog')
+    expect(
+      within(dialog).getByText('Luis Ortega ya lo recogió y viene en camino al laboratorio.'),
+    ).toBeInTheDocument()
+  })
+
+  it('cancelar un trabajo que no viene en camino no habla del mensajero', async () => {
+    const { user } = renderWithProviders(
+      <CaseActions self={yo} case={caso({ status: 'en_proceso' })} missing={[]} role="recepcion" />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Cancelar trabajo' }))
+    expect(within(screen.getByRole('dialog')).queryByText(/ya lo recogió/)).not.toBeInTheDocument()
   })
 
   it('la confirmación de finalizar cierra con «Volver», no con «Cancelar»', async () => {
@@ -315,6 +346,7 @@ describe('CaseActions', () => {
         case={caso({
           status: 'enviado',
           pendingDelivery: {
+            id: 'd1',
             type: 'entrega',
             courierId: yo.id,
             courierName: 'Mario',
@@ -344,6 +376,7 @@ describe('CaseActions', () => {
         case={caso({
           status: 'enviado',
           pendingDelivery: {
+            id: 'd1',
             type: 'entrega',
             courierId: yo.id,
             courierName: 'Mario',
@@ -386,6 +419,7 @@ describe('CaseActions', () => {
           case={caso({
             status: 'por_recoger',
             pendingDelivery: {
+              id: 'd1',
               type: 'recogida',
               courierId: 'otro',
               courierName: 'Mario',
@@ -407,6 +441,7 @@ describe('CaseActions', () => {
           case={caso({
             status: 'por_recoger',
             pendingDelivery: {
+              id: 'd1',
               type: 'recogida',
               courierId: yo.id,
               courierName: 'Mario',
@@ -427,6 +462,7 @@ describe('CaseActions', () => {
           case={caso({
             status: 'enviado',
             pendingDelivery: {
+              id: 'd1',
               type: 'entrega',
               courierId: 'otro',
               courierName: 'Mario',
@@ -447,6 +483,7 @@ describe('CaseActions', () => {
           case={caso({
             status: 'enviado',
             pendingDelivery: {
+              id: 'd1',
               type: 'entrega',
               courierId: 'otro',
               courierName: 'Mario',
@@ -540,6 +577,7 @@ describe('CaseActions', () => {
         case: caso({
           status: 'enviado',
           pendingDelivery: {
+            id: 'd1',
             type: 'entrega',
             courierId: 'm1',
             courierName: 'Mario',
@@ -562,6 +600,7 @@ describe('CaseActions', () => {
         case: caso({
           status: 'enviado',
           pendingDelivery: {
+            id: 'd1',
             type: 'entrega',
             courierId: yo.id,
             courierName: 'Mario',

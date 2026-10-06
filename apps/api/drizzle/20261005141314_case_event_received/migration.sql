@@ -1,0 +1,1 @@
+ALTER TYPE "case_event_type" ADD VALUE 'received' BEFORE 'delivery_failed';

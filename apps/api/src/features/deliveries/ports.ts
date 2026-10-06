@@ -54,6 +54,9 @@ export type DeliveryListItem = {
 export interface DeliveriesRepository {
   create(d: NewDelivery): Promise<DeliveryRow>
   byId(id: string): Promise<DeliveryRow | undefined>
+  /** La entrega con el nombre de su mensajero asignado (join a `users`), leída en la misma
+   * transacción que la cierra: «Recogido» copia ese nombre en el evento `picked_up` (#118). */
+  byIdWithCourier(id: string): Promise<(DeliveryRow & { courierName: string }) | undefined>
   /** La entrega pendiente de un tipo para un trabajo (como mucho una). */
   pendingFor(caseId: string, type: DeliveryType): Promise<DeliveryRow | undefined>
   /** Ids de las constancias de un trabajo que referencia una entrega hecha (UX4-06): cumple el
@@ -64,7 +67,8 @@ export interface DeliveriesRepository {
   markDone(id: string, doneAt: Date, proofAttachmentId: string | null): Promise<boolean>
   /** Cierra como fallida solo si sigue `pendiente`; `false` si otra operación la cerró antes. */
   markFailed(id: string, reason: string, at: Date): Promise<boolean>
-  /** Las del día; con `includeOverdue`, también las pendientes de días anteriores. */
+  /** Las del día; con `includeOverdue`, también las pendientes de días anteriores y toda
+   * recogida hecha cuyo trabajo sigue por recoger, sea cual sea su fecha (en camino, #118). */
   listForDay(q: {
     day: string
     courierId?: string
@@ -83,6 +87,8 @@ export interface CaseDeliveryInfoQuery {
   deliveryInfo(caseId: string): Promise<{
     pending: PendingDelivery | null
     lastDelivered: { doneAt: Date; courierName: string; proofAttachmentId: string | null } | null
+    /** La última recogida hecha («Recogido», #118), para «En camino al laboratorio». */
+    lastPickedUp: { doneAt: Date; courierName: string } | null
   }>
 }
 
@@ -98,19 +104,34 @@ export interface CouriersQuery {
  * `createCasesRepo(tx).addEvent` adaptado en la raíz de composición (`app.ts`).
  */
 export interface CaseEventLog {
-  addEvent(e: {
-    caseId: string
-    type: 'delivery_failed'
-    /** El tipo de lo que falló (`recogida`/`entrega`), para que el historial lo nombre (UX4-16). */
-    fromValue: DeliveryType
-    toValue: string
-    reason: string
-    actorId: string
-  }): Promise<void>
+  addEvent(
+    e:
+      | {
+          caseId: string
+          type: 'delivery_failed'
+          /** El tipo de lo que falló (`recogida`/`entrega`), para que el historial lo nombre
+           * (UX4-16). */
+          fromValue: DeliveryType
+          toValue: string
+          reason: string
+          actorId: string
+        }
+      | {
+          caseId: string
+          /** «Recogido» en la clínica (#118): el trabajo no cambia de estado. */
+          type: 'picked_up'
+          fromValue: null
+          toValue: null
+          /** Nombre del mensajero asignado, copiado en el momento (como `pickup_scheduled`). */
+          reason: string
+          actorId: string
+        },
+  ): Promise<void>
 }
 
-/** Atomicidad de `fail` (ADR 19): cierra la entrega, crea la nueva pendiente y escribe el
- * evento en una sola transacción, sin que el servicio conozca `db.transaction`. */
+/** Atomicidad de `fail` y `pickUp` (ADR 19): cierra la entrega, crea la nueva pendiente (solo
+ * `fail`) y escribe el evento en una sola transacción, sin que el servicio conozca
+ * `db.transaction`. */
 export interface DeliveriesUnitOfWork {
   run<T>(
     fn: (r: { deliveries: DeliveriesRepository; events: CaseEventLog }) => Promise<T>,

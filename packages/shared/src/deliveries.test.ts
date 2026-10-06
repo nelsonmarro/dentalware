@@ -24,7 +24,15 @@ import {
   actionsFor,
   isClosedByCancellation,
   isOverdueDelivery,
+  canMarkPickedUp,
+  isInTransitToLab,
+  IN_TRANSIT_TO_LAB,
+  pickedUpLine,
+  offersPickUp,
+  inTransitCancelNote,
+  canHandleDelivery,
 } from './deliveries.ts'
+import { CASE_EVENT_TYPES } from './case-events.ts'
 
 describe('entregas', () => {
   it('rótulos', () => {
@@ -187,10 +195,54 @@ describe('entregas', () => {
     it('la suya no necesita motivo: su tarea ya dice qué hacer', () => {
       expect(courierNoActionReason(pendiente('entrega', 'm1'), 'm1')).toBeNull()
     })
-    // UX4-10: la recogida la cierra recepción al llegar; el mensajero sabe que no le toca.
-    it('su recogida dice que recepción la marca al llegar', () => {
-      expect(courierNoActionReason(pendiente('recogida', 'm1'), 'm1')).toBe(
-        'Recepción lo marca como recibido al llegar al laboratorio.',
+    // #118: en su recogida pendiente tiene «Recogido»; no necesita motivo.
+    it('su recogida pendiente no necesita motivo: tiene «Recogido»', () => {
+      expect(courierNoActionReason(pendiente('recogida', 'm1'), 'm1')).toBeNull()
+    })
+    // #118: ya recogida, viene en camino; el mensajero sabe que lo demás lo hace recepción.
+    it('ya recogida (en camino) dice que recepción lo marca al llegar', () => {
+      expect(courierNoActionReason(null, 'm1', true)).toBe(
+        'Recogido. Recepción lo marca como recibido al llegar al laboratorio.',
+      )
+    })
+  })
+
+  // M-6 (revisión final de #118): quién puede saber algo de una entrega, sin mirar su tipo ni
+  // su estado. A quien no, la API responde 403 antes de decir si está cerrada o qué tipo es.
+  describe('canHandleDelivery', () => {
+    it('el mensajero, solo la suya', () => {
+      expect(canHandleDelivery({ role: 'mensajero', userId: 'm1' }, { courierId: 'm1' })).toBe(true)
+      expect(canHandleDelivery({ role: 'mensajero', userId: 'm1' }, { courierId: 'm2' })).toBe(
+        false,
+      )
+    })
+    it.each(['admin', 'recepcion'] as const)('%s, cualquiera', (role) => {
+      expect(canHandleDelivery({ role, userId: 'r1' }, { courierId: 'm2' })).toBe(true)
+    })
+    it('el técnico, ninguna, ni aunque figure como asignado', () => {
+      expect(canHandleDelivery({ role: 'tecnico', userId: 't1' }, { courierId: 't1' })).toBe(false)
+    })
+  })
+
+  // #118, decisión 4 del plan: en la UI «Recogido» es del mensajero. Admin y recepción, que la
+  // API sí deja, ven «Recibido», que también la cierra: no se les ponen tres botones.
+  describe('offersPickUp', () => {
+    it('al mensajero se le ofrece en su recogida', () => {
+      expect(
+        offersPickUp({ role: 'mensajero', userId: 'm1' }, { type: 'recogida', courierId: 'm1' }),
+      ).toBe(true)
+    })
+    it('al mensajero no se le ofrece en la ajena ni en su entrega', () => {
+      expect(
+        offersPickUp({ role: 'mensajero', userId: 'm1' }, { type: 'recogida', courierId: 'm2' }),
+      ).toBe(false)
+      expect(
+        offersPickUp({ role: 'mensajero', userId: 'm1' }, { type: 'entrega', courierId: 'm1' }),
+      ).toBe(false)
+    })
+    it.each(['admin', 'recepcion', 'tecnico'] as const)('a %s no se le ofrece', (role) => {
+      expect(offersPickUp({ role, userId: 'm1' }, { type: 'recogida', courierId: 'm1' })).toBe(
+        false,
       )
     })
   })
@@ -294,5 +346,88 @@ describe('entregas', () => {
     it('lo entregado dice cuándo y quién', () => {
       expect(deliveredLine('04/10/2026', 'Mario')).toBe('Entregado el 04/10/2026 por Mario')
     })
+  })
+  // #118: el mensajero marca «Recogido» en la suya; admin y recepción, en cualquiera.
+  describe('canMarkPickedUp', () => {
+    const yo = { role: 'mensajero', userId: 'm1' } as const
+    it('el mensajero marca «Recogido» en su propia recogida', () => {
+      expect(canMarkPickedUp(yo, { type: 'recogida', courierId: 'm1' })).toBe(true)
+    })
+    it('el mensajero no lo marca en la recogida de otro', () => {
+      expect(canMarkPickedUp(yo, { type: 'recogida', courierId: 'm2' })).toBe(false)
+    })
+    it('el mensajero no lo marca en su propia entrega', () => {
+      expect(canMarkPickedUp(yo, { type: 'entrega', courierId: 'm1' })).toBe(false)
+    })
+    it.each(['admin', 'recepcion'] as const)('%s lo marca en cualquier recogida', (role) => {
+      expect(canMarkPickedUp({ role, userId: 'r1' }, { type: 'recogida', courierId: 'm2' })).toBe(
+        true,
+      )
+    })
+    it.each(['admin', 'recepcion'] as const)('%s no lo marca en una entrega', (role) => {
+      expect(canMarkPickedUp({ role, userId: 'r1' }, { type: 'entrega', courierId: 'm2' })).toBe(
+        false,
+      )
+    })
+    it('el técnico no lo marca', () => {
+      expect(
+        canMarkPickedUp({ role: 'tecnico', userId: 't1' }, { type: 'recogida', courierId: 't1' }),
+      ).toBe(false)
+    })
+  })
+
+  // #118: «En camino al laboratorio» se deriva, sin estado nuevo (ADR 16).
+  describe('isInTransitToLab', () => {
+    const recogido = { doneAt: '2026-10-05T15:32:00.000Z', courierName: 'Luis' }
+    it('por recoger, sin pendiente y con la recogida hecha: viene en camino', () => {
+      expect(isInTransitToLab('por_recoger', null, recogido)).toBe(true)
+    })
+    it('con la recogida aún pendiente no viene en camino', () => {
+      expect(isInTransitToLab('por_recoger', { type: 'recogida', courierId: 'm1' }, recogido)).toBe(
+        false,
+      )
+    })
+    it('ya recibido (nuevo) no viene en camino', () => {
+      expect(isInTransitToLab('nuevo', null, recogido)).toBe(false)
+    })
+    it('por recoger sin recogida hecha no viene en camino', () => {
+      expect(isInTransitToLab('por_recoger', null, null)).toBe(false)
+      expect(isInTransitToLab('por_recoger', undefined, undefined)).toBe(false)
+    })
+  })
+
+  // M-1 (revisión final de #118): al cancelar un trabajo en camino, quien cancela sabe que el
+  // mensajero ya lo tiene.
+  describe('inTransitCancelNote', () => {
+    const recogido = { doneAt: '2026-10-05T15:32:00.000Z', courierName: 'Luis' }
+    it('en camino dice quién lo recogió', () => {
+      expect(inTransitCancelNote('por_recoger', null, recogido)).toBe(
+        'Luis ya lo recogió y viene en camino al laboratorio.',
+      )
+    })
+    it('con la recogida pendiente o ya recibido no dice nada', () => {
+      expect(
+        inTransitCancelNote('por_recoger', { type: 'recogida', courierId: 'm1' }, recogido),
+      ).toBeNull()
+      expect(inTransitCancelNote('nuevo', null, recogido)).toBeNull()
+      expect(inTransitCancelNote('por_recoger', null, null)).toBeNull()
+    })
+  })
+
+  it('rótulo de lo que viene en camino', () => {
+    expect(IN_TRANSIT_TO_LAB).toBe('En camino al laboratorio')
+  })
+
+  it('la línea de lo recogido dice quién y a qué hora', () => {
+    expect(pickedUpLine('Luis', '10:32')).toBe('Recogido por Luis a las 10:32')
+  })
+  // M-4 (revisión final de #118): lo recogido otro día lleva la fecha.
+  it('lo recogido otro día dice también qué día', () => {
+    expect(pickedUpLine('Luis', '10:32', '04/10')).toBe('Recogido por Luis el 04/10 a las 10:32')
+  })
+
+  it('el historial tiene el evento «Recibido en el laboratorio» (received)', () => {
+    expect(CASE_EVENT_TYPES).toContain('received')
+    expect(CASE_EVENT_TYPES).toContain('picked_up')
   })
 })

@@ -1052,7 +1052,7 @@ describe('recogida', () => {
     expect(deliveries.rows.get('d1')!.status).toBe('pendiente')
   })
 
-  it('recepción recibe: el trabajo pasa a nuevo, la recogida queda hecha y hay evento picked_up', async () => {
+  it('recepción recibe: el trabajo pasa a nuevo, la recogida queda hecha y hay evento received', async () => {
     const { service, deliveries } = porRecogerDeMario()
     const c = await service.action('1', { accion: 'recibir', motivo: null }, recepcion)
     expect(c.status).toBe('nuevo')
@@ -1063,11 +1063,39 @@ describe('recogida', () => {
     })
     const eventos = await service.events('1', admin)
     expect(eventos.at(-1)).toMatchObject({
-      type: 'picked_up',
+      type: 'received',
       fromValue: 'por_recoger',
       toValue: 'nuevo',
       actorId: recepcion.userId,
     })
+  })
+
+  // #118: el mensajero ya marcó «Recogido» (la recogida está hecha) y el trabajo sigue por
+  // recoger; «Recibido» no la vuelve a cerrar ni duplica eventos.
+  it('«Recibido» tras «Recogido» pasa a nuevo, no toca la recogida y escribe un solo received', async () => {
+    const recogidaEn = new Date('2026-10-03T10:32:00Z')
+    const { service, deliveries } = servicioConRecogida(
+      [completo({ id: '1', status: 'por_recoger' })],
+      fakeDeliveryLog([
+        {
+          id: 'd1',
+          caseId: '1',
+          type: 'recogida',
+          courierId: 'u3',
+          scheduledFor: '2026-10-03',
+          status: 'hecha',
+          doneAt: recogidaEn,
+          proofAttachmentId: null,
+        },
+      ]),
+    )
+    const antes = (await service.events('1', admin)).length
+    const c = await service.action('1', { accion: 'recibir', motivo: null }, recepcion)
+    expect(c.status).toBe('nuevo')
+    expect(deliveries.rows.get('d1')).toMatchObject({ status: 'hecha', doneAt: recogidaEn })
+    const nuevos = (await service.events('1', admin)).slice(antes)
+    expect(nuevos).toHaveLength(1)
+    expect(nuevos[0]).toMatchObject({ type: 'received', fromValue: 'por_recoger' })
   })
 
   it('otro mensajero no puede recibir una recogida que no es suya', async () => {
@@ -1555,7 +1583,9 @@ describe('entrega pendiente en el detalle', () => {
   it('un trabajo por recoger trae su recogida pendiente con mensajero y fecha', async () => {
     const service = servicio('por_recoger', [entrega('recogida', 'pendiente', 'u9')])
     const { case: found } = await service.detail('1', mensajero)
+    // #118: con su id, para que la ficha corta marque «Recogido» sobre esa recogida.
     expect(found.pendingDelivery).toEqual({
+      id: 'd-recogida-pendiente',
       type: 'recogida',
       courierId: 'u9',
       courierName: 'Luis Mensajero',
@@ -1570,6 +1600,7 @@ describe('entrega pendiente en el detalle', () => {
     ])
     const { case: found } = await service.detailByCode('26-00042', mensajero)
     expect(found.pendingDelivery).toEqual({
+      id: 'd-entrega-pendiente',
       type: 'entrega',
       courierId: 'u3',
       courierName: 'Mario Mensajero',
@@ -1616,6 +1647,39 @@ describe('entrega pendiente en el detalle', () => {
     ])
     const { case: found } = await service.detail('1', admin)
     expect(found.lastDelivered).toBeNull()
+  })
+
+  // #118: «En camino al laboratorio · Recogido por … a las …».
+  it('un trabajo recogido trae la última recogida hecha con su mensajero (detalle y ficha corta)', async () => {
+    const service = servicio('por_recoger', [
+      entrega('recogida', 'fallida', 'u3', {
+        id: 'fallida',
+        doneAt: new Date('2026-10-04T09:00:00Z'),
+      }),
+      entrega('recogida', 'hecha', 'u3', {
+        id: 'vieja',
+        doneAt: new Date('2026-10-01T10:00:00Z'),
+      }),
+      entrega('recogida', 'hecha', 'u9', {
+        id: 'nueva',
+        doneAt: new Date('2026-10-03T15:32:00Z'),
+      }),
+      entrega('entrega', 'hecha', 'u3', {
+        id: 'entrega',
+        doneAt: new Date('2026-10-05T10:00:00Z'),
+      }),
+    ])
+    const esperado = { doneAt: '2026-10-03T15:32:00.000Z', courierName: 'Luis Mensajero' }
+    expect((await service.detail('1', recepcionCtx)).case.lastPickedUp).toEqual(esperado)
+    expect((await service.detailByCode('26-00042', mensajero)).case.lastPickedUp).toEqual(esperado)
+  })
+
+  it('sin recogida hecha la última recogida es null (una entrega hecha no cuenta)', async () => {
+    const service = servicio('por_recoger', [
+      entrega('recogida', 'pendiente'),
+      entrega('entrega', 'hecha', 'u3', { doneAt: new Date('2026-10-02T10:00:00Z') }),
+    ])
+    expect((await service.detail('1', admin)).case.lastPickedUp).toBeNull()
   })
 
   // UX4-07: la ficha corta lleva al mensajero a la clínica (mapa y llamada).

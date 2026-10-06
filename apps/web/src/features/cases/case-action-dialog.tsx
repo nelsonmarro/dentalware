@@ -19,6 +19,7 @@ export function CaseActionDialog({
   action,
   confirmLabel,
   description,
+  note,
   pending,
   onConfirm,
 }: {
@@ -29,6 +30,9 @@ export function CaseActionDialog({
   confirmLabel: string
   /** Qué le pasa al trabajo al confirmar. */
   description: string
+  /** Lo que conviene saber antes de confirmar, en su propia línea (M-1 de #118: cancelar un
+   * trabajo que el mensajero ya recogió). */
+  note?: string | null
   pending: boolean
   onConfirm: (input: CaseActionInput) => void
 }) {
@@ -78,7 +82,13 @@ export function CaseActionDialog({
         </>
       }
     >
-      <form id="case-action-form" onSubmit={handleSubmit(submit)} noValidate>
+      <form
+        id="case-action-form"
+        onSubmit={handleSubmit(submit)}
+        noValidate
+        className="flex flex-col gap-4"
+      >
+        {note && <p className="text-sm font-medium">{note}</p>}
         <Field data-invalid={!!formState.errors.motivo}>
           <FieldLabel htmlFor="case-action-motivo">Motivo</FieldLabel>
           <Textarea

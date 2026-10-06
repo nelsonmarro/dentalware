@@ -1,4 +1,9 @@
-import { isActionableDelivery, isOverdueDelivery, toIsoDate } from '@dentalware/shared'
+import {
+  isActionableDelivery,
+  isDeliveryInTransit,
+  isOverdueDelivery,
+  toIsoDate,
+} from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { LoadError } from '@/components/load-error'
 import { DELIVERY_TYPE_COLOR } from './delivery-colors'
@@ -10,13 +15,22 @@ import { useDeliveries } from './use-deliveries'
  * «Entregas». Reutiliza la misma consulta que esa pantalla, sin un resumen nuevo en la API. Un
  * fallo al cargar no se pinta como cero: es un `LoadError` (convención §5), fuera del enlace
  * porque lleva su propio botón, y sin `autoFocus` porque convive con los contadores (M-5, T9).
+ * Lo que viene en camino (#118, I-1) va en la nota y no en el número: no es trabajo del
+ * mensajero, sino lo que le queda a recepción («Recibido»).
  */
 export function DeliveriesTodayCard() {
   const today = toIsoDate(new Date())
   const q = useDeliveries(today)
   const pending = q.data?.filter(isActionableDelivery)
   const overdue = pending?.filter((d) => isOverdueDelivery(d, today)).length ?? 0
-  const note = overdue > 0 ? `${overdue} ${overdue === 1 ? 'atrasada' : 'atrasadas'}` : undefined
+  const inTransit = q.data?.filter(isDeliveryInTransit).length ?? 0
+  const note =
+    [
+      overdue > 0 ? `${overdue} ${overdue === 1 ? 'atrasada' : 'atrasadas'}` : null,
+      inTransit > 0 ? `${inTransit} en camino` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ') || undefined
   if (q.isError) {
     return (
       <LoadError

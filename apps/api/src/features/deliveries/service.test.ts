@@ -1,6 +1,6 @@
 import { DELIVERY_NOT_PENDING_MESSAGE } from '@dentalware/shared'
 import { describe, expect, it } from 'vitest'
-import { DeliveryForbiddenError, DeliveryInputError } from './errors.ts'
+import { DeliveryForbiddenError, DeliveryInputError, DeliveryNotPendingError } from './errors.ts'
 import {
   fakeCaseEventLog,
   fakeCouriersQuery,
@@ -41,11 +41,13 @@ function makeService(
   opts: {
     cases?: Map<string, DeliveryCaseRef>
     seed?: DeliveryRow[]
+    /** Nombre de cada mensajero por id (el join a `users` del repo). */
+    couriers?: Map<string, string>
   } = {},
 ) {
   const { repo, rows } = fakeDeliveriesRepo(
     opts.cases ?? new Map([['c1', CASE_REF]]),
-    new Map(),
+    opts.couriers ?? new Map(),
     opts.seed ?? [],
   )
   const { log, events } = fakeCaseEventLog()
@@ -136,6 +138,80 @@ describe('features/deliveries/service', () => {
 
       const otroDia = await service.list({ dia: '2026-10-09' }, { userId: 'a1', role: 'admin' })
       expect(otroDia).toEqual([])
+    })
+
+    // #118: lo que viene en camino al laboratorio sigue en la lista de hoy.
+    it('hoy incluye las recogidas hechas antes cuyo trabajo sigue por recoger; el mensajero, las suyas', async () => {
+      const { service } = makeService({
+        cases: new Map([
+          ['c1', { ...CASE_REF, status: 'por_recoger' }],
+          ['c2', { ...CASE_REF, code: '26-00002', status: 'nuevo' }],
+          ['c3', { ...CASE_REF, code: '26-00003', status: 'por_recoger' }],
+        ]),
+        seed: [
+          makeRow({
+            id: 'd1',
+            caseId: 'c1',
+            type: 'recogida',
+            status: 'hecha',
+            scheduledFor: '2026-10-08',
+          }),
+          // Ya recibido: no viene en camino.
+          makeRow({
+            id: 'd2',
+            caseId: 'c2',
+            type: 'recogida',
+            status: 'hecha',
+            scheduledFor: '2026-10-08',
+          }),
+          makeRow({
+            id: 'd3',
+            caseId: 'c3',
+            type: 'recogida',
+            status: 'hecha',
+            scheduledFor: '2026-10-08',
+            courierId: 'otro-mensajero',
+          }),
+        ],
+      })
+      const hoy = await service.list({ dia: '2026-10-10' }, { userId: 'a1', role: 'admin' })
+      expect(hoy.map((d) => d.id)).toEqual(['d1', 'd3'])
+      const delMensajero = await service.list(
+        { dia: '2026-10-10' },
+        { userId: 'mensajero-1', role: 'mensajero' },
+      )
+      expect(delMensajero.map((d) => d.id)).toEqual(['d1'])
+      const otroDia = await service.list({ dia: '2026-10-09' }, { userId: 'a1', role: 'admin' })
+      expect(otroDia).toEqual([])
+    })
+
+    // Ruling de la Tarea 2 (#118): la recogida adelantada (marcada «Recogido» antes de su día)
+    // también viene en camino hoy, y la de hoy no sale dos veces.
+    it('hoy incluye toda recogida en camino sin mirar su fecha, una sola vez', async () => {
+      const { service } = makeService({
+        cases: new Map([
+          ['c1', { ...CASE_REF, status: 'por_recoger' }],
+          ['c2', { ...CASE_REF, code: '26-00002', status: 'por_recoger' }],
+        ]),
+        seed: [
+          makeRow({
+            id: 'adelantada',
+            caseId: 'c1',
+            type: 'recogida',
+            status: 'hecha',
+            scheduledFor: '2026-10-12',
+          }),
+          makeRow({
+            id: 'de-hoy',
+            caseId: 'c2',
+            type: 'recogida',
+            status: 'hecha',
+            scheduledFor: '2026-10-10',
+          }),
+        ],
+      })
+      const hoy = await service.list({ dia: '2026-10-10' }, { userId: 'a1', role: 'admin' })
+      expect(hoy.map((d) => d.id)).toEqual(['adelantada', 'de-hoy'])
     })
   })
 
@@ -279,6 +355,127 @@ describe('features/deliveries/service', () => {
           { userId: 'mensajero-1', role: 'mensajero' },
         ),
       ).rejects.toThrow(DeliveryInputError)
+    })
+  })
+  // #118: «Recogido» cierra la recogida en la clínica sin cambiar el estado del trabajo.
+  describe('pickUp', () => {
+    const recogida = (over: Partial<DeliveryRow> = {}) =>
+      makeRow({ id: 'd1', type: 'recogida', courierId: 'mensajero-1', ...over })
+    const couriers = new Map([
+      ['mensajero-1', 'Luis Mensajero'],
+      ['mensajero-2', 'Mario Mensajero'],
+    ])
+    const yo = { userId: 'mensajero-1', role: 'mensajero' } as const
+
+    it('el mensajero en la suya: la recogida queda hecha y hay evento picked_up con su nombre', async () => {
+      const { service, rows, events } = makeService({ seed: [recogida()], couriers })
+      const row = await service.pickUp('d1', yo)
+      expect(row).toMatchObject({
+        id: 'd1',
+        status: 'hecha',
+        doneAt: new Date('2026-10-10T12:00:00Z'),
+        proofAttachmentId: null,
+      })
+      expect(rows.get('d1')).toMatchObject({ status: 'hecha', proofAttachmentId: null })
+      expect(events).toEqual([
+        {
+          caseId: 'c1',
+          type: 'picked_up',
+          fromValue: null,
+          toValue: null,
+          reason: 'Luis Mensajero',
+          actorId: 'mensajero-1',
+        },
+      ])
+    })
+
+    it('recepción la marca en cualquiera y el evento nombra al mensajero asignado, no a quien marca', async () => {
+      const { service, rows, events } = makeService({
+        seed: [recogida({ courierId: 'mensajero-2' })],
+        couriers,
+      })
+      await service.pickUp('d1', { userId: 'recep1', role: 'recepcion' })
+      expect(rows.get('d1')!.status).toBe('hecha')
+      expect(events).toMatchObject([{ reason: 'Mario Mensajero', actorId: 'recep1' }])
+    })
+
+    it('el mensajero en la de otro responde 403 y no la cierra', async () => {
+      const { service, rows, events } = makeService({
+        seed: [recogida({ courierId: 'mensajero-2' })],
+        couriers,
+      })
+      await expect(service.pickUp('d1', yo)).rejects.toThrow(DeliveryForbiddenError)
+      expect(rows.get('d1')!.status).toBe('pendiente')
+      expect(events).toEqual([])
+    })
+
+    it.each(['hecha', 'fallida'] as const)(
+      'una recogida %s ya no está pendiente: 409 con el literal de shared',
+      async (status) => {
+        const { service, events } = makeService({ seed: [recogida({ status })], couriers })
+        await expect(service.pickUp('d1', yo)).rejects.toThrow(DELIVERY_NOT_PENDING_MESSAGE)
+        expect(events).toEqual([])
+      },
+    )
+
+    // M-6 (revisión final): a quien no puede actuar sobre ella, 403 antes que 409 o 422, para
+    // no revelar si una entrega ajena está cerrada o qué tipo es.
+    it.each([
+      ['hecha', 'recogida'],
+      ['fallida', 'recogida'],
+      ['pendiente', 'entrega'],
+    ] as const)(
+      'el mensajero en una ajena (%s, %s) recibe 403, no 409 ni 422',
+      async (status, type) => {
+        const { service, events } = makeService({
+          seed: [recogida({ courierId: 'mensajero-2', status, type })],
+          couriers,
+        })
+        await expect(service.pickUp('d1', yo)).rejects.toThrow(DeliveryForbiddenError)
+        expect(events).toEqual([])
+      },
+    )
+
+    it('el técnico recibe 403 aunque la recogida ya esté cerrada', async () => {
+      const { service } = makeService({ seed: [recogida({ status: 'hecha' })], couriers })
+      await expect(service.pickUp('d1', { userId: 't1', role: 'tecnico' })).rejects.toThrow(
+        DeliveryForbiddenError,
+      )
+    })
+
+    it('una que no existe responde 409', async () => {
+      const { service } = makeService({ couriers })
+      await expect(service.pickUp('no-existe', yo)).rejects.toThrow(DeliveryNotPendingError)
+    })
+
+    it('si otra persona la cierra entre la lectura y el cierre responde 409 y no escribe evento', async () => {
+      const { service, rows, events } = makeService({ seed: [recogida()], couriers })
+      // La lectura la ve pendiente, pero «Recibido» la cierra antes de que `pickUp` la marque.
+      const original = rows.get.bind(rows)
+      let leida = false
+      rows.get = (id: string) => {
+        const row = original(id)
+        if (row && !leida) {
+          leida = true
+          rows.set(id, { ...row, status: 'hecha', doneAt: new Date('2026-10-10T11:00:00Z') })
+        }
+        return row
+      }
+      await expect(service.pickUp('d1', yo)).rejects.toThrow(DeliveryNotPendingError)
+      expect(original('d1')!.doneAt).toEqual(new Date('2026-10-10T11:00:00Z'))
+      expect(events).toEqual([])
+    })
+
+    it('una entrega no se marca como recogida (422)', async () => {
+      const { service, rows, events } = makeService({
+        seed: [makeRow({ id: 'd1', type: 'entrega', courierId: 'mensajero-1' })],
+        couriers,
+      })
+      const error = await service.pickUp('d1', yo).catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(DeliveryInputError)
+      expect(error).toMatchObject({ message: 'Solo una recogida se marca como recogida' })
+      expect(rows.get('d1')!.status).toBe('pendiente')
+      expect(events).toEqual([])
     })
   })
 })

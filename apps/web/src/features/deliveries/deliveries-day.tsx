@@ -4,6 +4,7 @@ import {
   deliveryDaySummary,
   hasRole,
   isActionableDelivery,
+  isDeliveryInTransit,
   toIsoDate,
   type UserRole,
 } from '@dentalware/shared'
@@ -72,8 +73,13 @@ export function DeliveriesDay({
   const items = compact ? q.data.filter(isActionableDelivery) : q.data
   if (items.length === 0) {
     const mineToday = role === 'mensajero' && day === today
-    // En compacto, que no quede nada pendiente no es lo mismo que no haber tenido entregas.
-    const allDone = compact && q.data.length > 0
+    // En compacto, que no quede nada pendiente no es lo mismo que no haber tenido entregas. Lo
+    // que sigue en camino desde otro día no es trabajo de hoy (M-8 de #118): no cuenta.
+    const allDone =
+      compact &&
+      q.data.some(
+        (d) => !isDeliveryInTransit(d) || (!!d.doneAt && toIsoDate(new Date(d.doneAt)) === today),
+      )
     // UX4-23: el vacío dice la salida (otro día con las flechas), salvo en el inicio, que no
     // las tiene. Mismo ancho que la lista (UX4-20).
     return (

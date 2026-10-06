@@ -515,12 +515,16 @@ export function fakeDeliveryLog(
     async deliveryInfo(caseId) {
       const mine = [...rows.values()].filter((r) => r.caseId === caseId)
       const pending = mine.find((r) => r.status === 'pendiente')
-      const last = mine
-        .filter((r) => r.type === 'entrega' && r.status === 'hecha' && r.doneAt)
-        .sort((a, b) => b.doneAt!.getTime() - a.doneAt!.getTime())[0]
+      const lastDone = (type: DeliveryType) =>
+        mine
+          .filter((r) => r.type === type && r.status === 'hecha' && r.doneAt)
+          .sort((a, b) => b.doneAt!.getTime() - a.doneAt!.getTime())[0]
+      const last = lastDone('entrega')
+      const picked = lastDone('recogida')
       return {
         pending: pending
           ? {
+              id: pending.id,
               type: pending.type,
               courierId: pending.courierId,
               courierName: nameOf(pending.courierId),
@@ -533,6 +537,9 @@ export function fakeDeliveryLog(
               courierName: nameOf(last.courierId),
               proofAttachmentId: last.proofAttachmentId,
             }
+          : null,
+        lastPickedUp: picked
+          ? { doneAt: picked.doneAt!, courierName: nameOf(picked.courierId) }
           : null,
       }
     },

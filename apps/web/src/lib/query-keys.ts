@@ -64,4 +64,5 @@ export const mutationKeys = {
   caseAction: (caseId: string) => ['trabajos', caseId, 'accion'] as const,
   proofUpload: (caseId: string) => ['trabajos', caseId, 'constancia'] as const,
   deliveryFail: (caseId: string) => ['trabajos', caseId, 'no-se-pudo'] as const,
+  pickUp: (caseId: string) => ['trabajos', caseId, 'recogido'] as const,
 }

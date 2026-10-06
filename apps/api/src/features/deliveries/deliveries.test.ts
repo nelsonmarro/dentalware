@@ -596,4 +596,148 @@ describe('/api/entregas', () => {
       expect(res.status).toBe(403)
     })
   })
+  // #118: «Recogido» cierra la recogida en la clínica; el trabajo sigue por recoger hasta
+  // «Recibido».
+  describe('POST /api/entregas/:id/recogido', () => {
+    /** Un trabajo por recoger creado por recepción, con su recogida pendiente para hoy. */
+    async function porRecoger(courierId = mensajeroId) {
+      const res = await post(
+        '/api/trabajos',
+        recepcion,
+        caseInput({ recogida: { mensajeroId: courierId, fecha: '2026-10-10' } }),
+      )
+      expect(res.status).toBe(201)
+      const { case: created } = (await res.json()) as { case: { id: string } }
+      const recogida = await createDeliveriesRepo(ctx.db).pendingFor(created.id, 'recogida')
+      return { caseId: created.id, deliveryId: recogida!.id }
+    }
+    const recogido = (id: string, cookie: string) =>
+      post(`/api/entregas/${id}/recogido`, cookie, {})
+    const estadoDe = async (caseId: string) => {
+      const [row] = await ctx.db
+        .select({ status: ctx.schema.cases.status })
+        .from(ctx.schema.cases)
+        .where(eq(ctx.schema.cases.id, caseId))
+      return row?.status
+    }
+
+    it('el mensajero marca la suya: recogida hecha, evento con su nombre y el trabajo sigue por recoger', async () => {
+      const { caseId, deliveryId } = await porRecoger()
+      const res = await recogido(deliveryId, mensajero)
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { entrega: Record<string, unknown> }
+      expect(body.entrega).toMatchObject({
+        id: deliveryId,
+        type: 'recogida',
+        status: 'hecha',
+        doneAt: '2026-10-10T12:00:00.000Z',
+        proofAttachmentId: null,
+      })
+      expect(body.entrega).not.toHaveProperty('courierName')
+      expect(await estadoDe(caseId)).toBe('por_recoger')
+
+      const eventos = (await (await get(`/api/trabajos/${caseId}/eventos`, admin)).json()) as {
+        events: { type: string; fromValue: unknown; toValue: unknown; reason: unknown }[]
+      }
+      expect(eventos.events.map((e) => e.type)).toEqual([
+        'created',
+        'pickup_scheduled',
+        'picked_up',
+      ])
+      expect(eventos.events.at(-1)).toMatchObject({
+        fromValue: null,
+        toValue: null,
+        reason: 'Zoila Mensajera',
+      })
+    })
+
+    it('recepción lo marca en la de cualquier mensajero', async () => {
+      const { deliveryId } = await porRecoger(otroMensajeroId)
+      expect((await recogido(deliveryId, recepcion)).status).toBe(200)
+    })
+
+    it('el mensajero en la de otro responde 403 y la recogida sigue pendiente', async () => {
+      const { deliveryId } = await porRecoger(otroMensajeroId)
+      expect((await recogido(deliveryId, mensajero)).status).toBe(403)
+      expect((await createDeliveriesRepo(ctx.db).byId(deliveryId))?.status).toBe('pendiente')
+    })
+
+    it('técnico recibe 403', async () => {
+      const { deliveryId } = await porRecoger()
+      expect((await recogido(deliveryId, tecnico)).status).toBe(403)
+    })
+
+    // M-6 (revisión final): 403 antes que 409 o 422, sin revelar nada de una entrega ajena.
+    it('el mensajero en una ajena ya cerrada o que es una entrega recibe 403, no 409 ni 422', async () => {
+      const { deliveryId } = await porRecoger(otroMensajeroId)
+      expect((await recogido(deliveryId, recepcion)).status).toBe(200)
+      expect((await recogido(deliveryId, mensajero)).status).toBe(403)
+
+      const entrega = await createDeliveriesRepo(ctx.db).create({
+        caseId: await createCase(),
+        type: 'entrega',
+        courierId: otroMensajeroId,
+        scheduledFor: '2026-10-10',
+      })
+      expect((await recogido(entrega.id, mensajero)).status).toBe(403)
+    })
+
+    it('una que no existe responde 409', async () => {
+      const res = await recogido('00000000-0000-4000-8000-000000000000', mensajero)
+      expect(res.status).toBe(409)
+    })
+
+    it('sin sesión responde 403', async () => {
+      const { deliveryId } = await porRecoger()
+      expect((await recogido(deliveryId, '')).status).toBe(403)
+    })
+
+    it('la segunda vez responde 409 con el mensaje de shared', async () => {
+      const { deliveryId } = await porRecoger()
+      expect((await recogido(deliveryId, mensajero)).status).toBe(200)
+      const res = await recogido(deliveryId, mensajero)
+      expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({ message: 'Esta entrega ya no está pendiente.' })
+    })
+
+    it('sobre una entrega responde 422', async () => {
+      const caseId = await createCase()
+      const entrega = await createDeliveriesRepo(ctx.db).create({
+        caseId,
+        type: 'entrega',
+        courierId: mensajeroId,
+        scheduledFor: '2026-10-10',
+      })
+      const res = await recogido(entrega.id, mensajero)
+      expect(res.status).toBe(422)
+      expect(await res.json()).toEqual({
+        message: 'Datos inválidos',
+        issues: [{ path: '', message: 'Solo una recogida se marca como recogida' }],
+      })
+      expect((await createDeliveriesRepo(ctx.db).byId(entrega.id))?.status).toBe('pendiente')
+    })
+
+    it('tras «Recogido», la ficha trae la última recogida para recepción y para el mensajero, sin dinero', async () => {
+      const { caseId, deliveryId } = await porRecoger()
+      type Ficha = {
+        case: { lastPickedUp: unknown; pendingDelivery: unknown; total: string | null }
+      }
+      const ficha = async (cookie: string) =>
+        ((await (await get(`/api/trabajos/${caseId}`, cookie)).json()) as Ficha).case
+      expect((await ficha(recepcion)).lastPickedUp).toBeNull()
+
+      expect((await recogido(deliveryId, mensajero)).status).toBe(200)
+      const esperado = { doneAt: '2026-10-10T12:00:00.000Z', courierName: 'Zoila Mensajera' }
+      const deRecepcion = await ficha(recepcion)
+      expect(deRecepcion.lastPickedUp).toEqual(esperado)
+      expect(deRecepcion.pendingDelivery).toBeNull()
+      const delMensajero = await ficha(mensajero)
+      expect(delMensajero.lastPickedUp).toEqual(esperado)
+      expect(delMensajero.total).toBeNull()
+    })
+
+    it('con un id que no es uuid responde 422', async () => {
+      expect((await recogido('no-es-uuid', mensajero)).status).toBe(422)
+    })
+  })
 })

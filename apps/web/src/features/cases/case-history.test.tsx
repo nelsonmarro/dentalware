@@ -152,8 +152,13 @@ describe('CaseHistory', () => {
       'Recogida programada',
       'Con Mario Mensajero para el 05/10/2026',
     ],
+    // #118: `picked_up` es «el mensajero recogió en la clínica», con su nombre en `reason`.
+    ['picked_up', { reason: 'Mario Mensajero' }, 'Recogido', 'Por Mario Mensajero'],
+    // Los `picked_up` viejos (los escribía «Recibido», sin nombre): «Recogido» a secas.
+    ['picked_up', { fromValue: 'por_recoger', toValue: 'nuevo' }, 'Recogido', null],
+    // #118: «Recibido» (`recibir`) escribe su propio evento `received`.
     [
-      'picked_up',
+      'received',
       { fromValue: 'por_recoger', toValue: 'nuevo' },
       'Recibido en el laboratorio',
       null,
@@ -198,6 +203,7 @@ describe('CaseHistory', () => {
       const item = await screen.findByRole('listitem')
       expect(within(item).getByText(rotulo)).toBeInTheDocument()
       if (detalle) expect(within(item).getByText(detalle)).toBeInTheDocument()
+      else expect(item).not.toHaveTextContent(/Por |Con |Motivo/)
       expect(item).not.toHaveTextContent('2026-10-0')
       expect(item).not.toHaveTextContent('9b2f7c1e')
       expect(item).not.toHaveTextContent('Nuevo estado')

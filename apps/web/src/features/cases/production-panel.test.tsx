@@ -316,6 +316,7 @@ describe('ProductionPanel', () => {
           status: 'enviado',
           currentStageId: null,
           pendingDelivery: {
+            id: 'd1',
             type: 'entrega',
             courierId: 'm1',
             courierName: 'Mario Mensajero',
@@ -328,6 +329,35 @@ describe('ProductionPanel', () => {
       />,
     )
     expect(await screen.findByText('Sale el 09/10/2999 con Mario Mensajero')).toBeInTheDocument()
+  })
+
+  // #118: recogido y aún sin recibir, recepción lo ve en camino y sigue teniendo «Recibido».
+  it('lo que viene en camino lo dice en el panel «Recogida» y recepción sigue con «Recibido»', async () => {
+    renderWithProviders(
+      <ProductionPanel
+        self={yo}
+        case={caso({
+          status: 'por_recoger',
+          currentStageId: null,
+          pendingDelivery: null,
+          // Hoy a las 10:32 locales: recogido hoy, solo la hora.
+          lastPickedUp: {
+            doneAt: new Date(new Date().setHours(10, 32, 0, 0)).toISOString(),
+            courierName: 'Mario Mensajero',
+          },
+        })}
+        missing={[]}
+        role="recepcion"
+        stages={fases}
+      />,
+    )
+    const panel = await screen.findByRole('region', { name: 'Recogida' })
+    expect(
+      within(panel).getByText(
+        'En camino al laboratorio · Recogido por Mario Mensajero a las 10:32',
+      ),
+    ).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Recibido' })).toBeInTheDocument()
   })
 
   // UX4-24: el panel se llama por lo que toca hacer y, al traer o llevar el trabajo, la acción

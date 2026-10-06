@@ -6,12 +6,14 @@ import {
   compareStopDeliveries,
   deliveryDaySummary,
   deliveryOutcome,
+  isDeliveryInTransit,
 } from './delivery-day.ts'
 
 type Item = Parameters<typeof deliveryDaySummary>[0][number]
 
 function item(over: Partial<Item> = {}): Item {
   return {
+    type: 'entrega',
     status: 'pendiente',
     scheduledFor: '2026-10-03',
     failedReason: null,
@@ -21,6 +23,14 @@ function item(over: Partial<Item> = {}): Item {
 }
 
 const TODAY = '2026-10-03'
+// #118: recogida hecha cuyo trabajo sigue por recoger (el mensajero la recogió).
+const enCamino = (over: Partial<Item> = {}) =>
+  item({
+    type: 'recogida',
+    status: 'hecha',
+    case: { status: 'por_recoger', priority: 'normal' },
+    ...over,
+  })
 const cancelada = item({
   status: 'fallida',
   failedReason: 'Trabajo cancelado: la clínica lo anuló',
@@ -103,6 +113,47 @@ describe('deliveryDaySummary (UX4-18)', () => {
   })
 })
 
+describe('isDeliveryInTransit (#118)', () => {
+  it('una recogida hecha cuyo trabajo sigue por recoger viene en camino', () => {
+    expect(isDeliveryInTransit(enCamino())).toBe(true)
+  })
+  it('recibida (trabajo nuevo) ya no viene en camino', () => {
+    expect(isDeliveryInTransit(enCamino({ case: { status: 'nuevo', priority: 'normal' } }))).toBe(
+      false,
+    )
+  })
+  it('una recogida pendiente o fallida no viene en camino', () => {
+    expect(isDeliveryInTransit(enCamino({ status: 'pendiente' }))).toBe(false)
+    expect(
+      isDeliveryInTransit(enCamino({ status: 'fallida', failedReason: 'Clínica cerrada' })),
+    ).toBe(false)
+  })
+  it('una entrega hecha no viene en camino al laboratorio', () => {
+    expect(isDeliveryInTransit(enCamino({ type: 'entrega' }))).toBe(false)
+  })
+})
+
+describe('deliveryDaySummary con lo que viene en camino (#118)', () => {
+  it('lo que viene en camino se cuenta aparte, nunca como hecho hoy', () => {
+    expect(
+      deliveryDaySummary(
+        [
+          item(),
+          item({ status: 'hecha' }),
+          // Recogida de un día anterior que sigue en camino, y la adelantada (fecha futura).
+          enCamino({ scheduledFor: '2026-10-01' }),
+          enCamino({ scheduledFor: '2026-10-05' }),
+          enCamino(),
+        ],
+        TODAY,
+      ),
+    ).toBe('1 pendiente · 3 en camino · 1 hecha')
+  })
+  it('una sola en camino, en singular', () => {
+    expect(deliveryDaySummary([enCamino()], TODAY)).toBe('0 pendientes · 1 en camino')
+  })
+})
+
 describe('compareStopDeliveries (UX4-19)', () => {
   const sort = (xs: (Item & { id: string })[]) =>
     [...xs].sort((a, b) => compareStopDeliveries(a, b, TODAY)).map((x) => x.id)
@@ -139,5 +190,15 @@ describe('compareStopDeliveries (UX4-19)', () => {
         { ...item(), id: 'pendiente' },
       ]),
     ).toEqual(['pendiente', 'hecha', 'anulada'])
+  })
+  // #118: lo que viene en camino aún espera «Recibido»: tras lo pendiente y antes de lo cerrado.
+  it('lo que viene en camino va tras lo pendiente y antes de lo cerrado', () => {
+    expect(
+      sort([
+        { ...item({ status: 'hecha' }), id: 'hecha' },
+        { ...enCamino(), id: 'en-camino' },
+        { ...item(), id: 'pendiente' },
+      ]),
+    ).toEqual(['pendiente', 'en-camino', 'hecha'])
   })
 })

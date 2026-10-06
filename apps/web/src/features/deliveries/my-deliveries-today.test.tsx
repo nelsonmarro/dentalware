@@ -73,4 +73,37 @@ describe('MyDeliveriesToday', () => {
     expect(await screen.findByText('Terminaste las entregas de hoy.')).toBeInTheDocument()
     expect(screen.queryByText('No tienes entregas hoy.')).not.toBeInTheDocument()
   })
+
+  // M-8 (revisión final de #118): lo que sigue en camino desde ayer no es trabajo de hoy.
+  it('con solo una recogida en camino de ayer dice que no tiene entregas hoy', async () => {
+    fetchDeliveries.mockResolvedValue([
+      {
+        ...base,
+        type: 'recogida',
+        status: 'hecha',
+        scheduledFor: '2026-10-02',
+        doneAt: new Date('2026-10-02T10:32:00').toISOString(),
+        case: { ...base.case, status: 'por_recoger' },
+      },
+    ])
+    renderWithQueryAndRouter(<MyDeliveriesToday userId="m1" />)
+
+    expect(await screen.findByText('No tienes entregas hoy.')).toBeInTheDocument()
+    expect(screen.queryByText('Terminaste las entregas de hoy.')).not.toBeInTheDocument()
+  })
+
+  it('con la recogida de hoy ya en camino dice que terminó', async () => {
+    fetchDeliveries.mockResolvedValue([
+      {
+        ...base,
+        type: 'recogida',
+        status: 'hecha',
+        doneAt: new Date('2026-10-03T10:32:00').toISOString(),
+        case: { ...base.case, status: 'por_recoger' },
+      },
+    ])
+    renderWithQueryAndRouter(<MyDeliveriesToday userId="m1" />)
+
+    expect(await screen.findByText('Terminaste las entregas de hoy.')).toBeInTheDocument()
+  })
 })

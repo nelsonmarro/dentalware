@@ -60,6 +60,10 @@ export function fakeDeliveriesRepo(
     async byId(id) {
       return rows.get(id)
     },
+    async byIdWithCourier(id) {
+      const row = rows.get(id)
+      return row && { ...row, courierName: couriers.get(row.courierId) ?? 'Mensajero' }
+    },
     async pendingFor(caseId, type) {
       return [...rows.values()].find(
         (r) => r.caseId === caseId && r.type === type && r.status === 'pendiente',
@@ -89,7 +93,15 @@ export function fakeDeliveriesRepo(
       const matches = [...rows.values()].filter((r) => {
         if (q.courierId && r.courierId !== q.courierId) return false
         if (r.scheduledFor === q.day) return true
-        return q.includeOverdue && r.status === 'pendiente' && r.scheduledFor < q.day
+        if (!q.includeOverdue) return false
+        // Pendiente atrasada, o recogida hecha cuyo trabajo sigue por recoger (en camino, #118),
+        // sea cual sea su fecha.
+        if (r.status === 'pendiente') return r.scheduledFor < q.day
+        return (
+          r.type === 'recogida' &&
+          r.status === 'hecha' &&
+          cases.get(r.caseId)?.status === 'por_recoger'
+        )
       })
       // Mismo criterio que `repo.ts` (UX4-18): la siguiente del mismo trabajo y tipo, creada
       // después (aquí, el orden de inserción del mapa).
@@ -136,8 +148,8 @@ export const fakeCouriersQuery = (couriers: Named[] = []): CouriersQuery => ({
   activeCouriers: async () => couriers,
 })
 
-/** Evento del trabajo en memoria (para `service.test.ts` de `fail`, sin Postgres): guarda
- * cada `delivery_failed` que escribe el servicio, visible para la aserción del test. */
+/** Evento del trabajo en memoria (para `service.test.ts` de `fail` y `pickUp`, sin Postgres):
+ * guarda cada `delivery_failed` y `picked_up` que escribe el servicio, visible para el test. */
 export function fakeCaseEventLog() {
   const events: Parameters<CaseEventLog['addEvent']>[0][] = []
   const log: CaseEventLog = {

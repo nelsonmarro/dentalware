@@ -1,4 +1,10 @@
-import { canFailDelivery, DELIVERY_MANAGE_ROLES, hasRole } from '@dentalware/shared'
+import {
+  canFailDelivery,
+  canHandleDelivery,
+  canMarkPickedUp,
+  DELIVERY_MANAGE_ROLES,
+  hasRole,
+} from '@dentalware/shared'
 import type { DeliveryFailInput, DeliveryListQuery } from '@dentalware/shared'
 import type { Clock } from '../../lib/clock.ts'
 import type { RequestContext } from '../../lib/request-context.ts'
@@ -87,6 +93,46 @@ export function createDeliveriesService(deps: {
           actorId: ctx.userId,
         })
         return next
+      })
+    },
+
+    /**
+     * «Recogido» (#118): el mensajero recogió el trabajo en la clínica. Cierra la recogida como
+     * hecha (sin constancia) y escribe `picked_up` con el nombre del mensajero asignado, copiado
+     * en el momento; el trabajo sigue por recoger hasta que recepción marca «Recibido». Solo
+     * recogidas (422 en una entrega); el mensajero, solo en la suya (`canMarkPickedUp`, 403).
+     * El 403 de una ajena va antes que el 409 o el 422 (`canHandleDelivery`, M-6), para no
+     * revelar nada de ella. Si no existe, ya no está pendiente o la cerró otra petición entre la
+     * lectura y el cierre
+     * («Recibido», «Cancelar», «No se pudo»), el mismo 409 que `fail` y sin evento. Todo en una
+     * transacción; el nombre se lee dentro de ella, con la propia entrega (`byIdWithCourier`).
+     */
+    async pickUp(id: string, ctx: RequestContext): Promise<DeliveryRow> {
+      return deps.uow.run(async ({ deliveries, events }) => {
+        const found = await deliveries.byIdWithCourier(id)
+        if (!found) throw new DeliveryNotPendingError()
+        // M-6: a quien no puede actuar sobre ella, 403 antes que 409 o 422, para no revelar si
+        // una entrega ajena está cerrada o qué tipo es.
+        if (!canHandleDelivery(ctx, found)) throw new DeliveryForbiddenError()
+        if (found.status !== 'pendiente') throw new DeliveryNotPendingError()
+        if (found.type !== 'recogida') {
+          throw new DeliveryInputError('Solo una recogida se marca como recogida')
+        }
+        if (!canMarkPickedUp(ctx, found)) throw new DeliveryForbiddenError()
+        if (!(await deliveries.markDone(found.id, deps.clock.now(), null))) {
+          throw new DeliveryNotPendingError()
+        }
+        await events.addEvent({
+          caseId: found.caseId,
+          type: 'picked_up',
+          fromValue: null,
+          toValue: null,
+          reason: found.courierName,
+          actorId: ctx.userId,
+        })
+        // La fila tal como quedó, sin el nombre del mensajero; existe: se acaba de cerrar en esta
+        // misma transacción.
+        return (await deliveries.byId(found.id))!
       })
     },
   }

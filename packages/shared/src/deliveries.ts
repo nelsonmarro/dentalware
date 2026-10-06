@@ -123,8 +123,10 @@ export const DELIVERY_CLOSING_ACTION: Record<DeliveryType, CaseAction> = {
 export type DeliveryAssignment = { type: DeliveryType; courierId: string }
 
 /** La entrega o recogida pendiente de un trabajo, tal como la trae su ficha (UX4-07/09): de qué
- * tipo es, quién la tiene y para qué día está programada. Sin dinero. */
+ * tipo es, quién la tiene y para qué día está programada. Con su `id`, para que la ficha corta
+ * del mensajero marque «Recogido» sobre ella (#118). Sin dinero. */
 export type PendingDelivery = DeliveryAssignment & {
+  id: string
   courierName: string
   /** `YYYY-MM-DD`. */
   scheduledFor: string
@@ -180,6 +182,21 @@ export function canActOnDelivery(
 }
 
 /**
+ * ¿Puede `actor` saber algo de `delivery`, sea del tipo o en el estado que sea (M-6 de la
+ * revisión final de #118)? Quien administra entregas, de cualquiera; el mensajero
+ * (`DELIVERY_ROLES`), solo de la suya. La API lo comprueba antes que el estado o el tipo, así
+ * que a quien no puede actuar sobre una entrega ajena le responde 403 sin revelar si está
+ * cerrada o qué tipo es.
+ */
+export function canHandleDelivery(
+  actor: { role: UserRole; userId: string },
+  delivery: { courierId: string },
+): boolean {
+  if (hasRole(DELIVERY_MANAGE_ROLES, actor.role)) return true
+  return hasRole(DELIVERY_ROLES, actor.role) && isOwnDelivery(actor.userId, delivery)
+}
+
+/**
  * ¿Puede `actor` marcar «No se pudo» en `delivery` (ENT-5)? Quien administra entregas, en
  * cualquiera; el mensajero (`DELIVERY_ROLES`), solo en la suya, sea recogida o entrega. No
  * depende de quién puede cerrarla (UX4-10: la recogida la recibe recepción). Una sola fuente
@@ -189,8 +206,73 @@ export function canFailDelivery(
   actor: { role: UserRole; userId: string },
   delivery: DeliveryAssignment,
 ): boolean {
-  if (hasRole(DELIVERY_MANAGE_ROLES, actor.role)) return true
-  return hasRole(DELIVERY_ROLES, actor.role) && isOwnDelivery(actor.userId, delivery)
+  return canHandleDelivery(actor, delivery)
+}
+
+/**
+ * ¿Puede `actor` marcar «Recogido» en `delivery` (#118)? Solo en una recogida: quien administra
+ * entregas, en cualquiera; el mensajero, solo en la suya. Cierra la recogida sin cambiar el
+ * estado del trabajo, que sigue por recoger hasta «Recibido». Una sola fuente para la API
+ * (`DeliveriesService.pickUp`, 403) y la web (botón «Recogido»).
+ */
+export function canMarkPickedUp(
+  actor: { role: UserRole; userId: string },
+  delivery: DeliveryAssignment,
+): boolean {
+  return delivery.type === 'recogida' && canHandleDelivery(actor, delivery)
+}
+
+/**
+ * ¿Se le **ofrece** «Recogido» a `actor` en la UI (#118, decisión 4 del plan)? Solo al mensajero
+ * en su recogida (`canMarkPickedUp`). Admin y recepción pueden marcarla en la API, pero la UI no
+ * se lo ofrece: ven «Recibido», que también la cierra si el trabajo llega en mano, y así no hay
+ * tres botones en la tarjeta.
+ */
+export function offersPickUp(
+  actor: { role: UserRole; userId: string },
+  delivery: DeliveryAssignment,
+): boolean {
+  return !hasRole(DELIVERY_MANAGE_ROLES, actor.role) && canMarkPickedUp(actor, delivery)
+}
+
+/** La última recogida hecha de un trabajo (#118): cuándo la recogió y quién. Sin dinero. */
+export type LastPickedUp = {
+  /** Timestamp ISO (UTC); formatea el cliente. */
+  doneAt: string
+  courierName: string
+}
+
+/** ¿Viene en camino al laboratorio (#118)? La recogida está hecha y el trabajo sigue por
+ * recoger, sin otra recogida pendiente. Rótulo derivado, sin estado nuevo (ADR 16). */
+export function isInTransitToLab(
+  status: CaseStatus,
+  pending: DeliveryAssignment | null | undefined,
+  lastPickedUp: LastPickedUp | null | undefined,
+): boolean {
+  return status === 'por_recoger' && !pending && !!lastPickedUp
+}
+
+export const IN_TRANSIT_TO_LAB = 'En camino al laboratorio'
+
+/** Línea del diálogo de cancelar un trabajo que viene en camino (#118, M-1 de la revisión
+ * final): el mensajero ya lo tiene en la mano, y quien cancela debe saberlo. `null` si no viene
+ * en camino (`isInTransitToLab`). */
+export function inTransitCancelNote(
+  status: CaseStatus,
+  pending: DeliveryAssignment | null | undefined,
+  lastPickedUp: LastPickedUp | null | undefined,
+): string | null {
+  if (!lastPickedUp || !isInTransitToLab(status, pending, lastPickedUp)) return null
+  return `${lastPickedUp.courierName} ya lo recogió y viene en camino al laboratorio.`
+}
+
+/** «Recogido por Luis a las 10:32» (#118); `time` y `date` («04/10») ya formateadas por el
+ * cliente. Lo recogido otro día lleva la fecha («Recogido por Luis el 04/10 a las 10:32», M-4
+ * de la revisión final): lo que sigue en camino desde ayer no se lee como de hoy. */
+export function pickedUpLine(courierName: string, time: string, date?: string | null): string {
+  return date
+    ? `Recogido por ${courierName} el ${date} a las ${time}`
+    : `Recogido por ${courierName} a las ${time}`
 }
 
 /** Quién cierra cada tipo de entrega cuando no es quien la ve (UX4-10). `Record` exhaustivo. */
@@ -231,20 +313,25 @@ export const OTHER_COURIER_REASON: Record<DeliveryType, (courierName: string) =>
 export const NO_PENDING_DELIVERY_FOR_COURIER =
   'Este trabajo no tiene una entrega pendiente para ti.'
 
+/** Qué sigue en la ficha corta del mensajero cuando el trabajo ya viene en camino (#118): la
+ * recogida está hecha y «Recibido» lo marca recepción al llegar. */
+export const PICKED_UP_NEXT_STEP = `Recogido. ${DELIVERY_NEXT_STEP.recogida}`
+
 /**
  * Por qué el mensajero no tiene acción en la ficha corta (UX4-08): la recogida o entrega es de
- * otro, o no hay ninguna pendiente. En la suya, su tarea («Recoger hoy en …») ya dice qué hacer;
- * solo se suma qué sigue si la cierra otro (`deliveryNextStep`, UX4-10: su recogida la marca
- * recepción al llegar).
+ * otro, o no hay ninguna pendiente. En la suya no hace falta: su tarea («Recoger hoy en …») dice
+ * qué hacer y tiene su botón («Recogido» en la recogida, #118). Si el trabajo ya viene en camino
+ * (`inTransit`, `isInTransitToLab`), dice que lo recogió y que lo demás es de recepción.
  */
 export function courierNoActionReason(
   pending: Pick<PendingDelivery, 'type' | 'courierId' | 'courierName'> | null | undefined,
   userId: string,
+  inTransit = false,
 ): string | null {
-  if (!pending) return NO_PENDING_DELIVERY_FOR_COURIER
+  if (!pending) return inTransit ? PICKED_UP_NEXT_STEP : NO_PENDING_DELIVERY_FOR_COURIER
   if (!isOwnDelivery(userId, pending))
     return OTHER_COURIER_REASON[pending.type](pending.courierName)
-  return deliveryNextStep('mensajero', pending.type)
+  return null
 }
 
 /** Línea de la entrega pendiente en la ficha completa (UX4-09), por tipo; `when` lo formatea el

@@ -11,7 +11,9 @@ import {
   toIsoDate,
   type UserRole,
   hasRole,
+  isInTransitToLab,
   isOwnDelivery,
+  offersPickUp,
 } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { Camera } from 'lucide-react'
@@ -20,6 +22,7 @@ import { EmptyState } from '@/components/empty-state'
 import { LoadError } from '@/components/load-error'
 import { Button } from '@/components/ui/button'
 import { ClinicContact } from '@/components/clinic-contact'
+import { PickUpButton } from '@/features/deliveries/pick-up-button'
 import { useStages } from '@/features/stages/use-stages'
 import { isNotFoundError } from '@/lib/api-error'
 import { AlertChip } from './alert-chip'
@@ -121,12 +124,18 @@ export function QuickCase({
   const courier = deliversOnly(role)
   // UX4-07: la entrega o recogida que le toca a este mensajero: qué hacer, cuándo y dónde.
   const myTask = courier && isOwnDelivery(self.id, c.pendingDelivery) ? c.pendingDelivery : null
+  // #118: en su recogida, «Recogido» bajo la tarea (`offersPickUp`, misma regla que «Entregas»).
+  const canPickUp = !!myTask && offersPickUp({ role, userId: self.id }, myTask)
   // UX4-08: sin acción, el mensajero sabe por qué (la tiene otro, o no hay ninguna pendiente)
-  // en vez de una ficha muda que parece un fallo. Misma regla que la barra (`actionsFor`). En
-  // su recogida, qué sigue (UX4-10): «Recibido» lo marca recepción al llegar.
+  // en vez de una ficha muda que parece un fallo. Misma regla que la barra (`actionsFor`). Ya
+  // recogido, viene en camino (#118): «Recibido» lo marca recepción al llegar.
   const noActionReason =
     courier && actionsFor({ role, userId: self.id }, c.status, c.pendingDelivery).length === 0
-      ? courierNoActionReason(c.pendingDelivery, self.id)
+      ? courierNoActionReason(
+          c.pendingDelivery,
+          self.id,
+          isInTransitToLab(c.status, c.pendingDelivery, c.lastPickedUp),
+        )
       : null
   // Misma fuente que la ficha completa (`stageNavigation`): qué fase sigue, si es la última y
   // si la actual está desactivada.
@@ -189,6 +198,9 @@ export function QuickCase({
             {myTask.scheduledFor < today && <AlertChip tone="destructive">Atrasada</AlertChip>}
           </div>
           <ClinicContact clinic={c.clinic} />
+          {canPickUp && myTask && (
+            <PickUpButton deliveryId={myTask.id} caseId={c.id} className="h-14 w-full text-base" />
+          )}
         </section>
       )}
       {/* UX3-23: misma regla que la ficha completa (`case-header`, `stage-control`): fuera de
