@@ -399,6 +399,8 @@ export function createCasesRepo(db: Db | Tx) {
     async events(caseId) {
       const rows = await db.query.caseEvents.findMany({
         where: { caseId },
+        // `created_at` es `clock_timestamp()`: también dentro de una transacción, el orden de
+        // escritura.
         orderBy: { createdAt: 'asc' },
         with: { actor: { columns: { id: true, name: true } } },
       })

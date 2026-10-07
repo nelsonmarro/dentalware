@@ -151,7 +151,12 @@ export const caseEvents = pgTable(
     toValue: text('to_value'),
     reason: text(),
     actorId: text('actor_id').references(() => users.id),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    // `clock_timestamp()`, no `now()`: los eventos de una misma transacción (p. ej.
+    // `payment_applied` y `status_changed`) tienen su propia hora y el historial, que ordena
+    // por ella, sale en el orden en que se escribieron, sin depender del desempate físico.
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .default(sql`clock_timestamp()`)
+      .notNull(),
   },
   (t) => [index('case_events_case_idx').on(t.caseId, t.createdAt)],
 )

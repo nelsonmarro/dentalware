@@ -1,6 +1,7 @@
+import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { setupTestDb, truncateAll } from '../../test/setup.ts'
-import { createCaseSettlement } from './repo.ts'
+import { createCaseSettlement, createCasesRepo } from './repo.ts'
 
 /** Otra conexión intenta bloquear la misma fila sin esperar: falla si ya está bloqueada. */
 const lockedElsewhere = async (pool: Awaited<ReturnType<typeof setupTestDb>>['pool'], id: string) =>
@@ -169,5 +170,29 @@ describe('features/cases/repo: CaseSettlement (cuentas, ADR 35)', () => {
         actorId,
       }),
     ])
+  })
+
+  it('los eventos de una misma transacción tienen su propia hora y salen en el orden en que se escribieron', async () => {
+    const c = await insertCase()
+    await ctx.db.transaction(async (tx) => {
+      const settlement = createCaseSettlement(tx)
+      await settlement.addEvent({
+        caseId: c.id,
+        type: 'payment_applied',
+        toValue: '100.00',
+        reason: 'Efectivo',
+        actorId,
+      })
+      await settlement.setPaid(c.id, new Date('2026-10-06T17:00:00Z'), actorId)
+    })
+    const events = await createCasesRepo(ctx.db).events(c.id)
+    expect(events.map((e) => e.type)).toEqual(['payment_applied', 'status_changed'])
+    // `created_at` no es la hora de inicio de la transacción (`now()`), que empataría: el
+    // historial no depende del desempate físico de la BD.
+    // En SQL, con microsegundos: `Date` solo llega a milisegundos.
+    const distinct = await ctx.db.execute<{ n: number }>(
+      sql`select count(distinct created_at)::int as n from case_events where case_id = ${c.id}`,
+    )
+    expect(distinct.rows[0]?.n).toBe(2)
   })
 })
