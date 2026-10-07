@@ -142,6 +142,52 @@ describe('features/accounts/service', () => {
       expect(account.oldestDays).toBeNull()
     })
 
+    it('el pendiente negativo de un trabajo (descuento tras pagarlo entero) es saldo a favor', async () => {
+      const service = makeService({
+        cases: [
+          // Pagado entero y con un descuento después: −10.00 de pendiente.
+          makeCase({ id: 'pagado', status: 'cobrado', totalCents: 10_000 }),
+          // 100 días: más de 90; 35 días: 31–60.
+          makeCase({ id: 'viejo', totalCents: 4_000, deliveredAt: at('2026-06-28') }),
+          makeCase({ id: 'nuevo', totalCents: 3_000, deliveredAt: at('2026-09-01') }),
+        ],
+        adjustments: [makeAdjustment({ id: 'aj', amountCents: -1_000, caseId: 'pagado' })],
+        payments: [makePayment({ id: 'p1', amountCents: 10_000 })],
+        allocations: [{ paymentId: 'p1', caseId: 'pagado', amountCents: 10_000 }],
+      })
+      const account = await service.clinicAccount(SUR.id)
+      expect(account.credit).toBe('10.00')
+      // 100 + 40 + 30 − 10 − 100.
+      expect(account.balance).toBe('60.00')
+      // No está «Por cobrar».
+      expect(account.openCases.map((c) => c.id)).toEqual(['viejo', 'nuevo'])
+      // Se descuenta de la partida más antigua: a «viejo» le quedan 30.00.
+      expect(account.aging).toEqual({
+        '0_30': '0.00',
+        '31_60': '30.00',
+        '61_90': '0.00',
+        '90_mas': '30.00',
+      })
+      expect(account.oldestDays).toBe(100)
+    })
+
+    it('solo con pendientes negativos, el saldo queda negativo y la antigüedad en cero', async () => {
+      const service = makeService({
+        cases: [makeCase({ id: 'pagado', status: 'cobrado', totalCents: 10_000 })],
+        adjustments: [makeAdjustment({ id: 'aj', amountCents: -2_500, caseId: 'pagado' })],
+        payments: [makePayment({ id: 'p1', amountCents: 10_000 })],
+        allocations: [{ paymentId: 'p1', caseId: 'pagado', amountCents: 10_000 }],
+      })
+      const account = await service.clinicAccount(SUR.id)
+      expect(account).toMatchObject({
+        balance: '-25.00',
+        credit: '25.00',
+        aging: ZERO,
+        oldestDays: null,
+        openCases: [],
+      })
+    })
+
     it('la antigüedad sale de agingBuckets: pendientes por entrega, ajustes sueltos y crédito al más antiguo', async () => {
       const service = makeService({
         cases: [
@@ -406,13 +452,32 @@ describe('features/accounts/service', () => {
           if (!isVoided) outstanding.set(c.id, pending - take)
         }
       }
+      // Ajustes después de pagar (CTA-3), de los dos signos: un descuento sobre un trabajo
+      // pagado entero deja su pendiente en negativo, que es saldo a favor de la clínica.
+      for (const c of cases) {
+        if (r(2) !== 0) continue
+        const cents = (r(2) === 0 ? 1 : -1) * (1 + r(5_000))
+        adjustments.push(makeAdjustment({ id: `ap-${c.id}`, amountCents: cents, caseId: c.id }))
+        outstanding.set(c.id, outstanding.get(c.id)! + cents)
+      }
       for (const c of cases) c.status = isSettled(outstanding.get(c.id)!) ? 'cobrado' : 'entregado'
-      return { cases, adjustments, payments, allocations }
+      return { cases, adjustments, payments, allocations, outstanding }
     }
 
     const cents = (s: string) => Math.round(Number(s) * 100)
+    const SEEDS = Array.from({ length: 60 }, (_, i) => i + 1)
 
-    it.each(Array.from({ length: 60 }, (_, i) => i + 1))(
+    it('los escenarios incluyen trabajos con pagos y pendiente negativo', () => {
+      const negatives = SEEDS.map((seed) => {
+        const { allocations, outstanding } = scenario(seed)
+        return [...outstanding].filter(
+          ([id, pending]) => pending < 0 && allocations.some((a) => a.caseId === id),
+        ).length
+      })
+      expect(negatives.filter((n) => n > 0).length).toBeGreaterThanOrEqual(10)
+    })
+
+    it.each(SEEDS)(
       'escenario %i: saldo = Σ pendientes + Σ ajustes sin trabajo − saldo a favor, y la antigüedad lo reparte',
       async (seed) => {
         const data = scenario(seed)
@@ -434,6 +499,24 @@ describe('features/accounts/service', () => {
         const adjustments = data.adjustments.reduce((s, a) => s + a.amountCents, 0)
         const paid = data.payments.filter((p) => !p.voided).reduce((s, p) => s + p.amountCents, 0)
         expect(cents(account.balance)).toBe(charges + adjustments - paid)
+        // Saldo a favor = lo no asignado de los pagos vigentes + los pendientes negativos.
+        const unallocated = data.payments
+          .filter((p) => !p.voided)
+          .reduce(
+            (s, p) =>
+              s +
+              p.amountCents -
+              data.allocations
+                .filter((a) => a.paymentId === p.id)
+                .reduce((t, a) => t + a.amountCents, 0),
+            0,
+          )
+        const negatives = [...data.outstanding.values()]
+          .filter((v) => v < 0)
+          .reduce((s, v) => s - v, 0)
+        expect(cents(account.credit)).toBe(unallocated + negatives)
+        // «Por cobrar» nunca trae un pendiente que no sea positivo.
+        expect(account.openCases.every((c) => cents(c.outstanding) > 0)).toBe(true)
         // La antigüedad reparte el saldo positivo; con saldo negativo, todo en cero.
         const aging = Object.values(account.aging).reduce((s, v) => s + cents(v), 0)
         expect(aging).toBe(Math.max(0, cents(account.balance)))

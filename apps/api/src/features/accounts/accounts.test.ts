@@ -693,6 +693,20 @@ describe('/api/cuentas', () => {
       })
     })
 
+    it('un descuento sobre un trabajo pagado entero queda a favor de la clínica', async () => {
+      const c = await deliverCase()
+      await pay(c.id, '45.00')
+      await addAdjustment(ajuste({ trabajoId: c.id, monto: '-5.00', motivo: 'Descuento tardío' }))
+      expect((await caseOf(c.id)).status).toBe('cobrado')
+      expect(await detail()).toMatchObject({
+        balance: '-5.00',
+        credit: '5.00',
+        aging: ZERO,
+        oldestDays: null,
+        openCases: [],
+      })
+    })
+
     it('historial por rol: técnico y mensajero ven el ajuste sin monto ni motivo', async () => {
       const c = await deliverCase()
       await addAdjustment(ajuste({ trabajoId: c.id, monto: '-5.00', motivo: 'Descuento acordado' }))

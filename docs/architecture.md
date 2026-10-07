@@ -93,7 +93,7 @@ En la API, los tests y `fakes.ts` quedan fuera de estas reglas. En la web sí en
 - **Entregas**: `deliveries` (recogida o entrega, mensajero, fecha, estado `pendiente`/`hecha`/`fallida`, motivo y constancia; `proof_attachment_id` con `ON DELETE RESTRICT`).
 - **Cuentas**: `account_adjustments` (con signo y CHECK ≠ 0; `case_id` opcional: ligado a un trabajo cambia su neto, sin él solo mueve el saldo, como el «Saldo inicial»), `payments` (monto > 0, método, fecha de pago, referencia y notas; se anulan con `voided_at`, `voided_by` y `void_reason`, que el CHECK `payments_void_check` exige juntos, y nunca se editan ni se borran) y `payment_allocations` (parte de un pago asignada a un trabajo, > 0; la de un pago anulado deja de contar sin borrarse).
 
-Saldo de clínica = Σ cargos de los trabajos entregados y cobrados + Σ ajustes − Σ pagos vigentes. Se calcula, no se guarda, y cuadra con Σ pendientes + Σ ajustes sin trabajo − saldo a favor (ADR 35).
+Saldo de clínica = Σ cargos de los trabajos entregados y cobrados + Σ ajustes − Σ pagos vigentes. Se calcula, no se guarda, y cuadra con Σ pendientes + Σ ajustes sin trabajo − saldo a favor (ADR 35). El saldo a favor es lo no asignado de los pagos vigentes más el pendiente negativo de cada trabajo (un descuento después de pagarlo entero): resta en la antigüedad, de la partida más antigua a la más nueva, y ese trabajo no está «Por cobrar».
 
 `cases.remake_charge_pct` es un **modificador diferido**: el `total` de una repetición guarda el 100 % de sus líneas, y el saldo de la clínica debe sumar `total × remake_charge_pct / 100`. Para técnico y mensajero se enmascara igual que los importes.
 

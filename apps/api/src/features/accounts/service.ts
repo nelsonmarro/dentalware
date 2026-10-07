@@ -91,7 +91,8 @@ export type AccountMovement = {
 export type ClinicAccount = {
   clinic: { id: string; name: string }
   balance: string
-  /** Saldo a favor: lo no asignado de los pagos vigentes (decisión 3). */
+  /** Saldo a favor: lo no asignado de los pagos vigentes (decisión 3) más los pendientes
+   * negativos de los trabajos (descuento después de pagarlos enteros). */
   credit: string
   aging: Record<AgingBucket, string>
   oldestDays: number | null
@@ -187,7 +188,11 @@ export function createAccountsService(deps: {
     })
     const vigentes = ledger.payments.filter((p) => p.voided === null)
     const free = ledger.adjustments.filter((a) => a.case === null)
-    const creditCents = sum(vigentes.map((p) => p.amountCents - p.allocatedCents))
+    // Saldo a favor (decisión 3): lo no asignado de los pagos vigentes y el pendiente negativo
+    // de cada trabajo (un descuento después de pagarlo entero), que la clínica ya pagó de más.
+    const creditCents =
+      sum(vigentes.map((p) => p.amountCents - p.allocatedCents)) +
+      sum(cases.map((c) => Math.max(0, -c.outstandingCents)))
     // Decisión 10: cargos de entregados y cobrados + todos los ajustes − pagos vigentes.
     const balanceCents =
       sum(cases.map((c) => c.chargeCents)) +
