@@ -2,6 +2,18 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { setupTestDb, truncateAll } from '../../test/setup.ts'
 import { createAccountsRepo } from './repo.ts'
 
+/** Otra conexión intenta bloquear la misma fila sin esperar: falla si la fila ya está
+ * bloqueada (`55P03`, lock_not_available). */
+const lockedElsewhere = async (
+  pool: Awaited<ReturnType<typeof setupTestDb>>['pool'],
+  table: string,
+  id: string,
+) =>
+  pool.query(`select id from ${table} where id = $1 for no key update nowait`, [id]).then(
+    () => false,
+    (e: { code?: string }) => e.code === '55P03',
+  )
+
 describe('features/accounts/repo', () => {
   let ctx: Awaited<ReturnType<typeof setupTestDb>>
   let adminId: string
@@ -290,5 +302,150 @@ describe('features/accounts/repo', () => {
       },
     ])
     expect(await createAccountsRepo(ctx.db).payments()).toHaveLength(3)
+  })
+
+  describe('escrituras de pagos (CTA-2)', () => {
+    it('createPayment guarda el pago y paymentById lo lee como payments', async () => {
+      const repo = createAccountsRepo(ctx.db)
+      const { id } = await repo.createPayment({
+        clinicId: surId,
+        amountCents: 12_345,
+        method: 'transferencia',
+        paidOn: '2026-10-05',
+        reference: 'TRX-9',
+        notes: 'Octubre',
+        createdBy: recepId,
+      })
+      const read = await repo.paymentById(id)
+      expect(read).toEqual({
+        id,
+        clinicId: surId,
+        amountCents: 12_345,
+        allocatedCents: 0,
+        method: 'transferencia',
+        paidOn: '2026-10-05',
+        reference: 'TRX-9',
+        notes: 'Octubre',
+        createdAt: expect.any(Date),
+        createdByName: 'Rosa Recepción',
+        voided: null,
+      })
+      expect(await repo.paymentById('00000000-0000-4000-8000-000000000000')).toBeUndefined()
+    })
+
+    it('addAllocations y allocationsOf: las asignaciones del pago, en el orden en que se hicieron', async () => {
+      const a = await insertCase()
+      const b = await insertCase()
+      const p = await insertPayment({ amount: '90.00' })
+      const repo = createAccountsRepo(ctx.db)
+      await repo.addAllocations(
+        p.id,
+        [
+          { caseId: b.id, amountCents: 3_000 },
+          { caseId: a.id, amountCents: 2_000 },
+        ],
+        recepId,
+      )
+      await repo.addAllocations(p.id, [{ caseId: b.id, amountCents: 1_050 }], adminId)
+      expect(await repo.allocationsOf(p.id)).toEqual([
+        { caseId: b.id, amountCents: 3_000 },
+        { caseId: a.id, amountCents: 2_000 },
+        { caseId: b.id, amountCents: 1_050 },
+      ])
+      expect((await repo.paymentById(p.id))?.allocatedCents).toBe(6_050)
+      const rows = await ctx.db.select().from(ctx.schema.paymentAllocations)
+      expect(rows.map((r) => r.createdBy).sort()).toEqual([adminId, recepId, recepId].sort())
+    })
+
+    it('caseTotals: Σ ajustes y Σ asignaciones vigentes de cada trabajo, 0 si no tiene', async () => {
+      const a = await insertCase()
+      const b = await insertCase()
+      const vigente = await insertPayment({ amount: '60.00' })
+      const anulado = await insertPayment({
+        amount: '40.00',
+        voidedAt: new Date('2026-10-03T15:00:00Z'),
+        voidedBy: adminId,
+        voidReason: 'Duplicado',
+      })
+      await ctx.db.insert(ctx.schema.paymentAllocations).values([
+        { paymentId: vigente.id, caseId: a.id, amount: '25.00', createdBy: recepId },
+        { paymentId: vigente.id, caseId: a.id, amount: '5.50', createdBy: recepId },
+        { paymentId: anulado.id, caseId: a.id, amount: '40.00', createdBy: recepId },
+      ])
+      await ctx.db.insert(ctx.schema.accountAdjustments).values([
+        {
+          clinicId: surId,
+          caseId: a.id,
+          amount: '-10.00',
+          reason: 'Descuento',
+          date: '2026-10-01',
+          createdBy: adminId,
+        },
+        {
+          clinicId: surId,
+          caseId: a.id,
+          amount: '2.25',
+          reason: 'Recargo',
+          date: '2026-10-02',
+          createdBy: adminId,
+        },
+        {
+          clinicId: surId,
+          caseId: null,
+          amount: '99.00',
+          reason: 'Saldo inicial',
+          date: '2026-01-01',
+          createdBy: adminId,
+        },
+      ])
+      const repo = createAccountsRepo(ctx.db)
+      expect(await repo.caseTotals([a.id, b.id])).toEqual(
+        expect.arrayContaining([
+          { caseId: a.id, adjustmentsCents: -775, allocatedCents: 3_050 },
+          { caseId: b.id, adjustmentsCents: 0, allocatedCents: 0 },
+        ]),
+      )
+      expect(await repo.caseTotals([b.id])).toEqual([
+        { caseId: b.id, adjustmentsCents: 0, allocatedCents: 0 },
+      ])
+      expect(await repo.caseTotals([])).toEqual([])
+    })
+
+    it('lockPayment devuelve el pago con si está anulado y lo bloquea hasta el fin de la transacción', async () => {
+      const vigente = await insertPayment({ amount: '80.00', method: 'cheque', reference: 'CH-1' })
+      const anulado = await insertPayment({
+        voidedAt: new Date('2026-10-03T15:00:00Z'),
+        voidedBy: adminId,
+        voidReason: 'Duplicado',
+      })
+      await ctx.db.transaction(async (tx) => {
+        const repo = createAccountsRepo(tx)
+        expect(await repo.lockPayment(vigente.id)).toEqual({
+          id: vigente.id,
+          clinicId: surId,
+          amountCents: 8_000,
+          method: 'cheque',
+          reference: 'CH-1',
+          voided: false,
+        })
+        expect(await lockedElsewhere(ctx.pool, 'payments', vigente.id)).toBe(true)
+        expect(await lockedElsewhere(ctx.pool, 'payments', anulado.id)).toBe(false)
+        expect(await repo.lockPayment(anulado.id)).toMatchObject({ voided: true })
+        expect(await repo.lockPayment('00000000-0000-4000-8000-000000000000')).toBeUndefined()
+      })
+      expect(await lockedElsewhere(ctx.pool, 'payments', vigente.id)).toBe(false)
+    })
+
+    it('voidPayment marca la fecha, quién y el motivo', async () => {
+      const p = await insertPayment()
+      const at = new Date('2026-10-06T17:00:00Z')
+      const repo = createAccountsRepo(ctx.db)
+      await repo.voidPayment(p.id, { at, by: adminId, reason: 'Cheque sin fondos' })
+      expect((await repo.paymentById(p.id))?.voided).toEqual({
+        at,
+        byName: 'Ana Admin',
+        reason: 'Cheque sin fondos',
+      })
+    })
   })
 })

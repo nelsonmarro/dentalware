@@ -216,4 +216,251 @@ describe('/api/cuentas', () => {
       ],
     })
   })
+
+  describe('pagos (CTA-2)', () => {
+    type Pago = { id: string; amount: string; allocated: string; credit: string; voided: unknown }
+    type Issues = { message: string; issues: { path: string; message: string }[] }
+    type Detail = {
+      balance: string
+      credit: string
+      openCases: { id: string; outstanding: string }[]
+      movements: { kind: string; amount: string; voided: unknown }[]
+    }
+    type Event = {
+      type: string
+      fromValue: string | null
+      toValue: string | null
+      reason: string | null
+    }
+
+    const pago = (over: Record<string, unknown> = {}) => ({
+      clinicaId: clinicId,
+      monto: '60.00',
+      metodo: 'transferencia',
+      fecha: '2026-10-06',
+      referencia: 'TRX-1',
+      asignaciones: [],
+      ...over,
+    })
+    const detail = async () =>
+      (await (await get(`/api/cuentas/${clinicId}`, admin)).json()) as Detail
+    const caseOf = async (id: string) =>
+      (
+        (await (await get(`/api/trabajos/${id}`, admin)).json()) as {
+          case: { status: string; paidAt: string | null }
+        }
+      ).case
+    const eventsOf = async (id: string, cookie = admin) =>
+      ((await (await get(`/api/trabajos/${id}/eventos`, cookie)).json()) as { events: Event[] })
+        .events
+    const register = async (body: unknown, cookie = recepcion) => {
+      const r = await post('/api/cuentas/pagos', cookie, body)
+      expect(r.status).toBe(201)
+      return ((await r.json()) as { pago: Pago }).pago
+    }
+
+    it('permisos: registrar y aplicar saldo a favor admin y recepción; anular, solo admin', async () => {
+      expect((await post('/api/cuentas/pagos', '', pago())).status).toBe(401)
+      expect((await post('/api/cuentas/pagos', tecnico, pago())).status).toBe(403)
+      expect((await post('/api/cuentas/pagos', mensajero, pago())).status).toBe(403)
+      await register(pago(), admin)
+      const p = await register(pago())
+
+      const c = await deliverCase()
+      const aplicar = `/api/cuentas/pagos/${p.id}/asignaciones`
+      const body = { asignaciones: [{ trabajoId: c.id, monto: '1.00' }] }
+      expect((await post(aplicar, '', body)).status).toBe(401)
+      expect((await post(aplicar, tecnico, body)).status).toBe(403)
+      expect((await post(aplicar, mensajero, body)).status).toBe(403)
+      expect((await post(aplicar, recepcion, body)).status).toBe(201)
+      expect((await post(aplicar, admin, body)).status).toBe(201)
+
+      const anular = `/api/cuentas/pagos/${p.id}/anular`
+      const motivo = { motivo: 'Duplicado' }
+      expect((await post(anular, '', motivo)).status).toBe(401)
+      for (const cookie of [recepcion, tecnico, mensajero]) {
+        expect((await post(anular, cookie, motivo)).status).toBe(403)
+      }
+      const anulado = await post(anular, admin, motivo)
+      expect(anulado.status).toBe(200)
+      expect(((await anulado.json()) as { pago: Pago }).pago).toMatchObject({
+        id: p.id,
+        voided: { by: 'Admin', reason: 'Duplicado' },
+      })
+    })
+
+    it('422 con el campo: datos inválidos, otra clínica, más que el pendiente y una clínica que no existe', async () => {
+      const c = await deliverCase()
+      const [otra] = await ctx.db
+        .insert(ctx.schema.clinics)
+        .values({ name: 'Clínica Norte' })
+        .returning()
+      const cases = [
+        [{ monto: '0.00' }, 'monto'],
+        [
+          { clinicaId: otra!.id, asignaciones: [{ trabajoId: c.id, monto: '10.00' }] },
+          'asignaciones.0.trabajoId',
+        ],
+        [{ asignaciones: [{ trabajoId: c.id, monto: '45.01' }] }, 'asignaciones.0.monto'],
+        [{ clinicaId: randomUUID() }, 'clinicaId'],
+      ] as const
+      for (const [over, path] of cases) {
+        const r = await post('/api/cuentas/pagos', recepcion, pago(over))
+        expect(r.status).toBe(422)
+        const body = (await r.json()) as Issues
+        expect(body.message).toBe('Datos inválidos')
+        expect(body.issues.map((i) => i.path)).toContain(path)
+      }
+      // Nada se escribió.
+      expect(await ctx.db.select().from(ctx.schema.payments)).toEqual([])
+      expect((await caseOf(c.id)).status).toBe('entregado')
+    })
+
+    it('404 con un pago que no existe y 409 con uno anulado', async () => {
+      const nada = randomUUID()
+      const body = { asignaciones: [{ trabajoId: randomUUID(), monto: '1.00' }] }
+      for (const r of [
+        await post(`/api/cuentas/pagos/${nada}/asignaciones`, recepcion, body),
+        await post(`/api/cuentas/pagos/${nada}/anular`, admin, { motivo: 'Duplicado' }),
+      ]) {
+        expect(r.status).toBe(404)
+        expect(await r.json()).toEqual({ message: 'No encontrado' })
+      }
+      const p = await register(pago())
+      expect(
+        (await post(`/api/cuentas/pagos/${p.id}/anular`, admin, { motivo: 'Duplicado' })).status,
+      ).toBe(200)
+      const otraVez = await post(`/api/cuentas/pagos/${p.id}/anular`, admin, {
+        motivo: 'Duplicado',
+      })
+      expect(otraVez.status).toBe(409)
+      expect(await otraVez.json()).toEqual({ message: 'El pago ya está anulado' })
+      const aplicar = await post(`/api/cuentas/pagos/${p.id}/asignaciones`, recepcion, body)
+      expect(aplicar.status).toBe(409)
+      expect(await aplicar.json()).toEqual({
+        message: 'El pago está anulado: no tiene saldo a favor',
+      })
+      expect((await post(`/api/cuentas/pagos/${p.id}/anular`, admin, { motivo: ' ' })).status).toBe(
+        422,
+      )
+    })
+
+    it('flujo completo: pagar, quedar a favor, aplicar el saldo a favor y anular', async () => {
+      const uno = await deliverCase()
+      expect((await detail()).balance).toBe('45.00')
+
+      // 60.00: 45.00 cierran el primer trabajo y 15.00 quedan a favor.
+      const p = await register(pago({ asignaciones: [{ trabajoId: uno.id, monto: '45.00' }] }))
+      expect(p).toMatchObject({
+        amount: '60.00',
+        allocated: '45.00',
+        credit: '15.00',
+        voided: null,
+      })
+      expect(await caseOf(uno.id)).toMatchObject({
+        status: 'cobrado',
+        paidAt: CLOCK.now().toISOString(),
+      })
+      expect(await detail()).toMatchObject({ balance: '-15.00', credit: '15.00', openCases: [] })
+      const eventos = await eventsOf(uno.id)
+      expect(eventos.slice(-2)).toEqual([
+        expect.objectContaining({
+          type: 'payment_applied',
+          toValue: '45.00',
+          reason: 'Transferencia · TRX-1',
+        }),
+        expect.objectContaining({
+          type: 'status_changed',
+          fromValue: 'entregado',
+          toValue: 'cobrado',
+        }),
+      ])
+      // El técnico ve que hubo un pago, sin monto ni referencia.
+      expect(
+        (await eventsOf(uno.id, tecnico)).find((e) => e.type === 'payment_applied'),
+      ).toMatchObject({
+        toValue: null,
+        reason: null,
+      })
+
+      // El saldo a favor se aplica al segundo trabajo, que queda con 30.00 pendientes.
+      const dos = await deliverCase()
+      const aplicado = await post(`/api/cuentas/pagos/${p.id}/asignaciones`, recepcion, {
+        asignaciones: [{ trabajoId: dos.id, monto: '15.00' }],
+      })
+      expect(aplicado.status).toBe(201)
+      expect(((await aplicado.json()) as { pago: Pago }).pago).toMatchObject({
+        allocated: '60.00',
+        credit: '0.00',
+      })
+      expect(await detail()).toMatchObject({
+        balance: '30.00',
+        credit: '0.00',
+        openCases: [{ id: dos.id, outstanding: '30.00' }],
+      })
+      const masDeLoQueQueda = await post(`/api/cuentas/pagos/${p.id}/asignaciones`, recepcion, {
+        asignaciones: [{ trabajoId: dos.id, monto: '0.01' }],
+      })
+      expect(masDeLoQueQueda.status).toBe(422)
+
+      // Anular: el primero vuelve a entregado, nada queda a favor y el pago se ve anulado.
+      const anulado = await post(`/api/cuentas/pagos/${p.id}/anular`, admin, {
+        motivo: 'Transferencia rechazada',
+      })
+      expect(anulado.status).toBe(200)
+      expect(await caseOf(uno.id)).toMatchObject({ status: 'entregado', paidAt: null })
+      const after = await detail()
+      expect(after).toMatchObject({ balance: '90.00', credit: '0.00' })
+      expect(after.openCases.map((c) => [c.id, c.outstanding])).toEqual(
+        expect.arrayContaining([
+          [uno.id, '45.00'],
+          [dos.id, '45.00'],
+        ]),
+      )
+      expect(after.movements.find((m) => m.kind === 'pago')).toMatchObject({
+        amount: '-60.00',
+        voided: { by: 'Admin', reason: 'Transferencia rechazada' },
+      })
+      expect((await eventsOf(uno.id)).slice(-2)).toEqual([
+        expect.objectContaining({
+          type: 'payment_voided',
+          toValue: '45.00',
+          reason: 'Transferencia rechazada',
+        }),
+        expect.objectContaining({
+          type: 'status_changed',
+          fromValue: 'cobrado',
+          toValue: 'entregado',
+        }),
+      ])
+      expect((await eventsOf(dos.id)).at(-1)).toMatchObject({
+        type: 'payment_voided',
+        toValue: '15.00',
+      })
+    })
+
+    it('concurrencia: pagos simultáneos al mismo trabajo no lo sobrepagan', async () => {
+      const c = await deliverCase()
+      const intentos = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          post(
+            '/api/cuentas/pagos',
+            recepcion,
+            pago({ monto: '30.00', asignaciones: [{ trabajoId: c.id, monto: '30.00' }] }),
+          ),
+        ),
+      )
+      const statuses = intentos.map((r) => r.status).sort()
+      expect(statuses).toEqual([201, 422, 422, 422])
+      for (const r of intentos.filter((x) => x.status === 422)) {
+        expect(((await r.json()) as Issues).issues).toEqual([
+          { path: 'asignaciones.0.monto', message: 'Supera lo pendiente del trabajo (15.00)' },
+        ])
+      }
+      expect(await ctx.db.select().from(ctx.schema.payments)).toHaveLength(1)
+      expect((await detail()).openCases).toEqual([
+        expect.objectContaining({ id: c.id, allocated: '30.00', outstanding: '15.00' }),
+      ])
+    })
+  })
 })

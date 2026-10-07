@@ -1,8 +1,10 @@
 import type { CaseStatus } from '@dentalware/shared'
 import type {
   AccountsRepository,
+  AccountsUnitOfWork,
   AdjustmentEntry,
   BilledCase,
+  CaseSettlement,
   ClinicRef,
   PaymentEntry,
 } from './ports.ts'
@@ -14,32 +16,64 @@ export type FakeCase = Omit<BilledCase, 'adjustmentsCents' | 'allocatedCents'> &
 export type FakeAdjustment = Omit<AdjustmentEntry, 'case'> & { caseId: string | null }
 export type FakePayment = Omit<PaymentEntry, 'allocatedCents'>
 export type FakeAllocation = { paymentId: string; caseId: string; amountCents: number }
+/** Lo que escribe `CaseSettlement`: los eventos de cobro y los `status_changed` de `setPaid`. */
+export type FakeCaseEvent = {
+  caseId: string
+  type: string
+  fromValue: string | null
+  toValue: string | null
+  reason: string | null
+  actorId: string
+}
+
+type Seed = {
+  clinics?: ClinicRef[]
+  cases?: FakeCase[]
+  adjustments?: FakeAdjustment[]
+  payments?: FakePayment[]
+  allocations?: FakeAllocation[]
+  /** Nombre de cada usuario por id, para lo que registra el servicio (por omisión, el id). */
+  users?: Record<string, string>
+}
+
+const sum = (list: readonly number[]) => list.reduce((a, b) => a + b, 0)
 
 /**
- * Mismo comportamiento que `repo.ts` en memoria, para probar `service.ts` sin Postgres: filtra
- * los trabajos `entregado`/`cobrado` y suma ajustes y asignaciones como las consultas del repo
- * (las asignaciones de un pago anulado no cuentan para el trabajo; sí para el pago).
+ * Cuentas en memoria, para probar `service.ts` sin Postgres: el repo con el mismo comportamiento
+ * que `repo.ts` (filtra los trabajos `entregado`/`cobrado` y suma ajustes y asignaciones; las de
+ * un pago anulado no cuentan para el trabajo, sí para el pago), el `CaseSettlement` que cambia el
+ * estado de esos mismos trabajos y guarda sus eventos, y un `uow` sin transacción real (como el
+ * de `deliveries/fakes.ts`). Todo comparte el mismo estado, visible para el test.
  */
-export function fakeAccountsRepo(
-  seed: {
-    clinics?: ClinicRef[]
-    cases?: FakeCase[]
-    adjustments?: FakeAdjustment[]
-    payments?: FakePayment[]
-    allocations?: FakeAllocation[]
-  } = {},
-): AccountsRepository {
+export function fakeAccounts(seed: Seed = {}) {
   const clinics = seed.clinics ?? []
-  const cases = seed.cases ?? []
-  const adjustments = seed.adjustments ?? []
-  const payments = seed.payments ?? []
-  const allocations = seed.allocations ?? []
+  const cases = (seed.cases ?? []).map((c) => ({ ...c }))
+  const adjustments = [...(seed.adjustments ?? [])]
+  const payments = (seed.payments ?? []).map((p) => ({ ...p }))
+  const allocations = [...(seed.allocations ?? [])]
+  const events: FakeCaseEvent[] = []
+  const paidAt = new Map<string, Date | null>()
+  const locked: string[][] = []
+  const nameOf = (id: string) => seed.users?.[id] ?? id
+  let nextPayment = 1
+
   const of = <T extends { clinicId: string }>(rows: readonly T[], clinicId?: string) =>
     clinicId === undefined ? [...rows] : rows.filter((r) => r.clinicId === clinicId)
-  const sum = (list: readonly number[]) => list.reduce((a, b) => a + b, 0)
-  const voided = new Set(payments.filter((p) => p.voided).map((p) => p.id))
+  const isVoided = (paymentId: string) => payments.find((p) => p.id === paymentId)?.voided != null
+  const adjustmentsOf = (caseId: string) =>
+    sum(adjustments.filter((a) => a.caseId === caseId).map((a) => a.amountCents))
+  const allocatedTo = (caseId: string) =>
+    sum(
+      allocations
+        .filter((a) => a.caseId === caseId && !isVoided(a.paymentId))
+        .map((a) => a.amountCents),
+    )
+  const withAllocated = (p: FakePayment): PaymentEntry => ({
+    ...p,
+    allocatedCents: sum(allocations.filter((a) => a.paymentId === p.id).map((a) => a.amountCents)),
+  })
 
-  return {
+  const repo: AccountsRepository = {
     async clinicById(id) {
       return clinics.find((c) => c.id === id)
     },
@@ -51,14 +85,8 @@ export function fakeAccountsRepo(
         .filter((c) => c.status === 'entregado' || c.status === 'cobrado')
         .map((c) => ({
           ...c,
-          adjustmentsCents: sum(
-            adjustments.filter((a) => a.caseId === c.id).map((a) => a.amountCents),
-          ),
-          allocatedCents: sum(
-            allocations
-              .filter((a) => a.caseId === c.id && !voided.has(a.paymentId))
-              .map((a) => a.amountCents),
-          ),
+          adjustmentsCents: adjustmentsOf(c.id),
+          allocatedCents: allocatedTo(c.id),
         }))
     },
     async adjustments(clinicId) {
@@ -68,12 +96,104 @@ export function fakeAccountsRepo(
       })
     },
     async payments(clinicId) {
-      return of(payments, clinicId).map((p) => ({
-        ...p,
-        allocatedCents: sum(
-          allocations.filter((a) => a.paymentId === p.id).map((a) => a.amountCents),
-        ),
+      return of(payments, clinicId).map(withAllocated)
+    },
+    async paymentById(id) {
+      const p = payments.find((x) => x.id === id)
+      return p && withAllocated(p)
+    },
+    async caseTotals(caseIds) {
+      return caseIds.map((caseId) => ({
+        caseId,
+        adjustmentsCents: adjustmentsOf(caseId),
+        allocatedCents: allocatedTo(caseId),
       }))
     },
+    async createPayment(p) {
+      const id = `pago-${nextPayment++}`
+      payments.push({
+        id,
+        clinicId: p.clinicId,
+        amountCents: p.amountCents,
+        method: p.method,
+        paidOn: p.paidOn,
+        reference: p.reference,
+        notes: p.notes,
+        createdAt: new Date('2026-10-06T17:00:00Z'),
+        createdByName: nameOf(p.createdBy),
+        voided: null,
+      })
+      return { id }
+    },
+    async lockPayment(id) {
+      const p = payments.find((x) => x.id === id)
+      return (
+        p && {
+          id: p.id,
+          clinicId: p.clinicId,
+          amountCents: p.amountCents,
+          method: p.method,
+          reference: p.reference,
+          voided: p.voided !== null,
+        }
+      )
+    },
+    async allocationsOf(paymentId) {
+      return allocations
+        .filter((a) => a.paymentId === paymentId)
+        .map((a) => ({ caseId: a.caseId, amountCents: a.amountCents }))
+    },
+    async addAllocations(paymentId, list) {
+      for (const a of list) allocations.push({ paymentId, ...a })
+    },
+    async voidPayment(id, v) {
+      const p = payments.find((x) => x.id === id)
+      if (p) p.voided = { at: v.at, byName: nameOf(v.by), reason: v.reason }
+    },
   }
+
+  const settlement: CaseSettlement = {
+    async lockCases(caseIds) {
+      locked.push([...caseIds])
+      return cases
+        .filter((c) => caseIds.includes(c.id))
+        .map((c) => ({
+          id: c.id,
+          clinicId: c.clinicId,
+          status: c.status,
+          totalCents: c.totalCents,
+          remakeChargePct: c.remakeChargePct,
+          deliveredAt: c.deliveredAt,
+        }))
+    },
+    async setPaid(caseId, at, actorId) {
+      const c = cases.find((x) => x.id === caseId)
+      const [from, to] = at
+        ? (['entregado', 'cobrado'] as const)
+        : (['cobrado', 'entregado'] as const)
+      if (!c || c.status !== from) return
+      c.status = to
+      paidAt.set(caseId, at)
+      events.push({
+        caseId,
+        type: 'status_changed',
+        fromValue: from,
+        toValue: to,
+        reason: null,
+        actorId,
+      })
+    },
+    async addEvent(e) {
+      events.push({ ...e, fromValue: null })
+    },
+  }
+
+  const uow: AccountsUnitOfWork = { run: (fn) => fn({ accounts: repo, cases: settlement }) }
+
+  return { repo, settlement, uow, events, paidAt, locked, cases, payments, allocations }
+}
+
+/** Solo el repo de `fakeAccounts`, para las pruebas de lectura (CTA-1). */
+export function fakeAccountsRepo(seed: Seed = {}): AccountsRepository {
+  return fakeAccounts(seed).repo
 }

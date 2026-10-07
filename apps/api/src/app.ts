@@ -6,7 +6,7 @@ import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
 import type { Auth } from './auth.ts'
 import type { Db } from './db/index.ts'
-import { createAccountsRepo } from './features/accounts/repo.ts'
+import { createAccountsRepo, drizzleAccountsUnitOfWork } from './features/accounts/repo.ts'
 import { accountsRoutes } from './features/accounts/routes.ts'
 import { createAccountsService } from './features/accounts/service.ts'
 import { attachmentsRoutes } from './features/attachments/routes.ts'
@@ -19,7 +19,12 @@ import { createImportCatalog } from './features/cases/import.repo.ts'
 import { importRoutes } from './features/cases/import.routes.ts'
 import { createImportService } from './features/cases/import.service.ts'
 import { casesRoutes } from './features/cases/routes.ts'
-import { createCasesRepo, createUsersQuery, drizzleUnitOfWork } from './features/cases/repo.ts'
+import {
+  createCaseSettlement,
+  createCasesRepo,
+  createUsersQuery,
+  drizzleUnitOfWork,
+} from './features/cases/repo.ts'
 import { createCasesService } from './features/cases/service.ts'
 import { clinicsRoutes } from './features/clinics/routes.ts'
 import {
@@ -115,10 +120,13 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     ids: ids ?? randomIds,
   })
 
-  // Cuentas (CTA-1): solo lectura por ahora; el repo lee `cases` por join (ADR 24) y el
-  // servicio calcula con las reglas de `shared`.
+  // Cuentas (CTA-1/2): el repo lee `cases` por join (ADR 24) y el servicio calcula con las
+  // reglas de `shared`. Su `uow` compone `createAccountsRepo(tx)` con el `CaseSettlement` que
+  // cumple el repo de `cases` sobre la misma `tx` (ADR 35, patrón de ADR 34): `accounts/` no
+  // importa nada de `cases/`.
   const accountsService = createAccountsService({
     accounts: createAccountsRepo(db),
+    uow: drizzleAccountsUnitOfWork(db, { cases: createCaseSettlement }),
     clock: effectiveClock,
   })
 

@@ -1,27 +1,48 @@
 import {
+  ACCOUNT_ADMIN_ROLES,
+  ACCOUNTS_ROLES,
   AGING_BUCKETS,
   agingBuckets,
   caseChargeCents,
   caseOutstandingCents,
   daysBetween,
+  fromCents,
   fromSignedCents,
+  hasRole,
+  isSettled,
   oldestOpenDays,
+  PAYMENT_METHOD_LABEL,
+  toCents,
   toIsoDate,
 } from '@dentalware/shared'
 import type {
   AccountListQuery,
   AccountMovementKind,
   AgingBucket,
+  AllocationInput,
+  ApplyCreditInput,
+  PaymentInput,
   PaymentMethod,
+  UserRole,
+  VoidPaymentInput,
 } from '@dentalware/shared'
 import type { Clock } from '../../lib/clock.ts'
-import { ClinicAccountNotFoundError } from './errors.ts'
+import type { RequestContext } from '../../lib/request-context.ts'
+import {
+  AccountForbiddenError,
+  AccountInputError,
+  ClinicAccountNotFoundError,
+  PaymentNotFoundError,
+  PaymentVoidedError,
+} from './errors.ts'
 import type {
   AccountsRepository,
+  AccountsUnitOfWork,
   AdjustmentEntry,
   BilledCase,
   ClinicRef,
   PaymentEntry,
+  SettlementCase,
 } from './ports.ts'
 
 /** Una clínica en la lista de «Cuentas» (CTA-1). Montos en cadena decimal, con signo. */
@@ -76,9 +97,56 @@ export type ClinicAccount = {
   movements: AccountMovement[]
 }
 
+/** Un pago (CTA-2) tal como lo devuelven registrar, aplicar saldo a favor y anular. */
+export type PaymentView = {
+  id: string
+  clinicId: string
+  amount: string
+  /** Σ de sus asignaciones (también las de un pago anulado, que ya no cuentan). */
+  allocated: string
+  /** Lo que le queda a favor de la clínica: 0 si está anulado (decisión 3). */
+  credit: string
+  method: PaymentMethod
+  paidOn: string // YYYY-MM-DD
+  reference: string | null
+  notes: string | null
+  createdAt: Date
+  by: string
+  voided: { at: Date; by: string; reason: string } | null
+}
+
 type Ledger = { cases: BilledCase[]; adjustments: AdjustmentEntry[]; payments: PaymentEntry[] }
 
 const sum = (list: readonly number[]) => list.reduce((a, b) => a + b, 0)
+
+type UowRepos = Parameters<Parameters<AccountsUnitOfWork['run']>[0]>[0]
+
+function toPaymentView(p: PaymentEntry): PaymentView {
+  return {
+    id: p.id,
+    clinicId: p.clinicId,
+    amount: fromCents(p.amountCents),
+    allocated: fromCents(p.allocatedCents),
+    credit: fromSignedCents(p.voided ? 0 : p.amountCents - p.allocatedCents),
+    method: p.method,
+    paidOn: p.paidOn,
+    reference: p.reference,
+    notes: p.notes,
+    createdAt: p.createdAt,
+    by: p.createdByName,
+    voided: p.voided && { at: p.voided.at, by: p.voided.byName, reason: p.voided.reason },
+  }
+}
+
+/** `reason` de `payment_applied` (decisión 11): el método y, si la tiene, la referencia. */
+function paymentReason(p: { method: PaymentMethod; reference: string | null }): string {
+  const method = PAYMENT_METHOD_LABEL[p.method]
+  return p.reference ? `${method} · ${p.reference}` : method
+}
+
+function assertRole(roles: readonly UserRole[], ctx: RequestContext) {
+  if (!hasRole(roles, ctx.role)) throw new AccountForbiddenError()
+}
 
 /**
  * Cuentas por clínica (CTA-1, Iteración 5): saldo, saldo a favor, antigüedad, «Por cobrar» y
@@ -86,7 +154,11 @@ const sum = (list: readonly number[]) => list.reduce((a, b) => a + b, 0)
  * (`caseChargeCents`, `caseOutstandingCents`, `agingBuckets`, `oldestOpenDays`). El saldo se
  * calcula, no se guarda (`docs/architecture.md` §5).
  */
-export function createAccountsService(deps: { accounts: AccountsRepository; clock: Clock }) {
+export function createAccountsService(deps: {
+  accounts: AccountsRepository
+  uow: AccountsUnitOfWork
+  clock: Clock
+}) {
   /** Todo lo de una clínica a partir de sus datos, a la fecha de hoy. */
   function summarize(ledger: Ledger) {
     const today = deps.clock.today()
@@ -187,6 +259,109 @@ export function createAccountsService(deps: { accounts: AccountsRepository; cloc
       .map(({ at: _at, ...m }) => m)
   }
 
+  /** Pendiente de cada trabajo bloqueado, leído dentro de la transacción (tras el bloqueo: lo
+   * que asignó otro pago al mismo trabajo ya está confirmado y cuenta). */
+  async function outstandingOf(r: UowRepos, locked: readonly SettlementCase[]) {
+    const totals = await r.accounts.caseTotals(locked.map((c) => c.id))
+    return new Map(
+      locked.map((c) => {
+        const t = totals.find((x) => x.caseId === c.id)
+        const cents = caseOutstandingCents(
+          caseChargeCents(c),
+          t?.adjustmentsCents ?? 0,
+          t?.allocatedCents ?? 0,
+        )
+        return [c.id, cents]
+      }),
+    )
+  }
+
+  /**
+   * Bloquea los trabajos del reparto, lee su pendiente y valida la decisión 8: solo trabajos
+   * `entregado` de esa clínica, cada asignación sin pasar de su pendiente y, en total, sin pasar
+   * de `limitCents` (el monto del pago o lo que le queda a favor). Si algo falla, lanza
+   * `AccountInputError` con el campo antes de escribir nada.
+   */
+  async function lockAndValidate(
+    r: UowRepos,
+    clinicId: string,
+    asignaciones: readonly AllocationInput[],
+    limit: { cents: number; message: string },
+  ) {
+    const locked = await r.cases.lockCases(asignaciones.map((a) => a.trabajoId))
+    const outstanding = await outstandingOf(r, locked)
+    const allocations = asignaciones.map((a, i) => {
+      const at = `asignaciones.${i}`
+      const c = locked.find((x) => x.id === a.trabajoId)
+      if (!c) throw new AccountInputError('El trabajo no existe', `${at}.trabajoId`)
+      if (c.clinicId !== clinicId) {
+        throw new AccountInputError('El trabajo es de otra clínica', `${at}.trabajoId`)
+      }
+      if (c.status === 'cobrado') {
+        throw new AccountInputError('El trabajo ya está cobrado', `${at}.trabajoId`)
+      }
+      if (c.status !== 'entregado') {
+        throw new AccountInputError('El trabajo aún no está entregado', `${at}.trabajoId`)
+      }
+      const pending = outstanding.get(c.id) ?? 0
+      const cents = toCents(a.monto)
+      if (cents > pending) {
+        throw new AccountInputError(
+          `Supera lo pendiente del trabajo (${fromSignedCents(pending)})`,
+          `${at}.monto`,
+        )
+      }
+      return { caseId: c.id, amountCents: cents }
+    })
+    if (sum(allocations.map((a) => a.amountCents)) > limit.cents) {
+      throw new AccountInputError(limit.message, 'asignaciones')
+    }
+    return { locked, allocations }
+  }
+
+  /**
+   * Reevalúa `isSettled` (decisión 5) en los trabajos bloqueados tras asignar o anular:
+   * `entregado` cubierto pasa a `cobrado` con `paid_at`; `cobrado` que deja de estarlo vuelve a
+   * `entregado`. `CaseSettlement.setPaid` escribe el `status_changed`.
+   */
+  async function settle(r: UowRepos, locked: readonly SettlementCase[], actorId: string) {
+    const outstanding = await outstandingOf(r, locked)
+    for (const c of locked) {
+      const settled = isSettled(outstanding.get(c.id) ?? 0)
+      if (settled && c.status === 'entregado') {
+        await r.cases.setPaid(c.id, deps.clock.now(), actorId)
+      } else if (!settled && c.status === 'cobrado') {
+        await r.cases.setPaid(c.id, null, actorId)
+      }
+    }
+  }
+
+  /** Crea las asignaciones del pago y escribe `payment_applied` en cada trabajo. */
+  async function allocate(
+    r: UowRepos,
+    payment: { id: string; method: PaymentMethod; reference: string | null },
+    allocations: readonly { caseId: string; amountCents: number }[],
+    actorId: string,
+  ) {
+    if (allocations.length === 0) return
+    await r.accounts.addAllocations(payment.id, allocations, actorId)
+    for (const a of allocations) {
+      await r.cases.addEvent({
+        caseId: a.caseId,
+        type: 'payment_applied',
+        toValue: fromCents(a.amountCents),
+        reason: paymentReason(payment),
+        actorId,
+      })
+    }
+  }
+
+  async function viewOf(r: UowRepos, paymentId: string): Promise<PaymentView> {
+    const p = await r.accounts.paymentById(paymentId)
+    if (!p) throw new PaymentNotFoundError()
+    return toPaymentView(p)
+  }
+
   return {
     /**
      * Lista de «Cuentas» (CTA-1): las clínicas con saldo o con movimientos (aunque estén
@@ -257,6 +432,117 @@ export function createAccountsService(deps: { accounts: AccountsRepository; cloc
         })),
         movements: movementsOf(ledger),
       }
+    },
+
+    /**
+     * Registra un pago (CTA-2) y su reparto en una sola transacción: bloquea los trabajos,
+     * valida la decisión 8 (422 con el campo, sin escribir nada), crea el pago y sus
+     * asignaciones, escribe `payment_applied` en cada trabajo y cierra los cubiertos. Lo que no
+     * reparte queda a favor de la clínica (decisión 3).
+     */
+    async registerPayment(input: PaymentInput, ctx: RequestContext): Promise<PaymentView> {
+      assertRole(ACCOUNTS_ROLES, ctx)
+      return deps.uow.run(async (r) => {
+        if (!(await r.accounts.clinicById(input.clinicaId))) {
+          throw new AccountInputError('La clínica no existe', 'clinicaId')
+        }
+        const amountCents = toCents(input.monto)
+        const { locked, allocations } = await lockAndValidate(
+          r,
+          input.clinicaId,
+          input.asignaciones,
+          { cents: amountCents, message: 'Lo asignado no puede superar el monto del pago' },
+        )
+        const payment = {
+          method: input.metodo,
+          reference: input.referencia,
+        }
+        const { id } = await r.accounts.createPayment({
+          clinicId: input.clinicaId,
+          amountCents,
+          ...payment,
+          paidOn: input.fecha,
+          notes: input.notas,
+          createdBy: ctx.userId,
+        })
+        await allocate(r, { id, ...payment }, allocations, ctx.userId)
+        await settle(r, locked, ctx.userId)
+        return viewOf(r, id)
+      })
+    },
+
+    /**
+     * «Aplicar saldo a favor» (decisión 3): reparte lo no asignado de un pago vigente con
+     * asignaciones de ese mismo pago, con las validaciones de la decisión 8 y sin pasar de lo
+     * que le queda. 404 si no existe; 409 si está anulado.
+     */
+    async applyCredit(
+      paymentId: string,
+      input: ApplyCreditInput,
+      ctx: RequestContext,
+    ): Promise<PaymentView> {
+      assertRole(ACCOUNTS_ROLES, ctx)
+      return deps.uow.run(async (r) => {
+        const payment = await r.accounts.lockPayment(paymentId)
+        if (!payment) throw new PaymentNotFoundError()
+        if (payment.voided) {
+          throw new PaymentVoidedError('El pago está anulado: no tiene saldo a favor')
+        }
+        const left =
+          payment.amountCents -
+          sum((await r.accounts.allocationsOf(paymentId)).map((a) => a.amountCents))
+        const { locked, allocations } = await lockAndValidate(
+          r,
+          payment.clinicId,
+          input.asignaciones,
+          { cents: left, message: `Supera el saldo a favor de este pago (${fromCents(left)})` },
+        )
+        await allocate(r, payment, allocations, ctx.userId)
+        await settle(r, locked, ctx.userId)
+        return viewOf(r, paymentId)
+      })
+    },
+
+    /**
+     * Anula un pago (decisión 2; solo admin, con motivo): lo marca, sus asignaciones dejan de
+     * contar (sin borrarse), escribe `payment_voided` en cada trabajo con lo que le devuelve y
+     * vuelve a `entregado` lo que deja de estar cubierto. 404 si no existe; 409 si ya estaba
+     * anulado.
+     */
+    async voidPayment(
+      paymentId: string,
+      input: VoidPaymentInput,
+      ctx: RequestContext,
+    ): Promise<PaymentView> {
+      assertRole(ACCOUNT_ADMIN_ROLES, ctx)
+      return deps.uow.run(async (r) => {
+        const payment = await r.accounts.lockPayment(paymentId)
+        if (!payment) throw new PaymentNotFoundError()
+        if (payment.voided) throw new PaymentVoidedError('El pago ya está anulado')
+        // Un trabajo puede tener varias asignaciones del mismo pago (el reparto y un saldo a
+        // favor aplicado después): un solo evento con la suma.
+        const byCase = new Map<string, number>()
+        for (const a of await r.accounts.allocationsOf(paymentId)) {
+          byCase.set(a.caseId, (byCase.get(a.caseId) ?? 0) + a.amountCents)
+        }
+        const locked = await r.cases.lockCases([...byCase.keys()])
+        await r.accounts.voidPayment(paymentId, {
+          at: deps.clock.now(),
+          by: ctx.userId,
+          reason: input.motivo,
+        })
+        for (const [caseId, cents] of byCase) {
+          await r.cases.addEvent({
+            caseId,
+            type: 'payment_voided',
+            toValue: fromCents(cents),
+            reason: input.motivo,
+            actorId: ctx.userId,
+          })
+        }
+        await settle(r, locked, ctx.userId)
+        return viewOf(r, paymentId)
+      })
     },
   }
 }

@@ -2,7 +2,7 @@ import { isSettled } from '@dentalware/shared'
 import { describe, expect, it } from 'vitest'
 import { ClinicAccountNotFoundError } from './errors.ts'
 import {
-  fakeAccountsRepo,
+  fakeAccounts,
   type FakeAdjustment,
   type FakeAllocation,
   type FakeCase,
@@ -63,9 +63,11 @@ function makePayment(
   }
 }
 
-function makeService(seed: Parameters<typeof fakeAccountsRepo>[0]) {
+function makeService(seed: Parameters<typeof fakeAccounts>[0]) {
+  const fake = fakeAccounts({ clinics: [SUR, NORTE], ...seed })
   return createAccountsService({
-    accounts: fakeAccountsRepo({ clinics: [SUR, NORTE], ...seed }),
+    accounts: fake.repo,
+    uow: fake.uow,
     clock: CLOCK,
   })
 }
@@ -445,23 +447,20 @@ describe('features/accounts/service', () => {
     const VIEJA: ClinicRef = { id: 'cl-vieja', name: 'Clínica Vieja', active: false }
 
     function listService() {
-      return createAccountsService({
-        accounts: fakeAccountsRepo({
-          clinics: [SUR, NORTE, OESTE, CERRADA, VIEJA],
-          cases: [
-            makeCase({ id: 's', clinicId: SUR.id, totalCents: 5_000 }),
-            makeCase({
-              id: 'n',
-              clinicId: NORTE.id,
-              totalCents: 20_000,
-              deliveredAt: at('2026-06-01'),
-            }),
-            makeCase({ id: 'v', clinicId: VIEJA.id, totalCents: 1_000, status: 'cobrado' }),
-          ],
-          payments: [makePayment({ id: 'pv', clinicId: VIEJA.id, amountCents: 1_000 })],
-          allocations: [{ paymentId: 'pv', caseId: 'v', amountCents: 1_000 }],
-        }),
-        clock: CLOCK,
+      return makeService({
+        clinics: [SUR, NORTE, OESTE, CERRADA, VIEJA],
+        cases: [
+          makeCase({ id: 's', clinicId: SUR.id, totalCents: 5_000 }),
+          makeCase({
+            id: 'n',
+            clinicId: NORTE.id,
+            totalCents: 20_000,
+            deliveredAt: at('2026-06-01'),
+          }),
+          makeCase({ id: 'v', clinicId: VIEJA.id, totalCents: 1_000, status: 'cobrado' }),
+        ],
+        payments: [makePayment({ id: 'pv', clinicId: VIEJA.id, amountCents: 1_000 })],
+        allocations: [{ paymentId: 'pv', caseId: 'v', amountCents: 1_000 }],
       })
     }
 

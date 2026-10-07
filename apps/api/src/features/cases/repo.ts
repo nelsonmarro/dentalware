@@ -26,6 +26,7 @@ import { clinicProductPrices, products } from '../products/schema.ts'
 import { stages } from '../stages/schema.ts'
 import { CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type {
+  CaseSettlementWriter,
   CasesRepository,
   DeliveryLog,
   NewCaseEvent,
@@ -596,6 +597,63 @@ export function createTryinsRepo(db: Db | Tx): TryinsRepository {
     async close(id, returnedAt) {
       await db.update(caseTryins).set({ returnedAt }).where(eq(caseTryins.id, id))
     },
+  }
+}
+
+/**
+ * Cobro de los trabajos (ADR 35): lo usa `accounts` por su puerto `CaseSettlement`, compuesto en
+ * `app.ts` sobre la `tx` de su unidad de trabajo. `lockCases` bloquea con `FOR NO KEY UPDATE`,
+ * como `byIdForUpdate` (#97): dos pagos al mismo trabajo, o un pago y una acción de estado, se
+ * esperan; los inserts que solo referencian el trabajo por FK (eventos, asignaciones), no. En
+ * orden de id, para que dos repartos con los mismos trabajos no se bloqueen en cruz.
+ */
+export function createCaseSettlement(db: Db | Tx): CaseSettlementWriter {
+  return {
+    async lockCases(caseIds) {
+      if (caseIds.length === 0) return []
+      const rows = await db
+        .select({
+          id: cases.id,
+          clinicId: cases.clinicId,
+          status: cases.status,
+          total: cases.total,
+          remakeChargePct: cases.remakeChargePct,
+          deliveredAt: cases.deliveredAt,
+        })
+        .from(cases)
+        .where(inArray(cases.id, [...caseIds]))
+        .orderBy(asc(cases.id))
+        .for('no key update')
+      return rows.map((r) => ({
+        id: r.id,
+        clinicId: r.clinicId,
+        status: r.status,
+        totalCents: toCents(r.total),
+        remakeChargePct: r.remakeChargePct === null ? null : Number(r.remakeChargePct),
+        deliveredAt: r.deliveredAt,
+      }))
+    },
+
+    async setPaid(caseId, paidAt, actorId) {
+      const [from, to] = paidAt
+        ? (['entregado', 'cobrado'] as const)
+        : (['cobrado', 'entregado'] as const)
+      const changed = await db
+        .update(cases)
+        .set({ status: to, paidAt, updatedAt: new Date() })
+        .where(and(eq(cases.id, caseId), eq(cases.status, from)))
+        .returning({ id: cases.id })
+      if (changed.length === 0) return
+      await addEventWith(db, {
+        caseId,
+        type: 'status_changed',
+        fromValue: from,
+        toValue: to,
+        actorId,
+      })
+    },
+
+    addEvent: (e) => addEventWith(db, e),
   }
 }
 

@@ -55,11 +55,92 @@ export type PaymentEntry = {
 
 export type ClinicRef = { id: string; name: string; active: boolean }
 
-/** Lectura de las cuentas. Sin `clinicId`, de todas las clínicas (la lista de «Cuentas»). */
+/** Pago nuevo (CTA-2): lo registra quien está en sesión. */
+export type NewPayment = {
+  clinicId: string
+  amountCents: number
+  method: PaymentMethod
+  paidOn: string // YYYY-MM-DD
+  reference: string | null
+  notes: string | null
+  createdBy: string
+}
+
+/** Un pago bloqueado (`FOR NO KEY UPDATE`) para asignar lo que le queda o anularlo. */
+export type LockedPayment = {
+  id: string
+  clinicId: string
+  amountCents: number
+  method: PaymentMethod
+  reference: string | null
+  voided: boolean
+}
+
+/** Lo que mueve el pendiente de un trabajo y es de esta feature: Σ ajustes del trabajo y Σ
+ * asignaciones de pagos vigentes (decisiones 1, 2 y 4). */
+export type CaseAccountTotals = { caseId: string; adjustmentsCents: number; allocatedCents: number }
+
+/** Lectura y escritura de las cuentas. Sin `clinicId`, de todas las clínicas (la lista de
+ * «Cuentas»). Las escrituras solo se llaman dentro de `AccountsUnitOfWork.run`. */
 export interface AccountsRepository {
   clinicById(id: string): Promise<ClinicRef | undefined>
   clinics(): Promise<ClinicRef[]>
   billedCases(clinicId?: string): Promise<BilledCase[]>
   adjustments(clinicId?: string): Promise<AdjustmentEntry[]>
   payments(clinicId?: string): Promise<PaymentEntry[]>
+  paymentById(id: string): Promise<PaymentEntry | undefined>
+  /** Σ ajustes y Σ asignaciones vigentes de cada trabajo pedido (0 si no tiene). */
+  caseTotals(caseIds: readonly string[]): Promise<CaseAccountTotals[]>
+  createPayment(p: NewPayment): Promise<{ id: string }>
+  /** Bloquea el pago hasta el fin de la transacción: dos asignaciones de su saldo a favor, o
+   * una asignación y su anulación, no se cruzan. */
+  lockPayment(id: string): Promise<LockedPayment | undefined>
+  /** Asignaciones del pago (todas: la anulación las deja sin borrar), por trabajo. */
+  allocationsOf(paymentId: string): Promise<{ caseId: string; amountCents: number }[]>
+  addAllocations(
+    paymentId: string,
+    allocations: readonly { caseId: string; amountCents: number }[],
+    createdBy: string,
+  ): Promise<void>
+  voidPayment(id: string, v: { at: Date; by: string; reason: string }): Promise<void>
+}
+
+/** Un trabajo bloqueado para cobrarlo, con lo que hace falta para su cargo (decisión 4). */
+export type SettlementCase = {
+  id: string
+  clinicId: string
+  status: CaseStatus
+  totalCents: number
+  remakeChargePct: number | null
+  deliveredAt: Date | null
+}
+
+/**
+ * Puerto de escritura sobre `cases` (ADR 35, patrón de ADR 34): `accounts` cambia el estado del
+ * trabajo (`entregado ⇄ cobrado`) y escribe sus eventos sin importar nada de `cases/`. Lo cumple
+ * el repo de `cases` sobre la misma `tx` del `AccountsUnitOfWork` (`app.ts`).
+ */
+export interface CaseSettlement {
+  /** Bloquea los trabajos (`FOR NO KEY UPDATE`, en orden de id) hasta el fin de la transacción
+   * y los devuelve: dos pagos al mismo trabajo leen su pendiente uno después del otro. Los que
+   * no existen no vienen. */
+  lockCases(caseIds: readonly string[]): Promise<SettlementCase[]>
+  /** `paidAt` no nulo: `entregado → cobrado` con `paid_at`; nulo: `cobrado → entregado` sin
+   * él. Escribe `status_changed`. Nada si el trabajo no está en el estado de partida. */
+  setPaid(caseId: string, paidAt: Date | null, actorId: string): Promise<void>
+  addEvent(e: {
+    caseId: string
+    type: 'payment_applied' | 'payment_voided' | 'adjustment_added'
+    /** Monto en cadena decimal (con signo en el ajuste). */
+    toValue: string
+    /** Método y referencia del pago, o el motivo. */
+    reason: string | null
+    actorId: string
+  }): Promise<void>
+}
+
+/** Atomicidad de pagos, asignaciones y anulaciones (ADR 19): las escrituras de la cuenta y las
+ * del trabajo en una sola transacción. */
+export interface AccountsUnitOfWork {
+  run<T>(fn: (r: { accounts: AccountsRepository; cases: CaseSettlement }) => Promise<T>): Promise<T>
 }
