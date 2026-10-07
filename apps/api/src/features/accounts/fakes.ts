@@ -54,6 +54,10 @@ export function fakeAccounts(seed: Seed = {}) {
   const events: FakeCaseEvent[] = []
   const paidAt = new Map<string, Date | null>()
   const locked: string[][] = []
+  const lockedPayments: string[] = []
+  /** Orden de los bloqueos y de la lectura de asignaciones, para probar que el servicio bloquea
+   * el pago antes de leer lo que tiene asignado. */
+  const calls: string[] = []
   const nameOf = (id: string) => seed.users?.[id] ?? id
   let nextPayment = 1
 
@@ -126,6 +130,8 @@ export function fakeAccounts(seed: Seed = {}) {
       return { id }
     },
     async lockPayment(id) {
+      lockedPayments.push(id)
+      calls.push(`lockPayment:${id}`)
       const p = payments.find((x) => x.id === id)
       return (
         p && {
@@ -139,6 +145,7 @@ export function fakeAccounts(seed: Seed = {}) {
       )
     },
     async allocationsOf(paymentId) {
+      calls.push(`allocationsOf:${paymentId}`)
       return allocations
         .filter((a) => a.paymentId === paymentId)
         .map((a) => ({ caseId: a.caseId, amountCents: a.amountCents }))
@@ -155,6 +162,7 @@ export function fakeAccounts(seed: Seed = {}) {
   const settlement: CaseSettlement = {
     async lockCases(caseIds) {
       locked.push([...caseIds])
+      calls.push(`lockCases:${caseIds.join(',')}`)
       return cases
         .filter((c) => caseIds.includes(c.id))
         .map((c) => ({
@@ -190,7 +198,19 @@ export function fakeAccounts(seed: Seed = {}) {
 
   const uow: AccountsUnitOfWork = { run: (fn) => fn({ accounts: repo, cases: settlement }) }
 
-  return { repo, settlement, uow, events, paidAt, locked, cases, payments, allocations }
+  return {
+    repo,
+    settlement,
+    uow,
+    events,
+    paidAt,
+    locked,
+    lockedPayments,
+    calls,
+    cases,
+    payments,
+    allocations,
+  }
 }
 
 /** Solo el repo de `fakeAccounts`, para las pruebas de lectura (CTA-1). */

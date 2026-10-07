@@ -358,6 +358,21 @@ describe('features/accounts/service: pagos (CTA-2)', () => {
       expect((await fake.service.clinicAccount(SUR.id)).credit).toBe('10.00')
     })
 
+    it('bloquea el pago antes de leer sus asignaciones, y después los trabajos', async () => {
+      const fake = withCredit()
+      await fake.service.applyCredit(
+        'pg',
+        { asignaciones: [{ trabajoId: 'b', monto: '10.00' }] },
+        recepcion,
+      )
+      expect(fake.lockedPayments).toEqual(['pg'])
+      expect(fake.calls.filter((c) => /^(lockPayment|allocationsOf|lockCases)/.test(c))).toEqual([
+        'lockPayment:pg',
+        'allocationsOf:pg',
+        'lockCases:b',
+      ])
+    })
+
     it('no reparte más de lo que le queda al pago (422 en asignaciones)', async () => {
       const fake = withCredit()
       await expect(
@@ -494,6 +509,18 @@ describe('features/accounts/service: pagos (CTA-2)', () => {
       expect(account.openCases.map((c) => [c.id, c.outstanding])).toEqual([
         ['a', '100.00'],
         ['b', '50.00'],
+      ])
+    })
+
+    it('bloquea el pago antes de leer sus asignaciones, y después los trabajos', async () => {
+      const fake = await paid()
+      fake.calls.length = 0
+      await fake.service.voidPayment('pago-1', { motivo: 'Duplicado' }, admin)
+      expect(fake.lockedPayments).toEqual(['pago-1'])
+      expect(fake.calls.filter((c) => /^(lockPayment|allocationsOf|lockCases)/.test(c))).toEqual([
+        'lockPayment:pago-1',
+        'allocationsOf:pago-1',
+        'lockCases:a,b',
       ])
     })
 

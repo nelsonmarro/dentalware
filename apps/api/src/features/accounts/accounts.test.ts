@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createApp } from '../../app.ts'
 import { testPassword } from '../../test/passwords.ts'
@@ -437,6 +438,67 @@ describe('/api/cuentas', () => {
         type: 'payment_voided',
         toValue: '15.00',
       })
+    })
+
+    /** Un pago de 60.00 con 45.00 en un trabajo (le quedan 15.00 a favor) y otros dos
+     * trabajos entregados de 45.00 sin pagar. */
+    async function creditAndTwoCases() {
+      const uno = await deliverCase()
+      const p = await register(pago({ asignaciones: [{ trabajoId: uno.id, monto: '45.00' }] }))
+      const dos = await deliverCase()
+      const tres = await deliverCase()
+      return { p, uno, dos, tres }
+    }
+    const applyCredit = (paymentId: string, trabajoId: string) =>
+      post(`/api/cuentas/pagos/${paymentId}/asignaciones`, recepcion, {
+        asignaciones: [{ trabajoId, monto: '15.00' }],
+      })
+    const allocationsOfPayment = (paymentId: string) =>
+      ctx.db
+        .select()
+        .from(ctx.schema.paymentAllocations)
+        .where(eq(ctx.schema.paymentAllocations.paymentId, paymentId))
+
+    it('concurrencia: dos «Aplicar saldo a favor» del mismo pago a trabajos distintos no lo pasan de su monto', async () => {
+      const { p, dos, tres } = await creditAndTwoCases()
+      const intentos = await Promise.all([applyCredit(p.id, dos.id), applyCredit(p.id, tres.id)])
+      expect(intentos.map((r) => r.status).sort()).toEqual([201, 422])
+      const rechazado = intentos.find((r) => r.status === 422)!
+      expect(((await rechazado.json()) as Issues).issues).toEqual([
+        { path: 'asignaciones', message: 'Supera el saldo a favor de este pago (0.00)' },
+      ])
+      const allocations = await allocationsOfPayment(p.id)
+      expect(allocations).toHaveLength(2)
+      expect(allocations.reduce((sum, a) => sum + Number(a.amount) * 100, 0)).toBe(6_000)
+      expect(await detail()).toMatchObject({ credit: '0.00', balance: '75.00' })
+    })
+
+    it('concurrencia: aplicar el saldo a favor y anular el mismo pago deja un estado coherente en cualquier orden', async () => {
+      const { p, uno, dos } = await creditAndTwoCases()
+      const [aplicar, anular] = await Promise.all([
+        applyCredit(p.id, dos.id),
+        post(`/api/cuentas/pagos/${p.id}/anular`, admin, { motivo: 'Duplicado' }),
+      ])
+      expect(anular.status).toBe(200)
+      expect([201, 409]).toContain(aplicar.status)
+      const voidedOnDos = (await eventsOf(dos.id)).filter((e) => e.type === 'payment_voided')
+      if (aplicar.status === 201) {
+        // Se aplicó antes de anular: la anulación también devuelve lo de `dos`.
+        expect(voidedOnDos).toEqual([expect.objectContaining({ toValue: '15.00' })])
+        expect(await allocationsOfPayment(p.id)).toHaveLength(2)
+      } else {
+        // Se anuló antes: el pago ya no tiene saldo a favor y `dos` no recibe nada.
+        expect(await aplicar.json()).toEqual({
+          message: 'El pago está anulado: no tiene saldo a favor',
+        })
+        expect(voidedOnDos).toEqual([])
+        expect(await allocationsOfPayment(p.id)).toHaveLength(1)
+      }
+      // En los dos órdenes: el pago no cuenta y los trabajos deben todo.
+      expect(await caseOf(uno.id)).toMatchObject({ status: 'entregado', paidAt: null })
+      const after = await detail()
+      expect(after).toMatchObject({ balance: '135.00', credit: '0.00' })
+      expect(after.openCases.map((c) => c.outstanding)).toEqual(['45.00', '45.00', '45.00'])
     })
 
     it('concurrencia: pagos simultáneos al mismo trabajo no lo sobrepagan', async () => {
