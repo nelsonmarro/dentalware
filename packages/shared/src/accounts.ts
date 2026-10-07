@@ -92,27 +92,48 @@ function bucketFor(days: number): AgingBucket {
   return '90_mas'
 }
 
+type AgingInput = {
+  today: string
+  charges: readonly { date: string; cents: number }[]
+  credits: readonly { cents: number }[]
+}
+
+/** Las partidas que siguen pendientes tras descontar lo que resta de la más antigua a la más
+ * nueva (decisión 9), de la más antigua a la más nueva. Una sola regla para `agingBuckets` y
+ * `oldestOpenDays`: las partidas sin monto positivo no cuentan. */
+function openCharges(input: AgingInput): { date: string; cents: number }[] {
+  let credit = input.credits.reduce((sum, c) => sum + c.cents, 0)
+  const oldestFirst = input.charges
+    .filter((c) => c.cents > 0)
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const open: { date: string; cents: number }[] = []
+  for (const charge of oldestFirst) {
+    const used = Math.min(Math.max(credit, 0), charge.cents)
+    credit -= used
+    const left = charge.cents - used
+    if (left > 0) open.push({ date: charge.date, cents: left })
+  }
+  return open
+}
+
 /** Antigüedad de la deuda a `today` (decisión 9), en centavos por cubo. `charges` son las
  * partidas que suman (pendiente de cada trabajo entregado por su fecha de entrega y ajustes sin
  * trabajo positivos por su fecha); `credits`, lo que resta (ajustes sin trabajo negativos, en
  * positivo, y el saldo a favor). Lo que resta se descuenta de la partida más antigua a la más
  * nueva; si supera lo que suma, todo queda en cero. Ningún cubo es negativo: las partidas sin
  * monto positivo no cuentan, y una fecha posterior a `today` cae en 0–30. */
-export function agingBuckets(input: {
-  today: string
-  charges: readonly { date: string; cents: number }[]
-  credits: readonly { cents: number }[]
-}): Record<AgingBucket, number> {
+export function agingBuckets(input: AgingInput): Record<AgingBucket, number> {
   const buckets: Record<AgingBucket, number> = { '0_30': 0, '31_60': 0, '61_90': 0, '90_mas': 0 }
-  let credit = input.credits.reduce((sum, c) => sum + c.cents, 0)
-  const oldestFirst = input.charges
-    .filter((c) => c.cents > 0)
-    .sort((a, b) => a.date.localeCompare(b.date))
-  for (const charge of oldestFirst) {
-    const used = Math.min(Math.max(credit, 0), charge.cents)
-    credit -= used
-    const left = charge.cents - used
-    if (left > 0) buckets[bucketFor(daysBetween(charge.date, input.today))] += left
+  for (const charge of openCharges(input)) {
+    buckets[bucketFor(daysBetween(charge.date, input.today))] += charge.cents
   }
   return buckets
+}
+
+/** Cuántos días tiene vencido (CTA-1): los de la partida pendiente más antigua tras descontar
+ * lo que resta, con las mismas reglas que `agingBuckets`; `null` si no queda nada pendiente.
+ * Nunca negativo: una fecha posterior a `today` cuenta 0. */
+export function oldestOpenDays(input: AgingInput): number | null {
+  const [oldest] = openCharges(input)
+  return oldest ? Math.max(0, daysBetween(oldest.date, input.today)) : null
 }

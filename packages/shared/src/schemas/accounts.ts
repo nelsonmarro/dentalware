@@ -121,3 +121,13 @@ export const accountStatementQuerySchema = z
     error: 'La fecha final no puede ser anterior a la inicial',
   })
 export type AccountStatementQuery = z.infer<typeof accountStatementQuerySchema>
+
+/** `GET /api/cuentas` (CTA-1): por omisión, solo las clínicas con saldo o con movimientos; con
+ * `todas=1`, también las activas sin nada. */
+export const accountListQuerySchema = z.object({
+  todas: z
+    .enum(['0', '1'], { error: 'Valor no válido' })
+    .optional()
+    .transform((v) => v === '1'),
+})
+export type AccountListQuery = z.infer<typeof accountListQuerySchema>

@@ -7,6 +7,7 @@ import {
   caseOutstandingCents,
   daysBetween,
   isSettled,
+  oldestOpenDays,
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHODS,
   suggestAllocation,
@@ -239,5 +240,72 @@ describe('agingBuckets (decisión 9)', () => {
     expect(
       agingBuckets({ today, charges: [{ date: '2026-10-10', cents: 400 }], credits: [] }),
     ).toEqual({ ...zero, '0_30': 400 })
+  })
+})
+
+describe('oldestOpenDays (CTA-1: cuántos días tiene vencido)', () => {
+  const today = '2026-10-06'
+
+  it('días de la partida más antigua que sigue pendiente', () => {
+    expect(
+      oldestOpenDays({
+        today,
+        charges: [
+          { date: '2026-10-01', cents: 1_000 },
+          { date: '2026-08-20', cents: 2_000 },
+        ],
+        credits: [],
+      }),
+    ).toBe(47)
+  })
+
+  it('una partida que el crédito cubre entera ya no cuenta: manda la siguiente', () => {
+    expect(
+      oldestOpenDays({
+        today,
+        charges: [
+          { date: '2026-10-01', cents: 1_000 },
+          { date: '2026-06-01', cents: 1_500 },
+        ],
+        credits: [{ cents: 1_500 }],
+      }),
+    ).toBe(5)
+  })
+
+  it('una partida cubierta a medias sigue contando', () => {
+    expect(
+      oldestOpenDays({
+        today,
+        charges: [
+          { date: '2026-10-01', cents: 1_000 },
+          { date: '2026-06-01', cents: 1_500 },
+        ],
+        credits: [{ cents: 1_499 }],
+      }),
+    ).toBe(127)
+  })
+
+  it('sin nada pendiente, null', () => {
+    expect(oldestOpenDays({ today, charges: [], credits: [] })).toBeNull()
+    expect(
+      oldestOpenDays({
+        today,
+        charges: [{ date: '2026-10-01', cents: 1_000 }],
+        credits: [{ cents: 1_000 }],
+      }),
+    ).toBeNull()
+  })
+
+  it('ignora partidas sin monto positivo y nunca da días negativos', () => {
+    expect(
+      oldestOpenDays({
+        today,
+        charges: [
+          { date: '2026-01-01', cents: -500 },
+          { date: '2026-10-10', cents: 400 },
+        ],
+        credits: [],
+      }),
+    ).toBe(0)
   })
 })

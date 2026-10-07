@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  accountListQuerySchema,
   accountStatementQuerySchema,
   adjustmentInputSchema,
   applyCreditInputSchema,
@@ -224,5 +225,20 @@ describe('accountStatementQuerySchema', () => {
 
   it('exige ambas fechas', () => {
     expect(accountStatementQuerySchema.safeParse({ desde: '2026-09-01' }).success).toBe(false)
+  })
+})
+
+describe('accountListQuerySchema', () => {
+  it('sin parámetros, solo las clínicas con saldo o movimientos', () => {
+    expect(accountListQuerySchema.parse({})).toEqual({ todas: false })
+  })
+
+  it('todas=1 pide todas las clínicas activas; todas=0, las de siempre', () => {
+    expect(accountListQuerySchema.parse({ todas: '1' })).toEqual({ todas: true })
+    expect(accountListQuerySchema.parse({ todas: '0' })).toEqual({ todas: false })
+  })
+
+  it('rechaza otro valor', () => {
+    expect(accountListQuerySchema.safeParse({ todas: 'si' }).success).toBe(false)
   })
 })
