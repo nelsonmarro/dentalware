@@ -95,7 +95,8 @@ export interface AccountsRepository {
   /** Bloquea el pago hasta el fin de la transacción: dos asignaciones de su saldo a favor, o
    * una asignación y su anulación, no se cruzan. */
   lockPayment(id: string): Promise<LockedPayment | undefined>
-  /** Asignaciones del pago (todas: la anulación las deja sin borrar), por trabajo. */
+  /** Asignaciones del pago (todas: la anulación las deja sin borrar), sin orden garantizado:
+   * quien las usa suma por trabajo. */
   allocationsOf(paymentId: string): Promise<{ caseId: string; amountCents: number }[]>
   addAllocations(
     paymentId: string,

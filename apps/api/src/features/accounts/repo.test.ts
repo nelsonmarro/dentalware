@@ -333,7 +333,7 @@ describe('features/accounts/repo', () => {
       expect(await repo.paymentById('00000000-0000-4000-8000-000000000000')).toBeUndefined()
     })
 
-    it('addAllocations y allocationsOf: las asignaciones del pago, en el orden en que se hicieron', async () => {
+    it('addAllocations y allocationsOf: todas las asignaciones del pago, de cada reparto', async () => {
       const a = await insertCase()
       const b = await insertCase()
       const p = await insertPayment({ amount: '90.00' })
@@ -347,11 +347,16 @@ describe('features/accounts/repo', () => {
         recepId,
       )
       await repo.addAllocations(p.id, [{ caseId: b.id, amountCents: 1_050 }], adminId)
-      expect(await repo.allocationsOf(p.id)).toEqual([
-        { caseId: b.id, amountCents: 3_000 },
-        { caseId: a.id, amountCents: 2_000 },
-        { caseId: b.id, amountCents: 1_050 },
-      ])
+      // Sin orden: las filas de un mismo `INSERT` comparten `created_at`.
+      const allocations = await repo.allocationsOf(p.id)
+      expect(allocations).toHaveLength(3)
+      expect(allocations).toEqual(
+        expect.arrayContaining([
+          { caseId: b.id, amountCents: 3_000 },
+          { caseId: a.id, amountCents: 2_000 },
+          { caseId: b.id, amountCents: 1_050 },
+        ]),
+      )
       expect((await repo.paymentById(p.id))?.allocatedCents).toBe(6_050)
       const rows = await ctx.db.select().from(ctx.schema.paymentAllocations)
       expect(rows.map((r) => r.createdBy).sort()).toEqual([adminId, recepId, recepId].sort())

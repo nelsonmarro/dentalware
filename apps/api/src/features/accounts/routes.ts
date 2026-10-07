@@ -21,11 +21,10 @@ import {
 } from './errors.ts'
 import type { AccountsService } from './service.ts'
 
-// «Cuentas», saldo y movimientos: admin y recepción (ADR 31: su propia constante,
-// ACCOUNTS_ROLES). Técnico y mensajero nunca ven importes.
-// Registrar pagos y aplicar saldo a favor, también ACCOUNTS_ROLES; anular, solo admin
-// (ACCOUNT_ADMIN_ROLES, decisión 2).
-const canRead = requireRole(...ACCOUNTS_ROLES)
+// Usar las cuentas (ADR 31: cada ruta, su constante): ver «Cuentas», saldo y movimientos,
+// registrar pagos y aplicar saldo a favor, admin y recepción (ACCOUNTS_ROLES); anular, solo
+// admin (ACCOUNT_ADMIN_ROLES, decisión 2). Técnico y mensajero nunca ven importes.
+const canUseAccounts = requireRole(...ACCOUNTS_ROLES)
 const canVoid = requireRole(...ACCOUNT_ADMIN_ROLES)
 
 /** Cuerpo del 422 de un `AccountInputError`: el mismo contrato que `validate`. */
@@ -50,17 +49,17 @@ export const accountsRoutes = (service: AccountsService) =>
   new Hono<AppEnv>()
     // Todo el router exige sesión antes que rol: sin sesión, 401; con otro rol, 403.
     .use(requireAuth)
-    .get('/', canRead, validate('query', accountListQuerySchema), async (c) =>
+    .get('/', canUseAccounts, validate('query', accountListQuerySchema), async (c) =>
       c.json({ clinics: await service.list(c.req.valid('query')) }, 200),
     )
-    .get('/:id', canRead, validate('param', idParamSchema), async (c) => {
+    .get('/:id', canUseAccounts, validate('param', idParamSchema), async (c) => {
       try {
         return c.json(await service.clinicAccount(c.req.valid('param').id), 200)
       } catch (e) {
         toHttp(e)
       }
     })
-    .post('/pagos', canRead, validate('json', paymentInputSchema), async (c) => {
+    .post('/pagos', canUseAccounts, validate('json', paymentInputSchema), async (c) => {
       try {
         return c.json({ pago: await service.registerPayment(c.req.valid('json'), ctxFrom(c)) }, 201)
       } catch (e) {
@@ -70,7 +69,7 @@ export const accountsRoutes = (service: AccountsService) =>
     })
     .post(
       '/pagos/:id/asignaciones',
-      canRead,
+      canUseAccounts,
       validate('param', idParamSchema),
       validate('json', applyCreditInputSchema),
       async (c) => {

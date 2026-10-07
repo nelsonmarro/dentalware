@@ -1,7 +1,6 @@
-import { toCents, toSignedCents } from '@dentalware/shared'
-import { and, asc, eq, inArray, isNull, sql, type Column, type SQL } from 'drizzle-orm'
+import { fromCents, toCents, toSignedCents } from '@dentalware/shared'
+import { and, eq, inArray, isNull, sql, type Column, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import { fromCents } from '@dentalware/shared'
 import type { Db, Tx } from '../../db/index.ts'
 import { users } from '../../db/schema/auth.ts'
 import { cases } from '../cases/schema.ts'
@@ -270,7 +269,6 @@ export function createAccountsRepo(db: Db | Tx) {
         .select({ caseId: paymentAllocations.caseId, amount: paymentAllocations.amount })
         .from(paymentAllocations)
         .where(eq(paymentAllocations.paymentId, paymentId))
-        .orderBy(asc(paymentAllocations.createdAt), asc(paymentAllocations.id))
       return rows.map((r) => ({ caseId: r.caseId, amountCents: toCents(r.amount) }))
     },
 
