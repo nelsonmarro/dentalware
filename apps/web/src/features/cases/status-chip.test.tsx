@@ -14,6 +14,15 @@ describe('StatusChip', () => {
     expect(chip).toHaveStyle({ '--chip': '#0F766E' })
   })
 
+  // Iteración 5: «Cobrado» en grafito (spec §5, `--graphite` #1E2A2D), el color del texto
+  // principal: el trabajo ya no pide nada a nadie.
+  it('cobrado se rotula «Cobrado» en grafito', () => {
+    render(<StatusChip status="cobrado" />)
+    const chip = screen.getByText('Cobrado')
+    expect(chip).toHaveAttribute('data-status', 'cobrado')
+    expect(chip).toHaveStyle({ '--chip': '#1E2A2D' })
+  })
+
   // UX4-14: junto a un paciente largo (ficha corta a 360 px), «Por recoger» se partía en dos
   // líneas. El chip no se encoge ni corta su texto: lo que se ajusta es lo de al lado.
   it('no se parte ni se encoge junto a un texto largo', () => {

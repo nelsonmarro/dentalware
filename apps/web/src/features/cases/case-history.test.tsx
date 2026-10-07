@@ -246,6 +246,28 @@ describe('CaseHistory', () => {
     expect(within(item).queryByRole('link')).not.toBeInTheDocument()
   })
 
+  // Iteración 5 (cuentas y cobro): el cobro escribe tres eventos nuevos y lleva el trabajo a
+  // `cobrado` con un `status_changed`; todos se nombran en español, nunca con la clave.
+  it('nombra en español los eventos del cobro y el paso a cobrado', async () => {
+    renderWithProviders(
+      <CaseHistory
+        case={caso()}
+        stages={[]}
+        events={[
+          event({ id: 'e1', type: 'payment_applied', toValue: '40.00' }),
+          event({ id: 'e2', type: 'status_changed', fromValue: 'entregado', toValue: 'cobrado' }),
+          event({ id: 'e3', type: 'payment_voided', toValue: '40.00', reason: 'Duplicado' }),
+          event({ id: 'e4', type: 'adjustment_added', toValue: '-5.00', reason: 'Descuento' }),
+        ]}
+      />,
+    )
+    const items = await screen.findAllByRole('listitem')
+    expect(items[0]).toHaveTextContent('Ajuste registrado')
+    expect(items[1]).toHaveTextContent('Pago anulado')
+    expect(items[2]).toHaveTextContent('Nuevo estado: Cobrado')
+    expect(items[3]).toHaveTextContent('Pago aplicado')
+  })
+
   it('una pausa muestra su motivo', async () => {
     renderWithProviders(
       <CaseHistory
