@@ -169,7 +169,7 @@ export function createAccountsRepo(db: Db | Tx) {
         notes: r.notes,
         createdAt: r.createdAt,
         createdByName: r.createdByName,
-        // El servicio de anulación (Tarea 4) fija los tres campos a la vez.
+        // La anulación va entera: el CHECK `payments_void_check` exige los tres campos o ninguno.
         voided:
           r.voidedAt === null
             ? null

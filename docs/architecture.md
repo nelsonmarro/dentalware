@@ -91,7 +91,7 @@ En la API, los tests y `fakes.ts` quedan fuera de estas reglas. En la web sí en
 - **Configuración**: `lab_settings`, `users` (+ Better Auth), `clinics`, `doctors`, `product_categories`, `products`, `clinic_product_prices` y `stages`.
 - **Operación**: `cases` (con `parent_case_id` para las repeticiones), `case_items`, `case_events`, `attachments`, `case_tryins` y `case_sequences`.
 - **Entregas**: `deliveries` (recogida o entrega, mensajero, fecha, estado `pendiente`/`hecha`/`fallida`, motivo y constancia; `proof_attachment_id` con `ON DELETE RESTRICT`).
-- **Cuentas**: `account_adjustments` (con signo y CHECK ≠ 0; `case_id` opcional: ligado a un trabajo cambia su neto, sin él solo mueve el saldo, como el «Saldo inicial»), `payments` (monto > 0, método, fecha de pago, referencia y notas; se anulan con `voided_at`, `voided_by` y `void_reason`, nunca se editan ni se borran) y `payment_allocations` (parte de un pago asignada a un trabajo, > 0; la de un pago anulado deja de contar sin borrarse).
+- **Cuentas**: `account_adjustments` (con signo y CHECK ≠ 0; `case_id` opcional: ligado a un trabajo cambia su neto, sin él solo mueve el saldo, como el «Saldo inicial»), `payments` (monto > 0, método, fecha de pago, referencia y notas; se anulan con `voided_at`, `voided_by` y `void_reason`, que el CHECK `payments_void_check` exige juntos, y nunca se editan ni se borran) y `payment_allocations` (parte de un pago asignada a un trabajo, > 0; la de un pago anulado deja de contar sin borrarse).
 
 Saldo de clínica = Σ cargos de los trabajos entregados y cobrados + Σ ajustes − Σ pagos vigentes. Se calcula, no se guarda, y cuadra con Σ pendientes + Σ ajustes sin trabajo − saldo a favor (ADR 35).
 

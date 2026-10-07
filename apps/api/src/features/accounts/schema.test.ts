@@ -189,6 +189,27 @@ describe('esquema de cuentas', () => {
     ).rejects.toEqual(checkViolation('payments_amount_check'))
   })
 
+  it.each([
+    ['solo la fecha', { voidedAt: true, voidedBy: false, voidReason: false }],
+    ['sin motivo', { voidedAt: true, voidedBy: true, voidReason: false }],
+    ['sin quién', { voidedAt: true, voidedBy: false, voidReason: true }],
+    ['sin fecha', { voidedAt: false, voidedBy: true, voidReason: true }],
+    ['solo el motivo', { voidedAt: false, voidedBy: false, voidReason: true }],
+  ])('rechaza una anulación a medias: %s', async (_label, set) => {
+    await expect(
+      ctx.db.insert(ctx.schema.payments).values({
+        clinicId,
+        amount: '10.00',
+        method: 'efectivo',
+        paidOn: '2026-10-03',
+        createdBy: userId,
+        voidedAt: set.voidedAt ? new Date('2026-10-04T15:00:00Z') : null,
+        voidedBy: set.voidedBy ? userId : null,
+        voidReason: set.voidReason ? 'Duplicado' : null,
+      }),
+    ).rejects.toEqual(checkViolation('payments_void_check'))
+  })
+
   it('rechaza un ajuste de 0', async () => {
     await expect(
       ctx.db.insert(ctx.schema.accountAdjustments).values({

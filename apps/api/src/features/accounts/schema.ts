@@ -72,6 +72,11 @@ export const payments = pgTable(
   (t) => [
     index('payments_clinic_idx').on(t.clinicId),
     check('payments_amount_check', sql`${t.amount} > 0`),
+    // La anulación va entera (decisión 2): fecha, quién y motivo, los tres o ninguno.
+    check(
+      'payments_void_check',
+      sql`num_nulls(${t.voidedAt}, ${t.voidedBy}, ${t.voidReason}) in (0, 3)`,
+    ),
   ],
 )
 
