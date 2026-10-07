@@ -60,6 +60,7 @@ export function fakeAccounts(seed: Seed = {}) {
   const calls: string[] = []
   const nameOf = (id: string) => seed.users?.[id] ?? id
   let nextPayment = 1
+  let nextAdjustment = 1
 
   const of = <T extends { clinicId: string }>(rows: readonly T[], clinicId?: string) =>
     clinicId === undefined ? [...rows] : rows.filter((r) => r.clinicId === clinicId)
@@ -76,6 +77,11 @@ export function fakeAccounts(seed: Seed = {}) {
     ...p,
     allocatedCents: sum(allocations.filter((a) => a.paymentId === p.id).map((a) => a.amountCents)),
   })
+
+  const withCase = ({ caseId, ...a }: FakeAdjustment): AdjustmentEntry => {
+    const found = caseId === null ? undefined : cases.find((c) => c.id === caseId)
+    return { ...a, case: found ? { id: found.id, code: found.code } : null }
+  }
 
   const repo: AccountsRepository = {
     async clinicById(id) {
@@ -94,10 +100,11 @@ export function fakeAccounts(seed: Seed = {}) {
         }))
     },
     async adjustments(clinicId) {
-      return of(adjustments, clinicId).map(({ caseId, ...a }) => {
-        const found = caseId === null ? undefined : cases.find((c) => c.id === caseId)
-        return { ...a, case: found ? { id: found.id, code: found.code } : null }
-      })
+      return of(adjustments, clinicId).map(withCase)
+    },
+    async adjustmentById(id) {
+      const a = adjustments.find((x) => x.id === id)
+      return a && withCase(a)
     },
     async payments(clinicId) {
       return of(payments, clinicId).map(withAllocated)
@@ -126,6 +133,20 @@ export function fakeAccounts(seed: Seed = {}) {
         createdAt: new Date('2026-10-06T17:00:00Z'),
         createdByName: nameOf(p.createdBy),
         voided: null,
+      })
+      return { id }
+    },
+    async createAdjustment(a) {
+      const id = `ajuste-${nextAdjustment++}`
+      adjustments.push({
+        id,
+        clinicId: a.clinicId,
+        caseId: a.caseId,
+        amountCents: a.amountCents,
+        reason: a.reason,
+        date: a.date,
+        createdAt: new Date('2026-10-06T17:00:00Z'),
+        createdByName: nameOf(a.createdBy),
       })
       return { id }
     },

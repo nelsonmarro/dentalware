@@ -98,8 +98,8 @@ describe('/api/cuentas', () => {
     productId = product!.id
   })
 
-  /** Crea un trabajo por la API y lo lleva a `entregado` con las acciones existentes. */
-  async function deliverCase() {
+  /** Crea un trabajo por la API (queda `nuevo`). */
+  async function createCase() {
     const created = await post('/api/trabajos', recepcion, {
       clinicId,
       doctorId,
@@ -110,7 +110,12 @@ describe('/api/cuentas', () => {
       items: [{ productId, quantity: 1, teeth: [11, 12] }],
     })
     expect(created.status).toBe(201)
-    const { case: c } = (await created.json()) as { case: { id: string; total: string } }
+    return ((await created.json()) as { case: { id: string; total: string } }).case
+  }
+
+  /** Crea un trabajo por la API y lo lleva a `entregado` con las acciones existentes. */
+  async function deliverCase() {
+    const c = await createCase()
     const act = async (body: unknown) => {
       const r = await post(`/api/trabajos/${c.id}/acciones`, admin, body)
       expect(r.status).toBe(200)
@@ -523,6 +528,186 @@ describe('/api/cuentas', () => {
       expect((await detail()).openCases).toEqual([
         expect.objectContaining({ id: c.id, allocated: '30.00', outstanding: '15.00' }),
       ])
+    })
+  })
+
+  describe('ajustes (CTA-3)', () => {
+    type Issues = { message: string; issues: { path: string; message: string }[] }
+    type Event = {
+      type: string
+      fromValue: string | null
+      toValue: string | null
+      reason: string | null
+    }
+    type Detail = {
+      balance: string
+      aging: Record<string, string>
+      oldestDays: number | null
+      openCases: { id: string; adjustments: string; outstanding: string }[]
+      movements: { kind: string; amount: string; by: string | null; reason: string | null }[]
+    }
+
+    const ajuste = (over: Record<string, unknown> = {}) => ({
+      clinicaId: clinicId,
+      monto: '150.00',
+      motivo: 'Saldo inicial',
+      fecha: '2026-06-30',
+      ...over,
+    })
+    const detail = async () =>
+      (await (await get(`/api/cuentas/${clinicId}`, admin)).json()) as Detail
+    const caseOf = async (id: string) =>
+      (
+        (await (await get(`/api/trabajos/${id}`, admin)).json()) as {
+          case: { status: string; paidAt: string | null }
+        }
+      ).case
+    const eventsOf = async (id: string, cookie = admin) =>
+      ((await (await get(`/api/trabajos/${id}/eventos`, cookie)).json()) as { events: Event[] })
+        .events
+    const addAdjustment = async (body: unknown) => {
+      const r = await post('/api/cuentas/ajustes', admin, body)
+      expect(r.status).toBe(201)
+      return ((await r.json()) as { ajuste: Record<string, unknown> }).ajuste
+    }
+    const pay = async (trabajoId: string, monto: string) => {
+      const r = await post('/api/cuentas/pagos', recepcion, {
+        clinicaId: clinicId,
+        monto,
+        metodo: 'efectivo',
+        fecha: '2026-10-06',
+        asignaciones: [{ trabajoId, monto }],
+      })
+      expect(r.status).toBe(201)
+    }
+
+    it('permisos: solo el administrador registra ajustes', async () => {
+      expect((await post('/api/cuentas/ajustes', '', ajuste())).status).toBe(401)
+      for (const cookie of [recepcion, tecnico, mensajero]) {
+        const r = await post('/api/cuentas/ajustes', cookie, ajuste())
+        expect(r.status).toBe(403)
+        expect(await r.json()).toEqual({ message: 'Sin permiso' })
+      }
+      expect(await ctx.db.select().from(ctx.schema.accountAdjustments)).toEqual([])
+      await addAdjustment(ajuste())
+    })
+
+    it('saldo inicial: suma al saldo, entra en la antigüedad por su fecha y el movimiento dice quién', async () => {
+      const ajustado = await addAdjustment(ajuste())
+      expect(ajustado).toEqual({
+        id: expect.any(String),
+        clinicId,
+        case: null,
+        amount: '150.00',
+        reason: 'Saldo inicial',
+        date: '2026-06-30',
+        createdAt: expect.any(String),
+        by: 'Admin',
+      })
+      const d = await detail()
+      // 2026-06-30 → 98 días a 2026-10-06.
+      expect(d).toMatchObject({
+        balance: '150.00',
+        aging: { '0_30': '0.00', '31_60': '0.00', '61_90': '0.00', '90_mas': '150.00' },
+        oldestDays: 98,
+        openCases: [],
+      })
+      expect(d.movements).toEqual([
+        expect.objectContaining({
+          kind: 'ajuste',
+          amount: '150.00',
+          by: 'Admin',
+          reason: 'Saldo inicial',
+        }),
+      ])
+      // La clínica aparece en «Cuentas» por su saldo inicial.
+      expect(await (await get('/api/cuentas', recepcion)).json()).toMatchObject({
+        clinics: [{ id: clinicId, balance: '150.00', oldestDays: 98 }],
+      })
+    })
+
+    it('422 con el campo: motivo vacío, monto 0, otra clínica, trabajo sin entregar o inexistente', async () => {
+      const entregado = await deliverCase()
+      const nuevo = await createCase()
+      const [otra] = await ctx.db
+        .insert(ctx.schema.clinics)
+        .values({ name: 'Clínica Norte' })
+        .returning()
+      const cases = [
+        [{ motivo: ' ' }, 'motivo'],
+        [{ monto: '0.00' }, 'monto'],
+        [{ clinicaId: otra!.id, trabajoId: entregado.id }, 'trabajoId'],
+        [{ trabajoId: nuevo.id }, 'trabajoId'],
+        [{ trabajoId: randomUUID() }, 'trabajoId'],
+        [{ clinicaId: randomUUID() }, 'clinicaId'],
+      ] as const
+      for (const [over, path] of cases) {
+        const r = await post('/api/cuentas/ajustes', admin, ajuste(over))
+        expect(r.status).toBe(422)
+        const body = (await r.json()) as Issues
+        expect(body.message).toBe('Datos inválidos')
+        expect(body.issues.map((i) => i.path)).toContain(path)
+      }
+      expect(await ctx.db.select().from(ctx.schema.accountAdjustments)).toEqual([])
+    })
+
+    it('un descuento que cubre lo pendiente cierra el trabajo y un recargo lo reabre', async () => {
+      const c = await deliverCase()
+      await pay(c.id, '40.00')
+      expect((await caseOf(c.id)).status).toBe('entregado')
+
+      await addAdjustment(ajuste({ trabajoId: c.id, monto: '-5.00', motivo: 'Pronto pago' }))
+      expect(await caseOf(c.id)).toMatchObject({
+        status: 'cobrado',
+        paidAt: CLOCK.now().toISOString(),
+      })
+      expect((await eventsOf(c.id)).slice(-2)).toEqual([
+        expect.objectContaining({
+          type: 'adjustment_added',
+          toValue: '-5.00',
+          reason: 'Pronto pago',
+        }),
+        expect.objectContaining({
+          type: 'status_changed',
+          fromValue: 'entregado',
+          toValue: 'cobrado',
+        }),
+      ])
+      expect(await detail()).toMatchObject({ balance: '0.00', openCases: [] })
+
+      await addAdjustment(
+        ajuste({ trabajoId: c.id, monto: '2.50', motivo: 'Recargo por urgencia' }),
+      )
+      expect(await caseOf(c.id)).toMatchObject({ status: 'entregado', paidAt: null })
+      expect((await eventsOf(c.id)).slice(-2)).toEqual([
+        expect.objectContaining({ type: 'adjustment_added', toValue: '2.50' }),
+        expect.objectContaining({
+          type: 'status_changed',
+          fromValue: 'cobrado',
+          toValue: 'entregado',
+        }),
+      ])
+      expect(await detail()).toMatchObject({
+        balance: '2.50',
+        openCases: [{ id: c.id, adjustments: '-2.50', outstanding: '2.50' }],
+      })
+    })
+
+    it('historial por rol: técnico y mensajero ven el ajuste sin monto ni motivo', async () => {
+      const c = await deliverCase()
+      await addAdjustment(ajuste({ trabajoId: c.id, monto: '-5.00', motivo: 'Descuento acordado' }))
+      expect((await eventsOf(c.id, recepcion)).at(-1)).toMatchObject({
+        type: 'adjustment_added',
+        toValue: '-5.00',
+        reason: 'Descuento acordado',
+      })
+      for (const cookie of [tecnico, mensajero]) {
+        expect((await eventsOf(c.id, cookie)).at(-1)).toMatchObject({
+          type: 'adjustment_added',
+          toValue: null,
+          reason: null,
+        })
+      }
     })
   })
 })

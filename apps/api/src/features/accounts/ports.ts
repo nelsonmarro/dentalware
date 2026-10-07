@@ -66,6 +66,16 @@ export type NewPayment = {
   createdBy: string
 }
 
+/** Ajuste nuevo (CTA-3): lo registra el administrador en sesión. */
+export type NewAdjustment = {
+  clinicId: string
+  caseId: string | null
+  amountCents: number
+  reason: string
+  date: string // YYYY-MM-DD
+  createdBy: string
+}
+
 /** Un pago bloqueado (`FOR NO KEY UPDATE`) para asignar lo que le queda o anularlo. */
 export type LockedPayment = {
   id: string
@@ -89,9 +99,11 @@ export interface AccountsRepository {
   adjustments(clinicId?: string): Promise<AdjustmentEntry[]>
   payments(clinicId?: string): Promise<PaymentEntry[]>
   paymentById(id: string): Promise<PaymentEntry | undefined>
+  adjustmentById(id: string): Promise<AdjustmentEntry | undefined>
   /** Σ ajustes y Σ asignaciones vigentes de cada trabajo pedido (0 si no tiene). */
   caseTotals(caseIds: readonly string[]): Promise<CaseAccountTotals[]>
   createPayment(p: NewPayment): Promise<{ id: string }>
+  createAdjustment(a: NewAdjustment): Promise<{ id: string }>
   /** Bloquea el pago hasta el fin de la transacción: dos asignaciones de su saldo a favor, o
    * una asignación y su anulación, no se cruzan. */
   lockPayment(id: string): Promise<LockedPayment | undefined>
@@ -140,7 +152,7 @@ export interface CaseSettlement {
   }): Promise<void>
 }
 
-/** Atomicidad de pagos, asignaciones y anulaciones (ADR 19): las escrituras de la cuenta y las
+/** Atomicidad de pagos, asignaciones, anulaciones y ajustes (ADR 19): las escrituras de la cuenta y las
  * del trabajo en una sola transacción. */
 export interface AccountsUnitOfWork {
   run<T>(fn: (r: { accounts: AccountsRepository; cases: CaseSettlement }) => Promise<T>): Promise<T>

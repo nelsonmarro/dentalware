@@ -1,4 +1,4 @@
-import { fromCents, toCents, toSignedCents } from '@dentalware/shared'
+import { fromCents, fromSignedCents, toCents, toSignedCents } from '@dentalware/shared'
 import { and, eq, inArray, isNull, sql, type Column, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { Db, Tx } from '../../db/index.ts'
@@ -8,6 +8,7 @@ import { clinics } from '../clinics/schema.ts'
 import type {
   AccountsRepository,
   AccountsUnitOfWork,
+  AdjustmentEntry,
   CaseSettlement,
   PaymentEntry,
 } from './ports.ts'
@@ -78,6 +79,36 @@ export function createAccountsRepo(db: Db | Tx) {
         r.voidedAt === null
           ? null
           : { at: r.voidedAt, byName: r.voidedByName ?? '', reason: r.voidReason ?? '' },
+    }))
+  }
+
+  /** Ajustes con el código de su trabajo (si lo tienen) y quién los registró. */
+  async function adjustmentRows(where: SQL | undefined): Promise<AdjustmentEntry[]> {
+    const rows = await db
+      .select({
+        id: accountAdjustments.id,
+        clinicId: accountAdjustments.clinicId,
+        caseId: cases.id,
+        caseCode: cases.code,
+        amount: accountAdjustments.amount,
+        reason: accountAdjustments.reason,
+        date: accountAdjustments.date,
+        createdAt: accountAdjustments.createdAt,
+        createdByName: users.name,
+      })
+      .from(accountAdjustments)
+      .innerJoin(users, eq(accountAdjustments.createdBy, users.id))
+      .leftJoin(cases, eq(accountAdjustments.caseId, cases.id))
+      .where(where)
+    return rows.map((r) => ({
+      id: r.id,
+      clinicId: r.clinicId,
+      case: r.caseId !== null && r.caseCode !== null ? { id: r.caseId, code: r.caseCode } : null,
+      amountCents: toSignedCents(r.amount),
+      reason: r.reason,
+      date: r.date,
+      createdAt: r.createdAt,
+      createdByName: r.createdByName,
     }))
   }
 
@@ -154,33 +185,12 @@ export function createAccountsRepo(db: Db | Tx) {
       }))
     },
 
-    async adjustments(clinicId) {
-      const rows = await db
-        .select({
-          id: accountAdjustments.id,
-          clinicId: accountAdjustments.clinicId,
-          caseId: cases.id,
-          caseCode: cases.code,
-          amount: accountAdjustments.amount,
-          reason: accountAdjustments.reason,
-          date: accountAdjustments.date,
-          createdAt: accountAdjustments.createdAt,
-          createdByName: users.name,
-        })
-        .from(accountAdjustments)
-        .innerJoin(users, eq(accountAdjustments.createdBy, users.id))
-        .leftJoin(cases, eq(accountAdjustments.caseId, cases.id))
-        .where(byClinic(accountAdjustments.clinicId, clinicId))
-      return rows.map((r) => ({
-        id: r.id,
-        clinicId: r.clinicId,
-        case: r.caseId !== null && r.caseCode !== null ? { id: r.caseId, code: r.caseCode } : null,
-        amountCents: toSignedCents(r.amount),
-        reason: r.reason,
-        date: r.date,
-        createdAt: r.createdAt,
-        createdByName: r.createdByName,
-      }))
+    adjustments: (clinicId?: string) =>
+      adjustmentRows(byClinic(accountAdjustments.clinicId, clinicId)),
+
+    async adjustmentById(id) {
+      const [row] = await adjustmentRows(eq(accountAdjustments.id, id))
+      return row
     },
 
     payments: (clinicId?: string) => paymentRows(byClinic(payments.clinicId, clinicId)),
@@ -234,6 +244,21 @@ export function createAccountsRepo(db: Db | Tx) {
           createdBy: p.createdBy,
         })
         .returning({ id: payments.id })
+      return row!
+    },
+
+    async createAdjustment(a) {
+      const [row] = await db
+        .insert(accountAdjustments)
+        .values({
+          clinicId: a.clinicId,
+          caseId: a.caseId,
+          amount: fromSignedCents(a.amountCents),
+          reason: a.reason,
+          date: a.date,
+          createdBy: a.createdBy,
+        })
+        .returning({ id: accountAdjustments.id })
       return row!
     },
 

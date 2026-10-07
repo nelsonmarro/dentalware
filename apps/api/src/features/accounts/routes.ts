@@ -2,6 +2,7 @@ import {
   ACCOUNT_ADMIN_ROLES,
   ACCOUNTS_ROLES,
   accountListQuerySchema,
+  adjustmentInputSchema,
   applyCreditInputSchema,
   idParamSchema,
   paymentInputSchema,
@@ -22,10 +23,11 @@ import {
 import type { AccountsService } from './service.ts'
 
 // Usar las cuentas (ADR 31: cada ruta, su constante): ver «Cuentas», saldo y movimientos,
-// registrar pagos y aplicar saldo a favor, admin y recepción (ACCOUNTS_ROLES); anular, solo
-// admin (ACCOUNT_ADMIN_ROLES, decisión 2). Técnico y mensajero nunca ven importes.
+// registrar pagos y aplicar saldo a favor, admin y recepción (ACCOUNTS_ROLES); anular y
+// registrar ajustes, solo admin (ACCOUNT_ADMIN_ROLES, decisiones 2 y 7). Técnico y mensajero
+// nunca ven importes.
 const canUseAccounts = requireRole(...ACCOUNTS_ROLES)
-const canVoid = requireRole(...ACCOUNT_ADMIN_ROLES)
+const canAdminAccounts = requireRole(...ACCOUNT_ADMIN_ROLES)
 
 /** Cuerpo del 422 de un `AccountInputError`: el mismo contrato que `validate`. */
 const inputIssues = (e: AccountInputError) => ({
@@ -43,8 +45,8 @@ function toHttp(e: unknown): never {
   throw e as Error
 }
 
-/** `/api/cuentas` (Iteración 5): la lista de «Cuentas» y la cuenta de una clínica (CTA-1), y
- * los pagos con su reparto, el saldo a favor y la anulación (CTA-2). */
+/** `/api/cuentas` (Iteración 5): la lista de «Cuentas» y la cuenta de una clínica (CTA-1), los
+ * pagos con su reparto, el saldo a favor y la anulación (CTA-2), y los ajustes (CTA-3). */
 export const accountsRoutes = (service: AccountsService) =>
   new Hono<AppEnv>()
     // Todo el router exige sesión antes que rol: sin sesión, 401; con otro rol, 403.
@@ -88,7 +90,7 @@ export const accountsRoutes = (service: AccountsService) =>
     )
     .post(
       '/pagos/:id/anular',
-      canVoid,
+      canAdminAccounts,
       validate('param', idParamSchema),
       validate('json', voidPaymentInputSchema),
       async (c) => {
@@ -104,3 +106,12 @@ export const accountsRoutes = (service: AccountsService) =>
         }
       },
     )
+    .post('/ajustes', canAdminAccounts, validate('json', adjustmentInputSchema), async (c) => {
+      try {
+        const ajuste = await service.registerAdjustment(c.req.valid('json'), ctxFrom(c))
+        return c.json({ ajuste }, 201)
+      } catch (e) {
+        if (e instanceof AccountInputError) return c.json(inputIssues(e), 422)
+        toHttp(e)
+      }
+    })

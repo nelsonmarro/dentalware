@@ -14,10 +14,12 @@ import {
   PAYMENT_METHOD_LABEL,
   toCents,
   toIsoDate,
+  toSignedCents,
 } from '@dentalware/shared'
 import type {
   AccountListQuery,
   AccountMovementKind,
+  AdjustmentInput,
   AgingBucket,
   AllocationInput,
   ApplyCreditInput,
@@ -113,6 +115,18 @@ export type PaymentView = {
   createdAt: Date
   by: string
   voided: { at: Date; by: string; reason: string } | null
+}
+
+/** Un ajuste (CTA-3) tal como lo devuelve registrarlo. `amount` con signo. */
+export type AdjustmentView = {
+  id: string
+  clinicId: string
+  case: { id: string; code: string } | null
+  amount: string
+  reason: string
+  date: string // YYYY-MM-DD
+  createdAt: Date
+  by: string
 }
 
 type Ledger = { cases: BilledCase[]; adjustments: AdjustmentEntry[]; payments: PaymentEntry[] }
@@ -356,6 +370,20 @@ export function createAccountsService(deps: {
     }
   }
 
+  /** Bloquea el trabajo del ajuste y comprueba que sea de la clínica y ya cargue a su cuenta
+   * (`entregado` o `cobrado`); si no, `AccountInputError` en `trabajoId` sin escribir nada. */
+  async function lockAdjustedCase(r: UowRepos, clinicId: string, caseId: string) {
+    const [c] = await r.cases.lockCases([caseId])
+    if (!c) throw new AccountInputError('El trabajo no existe', 'trabajoId')
+    if (c.clinicId !== clinicId) {
+      throw new AccountInputError('El trabajo es de otra clínica', 'trabajoId')
+    }
+    if (c.status !== 'entregado' && c.status !== 'cobrado') {
+      throw new AccountInputError('El trabajo no está entregado', 'trabajoId')
+    }
+    return c
+  }
+
   async function viewOf(r: UowRepos, paymentId: string): Promise<PaymentView> {
     const p = await r.accounts.paymentById(paymentId)
     if (!p) throw new PaymentNotFoundError()
@@ -542,6 +570,57 @@ export function createAccountsService(deps: {
         }
         await settle(r, locked, ctx.userId)
         return viewOf(r, paymentId)
+      })
+    },
+
+    /**
+     * Registra un ajuste (CTA-3; solo admin, con motivo). Con trabajo, lo bloquea, valida que
+     * sea de la clínica y esté `entregado` o `cobrado` (422 en `trabajoId`), escribe
+     * `adjustment_added` y reevalúa `isSettled` (decisiones 1 y 5): un descuento puede cerrarlo
+     * y un recargo reabrir uno cobrado. Sin trabajo («Saldo inicial»), solo mueve el saldo de
+     * la clínica y entra en la antigüedad por su fecha.
+     */
+    async registerAdjustment(input: AdjustmentInput, ctx: RequestContext): Promise<AdjustmentView> {
+      assertRole(ACCOUNT_ADMIN_ROLES, ctx)
+      return deps.uow.run(async (r) => {
+        if (!(await r.accounts.clinicById(input.clinicaId))) {
+          throw new AccountInputError('La clínica no existe', 'clinicaId')
+        }
+        const locked =
+          input.trabajoId === null
+            ? []
+            : [await lockAdjustedCase(r, input.clinicaId, input.trabajoId)]
+        const amountCents = toSignedCents(input.monto)
+        const { id } = await r.accounts.createAdjustment({
+          clinicId: input.clinicaId,
+          caseId: input.trabajoId,
+          amountCents,
+          reason: input.motivo,
+          date: input.fecha,
+          createdBy: ctx.userId,
+        })
+        for (const c of locked) {
+          await r.cases.addEvent({
+            caseId: c.id,
+            type: 'adjustment_added',
+            toValue: fromSignedCents(amountCents),
+            reason: input.motivo,
+            actorId: ctx.userId,
+          })
+        }
+        await settle(r, locked, ctx.userId)
+        const a = await r.accounts.adjustmentById(id)
+        if (!a) throw new Error(`El ajuste ${id} no se pudo leer tras crearlo`)
+        return {
+          id: a.id,
+          clinicId: a.clinicId,
+          case: a.case,
+          amount: fromSignedCents(a.amountCents),
+          reason: a.reason,
+          date: a.date,
+          createdAt: a.createdAt,
+          by: a.createdByName,
+        }
       })
     },
   }

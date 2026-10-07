@@ -453,4 +453,50 @@ describe('features/accounts/repo', () => {
       })
     })
   })
+
+  describe('escrituras de ajustes (CTA-3)', () => {
+    it('createAdjustment guarda el ajuste con signo y adjustmentById lo lee como adjustments', async () => {
+      const c = await insertCase()
+      const repo = createAccountsRepo(ctx.db)
+      const ligado = await repo.createAdjustment({
+        clinicId: surId,
+        caseId: c.id,
+        amountCents: -1_050,
+        reason: 'Descuento acordado',
+        date: '2026-10-05',
+        createdBy: adminId,
+      })
+      const suelto = await repo.createAdjustment({
+        clinicId: surId,
+        caseId: null,
+        amountCents: 15_000,
+        reason: 'Saldo inicial',
+        date: '2026-06-30',
+        createdBy: adminId,
+      })
+      expect(await repo.adjustmentById(ligado.id)).toEqual({
+        id: ligado.id,
+        clinicId: surId,
+        case: { id: c.id, code: c.code },
+        amountCents: -1_050,
+        reason: 'Descuento acordado',
+        date: '2026-10-05',
+        createdAt: expect.any(Date),
+        createdByName: 'Ana Admin',
+      })
+      expect(await repo.adjustmentById(suelto.id)).toMatchObject({
+        case: null,
+        amountCents: 15_000,
+        date: '2026-06-30',
+      })
+      const all = await repo.adjustments(surId)
+      expect(all).toEqual(
+        expect.arrayContaining([
+          await repo.adjustmentById(ligado.id),
+          await repo.adjustmentById(suelto.id),
+        ]),
+      )
+      expect(await repo.adjustmentById('00000000-0000-4000-8000-000000000000')).toBeUndefined()
+    })
+  })
 })
