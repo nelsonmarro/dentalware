@@ -287,6 +287,17 @@ describe('features/accounts/service', () => {
             createdAt: at('2026-09-20'),
             voided: { at: at('2026-09-21'), byName: 'Admin', reason: 'Duplicado' },
           }),
+          makePayment({
+            id: 'p3',
+            amountCents: 2_000,
+            paidOn: '2026-09-25',
+            createdAt: at('2026-09-25'),
+          }),
+        ],
+        allocations: [
+          { paymentId: 'p1', caseId: 'a', amountCents: 1_000 },
+          { paymentId: 'p2', caseId: 'a', amountCents: 1_500 },
+          { paymentId: 'p3', caseId: 'a', amountCents: 2_000 },
         ],
       })
       const { movements } = await service.clinicAccount(SUR.id)
@@ -301,6 +312,22 @@ describe('features/accounts/service', () => {
           reason: 'Pago parcial',
           reference: 'CH-77',
           method: 'cheque',
+          // Lo que le queda sin asignar: 30.00 − 10.00.
+          remaining: '20.00',
+          voided: null,
+        },
+        {
+          id: 'p3',
+          kind: 'pago',
+          date: '2026-09-25',
+          amount: '-20.00',
+          case: null,
+          by: 'Recepción',
+          reason: null,
+          reference: null,
+          method: 'transferencia',
+          // Asignado entero.
+          remaining: '0.00',
           voided: null,
         },
         {
@@ -313,6 +340,8 @@ describe('features/accounts/service', () => {
           reason: null,
           reference: null,
           method: 'transferencia',
+          // Anulado: no le queda nada a favor aunque tuviera parte sin asignar.
+          remaining: '0.00',
           voided: { at: at('2026-09-21'), by: 'Admin', reason: 'Duplicado' },
         },
         {
@@ -325,6 +354,7 @@ describe('features/accounts/service', () => {
           reason: 'Descuento por demora',
           reference: null,
           method: null,
+          remaining: null,
           voided: null,
         },
         {
@@ -337,6 +367,7 @@ describe('features/accounts/service', () => {
           reason: null,
           reference: null,
           method: null,
+          remaining: null,
           voided: null,
         },
       ])

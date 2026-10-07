@@ -230,7 +230,13 @@ describe('/api/cuentas', () => {
       balance: string
       credit: string
       openCases: { id: string; outstanding: string }[]
-      movements: { kind: string; amount: string; voided: unknown }[]
+      movements: {
+        id: string
+        kind: string
+        amount: string
+        remaining: string | null
+        voided: unknown
+      }[]
     }
     type Event = {
       type: string
@@ -368,6 +374,11 @@ describe('/api/cuentas', () => {
         paidAt: CLOCK.now().toISOString(),
       })
       expect(await detail()).toMatchObject({ balance: '-15.00', credit: '15.00', openCases: [] })
+      // El movimiento del pago dice lo que le queda sin asignar.
+      expect((await detail()).movements.find((m) => m.id === p.id)).toMatchObject({
+        kind: 'pago',
+        remaining: '15.00',
+      })
       const eventos = await eventsOf(uno.id)
       expect(eventos.slice(-2)).toEqual([
         expect.objectContaining({
@@ -404,6 +415,7 @@ describe('/api/cuentas', () => {
         credit: '0.00',
         openCases: [{ id: dos.id, outstanding: '30.00' }],
       })
+      expect((await detail()).movements.find((m) => m.id === p.id)?.remaining).toBe('0.00')
       const masDeLoQueQueda = await post(`/api/cuentas/pagos/${p.id}/asignaciones`, recepcion, {
         asignaciones: [{ trabajoId: dos.id, monto: '0.01' }],
       })
@@ -425,6 +437,7 @@ describe('/api/cuentas', () => {
       )
       expect(after.movements.find((m) => m.kind === 'pago')).toMatchObject({
         amount: '-60.00',
+        remaining: '0.00',
         voided: { by: 'Admin', reason: 'Transferencia rechazada' },
       })
       expect((await eventsOf(uno.id)).slice(-2)).toEqual([

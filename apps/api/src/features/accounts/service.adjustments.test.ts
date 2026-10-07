@@ -144,6 +144,7 @@ describe('features/accounts/service: ajustes (CTA-3)', () => {
       reason: 'Descuento por demora',
       reference: null,
       method: null,
+      remaining: null,
       voided: null,
     })
   })

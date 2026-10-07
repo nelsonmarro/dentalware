@@ -85,6 +85,9 @@ export type AccountMovement = {
   reason: string | null
   reference: string | null
   method: PaymentMethod | null
+  /** En un pago, lo que le queda sin asignar (su saldo a favor, para «Aplicar saldo a
+   * favor»): `"0.00"` si está anulado o asignado entero. `null` en un cargo o un ajuste. */
+  remaining: string | null
   voided: { at: Date; by: string; reason: string } | null
 }
 
@@ -136,13 +139,17 @@ const sum = (list: readonly number[]) => list.reduce((a, b) => a + b, 0)
 
 type UowRepos = Parameters<Parameters<AccountsUnitOfWork['run']>[0]>[0]
 
+/** Lo que le queda a favor a un pago (decisión 3): lo no asignado si está vigente; 0 si está
+ * anulado. */
+const paymentRemainingCents = (p: PaymentEntry) => (p.voided ? 0 : p.amountCents - p.allocatedCents)
+
 function toPaymentView(p: PaymentEntry): PaymentView {
   return {
     id: p.id,
     clinicId: p.clinicId,
     amount: fromCents(p.amountCents),
     allocated: fromCents(p.allocatedCents),
-    credit: fromSignedCents(p.voided ? 0 : p.amountCents - p.allocatedCents),
+    credit: fromSignedCents(paymentRemainingCents(p)),
     method: p.method,
     paidOn: p.paidOn,
     reference: p.reference,
@@ -242,6 +249,7 @@ export function createAccountsService(deps: {
         reason: null,
         reference: null,
         method: null,
+        remaining: null,
         voided: null,
         at: c.deliveredAt,
       })),
@@ -255,6 +263,7 @@ export function createAccountsService(deps: {
         reason: a.reason,
         reference: null,
         method: null,
+        remaining: null,
         voided: null,
         at: a.createdAt,
       })),
@@ -268,6 +277,7 @@ export function createAccountsService(deps: {
         reason: p.notes,
         reference: p.reference,
         method: p.method,
+        remaining: fromSignedCents(paymentRemainingCents(p)),
         voided: p.voided && { at: p.voided.at, by: p.voided.byName, reason: p.voided.reason },
         at: p.createdAt,
       })),
