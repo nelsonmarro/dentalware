@@ -6,6 +6,9 @@ import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
 import type { Auth } from './auth.ts'
 import type { Db } from './db/index.ts'
+import { createAccountsRepo } from './features/accounts/repo.ts'
+import { accountsRoutes } from './features/accounts/routes.ts'
+import { createAccountsService } from './features/accounts/service.ts'
 import { attachmentsRoutes } from './features/attachments/routes.ts'
 import { createAttachmentsRepo } from './features/attachments/repo.ts'
 import { createAttachmentsService } from './features/attachments/service.ts'
@@ -112,6 +115,13 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     ids: ids ?? randomIds,
   })
 
+  // Cuentas (CTA-1): solo lectura por ahora; el repo lee `cases` por join (ADR 24) y el
+  // servicio calcula con las reglas de `shared`.
+  const accountsService = createAccountsService({
+    accounts: createAccountsRepo(db),
+    clock: effectiveClock,
+  })
+
   app.use(secureHeaders())
   if (process.env.NODE_ENV !== 'test') app.use(logger())
   app.use(
@@ -155,6 +165,7 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     .route('/api/users', usersRoutes(db, auth))
     .route('/api/adjuntos', attachmentsRoutes(attachmentsService))
     .route('/api/entregas', deliveriesRoutes(deliveriesService))
+    .route('/api/cuentas', accountsRoutes(accountsService))
 
   app.notFound((c) => c.json({ message: 'Recurso no encontrado' }, 404))
   app.onError((err, c) => {
