@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CASE_EVENT_TYPES } from './case-events.ts'
+import { CASE_EVENT_CARRIES_AMOUNTS, CASE_EVENT_TYPES } from './case-events.ts'
 
 describe('tipos de evento del trabajo', () => {
   // Iteración 5 (decisión 11): el cobro suma tres eventos al final; `status_changed` ya cubre
@@ -26,6 +26,20 @@ describe('tipos de evento del trabajo', () => {
       'cancelled',
       'remake_created',
       'edited',
+      'price_changed',
+      'payment_applied',
+      'payment_voided',
+      'adjustment_added',
+    ])
+  })
+})
+
+describe('eventos con importes (técnico y mensajero no los ven)', () => {
+  it('llevan importes el cambio de precio, el pago aplicado, el pago anulado y el ajuste', () => {
+    const withAmounts = Object.entries(CASE_EVENT_CARRIES_AMOUNTS)
+      .filter(([, carries]) => carries)
+      .map(([type]) => type)
+    expect(withAmounts).toEqual([
       'price_changed',
       'payment_applied',
       'payment_voided',

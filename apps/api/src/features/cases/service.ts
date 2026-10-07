@@ -1,4 +1,5 @@
 import {
+  CASE_EVENT_CARRIES_AMOUNTS,
   addBusinessDays,
   applyAction,
   ASSIGN_TECHNICIAN_ROLES,
@@ -81,13 +82,20 @@ export function stripPrices<T extends Priced>(row: T): T {
   }
 }
 
-/** Oculta los valores de los eventos `price_changed` (llevan "productId:precio") a quien no debe ver precios. */
+/** Oculta los valores de los eventos con importes (`CASE_EVENT_CARRIES_AMOUNTS` de shared:
+ * `price_changed` y, desde la Iteración 5, el pago aplicado, el pago anulado y el ajuste) a
+ * quien no debe ver precios: monto, método y referencia del pago o motivo. */
 export function maskPriceEvents<
-  T extends { type: string; fromValue: string | null; toValue: string | null },
+  T extends {
+    type: CaseEventType
+    fromValue: string | null
+    toValue: string | null
+    reason: string | null
+  },
 >(events: T[], hide: boolean): T[] {
   if (!hide) return events
   return events.map((e) =>
-    e.type === 'price_changed' ? { ...e, fromValue: null, toValue: null } : e,
+    CASE_EVENT_CARRIES_AMOUNTS[e.type] ? { ...e, fromValue: null, toValue: null, reason: null } : e,
   )
 }
 

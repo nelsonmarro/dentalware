@@ -222,6 +222,44 @@ describe('createCasesService', () => {
     expect((await service.events('c1', admin))[0]!.toValue).toBe('p1:50.00')
   })
 
+  describe('historial por rol: los eventos de cobro llevan importes (Iteración 5)', () => {
+    const cobro = [
+      { type: 'payment_applied', toValue: '45.00', reason: 'Transferencia · TRX-1' },
+      { type: 'payment_voided', toValue: '45.00', reason: 'Pago duplicado' },
+      { type: 'adjustment_added', toValue: '-5.00', reason: 'Descuento por demora' },
+    ] as const
+
+    async function withPaymentEvents() {
+      const built = build()
+      for (const e of cobro) {
+        await built.repo.addEvent({ caseId: 'c1', fromValue: null, actorId: 'u1', ...e })
+      }
+      return built.service
+    }
+
+    it.each([
+      ['técnico', tecnico],
+      ['mensajero', mensajero],
+    ])('al %s le llegan sin monto, método, referencia ni motivo', async (_label, ctx) => {
+      const service = await withPaymentEvents()
+      expect(await service.events('c1', ctx)).toEqual(
+        cobro.map((e) =>
+          expect.objectContaining({ type: e.type, fromValue: null, toValue: null, reason: null }),
+        ),
+      )
+    })
+
+    it.each([
+      ['admin', admin],
+      ['recepción', recepcionCtx],
+    ])('%s los ve con su monto y su motivo', async (_label, ctx) => {
+      const service = await withPaymentEvents()
+      expect(await service.events('c1', ctx)).toEqual(
+        cobro.map((e) => expect.objectContaining({ ...e, fromValue: null })),
+      )
+    })
+  })
+
   it('comentar registra un evento comment y devuelve ese evento', async () => {
     const { service } = build()
     const e = await service.comment('c1', 'Hola', admin)

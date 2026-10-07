@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ACCOUNT_MOVEMENT_KIND_LABEL,
+  ACCOUNT_MOVEMENT_KINDS,
   AGING_BUCKET_LABEL,
   AGING_BUCKETS,
   agingBuckets,
@@ -25,6 +27,18 @@ describe('constantes de cuentas (Iteración 5)', () => {
       tarjeta: 'Tarjeta',
       cheque: 'Cheque',
       otro: 'Otro',
+    })
+  })
+
+  it('tipos de movimiento de la cuenta en orden', () => {
+    expect(ACCOUNT_MOVEMENT_KINDS).toEqual(['cargo', 'ajuste', 'pago'])
+  })
+
+  it('rótulo de cada tipo de movimiento', () => {
+    expect(ACCOUNT_MOVEMENT_KIND_LABEL).toEqual({
+      cargo: 'Cargo',
+      ajuste: 'Ajuste',
+      pago: 'Pago',
     })
   })
 

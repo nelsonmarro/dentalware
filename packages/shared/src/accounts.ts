@@ -18,6 +18,18 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   otro: 'Otro',
 }
 
+/** Tipos de movimiento de la cuenta de una clínica (CTA-1/5): el cargo de un trabajo entregado,
+ * un ajuste (CTA-3) y un pago (CTA-2). */
+export const ACCOUNT_MOVEMENT_KINDS = ['cargo', 'ajuste', 'pago'] as const
+export type AccountMovementKind = (typeof ACCOUNT_MOVEMENT_KINDS)[number]
+
+/** Rótulo de cada tipo de movimiento. `Record` exhaustivo: un tipo nuevo no compila sin rótulo. */
+export const ACCOUNT_MOVEMENT_KIND_LABEL: Record<AccountMovementKind, string> = {
+  cargo: 'Cargo',
+  ajuste: 'Ajuste',
+  pago: 'Pago',
+}
+
 /** Cubos de antigüedad de la deuda, por días desde la fecha de cada partida (decisión 9). */
 export const AGING_BUCKETS = ['0_30', '31_60', '61_90', '90_mas'] as const
 export type AgingBucket = (typeof AGING_BUCKETS)[number]

@@ -8,7 +8,12 @@ import {
   oldestOpenDays,
   toIsoDate,
 } from '@dentalware/shared'
-import type { AccountListQuery, AgingBucket, PaymentMethod } from '@dentalware/shared'
+import type {
+  AccountListQuery,
+  AccountMovementKind,
+  AgingBucket,
+  PaymentMethod,
+} from '@dentalware/shared'
 import type { Clock } from '../../lib/clock.ts'
 import { ClinicAccountNotFoundError } from './errors.ts'
 import type {
@@ -47,7 +52,7 @@ export type OpenCase = {
  * recargo suman, el descuento y el pago restan. Un pago anulado lleva `voided` y no cuenta. */
 export type AccountMovement = {
   id: string
-  kind: 'cargo' | 'ajuste' | 'pago'
+  kind: AccountMovementKind
   date: string // YYYY-MM-DD
   amount: string
   case: { id: string; code: string } | null
