@@ -11,6 +11,16 @@ export function fromCents(cents: number): string {
   return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`
 }
 
+/** Como `toCents`, admitiendo un `-` delante: montos con signo (ajustes, saldos). */
+export function toSignedCents(value: string): number {
+  return value.startsWith('-') ? -toCents(value.slice(1)) : toCents(value)
+}
+
+/** Como `fromCents`, admitiendo centavos negativos: `-1250` → `"-12.50"`. */
+export function fromSignedCents(cents: number): string {
+  return cents < 0 ? `-${fromCents(-cents)}` : fromCents(cents)
+}
+
 /** quantity × unit × (1 − discount%) en centavos, redondeo half-up. */
 export function lineTotalCents(unitCents: number, quantity: number, discountPct: number): number {
   const gross = unitCents * quantity
