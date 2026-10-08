@@ -107,6 +107,8 @@ export type CaseTransitionPatch = {
   finishedAt?: Date | null
   shippedAt?: Date | null
   deliveredAt?: Date | null
+  /** Cobrado al entregarlo, sin nada que cobrar (Iteración 5, decisión 5). */
+  paidAt?: Date | null
 }
 
 /** Estado con el que nace un trabajo: `nuevo`, o `por_recoger` si se programó su recogida
@@ -267,6 +269,49 @@ export interface CaseDeliveriesQuery {
     /** La última recogida hecha («Recogido», #118), para «En camino al laboratorio». */
     lastPickedUp: { doneAt: Date; courierName: string } | null
   }>
+}
+
+/**
+ * Lectura de la cuenta de un trabajo para su ficha (Iteración 5), fuera de la transacción: Σ
+ * ajustes del trabajo y Σ asignaciones de pagos vigentes, que son de `accounts`. Lo cumple
+ * `createAccountsRepo` de `accounts` en la raíz de composición (ADR 35, como
+ * `CaseDeliveriesQuery` con `deliveries`). El cargo lo calcula el servicio con el trabajo.
+ */
+export interface CaseAccountQuery {
+  /** Una fila por trabajo pedido (0 si no tiene ajustes ni asignaciones). */
+  caseTotals(
+    caseIds: readonly string[],
+  ): Promise<{ caseId: string; adjustmentsCents: number; allocatedCents: number }[]>
+}
+
+/**
+ * Escritura de cobro sobre los trabajos (Iteración 5, ADR 35): la usa `accounts` por su puerto
+ * `CaseSettlement`, que la raíz de composición (`app.ts`) cumple con esta implementación sobre la
+ * `tx` del `AccountsUnitOfWork`. `cases` no conoce `accounts`: solo expone qué sabe hacer.
+ */
+export interface CaseSettlementWriter {
+  /** Bloquea los trabajos (`FOR NO KEY UPDATE`, en orden de id) y los devuelve; los que no
+   * existen no vienen. */
+  lockCases(caseIds: readonly string[]): Promise<
+    {
+      id: string
+      clinicId: string
+      status: CaseStatus
+      totalCents: number
+      remakeChargePct: number | null
+      deliveredAt: Date | null
+    }[]
+  >
+  /** `entregado → cobrado` con `paid_at` (o `cobrado → entregado` sin él, si `paidAt` es nulo)
+   * y su `status_changed`; nada si el trabajo no está en el estado de partida. */
+  setPaid(caseId: string, paidAt: Date | null, actorId: string): Promise<void>
+  addEvent(e: {
+    caseId: string
+    type: CaseEventType
+    toValue: string
+    reason: string | null
+    actorId: string
+  }): Promise<void>
 }
 
 /** Pruebas en boca (`case_tryins`): abiertas por trabajo, cerradas al recibirlas de vuelta. */

@@ -41,7 +41,7 @@ import {
 } from './case-status.ts'
 
 describe('estados y acciones', () => {
-  it('define los 9 estados (Iteración 4 suma por_recoger, primero) en orden', () => {
+  it('define los 10 estados (Iteración 5 suma cobrado, después de entregado) en orden', () => {
     expect(CASE_STATUSES).toEqual([
       'por_recoger',
       'nuevo',
@@ -51,6 +51,7 @@ describe('estados y acciones', () => {
       'terminado',
       'enviado',
       'entregado',
+      'cobrado',
       'cancelado',
     ])
   })
@@ -131,13 +132,17 @@ describe('isEditableStatus', () => {
 })
 
 describe('canRemake', () => {
-  it('define terminado, enviado y entregado como los únicos estados desde los que se repite', () => {
-    expect(REMAKEABLE_STATUSES).toEqual(['terminado', 'enviado', 'entregado'])
+  // Iteración 5: un trabajo cobrado se puede repetir igual que uno entregado; cobrarlo no
+  // cambia que el resultado pueda no servir en boca.
+  it('define terminado, enviado, entregado y cobrado como los únicos estados desde los que se repite', () => {
+    expect(REMAKEABLE_STATUSES).toEqual(['terminado', 'enviado', 'entregado', 'cobrado'])
   })
 
-  it('responde true solo para terminado, enviado y entregado', () => {
+  it('responde true solo para terminado, enviado, entregado y cobrado', () => {
     for (const s of CASE_STATUSES) {
-      expect(canRemake(s)).toBe(s === 'terminado' || s === 'enviado' || s === 'entregado')
+      expect(canRemake(s)).toBe(
+        s === 'terminado' || s === 'enviado' || s === 'entregado' || s === 'cobrado',
+      )
     }
   })
 })
@@ -156,10 +161,10 @@ describe('applyAction — camino feliz', () => {
     expect(applyAction(from, action)).toEqual({ ok: true, status: to })
   })
 
-  it('cancelar es válido desde cualquier estado excepto entregado y cancelado', () => {
+  it('cancelar es válido desde cualquier estado excepto entregado, cobrado y cancelado', () => {
     for (const s of CASE_STATUSES) {
       const result = applyAction(s, 'cancelar')
-      if (s === 'entregado' || s === 'cancelado') expect(result.ok).toBe(false)
+      if (s === 'entregado' || s === 'cobrado' || s === 'cancelado') expect(result.ok).toBe(false)
       else expect(result).toEqual({ ok: true, status: 'cancelado' })
     }
   })
@@ -228,6 +233,7 @@ describe('rótulos de estado y de acción', () => {
       terminado: 'Terminado',
       enviado: 'Enviado',
       entregado: 'Entregado',
+      cobrado: 'Cobrado',
       cancelado: 'Cancelado',
     })
   })
@@ -256,6 +262,14 @@ describe('availableActions', () => {
     )
     expect(availableActions('entregado')).toEqual([])
     expect(availableActions('cancelado')).toEqual([])
+  })
+
+  // Decisión 6 del plan de la Iteración 5: cobrado es terminal y solo lo alcanza `accounts`.
+  it('cobrado no tiene acciones y ninguna acción manual lo alcanza', () => {
+    expect(availableActions('cobrado')).toEqual([])
+    for (const a of CASE_ACTIONS) {
+      expect(CASE_TRANSITIONS[a].to).not.toBe('cobrado')
+    }
   })
 })
 
@@ -335,9 +349,9 @@ describe('canChangeStage', () => {
 })
 
 describe('canAssignTechnician', () => {
-  it('bloquea entregado y cancelado; el resto de estados sí permite reasignar (CIC-5)', () => {
+  it('bloquea entregado, cobrado y cancelado; el resto de estados sí permite reasignar (CIC-5)', () => {
     for (const s of CASE_STATUSES) {
-      expect(canAssignTechnician(s)).toBe(s !== 'entregado' && s !== 'cancelado')
+      expect(canAssignTechnician(s)).toBe(s !== 'entregado' && s !== 'cobrado' && s !== 'cancelado')
     }
   })
 })
@@ -349,6 +363,10 @@ describe('STAGE_CHANGE_BLOCKED_REASON', () => {
       expect(typeof STAGE_CHANGE_BLOCKED_REASON[s]).toBe('string')
       expect(STAGE_CHANGE_BLOCKED_REASON[s]!.length).toBeGreaterThan(0)
     }
+  })
+
+  it('un trabajo cobrado dice que ya está cobrado', () => {
+    expect(STAGE_CHANGE_BLOCKED_REASON.cobrado).toBe('El trabajo ya está cobrado.')
   })
 })
 
@@ -410,6 +428,7 @@ describe('fase del trabajo para el panel de la ficha', () => {
       terminado: 'entrega',
       enviado: 'entrega',
       entregado: 'entrega',
+      cobrado: 'entrega',
       cancelado: 'produccion',
     })
   })

@@ -2,7 +2,11 @@ import { hasRole, type UserRole } from './roles.ts'
 
 /** `por_recoger` es el primer estado del ciclo de vida (ENT-1, Iteración 4): el trabajo existe
  * en el sistema (recepción programó su recogida) pero todavía no llegó al laboratorio. Pasa a
- * `nuevo` con la acción `recibir`. */
+ * `nuevo` con la acción `recibir`.
+ *
+ * `cobrado` (Iteración 5, CTA-2) es terminal y sin acciones: lo pone y lo quita solo la feature
+ * de cuentas (`entregado ⇄ cobrado`) cuando lo asignado cubre el neto del trabajo (`isSettled`).
+ * Ninguna acción de `CASE_TRANSITIONS` lo alcanza ni sale de él, y no se cancela. */
 export const CASE_STATUSES = [
   'por_recoger',
   'nuevo',
@@ -12,6 +16,7 @@ export const CASE_STATUSES = [
   'terminado',
   'enviado',
   'entregado',
+  'cobrado',
   'cancelado',
 ] as const
 export type CaseStatus = (typeof CASE_STATUSES)[number]
@@ -33,7 +38,7 @@ export type CaseAction = (typeof CASE_ACTIONS)[number]
 type Transition = { from: readonly CaseStatus[]; to: CaseStatus; roles: readonly UserRole[] }
 
 const CANCELABLE: readonly CaseStatus[] = CASE_STATUSES.filter(
-  (s) => s !== 'entregado' && s !== 'cancelado',
+  (s) => s !== 'entregado' && s !== 'cobrado' && s !== 'cancelado',
 )
 
 export const CASE_TRANSITIONS: Record<CaseAction, Transition> = {
@@ -115,6 +120,7 @@ export const CASE_STATUS_LABEL: Record<CaseStatus, string> = {
   terminado: 'Terminado',
   enviado: 'Enviado',
   entregado: 'Entregado',
+  cobrado: 'Cobrado',
   cancelado: 'Cancelado',
 }
 
@@ -185,11 +191,13 @@ export function notEditableMessage(status: CaseStatus): string {
 }
 
 /** Estados desde los que se puede repetir un trabajo (CIC-4): cualquier punto en el que ya se
- * vio o se entregó el resultado y se decidió que no sirve. */
+ * vio o se entregó el resultado y se decidió que no sirve. `cobrado` (Iteración 5) también:
+ * que la clínica ya lo pagara no cambia que el resultado pueda no servir en boca. */
 export const REMAKEABLE_STATUSES = [
   'terminado',
   'enviado',
   'entregado',
+  'cobrado',
 ] as const satisfies readonly CaseStatus[]
 
 export function canRemake(status: CaseStatus): boolean {
@@ -249,7 +257,7 @@ export const REMAKE_ROLES: readonly UserRole[] = CASE_WRITE_ROLES
 
 /** Único estado en el que un trabajo tiene una fase de producción en curso (CIC-2): `aceptar`
  * deja la fase inicial y desde `en_proceso` se finaliza. Lista blanca, no negra: un trabajo
- * `terminado`/`enviado`/`entregado`/`cancelado` no debe seguir cambiando de fase aunque
+ * `terminado`/`enviado`/`entregado`/`cobrado`/`cancelado` no debe seguir cambiando de fase aunque
  * `finalizar` no limpie `currentStageId`. Predicado de tipo (no solo `boolean`) para que
  * `!canChangeStage(found.status)` estreche a `Exclude<CaseStatus, 'en_proceso'>` y así indexar
  * `STAGE_CHANGE_BLOCKED_REASON` sin un cast. */
@@ -262,6 +270,7 @@ export function canChangeStage(status: CaseStatus): status is 'en_proceso' {
  * quién es responsable de un trabajo que todavía se mueve por el laboratorio es legítimo. */
 export const ASSIGN_TECHNICIAN_BLOCKED_STATUSES = [
   'entregado',
+  'cobrado',
   'cancelado',
 ] as const satisfies readonly CaseStatus[]
 
@@ -317,6 +326,7 @@ export const STAGE_CHANGE_BLOCKED_REASON: Record<Exclude<CaseStatus, 'en_proceso
   terminado: 'El trabajo ya está terminado.',
   enviado: 'El trabajo ya fue enviado.',
   entregado: 'El trabajo ya fue entregado.',
+  cobrado: 'El trabajo ya está cobrado.',
   cancelado: 'El trabajo está cancelado.',
 }
 
@@ -348,6 +358,7 @@ export const CASE_PHASE: Record<CaseStatus, CasePhase> = {
   terminado: 'entrega',
   enviado: 'entrega',
   entregado: 'entrega',
+  cobrado: 'entrega',
   cancelado: 'produccion',
 }
 

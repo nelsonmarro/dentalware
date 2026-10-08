@@ -31,3 +31,7 @@ export const TECHNICIAN_FILTER_ROLES: readonly UserRole[] = USER_ADMIN_ROLES
 
 /** Quién ve «Cuentas» (saldos y cobros por clínica): nunca técnico ni mensajero, que no ven dinero. */
 export const ACCOUNTS_ROLES: readonly UserRole[] = ['admin', 'recepcion']
+
+/** Quién registra ajustes (también el saldo inicial) y anula pagos (Iteración 5, CTA-3): solo el
+ * administrador. Registrar pagos y aplicar saldo a favor sigue a `ACCOUNTS_ROLES`. */
+export const ACCOUNT_ADMIN_ROLES: readonly UserRole[] = ['admin']

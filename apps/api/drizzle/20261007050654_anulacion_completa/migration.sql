@@ -1,0 +1,1 @@
+ALTER TABLE "payments" ADD CONSTRAINT "payments_void_check" CHECK (num_nulls("voided_at", "voided_by", "void_reason") in (0, 3));

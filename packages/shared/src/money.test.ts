@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { fromCents, lineTotalCents, percentOfCents, sumCents, toCents } from './money.ts'
+import {
+  fromCents,
+  fromSignedCents,
+  lineTotalCents,
+  percentOfCents,
+  sumCents,
+  toCents,
+  toSignedCents,
+} from './money.ts'
 
 describe('money', () => {
   it('convierte cadenas a centavos y de vuelta', () => {
@@ -40,5 +48,28 @@ describe('percentOfCents', () => {
     expect(percentOfCents(3, 50)).toBe(2)
     expect(percentOfCents(1005, 10)).toBe(101)
     expect(percentOfCents(1004, 10)).toBe(100)
+  })
+})
+
+describe('montos con signo (ajustes y saldos, Iteración 5)', () => {
+  it('convierte cadenas con signo a centavos', () => {
+    expect(toSignedCents('-12.50')).toBe(-1250)
+    expect(toSignedCents('12.50')).toBe(1250)
+    expect(toSignedCents('-0.05')).toBe(-5)
+    expect(toSignedCents('0')).toBe(0)
+  })
+  it('rechaza cadenas inválidas', () => {
+    expect(() => toSignedCents('--1')).toThrow()
+    expect(() => toSignedCents('+1')).toThrow()
+    expect(() => toSignedCents('-1.234')).toThrow()
+  })
+  it('convierte centavos con signo a cadena', () => {
+    expect(fromSignedCents(-1250)).toBe('-12.50')
+    expect(fromSignedCents(-5)).toBe('-0.05')
+    expect(fromSignedCents(1250)).toBe('12.50')
+    expect(fromSignedCents(0)).toBe('0.00')
+  })
+  it('rechaza centavos no enteros', () => {
+    expect(() => fromSignedCents(-1.5)).toThrow()
   })
 })

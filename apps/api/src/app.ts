@@ -6,6 +6,9 @@ import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
 import type { Auth } from './auth.ts'
 import type { Db } from './db/index.ts'
+import { createAccountsRepo, drizzleAccountsUnitOfWork } from './features/accounts/repo.ts'
+import { accountsRoutes } from './features/accounts/routes.ts'
+import { createAccountsService } from './features/accounts/service.ts'
 import { attachmentsRoutes } from './features/attachments/routes.ts'
 import { createAttachmentsRepo } from './features/attachments/repo.ts'
 import { createAttachmentsService } from './features/attachments/service.ts'
@@ -16,7 +19,12 @@ import { createImportCatalog } from './features/cases/import.repo.ts'
 import { importRoutes } from './features/cases/import.routes.ts'
 import { createImportService } from './features/cases/import.service.ts'
 import { casesRoutes } from './features/cases/routes.ts'
-import { createCasesRepo, createUsersQuery, drizzleUnitOfWork } from './features/cases/repo.ts'
+import {
+  createCaseSettlement,
+  createCasesRepo,
+  createUsersQuery,
+  drizzleUnitOfWork,
+} from './features/cases/repo.ts'
 import { createCasesService } from './features/cases/service.ts'
 import { clinicsRoutes } from './features/clinics/routes.ts'
 import {
@@ -60,7 +68,11 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
   // la factoría se inyecta aquí para que `cases/repo.ts` no importe `deliveries/repo.ts`.
   const casesUow = drizzleUnitOfWork(db, { deliveries: createDeliveriesRepo })
   const couriersQuery = createCouriersQuery(db)
+  const accountsRepo = createAccountsRepo(db)
   const casesService = createCasesService({
+    // `CaseAccountQuery` lo declara `cases` y lo cumple el repo de `accounts` (ADR 35): Σ
+    // ajustes y Σ asignaciones vigentes del trabajo para la cuenta de su ficha.
+    account: accountsRepo,
     cases: casesRepo,
     attachments: attachmentsRepo,
     // Puerto de la feature `stages` (CRUD simple, sin ports.ts propio): solo las fases activas.
@@ -112,6 +124,16 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     ids: ids ?? randomIds,
   })
 
+  // Cuentas (CTA-1/2): el repo lee `cases` por join (ADR 24) y el servicio calcula con las
+  // reglas de `shared`. Su `uow` compone `createAccountsRepo(tx)` con el `CaseSettlement` que
+  // cumple el repo de `cases` sobre la misma `tx` (ADR 35, patrón de ADR 34): `accounts/` no
+  // importa nada de `cases/`.
+  const accountsService = createAccountsService({
+    accounts: accountsRepo,
+    uow: drizzleAccountsUnitOfWork(db, { cases: createCaseSettlement }),
+    clock: effectiveClock,
+  })
+
   app.use(secureHeaders())
   if (process.env.NODE_ENV !== 'test') app.use(logger())
   app.use(
@@ -155,6 +177,7 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     .route('/api/users', usersRoutes(db, auth))
     .route('/api/adjuntos', attachmentsRoutes(attachmentsService))
     .route('/api/entregas', deliveriesRoutes(deliveriesService))
+    .route('/api/cuentas', accountsRoutes(accountsService))
 
   app.notFound((c) => c.json({ message: 'Recurso no encontrado' }, 404))
   app.onError((err, c) => {

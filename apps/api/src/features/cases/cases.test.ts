@@ -1675,6 +1675,144 @@ describe('/api/trabajos', () => {
     }
   }
 
+  describe('marcar entregado sin nada que cobrar (decisión 5 de la Iteración 5)', () => {
+    type Ficha = {
+      case: {
+        status: string
+        deliveredAt: string | null
+        paidAt: string | null
+      }
+    }
+    type Evento = { type: string; fromValue: string | null; toValue: string | null }
+    const ficha = async (id: string) =>
+      (await (await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))).json()) as Ficha
+    const eventos = async (id: string) =>
+      (
+        (await (await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))).json()) as {
+          events: Evento[]
+        }
+      ).events
+
+    async function repeticionEntregada(cobroPct: number) {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(
+        `/api/trabajos/${id}/repetir`,
+        req(admin, 'POST', remakeBody({ cobroPct })),
+      )
+      expect(res.status).toBe(201)
+      const { case: hijo } = (await res.json()) as { case: { id: string } }
+      await avanzarAEntregado(hijo.id)
+      return hijo.id
+    }
+
+    it('una repetición al 0 % queda cobrada al entregarla, con delivered_at, paid_at y sus dos eventos', async () => {
+      const id = await repeticionEntregada(0)
+      const { case: c } = await ficha(id)
+      expect(c.status).toBe('cobrado')
+      expect(c.deliveredAt).not.toBeNull()
+      expect(c.paidAt).toBe(c.deliveredAt)
+      expect((await eventos(id)).slice(-2)).toEqual([
+        expect.objectContaining({ type: 'delivered', fromValue: 'enviado' }),
+        expect.objectContaining({
+          type: 'status_changed',
+          fromValue: 'entregado',
+          toValue: 'cobrado',
+        }),
+      ])
+    })
+
+    it('un trabajo normal y una repetición al 50 % quedan entregados, sin paid_at', async () => {
+      const { id } = await crearTrabajoEntregado()
+      expect((await ficha(id)).case).toMatchObject({ status: 'entregado', paidAt: null })
+      const mitad = await repeticionEntregada(50)
+      expect((await ficha(mitad)).case).toMatchObject({ status: 'entregado', paidAt: null })
+      expect((await eventos(mitad)).at(-1)).toMatchObject({ type: 'delivered' })
+    })
+  })
+
+  describe('cuenta del trabajo en la ficha (Iteración 5)', () => {
+    type Ficha = { case: { code: string; total: string | null; account: unknown } }
+    const ficha = async (cookie: string, path: string) => {
+      const res = await app.request(path, req(cookie, 'GET'))
+      expect(res.status).toBe(200)
+      return (await res.json()) as Ficha
+    }
+
+    it('admin y recepción la ven con lo pagado y lo ajustado; técnico y mensajero reciben null', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const { case: c } = await ficha(admin, `/api/trabajos/${id}`)
+      expect(c.total).toBe('45.00')
+      const pago = await app.request(
+        '/api/cuentas/pagos',
+        req(recepcion, 'POST', {
+          clinicaId: clinicId,
+          monto: '20.00',
+          metodo: 'efectivo',
+          fecha: hoy,
+          asignaciones: [{ trabajoId: id, monto: '20.00' }],
+        }),
+      )
+      expect(pago.status).toBe(201)
+      const ajuste = await app.request(
+        '/api/cuentas/ajustes',
+        req(admin, 'POST', {
+          clinicaId: clinicId,
+          trabajoId: id,
+          monto: '-5.00',
+          motivo: 'Pronto pago',
+          fecha: hoy,
+        }),
+      )
+      expect(ajuste.status).toBe(201)
+
+      const esperado = {
+        charge: '45.00',
+        adjustments: '-5.00',
+        allocated: '20.00',
+        outstanding: '20.00',
+        paidAt: null,
+      }
+      for (const cookie of [admin, recepcion]) {
+        expect((await ficha(cookie, `/api/trabajos/${id}`)).case.account).toEqual(esperado)
+      }
+      for (const cookie of [tecnico, mensajero]) {
+        expect((await ficha(cookie, `/api/trabajos/${id}`)).case.account).toBeNull()
+        expect((await ficha(cookie, `/api/trabajos/codigo/${c.code}`)).case.account).toBeNull()
+      }
+      expect((await ficha(recepcion, `/api/trabajos/codigo/${c.code}`)).case.account).toEqual(
+        esperado,
+      )
+    })
+
+    it('un trabajo cobrado la trae con paid_at; uno sin entregar, null', async () => {
+      const { id } = await crearTrabajoEntregado()
+      await app.request(
+        '/api/cuentas/pagos',
+        req(recepcion, 'POST', {
+          clinicaId: clinicId,
+          monto: '45.00',
+          metodo: 'transferencia',
+          fecha: hoy,
+          asignaciones: [{ trabajoId: id, monto: '45.00' }],
+        }),
+      )
+      const cobrado = (await ficha(admin, `/api/trabajos/${id}`)).case as Ficha['case'] & {
+        status: string
+        paidAt: string
+      }
+      expect(cobrado.status).toBe('cobrado')
+      expect(cobrado.account).toEqual({
+        charge: '45.00',
+        adjustments: '0.00',
+        allocated: '45.00',
+        outstanding: '0.00',
+        paidAt: cobrado.paidAt,
+      })
+      const nuevo = await createOne(recepcion)
+      expect((await ficha(admin, `/api/trabajos/${nuevo}`)).case.account).toBeNull()
+    })
+  })
+
   describe('POST /api/trabajos/:id/repetir', () => {
     it('repite un trabajo entregado (201): código nuevo, hijo enlazado al padre y líneas copiadas', async () => {
       const { id } = await crearTrabajoEntregado()
@@ -2089,6 +2227,45 @@ describe('/api/trabajos', () => {
       // fallaran igual de silenciosas), la comparación de arriba pasaría igual. `todos` debe
       // ver los 9 trabajos creados en este test.
       expect(resumen.todos).toBe(9)
+    })
+
+    // Iteración 5: `cobrado` es terminal. Aparece en «Todos» y en el filtro de estado, nunca en
+    // una vista de trabajo activo, aunque su fecha venza hoy, mañana o esté vencida.
+    it('un trabajo cobrado solo aparece en «Todos» y en el filtro de estado', async () => {
+      const ids: string[] = []
+      for (const [patientRef, promisedDate] of [
+        ['Cobrado vencido', '2026-09-10'],
+        ['Cobrado hoy', HOY],
+        ['Cobrado mañana', '2026-09-21'],
+      ] as const) {
+        const id = await createOne(recepcion, { patientRef })
+        await ctx.db
+          .update(ctx.schema.cases)
+          .set({ status: 'cobrado', promisedDate })
+          .where(eq(ctx.schema.cases.id, id))
+        ids.push(id)
+      }
+      const listed = async (query: string) => {
+        const r = await resumenApp.request(`/api/trabajos?${query}`, req(admin, 'GET'))
+        expect(r.status).toBe(200)
+        return ((await r.json()) as { cases: { id: string }[] }).cases.map((c) => c.id).sort()
+      }
+      for (const vista of CASE_VIEWS) {
+        expect(await listed(`vista=${vista}`)).toEqual(vista === 'todos' ? ids.sort() : [])
+      }
+      expect(await listed('estado=cobrado')).toEqual(ids.sort())
+      const r = await resumenApp.request('/api/trabajos/resumen', req(admin, 'GET'))
+      const { resumen } = (await r.json()) as { resumen: Record<string, number> }
+      expect(resumen).toEqual({
+        nuevos: 0,
+        en_curso: 0,
+        vencen_hoy: 0,
+        vencen_manana: 0,
+        atrasados: 0,
+        en_prueba: 0,
+        listos: 0,
+        todos: 3,
+      })
     })
 
     // I-1 (fix wave PR 2, #68): el test de arriba compara el contador con la lista, y ambos

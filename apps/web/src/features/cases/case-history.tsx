@@ -11,6 +11,8 @@ import { Link } from '@tanstack/react-router'
 import {
   ArrowLeftRight,
   Ban,
+  Banknote,
+  BanknoteX,
   CalendarClock,
   Check,
   FilePlus2,
@@ -23,6 +25,7 @@ import {
   Pencil,
   Play,
   RefreshCcw,
+  Scale,
   Send,
   TriangleAlert,
   Truck,
@@ -58,6 +61,9 @@ export const EVENT_LABEL: Record<CaseEventType, string> = {
   remake_created: 'Repetición creada',
   edited: 'Datos editados',
   price_changed: 'Precio modificado',
+  payment_applied: 'Pago aplicado',
+  payment_voided: 'Pago anulado',
+  adjustment_added: 'Ajuste registrado',
 }
 
 /** Rótulo de un evento: `delivery_failed` nombra lo que falló con el tipo que guarda en
@@ -94,6 +100,9 @@ const EVENT_ICON: Record<CaseEventType, LucideIcon> = {
   remake_created: RefreshCcw,
   edited: Pencil,
   price_changed: Wallet,
+  payment_applied: Banknote,
+  payment_voided: BanknoteX,
+  adjustment_added: Scale,
 }
 
 /** `hace 5 min`, `hace 2 h`, `hace 3 d`… con `Intl.RelativeTimeFormat('es')`. */

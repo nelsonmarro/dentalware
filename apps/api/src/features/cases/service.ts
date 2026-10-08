@@ -1,8 +1,12 @@
 import {
+  CASE_EVENT_CARRIES_AMOUNTS,
   addBusinessDays,
   applyAction,
   ASSIGN_TECHNICIAN_ROLES,
+  ACCOUNTS_ROLES,
   canActOnDelivery,
+  caseChargeCents,
+  caseOutstandingCents,
   canAssignTechnician,
   canChangeStage,
   canPerform,
@@ -13,9 +17,12 @@ import {
   DELIVERY_MANAGE_ROLES,
   DELIVERY_TYPES,
   firstStage,
+  fromSignedCents,
   hasRole,
   hidesPrices,
+  isBilled,
   isLastStage,
+  isSettled,
   missingForAccept,
   notReassignableMessage,
   nextStage,
@@ -24,8 +31,10 @@ import {
   STAGE_CHANGE_BLOCKED_REASON,
   STAGE_MOVE_BLOCKED_REASON,
   STAGE_CHANGE_ROLES,
+  toCents,
   toIsoDate,
   type AssignTechnicianInput,
+  type CaseAccount,
   type CaseActionInput,
   type CaseEditInput,
   type CaseEventType,
@@ -49,6 +58,7 @@ import {
 } from './errors.ts'
 import type {
   AttachmentsQuery,
+  CaseAccountQuery,
   CaseDeliveriesQuery,
   CaseDetail,
   CaseListRow,
@@ -81,13 +91,20 @@ export function stripPrices<T extends Priced>(row: T): T {
   }
 }
 
-/** Oculta los valores de los eventos `price_changed` (llevan "productId:precio") a quien no debe ver precios. */
+/** Oculta los valores de los eventos con importes (`CASE_EVENT_CARRIES_AMOUNTS` de shared:
+ * `price_changed` y, desde la Iteración 5, el pago aplicado, el pago anulado y el ajuste) a
+ * quien no debe ver precios: monto, método y referencia del pago o motivo. */
 export function maskPriceEvents<
-  T extends { type: string; fromValue: string | null; toValue: string | null },
+  T extends {
+    type: CaseEventType
+    fromValue: string | null
+    toValue: string | null
+    reason: string | null
+  },
 >(events: T[], hide: boolean): T[] {
   if (!hide) return events
   return events.map((e) =>
-    e.type === 'price_changed' ? { ...e, fromValue: null, toValue: null } : e,
+    CASE_EVENT_CARRIES_AMOUNTS[e.type] ? { ...e, fromValue: null, toValue: null, reason: null } : e,
   )
 }
 
@@ -142,6 +159,22 @@ function stagePositionKnown(activeStages: readonly StageRef[], currentStageId: s
   return currentStageId !== null && activeStages.some((s) => s.id === currentStageId)
 }
 
+/** ¿No hay nada que cobrar por el trabajo al entregarlo? (decisión 5 de la Iteración 5: una
+ * repetición al 0 % o un trabajo que vale 0). Mismas reglas de shared que `accounts`. Al
+ * entregarlo aún no tiene ajustes ni asignaciones, que solo se registran sobre trabajos ya
+ * entregados: su pendiente es su cargo. */
+function settledOnDelivery(c: Pick<CaseDetail, 'total' | 'remakeChargePct'>): boolean {
+  return isSettled(caseOutstandingCents(chargeCentsOf(c), 0, 0))
+}
+
+/** Cargo del trabajo (decisión 4 de la Iteración 5) a partir de su fila. */
+function chargeCentsOf(c: Pick<CaseDetail, 'total' | 'remakeChargePct'>): number {
+  return caseChargeCents({
+    totalCents: toCents(c.total),
+    remakeChargePct: c.remakeChargePct === null ? null : Number(c.remakeChargePct),
+  })
+}
+
 /** Cierra la entrega con su constancia. Si la constancia se borró después de validarla (recepción
  * borra una «sin usar» a la vez), la FK lo impide y se responde como a una constancia no válida
  * (422, M-2): la transacción se deshace y el mensajero vuelve a subir la foto. */
@@ -162,6 +195,8 @@ async function markDoneWithProof(
 }
 
 export function createCasesService(deps: {
+  /** Solo lectura, fuera de la transacción: la cuenta del trabajo para su ficha (Iteración 5). */
+  account: CaseAccountQuery
   cases: CasesRepository
   attachments: AttachmentsQuery
   stages: StagesQuery
@@ -177,6 +212,25 @@ export function createCasesService(deps: {
     const found = await deps.cases.byId(id)
     if (!found) throw new CaseNotFoundError()
     return found
+  }
+  /** La cuenta del trabajo en su ficha (Iteración 5): solo para `ACCOUNTS_ROLES` (a técnico y
+   * mensajero, `null` sin consultarla, como los precios) y solo si ya carga a la clínica
+   * (`isBilled`). Las reglas, de shared, como en `accounts`. */
+  const accountOf = async (c: CaseDetail, ctx: RequestContext): Promise<CaseAccount | null> => {
+    if (!hasRole(ACCOUNTS_ROLES, ctx.role) || !isBilled(c.status)) return null
+    const [totals] = await deps.account.caseTotals([c.id])
+    const chargeCents = chargeCentsOf(c)
+    const adjustmentsCents = totals?.adjustmentsCents ?? 0
+    const allocatedCents = totals?.allocatedCents ?? 0
+    return {
+      charge: fromSignedCents(chargeCents),
+      adjustments: fromSignedCents(adjustmentsCents),
+      allocated: fromSignedCents(allocatedCents),
+      outstanding: fromSignedCents(
+        caseOutstandingCents(chargeCents, adjustmentsCents, allocatedCents),
+      ),
+      paidAt: c.paidAt?.toISOString() ?? null,
+    }
   }
   /** Forma y enmascarado de `detail`/`detailByCode` (Tarea 15, FIC-2 #72): ambos llegan a un
    * `CaseDetail` ya resuelto (por id o por código) y comparten esta única función, así que
@@ -198,7 +252,14 @@ export function createCasesService(deps: {
       // ofrecerle a un mensajero la acción de una entrega ajena) y la última entrega hecha
       // (UX4-09), y la última recogida hecha («En camino al laboratorio», #118). Sin dinero:
       // viajan igual para todos los roles.
-      case: { ...masked, pendingDelivery: info.pending, lastDelivered, lastPickedUp },
+      // La cuenta (Iteración 5) lleva dinero: `null` para técnico y mensajero (`accountOf`).
+      case: {
+        ...masked,
+        pendingDelivery: info.pending,
+        lastDelivered,
+        lastPickedUp,
+        account: await accountOf(found, ctx),
+      },
       missing: readiness(found, hasDoc),
     }
   }
@@ -419,6 +480,10 @@ export function createCasesService(deps: {
             }
             patch.deliveredAt = now
             event.toValue = constanciaId
+            if (settledOnDelivery(found)) {
+              patch.status = 'cobrado'
+              patch.paidAt = now
+            }
             break
           }
           case 'cancelar': {
@@ -452,6 +517,17 @@ export function createCasesService(deps: {
           ...event,
           actorId: ctx.userId,
         })
+        // Entregado y cobrado en el mismo paso: el historial dice las dos cosas, en ese orden,
+        // como cuando `accounts` lo cobra después (`status_changed` de entregado a cobrado).
+        if (result.status !== patch.status) {
+          await cases.addEvent({
+            caseId: id,
+            type: 'status_changed',
+            fromValue: result.status,
+            toValue: patch.status,
+            actorId: ctx.userId,
+          })
+        }
       })
       const updated = await mustGet(id)
       return hidesPrices(ctx.role) ? stripPrices(updated) : updated

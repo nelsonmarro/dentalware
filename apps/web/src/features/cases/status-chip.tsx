@@ -21,6 +21,8 @@ export const STATUS_COLOR: Record<CaseStatus, string> = {
   terminado: '#367350',
   enviado: '#2D6BAA',
   entregado: '#27764B',
+  // Spec §5: `--graphite`, el color del texto principal (`--foreground`). Iteración 5.
+  cobrado: '#1E2A2D',
   cancelado: '#B3261E',
 }
 
