@@ -255,6 +255,16 @@ describe('features/accounts/service: ajustes (CTA-3)', () => {
     })
   })
 
+  it('una fecha posterior a hoy da 422 en fecha (hoy sí vale)', async () => {
+    const fake = build()
+    await expect(
+      fake.service.registerAdjustment(ajuste({ fecha: '2026-10-07' }), admin),
+    ).rejects.toMatchObject({ path: 'fecha', message: 'La fecha no puede ser posterior a hoy' })
+    expect(await fake.repo.adjustments()).toEqual([])
+    await fake.service.registerAdjustment(ajuste({ fecha: '2026-10-06' }), admin)
+    expect(await fake.repo.adjustments()).toHaveLength(1)
+  })
+
   it.each([
     ['recepción', recepcion],
     ['técnico', tecnico],

@@ -304,6 +304,16 @@ describe('features/accounts/service: pagos (CTA-2)', () => {
         expect(fake.events).toEqual([])
       })
 
+      it('una fecha posterior a hoy (hoy sí vale)', async () => {
+        const fake = build()
+        await expect(
+          fake.service.registerPayment(pago({ fecha: '2026-10-07' }), recepcion),
+        ).rejects.toMatchObject({ path: 'fecha', message: 'La fecha no puede ser posterior a hoy' })
+        expect(fake.payments).toHaveLength(0)
+        await fake.service.registerPayment(pago({ fecha: '2026-10-06' }), recepcion)
+        expect(fake.payments).toHaveLength(1)
+      })
+
       it('una clínica que no existe', async () => {
         const fake = build()
         await expect(

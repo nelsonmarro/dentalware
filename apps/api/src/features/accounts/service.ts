@@ -385,6 +385,13 @@ export function createAccountsService(deps: {
     }
   }
 
+  /** La fecha de un pago o de un ajuste no puede ser posterior a hoy (reloj del servicio). */
+  function assertNotFuture(fecha: string) {
+    if (fecha > deps.clock.today()) {
+      throw new AccountInputError('La fecha no puede ser posterior a hoy', 'fecha')
+    }
+  }
+
   /** Bloquea el trabajo del ajuste y comprueba que sea de la clínica y ya cargue a su cuenta
    * (`entregado` o `cobrado`); si no, `AccountInputError` en `trabajoId` sin escribir nada. */
   async function lockAdjustedCase(r: UowRepos, clinicId: string, caseId: string) {
@@ -485,6 +492,7 @@ export function createAccountsService(deps: {
      */
     async registerPayment(input: PaymentInput, ctx: RequestContext): Promise<PaymentView> {
       assertRole(ACCOUNTS_ROLES, ctx)
+      assertNotFuture(input.fecha)
       return deps.uow.run(async (r) => {
         if (!(await r.accounts.clinicById(input.clinicaId))) {
           throw new AccountInputError('La clínica no existe', 'clinicaId')
@@ -597,6 +605,7 @@ export function createAccountsService(deps: {
      */
     async registerAdjustment(input: AdjustmentInput, ctx: RequestContext): Promise<AdjustmentView> {
       assertRole(ACCOUNT_ADMIN_ROLES, ctx)
+      assertNotFuture(input.fecha)
       return deps.uow.run(async (r) => {
         if (!(await r.accounts.clinicById(input.clinicaId))) {
           throw new AccountInputError('La clínica no existe', 'clinicaId')

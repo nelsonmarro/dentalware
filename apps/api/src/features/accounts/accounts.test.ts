@@ -301,7 +301,7 @@ describe('/api/cuentas', () => {
       })
     })
 
-    it('422 con el campo: datos inválidos, otra clínica, más que el pendiente y una clínica que no existe', async () => {
+    it('422 con el campo: datos inválidos, otra clínica, más que el pendiente, una clínica que no existe y una fecha futura', async () => {
       const c = await deliverCase()
       const [otra] = await ctx.db
         .insert(ctx.schema.clinics)
@@ -315,6 +315,7 @@ describe('/api/cuentas', () => {
         ],
         [{ asignaciones: [{ trabajoId: c.id, monto: '45.01' }] }, 'asignaciones.0.monto'],
         [{ clinicaId: randomUUID() }, 'clinicaId'],
+        [{ fecha: '2026-10-07' }, 'fecha'],
       ] as const
       for (const [over, path] of cases) {
         const r = await post('/api/cuentas/pagos', recepcion, pago(over))
@@ -322,6 +323,12 @@ describe('/api/cuentas', () => {
         const body = (await r.json()) as Issues
         expect(body.message).toBe('Datos inválidos')
         expect(body.issues.map((i) => i.path)).toContain(path)
+        if (path === 'fecha') {
+          expect(body.issues).toContainEqual({
+            path: 'fecha',
+            message: 'La fecha no puede ser posterior a hoy',
+          })
+        }
       }
       // Nada se escribió.
       expect(await ctx.db.select().from(ctx.schema.payments)).toEqual([])
@@ -639,7 +646,7 @@ describe('/api/cuentas', () => {
       })
     })
 
-    it('422 con el campo: motivo vacío, monto 0, otra clínica, trabajo sin entregar o inexistente', async () => {
+    it('422 con el campo: motivo vacío, monto 0, otra clínica, trabajo sin entregar o inexistente, fecha futura', async () => {
       const entregado = await deliverCase()
       const nuevo = await createCase()
       const [otra] = await ctx.db
@@ -653,6 +660,7 @@ describe('/api/cuentas', () => {
         [{ trabajoId: nuevo.id }, 'trabajoId'],
         [{ trabajoId: randomUUID() }, 'trabajoId'],
         [{ clinicaId: randomUUID() }, 'clinicaId'],
+        [{ fecha: '2026-10-07' }, 'fecha'],
       ] as const
       for (const [over, path] of cases) {
         const r = await post('/api/cuentas/ajustes', admin, ajuste(over))
@@ -660,6 +668,12 @@ describe('/api/cuentas', () => {
         const body = (await r.json()) as Issues
         expect(body.message).toBe('Datos inválidos')
         expect(body.issues.map((i) => i.path)).toContain(path)
+        if (path === 'fecha') {
+          expect(body.issues).toContainEqual({
+            path: 'fecha',
+            message: 'La fecha no puede ser posterior a hoy',
+          })
+        }
       }
       expect(await ctx.db.select().from(ctx.schema.accountAdjustments)).toEqual([])
     })
