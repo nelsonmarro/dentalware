@@ -27,6 +27,7 @@ import type {
 import { CaseInputError, CaseNotFoundError, CaseStateError } from './errors.ts'
 import type {
   AttachmentsQuery,
+  CaseAccountQuery,
   CaseDeliveriesQuery,
   CaseDetail,
   CaseEventRow,
@@ -569,6 +570,26 @@ export function fakeDeliveryLog(
     },
   }
   return { log, rows }
+}
+
+/** `CaseAccountQuery` en memoria (Iteración 5): Σ ajustes y Σ asignaciones vigentes por
+ * trabajo (0 si no se dan). `calls` guarda los trabajos consultados, para probar que a quien no
+ * ve la cuenta ni se le consulta. */
+export function fakeCaseAccountQuery(
+  totals: Record<string, { adjustmentsCents: number; allocatedCents: number }> = {},
+) {
+  const calls: string[] = []
+  const query: CaseAccountQuery = {
+    async caseTotals(caseIds) {
+      calls.push(...caseIds)
+      return caseIds.map((caseId) => ({
+        caseId,
+        adjustmentsCents: totals[caseId]?.adjustmentsCents ?? 0,
+        allocatedCents: totals[caseId]?.allocatedCents ?? 0,
+      }))
+    },
+  }
+  return { query, calls }
 }
 
 /** Mensajeros activos en memoria para `CouriersLookup`. Vacío por defecto: quien no prueba la

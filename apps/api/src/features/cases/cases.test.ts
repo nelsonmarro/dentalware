@@ -1730,6 +1730,89 @@ describe('/api/trabajos', () => {
     })
   })
 
+  describe('cuenta del trabajo en la ficha (Iteración 5)', () => {
+    type Ficha = { case: { code: string; total: string | null; account: unknown } }
+    const ficha = async (cookie: string, path: string) => {
+      const res = await app.request(path, req(cookie, 'GET'))
+      expect(res.status).toBe(200)
+      return (await res.json()) as Ficha
+    }
+
+    it('admin y recepción la ven con lo pagado y lo ajustado; técnico y mensajero reciben null', async () => {
+      const { id } = await crearTrabajoEntregado()
+      const { case: c } = await ficha(admin, `/api/trabajos/${id}`)
+      expect(c.total).toBe('45.00')
+      const pago = await app.request(
+        '/api/cuentas/pagos',
+        req(recepcion, 'POST', {
+          clinicaId: clinicId,
+          monto: '20.00',
+          metodo: 'efectivo',
+          fecha: hoy,
+          asignaciones: [{ trabajoId: id, monto: '20.00' }],
+        }),
+      )
+      expect(pago.status).toBe(201)
+      const ajuste = await app.request(
+        '/api/cuentas/ajustes',
+        req(admin, 'POST', {
+          clinicaId: clinicId,
+          trabajoId: id,
+          monto: '-5.00',
+          motivo: 'Pronto pago',
+          fecha: hoy,
+        }),
+      )
+      expect(ajuste.status).toBe(201)
+
+      const esperado = {
+        charge: '45.00',
+        adjustments: '-5.00',
+        allocated: '20.00',
+        outstanding: '20.00',
+        paidAt: null,
+      }
+      for (const cookie of [admin, recepcion]) {
+        expect((await ficha(cookie, `/api/trabajos/${id}`)).case.account).toEqual(esperado)
+      }
+      for (const cookie of [tecnico, mensajero]) {
+        expect((await ficha(cookie, `/api/trabajos/${id}`)).case.account).toBeNull()
+        expect((await ficha(cookie, `/api/trabajos/codigo/${c.code}`)).case.account).toBeNull()
+      }
+      expect((await ficha(recepcion, `/api/trabajos/codigo/${c.code}`)).case.account).toEqual(
+        esperado,
+      )
+    })
+
+    it('un trabajo cobrado la trae con paid_at; uno sin entregar, null', async () => {
+      const { id } = await crearTrabajoEntregado()
+      await app.request(
+        '/api/cuentas/pagos',
+        req(recepcion, 'POST', {
+          clinicaId: clinicId,
+          monto: '45.00',
+          metodo: 'transferencia',
+          fecha: hoy,
+          asignaciones: [{ trabajoId: id, monto: '45.00' }],
+        }),
+      )
+      const cobrado = (await ficha(admin, `/api/trabajos/${id}`)).case as Ficha['case'] & {
+        status: string
+        paidAt: string
+      }
+      expect(cobrado.status).toBe('cobrado')
+      expect(cobrado.account).toEqual({
+        charge: '45.00',
+        adjustments: '0.00',
+        allocated: '45.00',
+        outstanding: '0.00',
+        paidAt: cobrado.paidAt,
+      })
+      const nuevo = await createOne(recepcion)
+      expect((await ficha(admin, `/api/trabajos/${nuevo}`)).case.account).toBeNull()
+    })
+  })
+
   describe('POST /api/trabajos/:id/repetir', () => {
     it('repite un trabajo entregado (201): código nuevo, hijo enlazado al padre y líneas copiadas', async () => {
       const { id } = await crearTrabajoEntregado()

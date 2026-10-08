@@ -5,9 +5,11 @@ import {
   AGING_BUCKET_LABEL,
   AGING_BUCKETS,
   agingBuckets,
+  BILLED_STATUSES,
   caseChargeCents,
   caseOutstandingCents,
   daysBetween,
+  isBilled,
   isSettled,
   oldestOpenDays,
   PAYMENT_METHOD_LABEL,
@@ -17,6 +19,14 @@ import {
 } from './accounts.ts'
 
 describe('constantes de cuentas (Iteración 5)', () => {
+  it('estados que cargan a la cuenta de la clínica: entregado y cobrado', () => {
+    expect(BILLED_STATUSES).toEqual(['entregado', 'cobrado'])
+    expect(isBilled('entregado')).toBe(true)
+    expect(isBilled('cobrado')).toBe(true)
+    expect(isBilled('enviado')).toBe(false)
+    expect(isBilled('cancelado')).toBe(false)
+  })
+
   it('métodos de pago en orden', () => {
     expect(PAYMENT_METHODS).toEqual(['efectivo', 'transferencia', 'tarjeta', 'cheque', 'otro'])
   })

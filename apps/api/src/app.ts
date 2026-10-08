@@ -68,7 +68,11 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
   // la factoría se inyecta aquí para que `cases/repo.ts` no importe `deliveries/repo.ts`.
   const casesUow = drizzleUnitOfWork(db, { deliveries: createDeliveriesRepo })
   const couriersQuery = createCouriersQuery(db)
+  const accountsRepo = createAccountsRepo(db)
   const casesService = createCasesService({
+    // `CaseAccountQuery` lo declara `cases` y lo cumple el repo de `accounts` (ADR 35): Σ
+    // ajustes y Σ asignaciones vigentes del trabajo para la cuenta de su ficha.
+    account: accountsRepo,
     cases: casesRepo,
     attachments: attachmentsRepo,
     // Puerto de la feature `stages` (CRUD simple, sin ports.ts propio): solo las fases activas.
@@ -125,7 +129,7 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
   // cumple el repo de `cases` sobre la misma `tx` (ADR 35, patrón de ADR 34): `accounts/` no
   // importa nada de `cases/`.
   const accountsService = createAccountsService({
-    accounts: createAccountsRepo(db),
+    accounts: accountsRepo,
     uow: drizzleAccountsUnitOfWork(db, { cases: createCaseSettlement }),
     clock: effectiveClock,
   })

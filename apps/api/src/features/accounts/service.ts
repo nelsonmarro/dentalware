@@ -9,6 +9,7 @@ import {
   fromCents,
   fromSignedCents,
   hasRole,
+  isBilled,
   isSettled,
   oldestOpenDays,
   PAYMENT_METHOD_LABEL,
@@ -414,7 +415,7 @@ export function createAccountsService(deps: {
     if (c.clinicId !== clinicId) {
       throw new AccountInputError('El trabajo es de otra clínica', 'trabajoId')
     }
-    if (c.status !== 'entregado' && c.status !== 'cobrado') {
+    if (!isBilled(c.status)) {
       throw new AccountInputError('El trabajo no está entregado', 'trabajoId')
     }
     return c

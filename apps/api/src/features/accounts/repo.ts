@@ -1,4 +1,10 @@
-import { fromCents, fromSignedCents, toCents, toSignedCents } from '@dentalware/shared'
+import {
+  BILLED_STATUSES,
+  fromCents,
+  fromSignedCents,
+  toCents,
+  toSignedCents,
+} from '@dentalware/shared'
 import { and, eq, inArray, isNull, sql, type Column, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { Db, Tx } from '../../db/index.ts'
@@ -13,9 +19,6 @@ import type {
   PaymentEntry,
 } from './ports.ts'
 import { accountAdjustments, paymentAllocations, payments } from './schema.ts'
-
-/** Estados cuyo trabajo carga a la cuenta (decisión 10 del plan de la Iteración 5). */
-const BILLED_STATUSES = ['entregado', 'cobrado'] as const
 
 /**
  * Cuentas: `createAccountsRepo(db | Tx) satisfies AccountsRepository`. Lee `cases`,
@@ -170,7 +173,7 @@ export function createAccountsRepo(db: Db | Tx) {
         .from(cases)
         .leftJoin(adj, eq(adj.caseId, cases.id))
         .leftJoin(alloc, eq(alloc.caseId, cases.id))
-        .where(and(inArray(cases.status, BILLED_STATUSES), byClinic(cases.clinicId, clinicId)))
+        .where(and(inArray(cases.status, [...BILLED_STATUSES]), byClinic(cases.clinicId, clinicId)))
       return rows.map((r) => ({
         id: r.id,
         clinicId: r.clinicId,

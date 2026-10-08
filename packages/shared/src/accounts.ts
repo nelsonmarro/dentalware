@@ -1,3 +1,4 @@
+import type { CaseStatus } from './case-status.ts'
 import { percentOfCents } from './money.ts'
 
 /**
@@ -39,6 +40,25 @@ export const AGING_BUCKET_LABEL: Record<AgingBucket, string> = {
   '31_60': '31–60 días',
   '61_90': '61–90 días',
   '90_mas': 'Más de 90 días',
+}
+
+/** Estados en los que un trabajo carga a la cuenta de su clínica (decisión 10): entregado, y
+ * cobrado cuando lo asignado ya lo cubre. Antes de entregarlo no hay cargo. */
+export const BILLED_STATUSES = ['entregado', 'cobrado'] as const satisfies readonly CaseStatus[]
+
+export function isBilled(status: CaseStatus): boolean {
+  return (BILLED_STATUSES as readonly CaseStatus[]).includes(status)
+}
+
+/** La cuenta de un trabajo en su ficha (Iteración 5): solo para `ACCOUNTS_ROLES` y solo si
+ * está entregado o cobrado. Montos en cadena decimal; `adjustments` y `outstanding` con signo. */
+export type CaseAccount = {
+  charge: string
+  adjustments: string
+  allocated: string
+  outstanding: string
+  /** Timestamp ISO (UTC) de cuando quedó cobrado; `null` si no lo está. */
+  paidAt: string | null
 }
 
 /** Cargo del trabajo en centavos (decisión 4): su `total`, o `total × remake_charge_pct / 100`

@@ -272,6 +272,19 @@ export interface CaseDeliveriesQuery {
 }
 
 /**
+ * Lectura de la cuenta de un trabajo para su ficha (Iteración 5), fuera de la transacción: Σ
+ * ajustes del trabajo y Σ asignaciones de pagos vigentes, que son de `accounts`. Lo cumple
+ * `createAccountsRepo` de `accounts` en la raíz de composición (ADR 35, como
+ * `CaseDeliveriesQuery` con `deliveries`). El cargo lo calcula el servicio con el trabajo.
+ */
+export interface CaseAccountQuery {
+  /** Una fila por trabajo pedido (0 si no tiene ajustes ni asignaciones). */
+  caseTotals(
+    caseIds: readonly string[],
+  ): Promise<{ caseId: string; adjustmentsCents: number; allocatedCents: number }[]>
+}
+
+/**
  * Escritura de cobro sobre los trabajos (Iteración 5, ADR 35): la usa `accounts` por su puerto
  * `CaseSettlement`, que la raíz de composición (`app.ts`) cumple con esta implementación sobre la
  * `tx` del `AccountsUnitOfWork`. `cases` no conoce `accounts`: solo expone qué sabe hacer.

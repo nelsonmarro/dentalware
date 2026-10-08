@@ -1,4 +1,4 @@
-import type { CaseStatus } from '@dentalware/shared'
+import { isBilled, type CaseStatus } from '@dentalware/shared'
 import type {
   AccountsRepository,
   AccountsUnitOfWork,
@@ -112,7 +112,7 @@ export function fakeAccounts(seed: Seed = {}) {
     },
     async billedCases(clinicId) {
       return of(cases, clinicId)
-        .filter((c) => c.status === 'entregado' || c.status === 'cobrado')
+        .filter((c) => isBilled(c.status))
         .map((c) => ({
           ...c,
           adjustmentsCents: adjustmentsOf(c.id),

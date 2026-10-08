@@ -11,6 +11,7 @@ import {
   caseDetailFixture,
   caseInputFixture,
   fakeAttachmentsQuery,
+  fakeCaseAccountQuery,
   fakeCasesRepo,
   fakeCouriersLookup,
   fakeDeliveryLog,
@@ -38,6 +39,7 @@ function build(seed = [caseDetailFixture()], hasDocument = false) {
   // `tryins` no es dependencia del servicio (ver M-1): solo lo necesita `uow.run` para
   // recrear los repos de la transacción, igual que hace `drizzleUnitOfWork` con `tx`.
   const service = createCasesService({
+    account: fakeCaseAccountQuery().query,
     cases: repo,
     attachments: fakeAttachmentsQuery(hasDocument),
     stages: fakeStagesQuery(),
@@ -64,6 +66,7 @@ function servicioCon(
   const { repo } = fakeCasesRepo([seed])
   const tryins = overrides.tryins ?? fakeTryins()
   return createCasesService({
+    account: fakeCaseAccountQuery().query,
     cases: repo,
     attachments: fakeAttachmentsQuery(overrides.hasDocument ?? true, overrides.attachments),
     stages: fakeStagesQuery(),
@@ -81,6 +84,7 @@ function servicioConFases(stageIds: string[], overrides: Partial<CaseDetail>) {
   const { repo } = fakeCasesRepo([caseDetailFixture({ id: '1', ...overrides })])
   const stages = stageIds.map((id, sort) => ({ id, sort, active: true }))
   return createCasesService({
+    account: fakeCaseAccountQuery().query,
     cases: repo,
     attachments: fakeAttachmentsQuery(true),
     stages: fakeStagesQuery(stages),
@@ -101,6 +105,7 @@ function servicioConTecnicos(
 ) {
   const { repo } = fakeCasesRepo([caseDetailFixture({ id: '1', ...overrides })])
   return createCasesService({
+    account: fakeCaseAccountQuery().query,
     cases: repo,
     attachments: fakeAttachmentsQuery(true),
     stages: fakeStagesQuery(),
@@ -117,6 +122,7 @@ function servicioConTecnicos(
 function servicioParaResumen(seed: CaseDetail[], today: string) {
   const { repo } = fakeCasesRepo(seed)
   return createCasesService({
+    account: fakeCaseAccountQuery().query,
     cases: repo,
     attachments: fakeAttachmentsQuery(false),
     stages: fakeStagesQuery(),
@@ -295,6 +301,7 @@ describe('acciones de estado', () => {
     // viernes 2026-09-18 + 5 días hábiles = viernes 2026-09-25
     const { repo } = fakeCasesRepo([completo({ id: '1', status: 'nuevo' })])
     const service = createCasesService({
+      account: fakeCaseAccountQuery().query,
       cases: repo,
       attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery([{ id: 'f1', sort: 1, active: true }]),
@@ -597,6 +604,7 @@ describe('técnico responsable', () => {
       },
     }
     const service = createCasesService({
+      account: fakeCaseAccountQuery().query,
       cases: repo,
       attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery([
@@ -843,6 +851,7 @@ describe('repetición', () => {
       },
     }
     const service = createCasesService({
+      account: fakeCaseAccountQuery().query,
       cases: repo,
       attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery(),
@@ -873,6 +882,7 @@ describe('repeticiones de un trabajo', () => {
   it('lista solo los hijos directos, de la más reciente a la más antigua, sin el nieto', async () => {
     const { repo, rows } = fakeCasesRepo([completo({ id: '1', status: 'terminado' })])
     const service = createCasesService({
+      account: fakeCaseAccountQuery().query,
       cases: repo,
       attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery(),
@@ -978,6 +988,7 @@ describe('recogida', () => {
   function servicioConRecogida(seed: CaseDetail[] = [], deliveries = fakeDeliveryLog()) {
     const { repo, rows, events } = fakeCasesRepo(seed)
     const service = createCasesService({
+      account: fakeCaseAccountQuery().query,
       cases: repo,
       attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery(),
@@ -1206,6 +1217,7 @@ describe('envío y entrega', () => {
   ) {
     const { repo, rows } = fakeCasesRepo([seed])
     const service = createCasesService({
+      account: fakeCaseAccountQuery().query,
       cases: repo,
       attachments: fakeAttachmentsQuery(true, attachments),
       stages: fakeStagesQuery(),
@@ -1500,6 +1512,7 @@ describe('cancelar cierra la entrega pendiente', () => {
     const { repo, rows } = fakeCasesRepo([completo({ id: '1', status })])
     const deliveries = fakeDeliveryLog(seed)
     const service = createCasesService({
+      account: fakeCaseAccountQuery().query,
       cases: repo,
       attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery(),
@@ -1585,6 +1598,7 @@ describe('la entrega la cerró otra persona a la vez', () => {
       },
     }
     const service = createCasesService({
+      account: fakeCaseAccountQuery().query,
       cases: repo,
       attachments: fakeAttachmentsQuery(true, [foto]),
       stages: fakeStagesQuery(),
@@ -1656,6 +1670,7 @@ describe('entrega pendiente en el detalle', () => {
     const { repo } = fakeCasesRepo([completo({ id: '1', code: '26-00042', status })])
     const deliveries = fakeDeliveryLog(seed, nombres)
     return createCasesService({
+      account: fakeCaseAccountQuery().query,
       cases: repo,
       attachments: fakeAttachmentsQuery(true),
       stages: fakeStagesQuery(),
@@ -1789,5 +1804,82 @@ describe('entrega pendiente en el detalle', () => {
     expect(found.total).toBeNull()
     expect(found.remakeChargePct).toBeNull()
     expect(found.items.every((i) => i.unitPrice === null && i.lineTotal === null)).toBe(true)
+  })
+})
+
+describe('cuenta del trabajo en la ficha (Iteración 5)', () => {
+  /** Ficha del trabajo `1` con los totales de su cuenta (Σ ajustes y Σ asignado). */
+  function conCuenta(
+    over: Partial<CaseDetail>,
+    totals: Record<string, { adjustmentsCents: number; allocatedCents: number }> = {
+      '1': { adjustmentsCents: -500, allocatedCents: 4_000 },
+    },
+  ) {
+    const { repo } = fakeCasesRepo([completo({ id: '1', total: '90.00', ...over })])
+    const account = fakeCaseAccountQuery(totals)
+    const service = createCasesService({
+      account: account.query,
+      cases: repo,
+      attachments: fakeAttachmentsQuery(true),
+      stages: fakeStagesQuery(),
+      users: fakeUsersQuery(),
+      couriers: fakeCouriersLookup(),
+      deliveries: fakeDeliveryLog().log,
+      uow: fakeUow(repo),
+      clock: fixedClock('2026-10-06'),
+    })
+    return { service, calls: account.calls }
+  }
+
+  it.each([
+    ['admin', admin],
+    ['recepción', recepcionCtx],
+  ])('%s ve cargo, ajustes, asignado y pendiente de un trabajo entregado', async (_l, ctx) => {
+    const { service } = conCuenta({ status: 'entregado' })
+    expect((await service.detail('1', ctx)).case.account).toEqual({
+      charge: '90.00',
+      adjustments: '-5.00',
+      allocated: '40.00',
+      outstanding: '45.00',
+      paidAt: null,
+    })
+  })
+
+  it('una repetición al 50 % carga la mitad; un trabajo cobrado trae paid_at', async () => {
+    const paidAt = new Date('2026-10-05T15:30:00Z')
+    const { service } = conCuenta(
+      { status: 'cobrado', parentCaseId: 'p', remakeChargePct: '50.00', paidAt },
+      { '1': { adjustmentsCents: 0, allocatedCents: 4_500 } },
+    )
+    expect((await service.detail('1', admin)).case.account).toEqual({
+      charge: '45.00',
+      adjustments: '0.00',
+      allocated: '45.00',
+      outstanding: '0.00',
+      paidAt: '2026-10-05T15:30:00.000Z',
+    })
+  })
+
+  it('por código (ficha corta) trae la misma cuenta', async () => {
+    const { service } = conCuenta({ status: 'entregado' })
+    expect((await service.detailByCode('26-00001', recepcionCtx)).case.account).toMatchObject({
+      outstanding: '45.00',
+    })
+  })
+
+  it.each([
+    ['técnico', tecnico],
+    ['mensajero', mensajero],
+  ])('al %s no le llega la cuenta (null) ni se consulta', async (_l, ctx) => {
+    const { service, calls } = conCuenta({ status: 'entregado' })
+    expect((await service.detail('1', ctx)).case.account).toBeNull()
+    expect((await service.detailByCode('26-00001', ctx)).case.account).toBeNull()
+    expect(calls).toEqual([])
+  })
+
+  it('un trabajo que aún no se entrega no tiene cuenta', async () => {
+    const { service, calls } = conCuenta({ status: 'enviado' })
+    expect((await service.detail('1', admin)).case.account).toBeNull()
+    expect(calls).toEqual([])
   })
 })
