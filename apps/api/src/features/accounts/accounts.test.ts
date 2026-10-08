@@ -779,6 +779,58 @@ describe('/api/cuentas', () => {
       expectBalanced(end)
     })
 
+    it('concurrencia: un pago que cubre el trabajo y un descuento a la vez dejan un estado coherente en cualquier orden', async () => {
+      const cents = (v: string) => Math.round(Number(v) * 100)
+      for (let i = 0; i < 4; i++) {
+        const c = await deliverCase()
+        const sendPayment = () =>
+          post('/api/cuentas/pagos', recepcion, {
+            clinicaId: clinicId,
+            monto: '45.00',
+            metodo: 'efectivo',
+            fecha: '2026-10-06',
+            asignaciones: [{ trabajoId: c.id, monto: '45.00' }],
+          })
+        const sendDiscount = () =>
+          post(
+            '/api/cuentas/ajustes',
+            admin,
+            ajuste({ trabajoId: c.id, monto: '-5.00', motivo: 'Descuento' }),
+          )
+        // Alterna cuál sale primero, para recorrer los dos órdenes.
+        const [pago, descuento] =
+          i % 2 === 0
+            ? await Promise.all([sendPayment(), sendDiscount()])
+            : await Promise.all([sendDiscount(), sendPayment()]).then(([d, p]) => [p, d] as const)
+        expect(descuento.status).toBe(201)
+        const { ajuste: a } = (await descuento.json()) as { ajuste: { released: string } }
+        if (pago.status === 201) {
+          // El pago llegó antes: el descuento devolvió el exceso a ese pago.
+          expect(a.released).toBe('5.00')
+        } else {
+          // El descuento llegó antes: el pago ya no cabe en el pendiente nuevo.
+          expect(pago.status).toBe(422)
+          expect(((await pago.json()) as Issues).issues).toEqual([
+            { path: 'asignaciones.0.monto', message: 'Supera lo pendiente del trabajo (40.00)' },
+          ])
+          expect(a.released).toBe('0.00')
+        }
+        // Σ asignado ≤ neto (45.00 − 5.00) y el estado sigue a lo que queda pendiente.
+        const vigentes = await ctx.db
+          .select({ amount: ctx.schema.paymentAllocations.amount })
+          .from(ctx.schema.paymentAllocations)
+          .where(eq(ctx.schema.paymentAllocations.caseId, c.id))
+        const asignado = vigentes.reduce((sum, x) => sum + cents(x.amount), 0)
+        expect(asignado).toBeLessThanOrEqual(4_000)
+        expect((await caseOf(c.id)).status).toBe(asignado === 4_000 ? 'cobrado' : 'entregado')
+      }
+      // Cuadre de la decisión 10 con todo lo anterior (sin ajustes sueltos).
+      const d = await detail()
+      expect(cents(d.balance)).toBe(
+        d.openCases.reduce((sum, x) => sum + cents(x.outstanding), 0) - cents(d.credit),
+      )
+    })
+
     it('historial por rol: técnico y mensajero ven el ajuste sin monto ni motivo', async () => {
       const c = await deliverCase()
       await addAdjustment(ajuste({ trabajoId: c.id, monto: '-5.00', motivo: 'Descuento acordado' }))
