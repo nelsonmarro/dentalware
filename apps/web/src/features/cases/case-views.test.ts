@@ -60,6 +60,11 @@ describe('dueBadge', () => {
   it('no marca nada sin fecha', () => {
     expect(dueBadge(null, '2026-09-06', 'nuevo')).toBeNull()
   })
+
+  it('un trabajo cobrado no vence ni está atrasado (Iteración 5)', () => {
+    expect(dueBadge('2026-09-06', '2026-09-06', 'cobrado')).toBeNull()
+    expect(dueBadge('2026-09-01', '2026-09-06', 'cobrado')).toBeNull()
+  })
 })
 
 describe('isStageVisible', () => {
@@ -79,6 +84,7 @@ describe('isStageVisible', () => {
     expect(isStageVisible('terminado')).toBe(false)
     expect(isStageVisible('enviado')).toBe(false)
     expect(isStageVisible('entregado')).toBe(false)
+    expect(isStageVisible('cobrado')).toBe(false)
     expect(isStageVisible('cancelado')).toBe(false)
   })
 

@@ -2229,6 +2229,45 @@ describe('/api/trabajos', () => {
       expect(resumen.todos).toBe(9)
     })
 
+    // Iteración 5: `cobrado` es terminal. Aparece en «Todos» y en el filtro de estado, nunca en
+    // una vista de trabajo activo, aunque su fecha venza hoy, mañana o esté vencida.
+    it('un trabajo cobrado solo aparece en «Todos» y en el filtro de estado', async () => {
+      const ids: string[] = []
+      for (const [patientRef, promisedDate] of [
+        ['Cobrado vencido', '2026-09-10'],
+        ['Cobrado hoy', HOY],
+        ['Cobrado mañana', '2026-09-21'],
+      ] as const) {
+        const id = await createOne(recepcion, { patientRef })
+        await ctx.db
+          .update(ctx.schema.cases)
+          .set({ status: 'cobrado', promisedDate })
+          .where(eq(ctx.schema.cases.id, id))
+        ids.push(id)
+      }
+      const listed = async (query: string) => {
+        const r = await resumenApp.request(`/api/trabajos?${query}`, req(admin, 'GET'))
+        expect(r.status).toBe(200)
+        return ((await r.json()) as { cases: { id: string }[] }).cases.map((c) => c.id).sort()
+      }
+      for (const vista of CASE_VIEWS) {
+        expect(await listed(`vista=${vista}`)).toEqual(vista === 'todos' ? ids.sort() : [])
+      }
+      expect(await listed('estado=cobrado')).toEqual(ids.sort())
+      const r = await resumenApp.request('/api/trabajos/resumen', req(admin, 'GET'))
+      const { resumen } = (await r.json()) as { resumen: Record<string, number> }
+      expect(resumen).toEqual({
+        nuevos: 0,
+        en_curso: 0,
+        vencen_hoy: 0,
+        vencen_manana: 0,
+        atrasados: 0,
+        en_prueba: 0,
+        listos: 0,
+        todos: 3,
+      })
+    })
+
     // I-1 (fix wave PR 2, #68): el test de arriba compara el contador con la lista, y ambos
     // salen de la misma `viewCondition` — prueba que coinciden, no que la definición sea
     // correcta. Este test fija la definición con reloj fijo (`HOY`): "atrasados" es un trabajo
