@@ -11,6 +11,13 @@ export function fromCents(cents: number): string {
   return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`
 }
 
+/** Centavos de lo que alguien escribe en un campo de monto: admite coma decimal y espacios
+ * alrededor; `null` si no es un monto sin signo con hasta 2 decimales (vacío incluido). */
+export function parseMoneyInput(text: string): number | null {
+  const value = text.trim().replace(',', '.')
+  return MONEY.test(value) ? toCents(value) : null
+}
+
 /** Como `toCents`, admitiendo un `-` delante: montos con signo (ajustes, saldos). */
 export function toSignedCents(value: string): number {
   return value.startsWith('-') ? -toCents(value.slice(1)) : toCents(value)

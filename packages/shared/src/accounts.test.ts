@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACCOUNT_MOVEMENT_KIND_LABEL,
+  ADJUSTMENT_SIGN_LABEL,
+  ADJUSTMENT_SIGNS,
   ACCOUNT_MOVEMENT_KINDS,
   AGING_BUCKET_LABEL,
   AGING_BUCKETS,
@@ -13,6 +15,7 @@ import {
   isBilled,
   isSettled,
   oldestOpenDays,
+  OPENING_BALANCE_REASON,
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHODS,
   releaseExcess,
@@ -52,6 +55,18 @@ describe('constantes de cuentas (Iteración 5)', () => {
       ajuste: 'Ajuste',
       pago: 'Pago',
     })
+  })
+
+  it('signos de un ajuste en orden, con su rótulo (CTA-3)', () => {
+    expect(ADJUSTMENT_SIGNS).toEqual(['descuento', 'recargo'])
+    expect(ADJUSTMENT_SIGN_LABEL).toEqual({
+      descuento: 'Descuento o nota de crédito',
+      recargo: 'Recargo',
+    })
+  })
+
+  it('motivo del atajo «Saldo inicial» (CTA-3)', () => {
+    expect(OPENING_BALANCE_REASON).toBe('Saldo inicial')
   })
 
   it('cubos de antigüedad en orden', () => {

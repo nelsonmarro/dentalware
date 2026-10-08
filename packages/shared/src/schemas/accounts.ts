@@ -8,7 +8,7 @@ import { isoDate, textoOpcional, uuid } from './config.ts'
  * decimal `"12.34"` (`money.ts`): hasta 10 enteros (`numeric(12,2)`) y 2 decimales.
  */
 
-const MONTO_FORMAT = 'El monto debe ser un número con hasta 2 decimales'
+export const MONTO_FORMAT = 'El monto debe ser un número con hasta 2 decimales'
 const POSITIVE_MONEY = /^\d{1,10}(\.\d{1,2})?$/
 const SIGNED_MONEY = /^-?\d{1,10}(\.\d{1,2})?$/
 
@@ -19,7 +19,7 @@ function centsOf(monto: string): number | null {
 }
 
 /** Monto de un pago o de una asignación: mayor que 0 y sin signo. */
-const montoPositivo = z
+export const montoPositivo = z
   .string()
   .trim()
   .regex(POSITIVE_MONEY, { error: MONTO_FORMAT })
@@ -32,7 +32,7 @@ const montoConSigno = z
   .regex(SIGNED_MONEY, { error: MONTO_FORMAT })
   .refine((m) => centsOf(m.replace(/^-/, '')) !== 0, { error: 'El monto no puede ser 0' })
 
-const motivoObligatorio = z
+export const motivoObligatorio = z
   .string()
   .trim()
   .min(1, { error: 'Escribe el motivo' })

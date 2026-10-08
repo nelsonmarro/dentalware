@@ -31,6 +31,21 @@ export const ACCOUNT_MOVEMENT_KIND_LABEL: Record<AccountMovementKind, string> = 
   pago: 'Pago',
 }
 
+/** Signo de un ajuste en el formulario (CTA-3): el descuento o nota de crédito resta del saldo
+ * (se guarda negativo) y el recargo suma. */
+export const ADJUSTMENT_SIGNS = ['descuento', 'recargo'] as const
+export type AdjustmentSign = (typeof ADJUSTMENT_SIGNS)[number]
+
+/** Rótulo de cada signo. `Record` exhaustivo: un signo nuevo no compila sin rótulo. */
+export const ADJUSTMENT_SIGN_LABEL: Record<AdjustmentSign, string> = {
+  descuento: 'Descuento o nota de crédito',
+  recargo: 'Recargo',
+}
+
+/** Motivo que rellena el atajo «Saldo inicial» (CTA-3): la deuda de la clínica al arrancar,
+ * como ajuste sin trabajo. */
+export const OPENING_BALANCE_REASON = 'Saldo inicial'
+
 /** Cubos de antigüedad de la deuda, por días desde la fecha de cada partida (decisión 9). */
 export const AGING_BUCKETS = ['0_30', '31_60', '61_90', '90_mas'] as const
 export type AgingBucket = (typeof AGING_BUCKETS)[number]
