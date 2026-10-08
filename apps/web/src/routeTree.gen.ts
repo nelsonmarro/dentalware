@@ -22,6 +22,8 @@ import { Route as AppConfiguracionFasesRouteImport } from './routes/_app/configu
 import { Route as AppConfiguracionLaboratorioRouteImport } from './routes/_app/configuracion/laboratorio'
 import { Route as AppConfiguracionProductosRouteImport } from './routes/_app/configuracion/productos'
 import { Route as AppConfiguracionUsuariosRouteImport } from './routes/_app/configuracion/usuarios'
+import { Route as AppCuentasIndexRouteImport } from './routes/_app/cuentas/index'
+import { Route as AppCuentasClinicaIdRouteImport } from './routes/_app/cuentas/$clinicaId'
 import { Route as AppTCodeRouteImport } from './routes/_app/t.$code'
 import { Route as AppTrabajosIndexRouteImport } from './routes/_app/trabajos/index'
 import { Route as AppTrabajosCaseIdRouteImport } from './routes/_app/trabajos/$caseId'
@@ -98,6 +100,16 @@ const AppConfiguracionUsuariosRoute =
     path: '/usuarios',
     getParentRoute: () => AppConfiguracionRoute,
   } as any)
+const AppCuentasIndexRoute = AppCuentasIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppCuentasRoute,
+} as any)
+const AppCuentasClinicaIdRoute = AppCuentasClinicaIdRouteImport.update({
+  id: '/$clinicaId',
+  path: '/$clinicaId',
+  getParentRoute: () => AppCuentasRoute,
+} as any)
 const AppTCodeRoute = AppTCodeRouteImport.update({
   id: '/t/$code',
   path: '/t/$code',
@@ -140,7 +152,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/configuracion': typeof AppConfiguracionRouteWithChildren
-  '/cuentas': typeof AppCuentasRoute
+  '/cuentas': typeof AppCuentasRouteWithChildren
   '/entregas': typeof AppEntregasRoute
   '/trabajos': typeof AppTrabajosRouteWithChildren
   '/configuracion/clinicas': typeof AppConfiguracionClinicasRouteWithChildren
@@ -148,10 +160,12 @@ export interface FileRoutesByFullPath {
   '/configuracion/laboratorio': typeof AppConfiguracionLaboratorioRoute
   '/configuracion/productos': typeof AppConfiguracionProductosRoute
   '/configuracion/usuarios': typeof AppConfiguracionUsuariosRoute
+  '/cuentas/$clinicaId': typeof AppCuentasClinicaIdRoute
   '/t/$code': typeof AppTCodeRoute
   '/trabajos/$caseId': typeof AppTrabajosCaseIdRoute
   '/trabajos/nuevo': typeof AppTrabajosNuevoRoute
   '/configuracion/': typeof AppConfiguracionIndexRoute
+  '/cuentas/': typeof AppCuentasIndexRoute
   '/trabajos/': typeof AppTrabajosIndexRoute
   '/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
   '/trabajos/$caseId/editar': typeof AppTrabajosCaseIdEditarRoute
@@ -159,7 +173,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
-  '/cuentas': typeof AppCuentasRoute
   '/entregas': typeof AppEntregasRoute
   '/': typeof AppIndexRoute
   '/configuracion/clinicas': typeof AppConfiguracionClinicasRouteWithChildren
@@ -167,10 +180,12 @@ export interface FileRoutesByTo {
   '/configuracion/laboratorio': typeof AppConfiguracionLaboratorioRoute
   '/configuracion/productos': typeof AppConfiguracionProductosRoute
   '/configuracion/usuarios': typeof AppConfiguracionUsuariosRoute
+  '/cuentas/$clinicaId': typeof AppCuentasClinicaIdRoute
   '/t/$code': typeof AppTCodeRoute
   '/trabajos/$caseId': typeof AppTrabajosCaseIdRoute
   '/trabajos/nuevo': typeof AppTrabajosNuevoRoute
   '/configuracion': typeof AppConfiguracionIndexRoute
+  '/cuentas': typeof AppCuentasIndexRoute
   '/trabajos': typeof AppTrabajosIndexRoute
   '/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
   '/trabajos/$caseId/editar': typeof AppTrabajosCaseIdEditarRoute
@@ -181,7 +196,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/_app/configuracion': typeof AppConfiguracionRouteWithChildren
-  '/_app/cuentas': typeof AppCuentasRoute
+  '/_app/cuentas': typeof AppCuentasRouteWithChildren
   '/_app/entregas': typeof AppEntregasRoute
   '/_app/trabajos': typeof AppTrabajosRouteWithChildren
   '/_app/': typeof AppIndexRoute
@@ -190,10 +205,12 @@ export interface FileRoutesById {
   '/_app/configuracion/laboratorio': typeof AppConfiguracionLaboratorioRoute
   '/_app/configuracion/productos': typeof AppConfiguracionProductosRoute
   '/_app/configuracion/usuarios': typeof AppConfiguracionUsuariosRoute
+  '/_app/cuentas/$clinicaId': typeof AppCuentasClinicaIdRoute
   '/_app/t/$code': typeof AppTCodeRoute
   '/_app/trabajos/$caseId': typeof AppTrabajosCaseIdRoute
   '/_app/trabajos/nuevo': typeof AppTrabajosNuevoRoute
   '/_app/configuracion/': typeof AppConfiguracionIndexRoute
+  '/_app/cuentas/': typeof AppCuentasIndexRoute
   '/_app/trabajos/': typeof AppTrabajosIndexRoute
   '/_app/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
   '/_app/trabajos/$caseId_/editar': typeof AppTrabajosCaseIdEditarRoute
@@ -213,10 +230,12 @@ export interface FileRouteTypes {
     | '/configuracion/laboratorio'
     | '/configuracion/productos'
     | '/configuracion/usuarios'
+    | '/cuentas/$clinicaId'
     | '/t/$code'
     | '/trabajos/$caseId'
     | '/trabajos/nuevo'
     | '/configuracion/'
+    | '/cuentas/'
     | '/trabajos/'
     | '/configuracion/clinicas/$clinicId'
     | '/trabajos/$caseId/editar'
@@ -224,7 +243,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
-    | '/cuentas'
     | '/entregas'
     | '/'
     | '/configuracion/clinicas'
@@ -232,10 +250,12 @@ export interface FileRouteTypes {
     | '/configuracion/laboratorio'
     | '/configuracion/productos'
     | '/configuracion/usuarios'
+    | '/cuentas/$clinicaId'
     | '/t/$code'
     | '/trabajos/$caseId'
     | '/trabajos/nuevo'
     | '/configuracion'
+    | '/cuentas'
     | '/trabajos'
     | '/configuracion/clinicas/$clinicId'
     | '/trabajos/$caseId/editar'
@@ -254,10 +274,12 @@ export interface FileRouteTypes {
     | '/_app/configuracion/laboratorio'
     | '/_app/configuracion/productos'
     | '/_app/configuracion/usuarios'
+    | '/_app/cuentas/$clinicaId'
     | '/_app/t/$code'
     | '/_app/trabajos/$caseId'
     | '/_app/trabajos/nuevo'
     | '/_app/configuracion/'
+    | '/_app/cuentas/'
     | '/_app/trabajos/'
     | '/_app/configuracion/clinicas/$clinicId'
     | '/_app/trabajos/$caseId_/editar'
@@ -362,6 +384,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppConfiguracionUsuariosRouteImport
       parentRoute: typeof AppConfiguracionRoute
     }
+    '/_app/cuentas/': {
+      id: '/_app/cuentas/'
+      path: '/'
+      fullPath: '/cuentas/'
+      preLoaderRoute: typeof AppCuentasIndexRouteImport
+      parentRoute: typeof AppCuentasRoute
+    }
+    '/_app/cuentas/$clinicaId': {
+      id: '/_app/cuentas/$clinicaId'
+      path: '/$clinicaId'
+      fullPath: '/cuentas/$clinicaId'
+      preLoaderRoute: typeof AppCuentasClinicaIdRouteImport
+      parentRoute: typeof AppCuentasRoute
+    }
     '/_app/t/$code': {
       id: '/_app/t/$code'
       path: '/t/$code'
@@ -450,6 +486,20 @@ const AppConfiguracionRouteChildren: AppConfiguracionRouteChildren = {
 const AppConfiguracionRouteWithChildren =
   AppConfiguracionRoute._addFileChildren(AppConfiguracionRouteChildren)
 
+interface AppCuentasRouteChildren {
+  AppCuentasClinicaIdRoute: typeof AppCuentasClinicaIdRoute
+  AppCuentasIndexRoute: typeof AppCuentasIndexRoute
+}
+
+const AppCuentasRouteChildren: AppCuentasRouteChildren = {
+  AppCuentasClinicaIdRoute: AppCuentasClinicaIdRoute,
+  AppCuentasIndexRoute: AppCuentasIndexRoute,
+}
+
+const AppCuentasRouteWithChildren = AppCuentasRoute._addFileChildren(
+  AppCuentasRouteChildren,
+)
+
 interface AppTrabajosRouteChildren {
   AppTrabajosCaseIdRoute: typeof AppTrabajosCaseIdRoute
   AppTrabajosNuevoRoute: typeof AppTrabajosNuevoRoute
@@ -472,7 +522,7 @@ const AppTrabajosRouteWithChildren = AppTrabajosRoute._addFileChildren(
 
 interface AppRouteChildren {
   AppConfiguracionRoute: typeof AppConfiguracionRouteWithChildren
-  AppCuentasRoute: typeof AppCuentasRoute
+  AppCuentasRoute: typeof AppCuentasRouteWithChildren
   AppEntregasRoute: typeof AppEntregasRoute
   AppTrabajosRoute: typeof AppTrabajosRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
@@ -481,7 +531,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppConfiguracionRoute: AppConfiguracionRouteWithChildren,
-  AppCuentasRoute: AppCuentasRoute,
+  AppCuentasRoute: AppCuentasRouteWithChildren,
   AppEntregasRoute: AppEntregasRoute,
   AppTrabajosRoute: AppTrabajosRouteWithChildren,
   AppIndexRoute: AppIndexRoute,

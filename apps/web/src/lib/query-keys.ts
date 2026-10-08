@@ -51,6 +51,12 @@ export const queryKeys = {
   // aparte.
   caseRemakes: (id: string) => ['trabajos', id, 'repeticiones'] as const,
   attachments: (caseId: string) => ['trabajos', caseId, 'adjuntos'] as const,
+  // Bajo su propio prefijo `cuentas` (Iteración 5): las mutaciones de cuentas (pagos, ajustes,
+  // anulación) invalidan `['cuentas']` y `['trabajos']`, porque cambian el estado de los trabajos.
+  accounts: {
+    list: (todas: boolean) => ['cuentas', 'lista', { todas }] as const,
+    clinic: (clinicId: string) => ['cuentas', clinicId] as const,
+  },
 }
 
 /**

@@ -400,13 +400,17 @@ Estado real del código (verificado contra `features` en cada `*-table.tsx`, Tar
 | `clinic-prices-table.tsx` | cliente | ✓ | ✓ | ✓ (buscador) | — | — | — | — | — |
 | `products-table.tsx` | cliente | ✓ | ✓ | ✓ (buscador + columnas) | ✓ | ✓ (por categoría) | ✓ | — | — |
 | `cases-table.tsx` | **servidor** | ✓ | ✓ | — (`CasesFilters`, fuera del grid) | — | — | ✓ | ✓ (`codigo` izq.) | ✓ |
+| `accounts-table.tsx` | cliente | ✓ | ✓ | ✓ (buscador) | — | — | — | — | — |
 
 `stages-table.tsx` no usa ninguna feature de orden/filtro/paginación a propósito: las fases tienen
 un orden manual propio (Subir/Bajar en la tabla, sin drag) que una lista reordenable no debe
 mezclar con orden por columna; su `FEATURES` es un array vacío (`GridFeature[] = []`) y usa
 `renderCard` propio (ver «Tarjetas móviles»). `cases-table.tsx` es la única en modo servidor y la
 única con `resizing`/`pinning`/`urlState`; `products-table.tsx` es la única con `advancedFilter`/
-`grouping`. Ninguna tabla combina `grouping` con `pinning` (ver la nota en la feature `pinning`
+`grouping`. `accounts-table.tsx` («Cuentas», CTA-1) conserva el orden de la API (de mayor a
+menor saldo) mientras nadie ordene, ordena el saldo por centavos con signo (como texto, «-12.34»
+iría antes que «-100.00») y usa `renderCard` propio: toda la tarjeta es el enlace a la cuenta, con
+la pestaña de color de lo más antiguo que se debe. Ninguna tabla combina `grouping` con `pinning` (ver la nota en la feature `pinning`
 más arriba) ni `advancedFilter` con `mode: 'server'` (no tendría efecto).
 
 ## Convenciones y límites conocidos

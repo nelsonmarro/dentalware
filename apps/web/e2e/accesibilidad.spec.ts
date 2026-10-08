@@ -741,6 +741,38 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // CTA-1 (#82): «Cuentas» y la cuenta de una clínica, pantallas nuevas de la Iteración 5. Un
+  // «Saldo inicial» por API pone la clínica en la lista; se busca por su nombre (la BD de E2E
+  // tiene más clínicas con saldo y la lista pagina de 25 en 25).
+  test(
+    'cuentas: buscador, interruptor y tarjeta de la clínica',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic } = await createClinicWithDoctor(page)
+      const res = await page.request.post('/api/cuentas/ajustes', {
+        data: { clinicaId: clinic.id, monto: '150.00', motivo: 'Saldo inicial', fecha: todayIso() },
+      })
+      expect(res.ok()).toBe(true)
+
+      await page.goto('/cuentas')
+      await expect(page.getByRole('heading', { level: 1, name: 'Cuentas' })).toBeVisible()
+      await page.getByLabel('Buscar clínica').fill(clinic.name)
+      const card = page.getByRole('link', { name: new RegExp(clinic.name) })
+      await expect(card).toContainText('$ 150.00')
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true)
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+      await expectTouchTargets(page, TOUCH_SWITCHES, { minHeight: 24 })
+
+      await card.click()
+      await expect(page.getByRole('heading', { level: 1, name: clinic.name })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+    },
+  )
+
   // I-1 (ronda de fixes 1, T12): el criterio de INI-1 ("sin scroll horizontal a 390 px") no
   // tenía test y el inicio no estaba en este barrido. `scrollWidth <= clientWidth` se mide
   // sobre `document.documentElement` (no sobre un contenedor interno como en
