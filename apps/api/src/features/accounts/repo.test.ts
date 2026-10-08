@@ -455,6 +455,53 @@ describe('features/accounts/repo', () => {
   })
 
   describe('escrituras de ajustes (CTA-3)', () => {
+    it('liveAllocationsOf: las asignaciones vigentes del trabajo, con su pago y su fecha', async () => {
+      const a = await insertCase()
+      const b = await insertCase()
+      const vigente = await insertPayment({ amount: '90.00' })
+      const anulado = await insertPayment({
+        amount: '30.00',
+        voidedAt: new Date('2026-10-05T17:00:00Z'),
+        voidedBy: adminId,
+        voidReason: 'Duplicado',
+      })
+      const [va, vb, an] = await ctx.db
+        .insert(ctx.schema.paymentAllocations)
+        .values([
+          { paymentId: vigente.id, caseId: a.id, amount: '40.00', createdBy: recepId },
+          { paymentId: vigente.id, caseId: b.id, amount: '50.00', createdBy: recepId },
+          { paymentId: anulado.id, caseId: a.id, amount: '30.00', createdBy: recepId },
+        ])
+        .returning()
+      const repo = createAccountsRepo(ctx.db)
+      expect(await repo.liveAllocationsOf(a.id)).toEqual([
+        { id: va!.id, paymentId: vigente.id, amountCents: 4_000, createdAt: va!.createdAt },
+      ])
+      expect(await repo.liveAllocationsOf(b.id)).toEqual([
+        { id: vb!.id, paymentId: vigente.id, amountCents: 5_000, createdAt: vb!.createdAt },
+      ])
+      expect(an).toBeDefined()
+    })
+
+    it('shrinkAllocation deja la asignación en el monto pedido y con 0 la borra', async () => {
+      const a = await insertCase()
+      const p = await insertPayment({ amount: '90.00' })
+      const [uno, dos] = await ctx.db
+        .insert(ctx.schema.paymentAllocations)
+        .values([
+          { paymentId: p.id, caseId: a.id, amount: '40.00', createdBy: recepId },
+          { paymentId: p.id, caseId: a.id, amount: '50.00', createdBy: recepId },
+        ])
+        .returning()
+      const repo = createAccountsRepo(ctx.db)
+      await repo.shrinkAllocation(uno!.id, 1_550)
+      await repo.shrinkAllocation(dos!.id, 0)
+      expect(await repo.liveAllocationsOf(a.id)).toEqual([
+        expect.objectContaining({ id: uno!.id, amountCents: 1_550 }),
+      ])
+      expect((await repo.paymentById(p.id))?.allocatedCents).toBe(1_550)
+    })
+
     it('createAdjustment guarda el ajuste con signo y adjustmentById lo lee como adjustments', async () => {
       const c = await insertCase()
       const repo = createAccountsRepo(ctx.db)

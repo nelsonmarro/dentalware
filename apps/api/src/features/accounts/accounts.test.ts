@@ -564,7 +564,15 @@ describe('/api/cuentas', () => {
       aging: Record<string, string>
       oldestDays: number | null
       openCases: { id: string; adjustments: string; outstanding: string }[]
-      movements: { kind: string; amount: string; by: string | null; reason: string | null }[]
+      credit: string
+      movements: {
+        id: string
+        kind: string
+        amount: string
+        by: string | null
+        reason: string | null
+        remaining: string | null
+      }[]
     }
 
     const ajuste = (over: Record<string, unknown> = {}) => ({
@@ -599,6 +607,7 @@ describe('/api/cuentas', () => {
         asignaciones: [{ trabajoId, monto }],
       })
       expect(r.status).toBe(201)
+      return ((await r.json()) as { pago: { id: string } }).pago.id
     }
 
     it('permisos: solo el administrador registra ajustes', async () => {
@@ -623,6 +632,7 @@ describe('/api/cuentas', () => {
         date: '2026-06-30',
         createdAt: expect.any(String),
         by: 'Admin',
+        released: '0.00',
       })
       const d = await detail()
       // 2026-06-30 → 98 días a 2026-10-06.
@@ -720,18 +730,53 @@ describe('/api/cuentas', () => {
       })
     })
 
-    it('un descuento sobre un trabajo pagado entero queda a favor de la clínica', async () => {
-      const c = await deliverCase()
-      await pay(c.id, '45.00')
-      await addAdjustment(ajuste({ trabajoId: c.id, monto: '-5.00', motivo: 'Descuento tardío' }))
-      expect((await caseOf(c.id)).status).toBe('cobrado')
-      expect(await detail()).toMatchObject({
-        balance: '-5.00',
-        credit: '5.00',
-        aging: ZERO,
-        oldestDays: null,
-        openCases: [],
+    it('un descuento sobre un trabajo pagado entero devuelve el exceso al pago, que se aplica a otro trabajo', async () => {
+      const cents = (v: string) => Math.round(Number(v) * 100)
+      /** Cuadre de la decisión 10: saldo = Σ pendientes + Σ ajustes sin trabajo (aquí, 0) − a favor. */
+      const expectBalanced = (d: Detail) =>
+        expect(cents(d.balance)).toBe(
+          d.openCases.reduce((sum, c) => sum + cents(c.outstanding), 0) - cents(d.credit),
+        )
+      const uno = await deliverCase()
+      const p = await pay(uno.id, '45.00')
+
+      const ajustado = await addAdjustment(
+        ajuste({ trabajoId: uno.id, monto: '-5.00', motivo: 'Descuento tardío' }),
+      )
+      expect(ajustado).toMatchObject({ amount: '-5.00', released: '5.00' })
+      expect((await caseOf(uno.id)).status).toBe('cobrado')
+      const after = await detail()
+      expect(after).toMatchObject({ balance: '-5.00', credit: '5.00', openCases: [] })
+      expect(after.movements.find((m) => m.id === p)).toMatchObject({ remaining: '5.00' })
+      expectBalanced(after)
+      const [asignada] = await ctx.db
+        .select()
+        .from(ctx.schema.paymentAllocations)
+        .where(eq(ctx.schema.paymentAllocations.paymentId, p))
+      expect(asignada?.amount).toBe('40.00')
+      expect((await eventsOf(uno.id)).at(-1)).toMatchObject({
+        type: 'adjustment_added',
+        toValue: '-5.00',
+        reason: 'Descuento tardío · Se devolvieron $5.00 al saldo a favor',
       })
+      expect((await eventsOf(uno.id, tecnico)).at(-1)).toMatchObject({
+        type: 'adjustment_added',
+        toValue: null,
+        reason: null,
+      })
+
+      // Otro trabajo con 5.00 pendientes: «Aplicar saldo a favor» de ese pago lo cierra.
+      const dos = await deliverCase()
+      await pay(dos.id, '40.00')
+      const aplicado = await post(`/api/cuentas/pagos/${p}/asignaciones`, recepcion, {
+        asignaciones: [{ trabajoId: dos.id, monto: '5.00' }],
+      })
+      expect(aplicado.status).toBe(201)
+      expect((await caseOf(dos.id)).status).toBe('cobrado')
+      const end = await detail()
+      expect(end).toMatchObject({ balance: '0.00', credit: '0.00', openCases: [] })
+      expect(end.movements.find((m) => m.id === p)).toMatchObject({ remaining: '0.00' })
+      expectBalanced(end)
     })
 
     it('historial por rol: técnico y mensajero ven el ajuste sin monto ni motivo', async () => {

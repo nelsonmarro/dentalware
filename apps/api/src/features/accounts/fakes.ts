@@ -15,7 +15,18 @@ export type FakeCase = Omit<BilledCase, 'adjustmentsCents' | 'allocatedCents'> &
 }
 export type FakeAdjustment = Omit<AdjustmentEntry, 'case'> & { caseId: string | null }
 export type FakePayment = Omit<PaymentEntry, 'allocatedCents'>
-export type FakeAllocation = { paymentId: string; caseId: string; amountCents: number }
+/** Una asignación; sin `id` ni `createdAt`, la fake les da uno (todas con la misma fecha: la
+ * que llega después es la más reciente). */
+export type FakeAllocation = {
+  id?: string
+  paymentId: string
+  caseId: string
+  amountCents: number
+  createdAt?: Date
+}
+type StoredAllocation = FakeAllocation & { id: string; createdAt: Date }
+
+const ALLOCATED_AT = new Date('2026-10-06T17:00:00Z')
 /** Lo que escribe `CaseSettlement`: los eventos de cobro y los `status_changed` de `setPaid`. */
 export type FakeCaseEvent = {
   caseId: string
@@ -34,6 +45,9 @@ type Seed = {
   allocations?: FakeAllocation[]
   /** Nombre de cada usuario por id, para lo que registra el servicio (por omisión, el id). */
   users?: Record<string, string>
+  /** Se llama en cada `lockCases`, antes de devolver los trabajos: simula lo que otra
+   * transacción confirmó entre la lectura y el bloqueo (`push` añade una asignación). */
+  onLockCases?: (push: (a: FakeAllocation) => void) => void
 }
 
 const sum = (list: readonly number[]) => list.reduce((a, b) => a + b, 0)
@@ -50,7 +64,13 @@ export function fakeAccounts(seed: Seed = {}) {
   const cases = (seed.cases ?? []).map((c) => ({ ...c }))
   const adjustments = [...(seed.adjustments ?? [])]
   const payments = (seed.payments ?? []).map((p) => ({ ...p }))
-  const allocations = [...(seed.allocations ?? [])]
+  let nextAllocation = 1
+  const stored = (a: FakeAllocation): StoredAllocation => ({
+    ...a,
+    id: a.id ?? `asig-${nextAllocation++}`,
+    createdAt: a.createdAt ?? ALLOCATED_AT,
+  })
+  const allocations: StoredAllocation[] = (seed.allocations ?? []).map(stored)
   const events: FakeCaseEvent[] = []
   const paidAt = new Map<string, Date | null>()
   const locked: string[][] = []
@@ -172,11 +192,28 @@ export function fakeAccounts(seed: Seed = {}) {
         .map((a) => ({ caseId: a.caseId, amountCents: a.amountCents }))
     },
     async addAllocations(paymentId, list) {
-      for (const a of list) allocations.push({ paymentId, ...a })
+      for (const a of list) allocations.push(stored({ paymentId, ...a }))
     },
     async voidPayment(id, v) {
       const p = payments.find((x) => x.id === id)
       if (p) p.voided = { at: v.at, byName: nameOf(v.by), reason: v.reason }
+    },
+    async liveAllocationsOf(caseId) {
+      calls.push(`liveAllocationsOf:${caseId}`)
+      return allocations
+        .filter((a) => a.caseId === caseId && !isVoided(a.paymentId))
+        .map((a) => ({
+          id: a.id,
+          paymentId: a.paymentId,
+          amountCents: a.amountCents,
+          createdAt: a.createdAt,
+        }))
+    },
+    async shrinkAllocation(id, amountCents) {
+      const i = allocations.findIndex((a) => a.id === id)
+      if (i === -1) return
+      if (amountCents === 0) allocations.splice(i, 1)
+      else allocations[i]!.amountCents = amountCents
     },
   }
 
@@ -184,6 +221,7 @@ export function fakeAccounts(seed: Seed = {}) {
     async lockCases(caseIds) {
       locked.push([...caseIds])
       calls.push(`lockCases:${caseIds.join(',')}`)
+      seed.onLockCases?.((a) => allocations.push(stored(a)))
       return cases
         .filter((c) => caseIds.includes(c.id))
         .map((c) => ({

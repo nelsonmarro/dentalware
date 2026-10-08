@@ -353,7 +353,9 @@ describe('features/accounts/service: pagos (CTA-2)', () => {
         recepcion,
       )
       expect(p).toMatchObject({ id: 'pg', amount: '80.00', allocated: '70.00', credit: '10.00' })
-      expect(fake.allocations).toContainEqual({ paymentId: 'pg', caseId: 'b', amountCents: 5_000 })
+      expect(fake.allocations).toContainEqual(
+        expect.objectContaining({ paymentId: 'pg', caseId: 'b', amountCents: 5_000 }),
+      )
       expect(statusOf(fake, 'b')).toBe('cobrado')
       expect(fake.paidAt.get('b')).toEqual(NOW)
       expect(fake.events).toEqual([

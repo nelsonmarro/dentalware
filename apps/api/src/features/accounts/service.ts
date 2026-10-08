@@ -12,6 +12,7 @@ import {
   isSettled,
   oldestOpenDays,
   PAYMENT_METHOD_LABEL,
+  releaseExcess,
   toCents,
   toIsoDate,
   toSignedCents,
@@ -31,6 +32,7 @@ import type {
 import type { Clock } from '../../lib/clock.ts'
 import type { RequestContext } from '../../lib/request-context.ts'
 import {
+  AccountBusyError,
   AccountForbiddenError,
   AccountInputError,
   ClinicAccountNotFoundError,
@@ -131,7 +133,16 @@ export type AdjustmentView = {
   date: string // YYYY-MM-DD
   createdAt: Date
   by: string
+  /** Lo que el ajuste devolvió a los pagos del trabajo (su saldo a favor): `"0.00"` si nada. */
+  released: string
 }
+
+/** Un pago asignó al trabajo entre que el ajuste leyó sus asignaciones y lo bloqueó: el
+ * ajuste vuelve a empezar (`registerAdjustment`). */
+class LockSetChanged extends Error {}
+
+/** Intentos de un ajuste antes de rendirse con `AccountBusyError` (409). */
+const ADJUSTMENT_ATTEMPTS = 3
 
 type Ledger = { cases: BilledCase[]; adjustments: AdjustmentEntry[]; payments: PaymentEntry[] }
 
@@ -406,6 +417,83 @@ export function createAccountsService(deps: {
     return c
   }
 
+  /**
+   * Bloquea lo que toca un ajuste a un trabajo en el orden de todo `accounts` (pago antes que
+   * trabajo, ADR 35): primero los pagos con asignaciones vigentes al trabajo (en orden de id),
+   * después el trabajo, y vuelve a leer sus asignaciones. Si apareció la de un pago que no
+   * bloqueó (otro pago confirmado entre medio), lanza `LockSetChanged` para empezar de nuevo.
+   */
+  async function lockForAdjustment(r: UowRepos, clinicId: string, caseId: string) {
+    const before = await r.accounts.liveAllocationsOf(caseId)
+    const paymentIds = [...new Set(before.map((a) => a.paymentId))].sort((a, b) =>
+      a < b ? -1 : a > b ? 1 : 0,
+    )
+    for (const id of paymentIds) await r.accounts.lockPayment(id)
+    const locked = await lockAdjustedCase(r, clinicId, caseId)
+    const live = await r.accounts.liveAllocationsOf(caseId)
+    if (live.some((a) => !paymentIds.includes(a.paymentId))) throw new LockSetChanged()
+    return { locked, live }
+  }
+
+  /** El ajuste en una transacción (CTA-3): lo crea y, con trabajo, libera el exceso de lo
+   * asignado (`releaseExcess`), escribe `adjustment_added` y reevalúa `isSettled`. */
+  async function adjust(
+    r: UowRepos,
+    input: AdjustmentInput,
+    ctx: RequestContext,
+  ): Promise<AdjustmentView> {
+    if (!(await r.accounts.clinicById(input.clinicaId))) {
+      throw new AccountInputError('La clínica no existe', 'clinicaId')
+    }
+    const target =
+      input.trabajoId === null ? null : await lockForAdjustment(r, input.clinicaId, input.trabajoId)
+    const amountCents = toSignedCents(input.monto)
+    const { id } = await r.accounts.createAdjustment({
+      clinicId: input.clinicaId,
+      caseId: input.trabajoId,
+      amountCents,
+      reason: input.motivo,
+      date: input.fecha,
+      createdBy: ctx.userId,
+    })
+    let releasedCents = 0
+    if (target) {
+      const c = target.locked
+      // Neto con el ajuste nuevo (decisión 1): si lo asignado lo supera, el exceso vuelve a
+      // los pagos, de la asignación más reciente a la más antigua (Nelson, 2026-10-08).
+      const [totals] = await r.accounts.caseTotals([c.id])
+      const net = caseChargeCents(c) + (totals?.adjustmentsCents ?? 0)
+      for (const p of releaseExcess(net, target.live)) {
+        await r.accounts.shrinkAllocation(p.id, p.leftCents)
+        releasedCents += p.releasedCents
+      }
+      await r.cases.addEvent({
+        caseId: c.id,
+        type: 'adjustment_added',
+        toValue: fromSignedCents(amountCents),
+        reason:
+          releasedCents > 0
+            ? `${input.motivo} · Se devolvieron $${fromCents(releasedCents)} al saldo a favor`
+            : input.motivo,
+        actorId: ctx.userId,
+      })
+      await settle(r, [c], ctx.userId)
+    }
+    const a = await r.accounts.adjustmentById(id)
+    if (!a) throw new Error(`El ajuste ${id} no se pudo leer tras crearlo`)
+    return {
+      id: a.id,
+      clinicId: a.clinicId,
+      case: a.case,
+      amount: fromSignedCents(a.amountCents),
+      reason: a.reason,
+      date: a.date,
+      createdAt: a.createdAt,
+      by: a.createdByName,
+      released: fromCents(releasedCents),
+    }
+  }
+
   async function viewOf(r: UowRepos, paymentId: string): Promise<PaymentView> {
     const p = await r.accounts.paymentById(paymentId)
     if (!p) throw new PaymentNotFoundError()
@@ -606,46 +694,17 @@ export function createAccountsService(deps: {
     async registerAdjustment(input: AdjustmentInput, ctx: RequestContext): Promise<AdjustmentView> {
       assertRole(ACCOUNT_ADMIN_ROLES, ctx)
       assertNotFuture(input.fecha)
-      return deps.uow.run(async (r) => {
-        if (!(await r.accounts.clinicById(input.clinicaId))) {
-          throw new AccountInputError('La clínica no existe', 'clinicaId')
+      // Si un pago asigna al trabajo entre que se leen sus asignaciones y se bloquea, se vuelve
+      // a empezar con ese pago también bloqueado: nunca se bloquea un pago después del trabajo.
+      for (let attempt = 1; ; attempt++) {
+        try {
+          return await deps.uow.run((r) => adjust(r, input, ctx))
+        } catch (e) {
+          if (e instanceof LockSetChanged && attempt < ADJUSTMENT_ATTEMPTS) continue
+          if (e instanceof LockSetChanged) throw new AccountBusyError()
+          throw e
         }
-        const locked =
-          input.trabajoId === null
-            ? []
-            : [await lockAdjustedCase(r, input.clinicaId, input.trabajoId)]
-        const amountCents = toSignedCents(input.monto)
-        const { id } = await r.accounts.createAdjustment({
-          clinicId: input.clinicaId,
-          caseId: input.trabajoId,
-          amountCents,
-          reason: input.motivo,
-          date: input.fecha,
-          createdBy: ctx.userId,
-        })
-        for (const c of locked) {
-          await r.cases.addEvent({
-            caseId: c.id,
-            type: 'adjustment_added',
-            toValue: fromSignedCents(amountCents),
-            reason: input.motivo,
-            actorId: ctx.userId,
-          })
-        }
-        await settle(r, locked, ctx.userId)
-        const a = await r.accounts.adjustmentById(id)
-        if (!a) throw new Error(`El ajuste ${id} no se pudo leer tras crearlo`)
-        return {
-          id: a.id,
-          clinicId: a.clinicId,
-          case: a.case,
-          amount: fromSignedCents(a.amountCents),
-          reason: a.reason,
-          date: a.date,
-          createdAt: a.createdAt,
-          by: a.createdByName,
-        }
-      })
+      }
     },
   }
 }

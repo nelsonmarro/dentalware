@@ -1,4 +1,4 @@
-import { isSettled } from '@dentalware/shared'
+import { caseChargeCents, fromSignedCents, isSettled } from '@dentalware/shared'
 import { describe, expect, it } from 'vitest'
 import { ClinicAccountNotFoundError } from './errors.ts'
 import {
@@ -483,69 +483,126 @@ describe('features/accounts/service', () => {
           if (!isVoided) outstanding.set(c.id, pending - take)
         }
       }
-      // Ajustes después de pagar (CTA-3), de los dos signos: un descuento sobre un trabajo
-      // pagado entero deja su pendiente en negativo, que es saldo a favor de la clínica.
+      // Ajustes después de pagar (CTA-3), de los dos signos. Unos ya escritos, como si vinieran
+      // de antes de liberar el exceso: un descuento sobre un trabajo pagado entero deja su
+      // pendiente en negativo (la defensa: es saldo a favor). Otros se registran con el
+      // servicio, que libera el exceso de lo asignado al pago más reciente.
+      const viaService: { caseId: string; cents: number }[] = []
       for (const c of cases) {
-        if (r(2) !== 0) continue
-        const cents = (r(2) === 0 ? 1 : -1) * (1 + r(5_000))
+        if (r(3) === 0) continue
+        // Más descuentos que recargos: son los que pueden dejar asignado de más.
+        const cents = (r(3) === 0 ? 1 : -1) * (1 + r(5_000))
+        if (r(2) === 0) {
+          viaService.push({ caseId: c.id, cents })
+          continue
+        }
         adjustments.push(makeAdjustment({ id: `ap-${c.id}`, amountCents: cents, caseId: c.id }))
         outstanding.set(c.id, outstanding.get(c.id)! + cents)
       }
       for (const c of cases) c.status = isSettled(outstanding.get(c.id)!) ? 'cobrado' : 'entregado'
-      return { cases, adjustments, payments, allocations, outstanding }
+      return { cases, adjustments, payments, allocations, outstanding, viaService }
+    }
+
+    /** Monta el escenario, registra con el servicio sus ajustes después de pagar y devuelve la
+     * cuenta, el estado final de la fake y cuánto liberaron esos ajustes. */
+    async function run(seed: number) {
+      const { viaService, ...data } = scenario(seed)
+      const fake = fakeAccounts({ clinics: [SUR, NORTE], ...data })
+      const service = createAccountsService({ accounts: fake.repo, uow: fake.uow, clock: CLOCK })
+      let released = 0
+      for (const a of viaService) {
+        const view = await service.registerAdjustment(
+          {
+            clinicaId: SUR.id,
+            trabajoId: a.caseId,
+            monto: fromSignedCents(a.cents),
+            motivo: 'Ajuste',
+            fecha: '2026-10-01',
+          },
+          { userId: 'u-admin', role: 'admin' },
+        )
+        released += cents(view.released)
+      }
+      const account = await service.clinicAccount(SUR.id)
+      const adjustments = await fake.repo.adjustments()
+      const voided = new Set(fake.payments.filter((p) => p.voided).map((p) => p.id))
+      const live = fake.allocations.filter((a) => !voided.has(a.paymentId))
+      const final = fake.cases.map((c) => {
+        const net =
+          caseChargeCents(c) +
+          adjustments.filter((a) => a.case?.id === c.id).reduce((t, a) => t + a.amountCents, 0)
+        const allocated = live
+          .filter((a) => a.caseId === c.id)
+          .reduce((t, a) => t + a.amountCents, 0)
+        return { ...c, net, allocated, outstanding: net - allocated }
+      })
+      return {
+        data,
+        fake,
+        account,
+        adjustments,
+        live,
+        final,
+        released,
+        viaService,
+        seeded: data.outstanding,
+      }
     }
 
     const cents = (s: string) => Math.round(Number(s) * 100)
-    const SEEDS = Array.from({ length: 60 }, (_, i) => i + 1)
+    const SEEDS = Array.from({ length: 100 }, (_, i) => i + 1)
 
-    it('los escenarios incluyen trabajos con pagos y pendiente negativo', () => {
-      const negatives = SEEDS.map((seed) => {
-        const { allocations, outstanding } = scenario(seed)
-        return [...outstanding].filter(
-          ([id, pending]) => pending < 0 && allocations.some((a) => a.caseId === id),
-        ).length
-      })
-      expect(negatives.filter((n) => n > 0).length).toBeGreaterThanOrEqual(10)
+    it('los escenarios incluyen pendientes negativos ya escritos y ajustes que liberan el exceso', async () => {
+      const runs = await Promise.all(SEEDS.map(run))
+      const withSeededNegative = runs.filter(({ seeded, data }) =>
+        [...seeded].some(
+          ([id, pending]) => pending < 0 && data.allocations.some((a) => a.caseId === id),
+        ),
+      )
+      expect(withSeededNegative.length).toBeGreaterThanOrEqual(5)
+      expect(runs.filter((x) => x.released > 0).length).toBeGreaterThanOrEqual(10)
     })
 
     it.each(SEEDS)(
       'escenario %i: saldo = Σ pendientes + Σ ajustes sin trabajo − saldo a favor, y la antigüedad lo reparte',
       async (seed) => {
-        const data = scenario(seed)
-        const account = await makeService(data).clinicAccount(SUR.id)
-        const freeAdjustments = data.adjustments
-          .filter((a) => a.caseId === null)
+        const { fake, account, adjustments, live, final, viaService } = await run(seed)
+        const freeAdjustments = adjustments
+          .filter((a) => a.case === null)
           .reduce((s, a) => s + a.amountCents, 0)
         const pending = account.openCases.reduce((s, c) => s + cents(c.outstanding), 0)
         expect(cents(account.balance)).toBe(pending + freeAdjustments - cents(account.credit))
         // Por saldo = cargos + ajustes − pagos vigentes, calculado aparte.
-        const charges = data.cases.reduce(
-          (s, c) =>
+        const charges = final.reduce((s, c) => s + caseChargeCents(c), 0)
+        const adjusted = adjustments.reduce((s, a) => s + a.amountCents, 0)
+        const vigentes = fake.payments.filter((p) => !p.voided)
+        const paid = vigentes.reduce((s, p) => s + p.amountCents, 0)
+        expect(cents(account.balance)).toBe(charges + adjusted - paid)
+        // Saldo a favor = lo no asignado de los pagos vigentes + los pendientes negativos.
+        const unallocated = vigentes.reduce(
+          (s, p) =>
             s +
-            (c.remakeChargePct === null
-              ? c.totalCents
-              : Math.round((c.totalCents * c.remakeChargePct) / 100)),
+            p.amountCents -
+            live.filter((a) => a.paymentId === p.id).reduce((t, a) => t + a.amountCents, 0),
           0,
         )
-        const adjustments = data.adjustments.reduce((s, a) => s + a.amountCents, 0)
-        const paid = data.payments.filter((p) => !p.voided).reduce((s, p) => s + p.amountCents, 0)
-        expect(cents(account.balance)).toBe(charges + adjustments - paid)
-        // Saldo a favor = lo no asignado de los pagos vigentes + los pendientes negativos.
-        const unallocated = data.payments
-          .filter((p) => !p.voided)
-          .reduce(
-            (s, p) =>
-              s +
-              p.amountCents -
-              data.allocations
-                .filter((a) => a.paymentId === p.id)
-                .reduce((t, a) => t + a.amountCents, 0),
-            0,
-          )
-        const negatives = [...data.outstanding.values()]
-          .filter((v) => v < 0)
-          .reduce((s, v) => s - v, 0)
+        const negatives = final.reduce((s, c) => s + Math.max(0, -c.outstanding), 0)
         expect(cents(account.credit)).toBe(unallocated + negatives)
+        // Ninguna asignación queda en cero o negativa, ni un pago asignado de más.
+        expect(fake.allocations.every((a) => a.amountCents > 0)).toBe(true)
+        for (const p of fake.payments) {
+          const all = fake.allocations.filter((a) => a.paymentId === p.id)
+          expect(all.reduce((t, a) => t + a.amountCents, 0)).toBeLessThanOrEqual(p.amountCents)
+        }
+        // Un trabajo ajustado con el servicio nunca tiene asignado más que su neto.
+        for (const { caseId } of viaService) {
+          const c = final.find((x) => x.id === caseId)!
+          expect(c.allocated).toBeLessThanOrEqual(Math.max(0, c.net))
+        }
+        // El estado de cada trabajo sigue a `isSettled`.
+        for (const c of final) {
+          expect(c.status).toBe(isSettled(c.outstanding) ? 'cobrado' : 'entregado')
+        }
         // «Por cobrar» nunca trae un pendiente que no sea positivo.
         expect(account.openCases.every((c) => cents(c.outstanding) > 0)).toBe(true)
         // La antigüedad reparte el saldo positivo; con saldo negativo, todo en cero.

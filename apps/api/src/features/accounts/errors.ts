@@ -32,3 +32,11 @@ export class AccountForbiddenError extends Error {
     super('Sin permiso')
   }
 }
+
+/** La cuenta cambió varias veces mientras se registraba el ajuste (otros pagos al mismo
+ * trabajo): 409, que se puede reintentar. */
+export class AccountBusyError extends Error {
+  constructor() {
+    super('La cuenta cambió mientras se registraba el ajuste: vuelve a intentarlo')
+  }
+}

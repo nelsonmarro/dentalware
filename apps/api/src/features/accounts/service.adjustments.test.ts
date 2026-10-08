@@ -1,6 +1,6 @@
 import type { AdjustmentInput } from '@dentalware/shared'
 import { describe, expect, it } from 'vitest'
-import { AccountForbiddenError, AccountInputError } from './errors.ts'
+import { AccountBusyError, AccountForbiddenError, AccountInputError } from './errors.ts'
 import { fakeAccounts, type FakeCase } from './fakes.ts'
 import type { ClinicRef } from './ports.ts'
 import { createAccountsService } from './service.ts'
@@ -95,6 +95,7 @@ describe('features/accounts/service: ajustes (CTA-3)', () => {
       date: '2026-06-30',
       createdAt: expect.any(Date),
       by: 'Admin',
+      released: '0.00',
     })
     const account = await fake.service.clinicAccount(SUR.id)
     expect(account.balance).toBe('250.00')
@@ -230,6 +231,222 @@ describe('features/accounts/service: ajustes (CTA-3)', () => {
     )
     expect(statusOf(fake, 'c')).toBe('cobrado')
     expect(fake.events.map((e) => e.type)).toEqual(['adjustment_added'])
+  })
+
+  describe('el exceso de lo asignado vuelve al pago (Nelson, 2026-10-08)', () => {
+    const payment = (id: string, amountCents: number, voided = false) => ({
+      id,
+      clinicId: SUR.id,
+      amountCents,
+      method: 'transferencia' as const,
+      paidOn: '2026-10-02',
+      reference: null,
+      notes: null,
+      createdAt: at('2026-10-02'),
+      createdByName: 'Recepción',
+      voided: voided ? { at: at('2026-10-03'), byName: 'Admin', reason: 'Duplicado' } : null,
+    })
+    const allocation = (paymentId: string, amountCents: number, day: string) => ({
+      paymentId,
+      caseId: 'a',
+      amountCents,
+      createdAt: at(day),
+    })
+    const allocatedBy = (fake: ReturnType<typeof build>, paymentId: string) =>
+      fake.allocations
+        .filter((x) => x.paymentId === paymentId && x.caseId === 'a')
+        .map((x) => x.amountCents)
+
+    /** `a` (100.00) cobrado con dos pagos: 60.00 del 1 de octubre y 40.00 del 3. */
+    const paidTwice = (extra: Parameters<typeof build>[0] = {}) =>
+      build({
+        cases: [makeCase({ id: 'a', status: 'cobrado' })],
+        payments: [payment('p1', 6_000), payment('p2', 4_000)],
+        allocations: [allocation('p1', 6_000, '2026-10-01'), allocation('p2', 4_000, '2026-10-03')],
+        ...extra,
+      })
+
+    it('un descuento sobre un trabajo pagado libera el exceso del pago más reciente', async () => {
+      const fake = paidTwice()
+      const view = await fake.service.registerAdjustment(
+        ajuste({ trabajoId: 'a', monto: '-10.00', motivo: 'Descuento' }),
+        admin,
+      )
+      expect(view.released).toBe('10.00')
+      expect(allocatedBy(fake, 'p2')).toEqual([3_000])
+      expect(allocatedBy(fake, 'p1')).toEqual([6_000])
+      // Lo asignado cubre el neto justo: sigue cobrado, sin pendiente negativo.
+      expect(statusOf(fake, 'a')).toBe('cobrado')
+      expect(fake.events).toEqual([
+        {
+          caseId: 'a',
+          type: 'adjustment_added',
+          fromValue: null,
+          toValue: '-10.00',
+          reason: 'Descuento · Se devolvieron $10.00 al saldo a favor',
+          actorId: 'u-admin',
+        },
+      ])
+      const account = await fake.service.clinicAccount(SUR.id)
+      expect(account).toMatchObject({ balance: '-10.00', credit: '10.00', openCases: [] })
+      expect(account.movements.find((m) => m.id === 'p2')?.remaining).toBe('10.00')
+      expect(account.movements.find((m) => m.id === 'p1')?.remaining).toBe('0.00')
+    })
+
+    it('si el más reciente no alcanza, lo deja en cero (borra la asignación) y sigue con el anterior', async () => {
+      const fake = paidTwice()
+      const view = await fake.service.registerAdjustment(
+        ajuste({ trabajoId: 'a', monto: '-50.00', motivo: 'Nota de crédito' }),
+        admin,
+      )
+      expect(view.released).toBe('50.00')
+      expect(allocatedBy(fake, 'p2')).toEqual([])
+      expect(allocatedBy(fake, 'p1')).toEqual([5_000])
+      expect(statusOf(fake, 'a')).toBe('cobrado')
+    })
+
+    it('un descuento mayor que lo asignado libera solo el exceso y cierra el trabajo', async () => {
+      const fake = build({
+        payments: [payment('p1', 3_000)],
+        allocations: [allocation('p1', 3_000, '2026-10-01')],
+      })
+      // Neto 10.00 con 30.00 asignados: vuelven 20.00 y el pendiente queda en 0.
+      await fake.service.registerAdjustment(
+        ajuste({ trabajoId: 'a', monto: '-90.00', motivo: 'Descuento' }),
+        admin,
+      )
+      expect(allocatedBy(fake, 'p1')).toEqual([1_000])
+      expect(statusOf(fake, 'a')).toBe('cobrado')
+      expect(fake.events.map((e) => [e.type, e.reason])).toEqual([
+        ['adjustment_added', 'Descuento · Se devolvieron $20.00 al saldo a favor'],
+        ['status_changed', null],
+      ])
+      const account = await fake.service.clinicAccount(SUR.id)
+      expect(account.credit).toBe('20.00')
+    })
+
+    it('un descuento mayor que el neto libera todo; el pendiente negativo queda a favor', async () => {
+      const fake = build({
+        cases: [makeCase({ id: 'a', status: 'cobrado' })],
+        payments: [payment('p1', 10_000)],
+        allocations: [allocation('p1', 10_000, '2026-10-01')],
+      })
+      await fake.service.registerAdjustment(
+        ajuste({ trabajoId: 'a', monto: '-120.00', motivo: 'Devolución' }),
+        admin,
+      )
+      expect(allocatedBy(fake, 'p1')).toEqual([])
+      const account = await fake.service.clinicAccount(SUR.id)
+      // 100.00 del pago vuelven a favor y 20.00 de pendiente negativo (defensa).
+      expect(account).toMatchObject({ credit: '120.00', balance: '-120.00', openCases: [] })
+    })
+
+    it('no toca las asignaciones de un pago anulado', async () => {
+      const fake = build({
+        payments: [payment('p1', 5_000), payment('pv', 10_000, true)],
+        allocations: [
+          allocation('p1', 5_000, '2026-10-01'),
+          // Más reciente, pero de un pago anulado: no cuenta ni se libera.
+          allocation('pv', 10_000, '2026-10-04'),
+        ],
+      })
+      await fake.service.registerAdjustment(
+        ajuste({ trabajoId: 'a', monto: '-60.00', motivo: 'Descuento' }),
+        admin,
+      )
+      expect(allocatedBy(fake, 'pv')).toEqual([10_000])
+      expect(allocatedBy(fake, 'p1')).toEqual([4_000])
+    })
+
+    it('un recargo no libera nada y el motivo va solo', async () => {
+      const fake = paidTwice()
+      const view = await fake.service.registerAdjustment(
+        ajuste({ trabajoId: 'a', monto: '5.00', motivo: 'Recargo' }),
+        admin,
+      )
+      expect(view.released).toBe('0.00')
+      expect(fake.events[0]).toMatchObject({ type: 'adjustment_added', reason: 'Recargo' })
+      expect(allocatedBy(fake, 'p1')).toEqual([6_000])
+      expect(allocatedBy(fake, 'p2')).toEqual([4_000])
+    })
+
+    it('bloquea los pagos del trabajo (en orden de id) antes que el trabajo', async () => {
+      const fake = build({
+        cases: [makeCase({ id: 'a', status: 'cobrado' })],
+        payments: [payment('p2', 4_000), payment('p1', 6_000)],
+        allocations: [allocation('p2', 4_000, '2026-10-03'), allocation('p1', 6_000, '2026-10-01')],
+      })
+      await fake.service.registerAdjustment(
+        ajuste({ trabajoId: 'a', monto: '-10.00', motivo: 'Descuento' }),
+        admin,
+      )
+      expect(fake.calls.filter((c) => c.startsWith('lock'))).toEqual([
+        'lockPayment:p1',
+        'lockPayment:p2',
+        'lockCases:a',
+      ])
+    })
+
+    it('si otro pago asigna al trabajo antes de bloquearlo, vuelve a empezar con ese pago bloqueado', async () => {
+      let injected = false
+      const fake = build({
+        cases: [makeCase({ id: 'a', status: 'cobrado' })],
+        payments: [payment('p1', 6_000), payment('p3', 4_000)],
+        allocations: [allocation('p1', 6_000, '2026-10-01')],
+        // Entre leer las asignaciones y bloquear el trabajo, un pago confirma 40.00 más.
+        onLockCases: (push) => {
+          if (injected) return
+          injected = true
+          push(allocation('p3', 4_000, '2026-10-05'))
+        },
+      })
+      await fake.service.registerAdjustment(
+        ajuste({ trabajoId: 'a', monto: '-10.00', motivo: 'Descuento' }),
+        admin,
+      )
+      expect(fake.calls.filter((c) => c.startsWith('lock'))).toEqual([
+        'lockPayment:p1',
+        'lockCases:a',
+        'lockPayment:p1',
+        'lockPayment:p3',
+        'lockCases:a',
+      ])
+      // Se liberó de la asignación más reciente, la del pago que llegó entre medio.
+      expect(allocatedBy(fake, 'p3')).toEqual([3_000])
+      expect(allocatedBy(fake, 'p1')).toEqual([6_000])
+      expect(await fake.repo.adjustments()).toHaveLength(1)
+    })
+  })
+
+  it('si la cuenta cambia en cada intento, se rinde al tercero con AccountBusyError (409)', async () => {
+    const newcomers = ['p3', 'p4', 'p5']
+    const fake = build({
+      cases: [makeCase({ id: 'a', status: 'cobrado' })],
+      payments: newcomers.map((id) => ({
+        id,
+        clinicId: SUR.id,
+        amountCents: 10_000,
+        method: 'efectivo' as const,
+        paidOn: '2026-10-02',
+        reference: null,
+        notes: null,
+        createdAt: at('2026-10-02'),
+        createdByName: 'Recepción',
+        voided: null,
+      })),
+      onLockCases: (push) => {
+        const id = newcomers.shift()
+        if (id) push({ paymentId: id, caseId: 'a', amountCents: 1 })
+      },
+    })
+    await expect(
+      fake.service.registerAdjustment(
+        ajuste({ trabajoId: 'a', monto: '-10.00', motivo: 'Descuento' }),
+        admin,
+      ),
+    ).rejects.toBeInstanceOf(AccountBusyError)
+    expect(fake.calls.filter((c) => c.startsWith('lockCases'))).toHaveLength(3)
+    expect(await fake.repo.adjustments()).toEqual([])
   })
 
   describe('validaciones: 422 con su campo y sin escribir nada', () => {

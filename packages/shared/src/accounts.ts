@@ -85,6 +85,34 @@ export function suggestAllocation(
   return result
 }
 
+/**
+ * Lo que un ajuste libera de las asignaciones de un trabajo (Nelson, 2026-10-08): si lo
+ * asignado supera su neto (p. ej. un descuento sobre un trabajo ya pagado entero), el exceso
+ * vuelve a los pagos, de la asignación más reciente a la más antigua (`createdAt`; a igual
+ * fecha, la que llega después es la más reciente). Ninguna queda en negativo: con el neto en 0
+ * o menos, se libera todo. Devuelve solo las asignaciones que cambian, con lo que liberan y lo
+ * que les queda (0 = se borra). `allocations` son las vigentes (de pagos no anulados).
+ */
+export function releaseExcess(
+  netCents: number,
+  allocations: readonly { id: string; amountCents: number; createdAt: Date }[],
+): { id: string; releasedCents: number; leftCents: number }[] {
+  // Con el neto negativo, el exceso supera lo asignado y se libera todo: ninguna asignación
+  // libera más que su monto.
+  let excess = allocations.reduce((sum, a) => sum + a.amountCents, 0) - netCents
+  const newestFirst = allocations
+    .map((a, i) => ({ a, i }))
+    .sort((x, y) => y.a.createdAt.getTime() - x.a.createdAt.getTime() || y.i - x.i)
+  const result: { id: string; releasedCents: number; leftCents: number }[] = []
+  for (const { a } of newestFirst) {
+    if (excess <= 0) break
+    const released = Math.min(excess, a.amountCents)
+    result.push({ id: a.id, releasedCents: released, leftCents: a.amountCents - released })
+    excess -= released
+  }
+  return result
+}
+
 const DAY_MS = 86_400_000
 
 function utcDay(isoDate: string): number {

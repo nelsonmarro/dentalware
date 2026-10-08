@@ -12,6 +12,7 @@ import {
   oldestOpenDays,
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHODS,
+  releaseExcess,
   suggestAllocation,
 } from './accounts.ts'
 
@@ -160,6 +161,62 @@ describe('suggestAllocation (decisión 8)', () => {
     const copy = open.map((o) => ({ ...o }))
     suggestAllocation(6_000, open)
     expect(open).toEqual(copy)
+  })
+})
+
+describe('releaseExcess (ajuste que deja lo asignado por encima del neto)', () => {
+  const at = (iso: string) => new Date(iso)
+  /** Dos asignaciones a un trabajo: `vieja` (60.00) y `nueva` (40.00), en cualquier orden. */
+  const ALLOCATIONS = [
+    { id: 'vieja', amountCents: 6_000, createdAt: at('2026-10-01T15:00:00Z') },
+    { id: 'nueva', amountCents: 4_000, createdAt: at('2026-10-03T15:00:00Z') },
+  ]
+
+  it('sin exceso no libera nada', () => {
+    expect(releaseExcess(10_000, ALLOCATIONS)).toEqual([])
+    expect(releaseExcess(12_000, ALLOCATIONS)).toEqual([])
+  })
+
+  it('libera el exceso de la asignación más reciente primero', () => {
+    expect(releaseExcess(9_000, ALLOCATIONS)).toEqual([
+      { id: 'nueva', releasedCents: 1_000, leftCents: 3_000 },
+    ])
+  })
+
+  it('el orden de la lista no importa: manda la fecha de la asignación', () => {
+    expect(releaseExcess(9_000, [...ALLOCATIONS].reverse())).toEqual([
+      { id: 'nueva', releasedCents: 1_000, leftCents: 3_000 },
+    ])
+  })
+
+  it('si la más reciente no alcanza, la deja en 0 y sigue con la anterior', () => {
+    expect(releaseExcess(5_000, ALLOCATIONS)).toEqual([
+      { id: 'nueva', releasedCents: 4_000, leftCents: 0 },
+      { id: 'vieja', releasedCents: 1_000, leftCents: 5_000 },
+    ])
+  })
+
+  it('con el neto en 0 o negativo, libera todo lo asignado y nada queda en negativo', () => {
+    const all = [
+      { id: 'nueva', releasedCents: 4_000, leftCents: 0 },
+      { id: 'vieja', releasedCents: 6_000, leftCents: 0 },
+    ]
+    expect(releaseExcess(0, ALLOCATIONS)).toEqual(all)
+    expect(releaseExcess(-2_500, ALLOCATIONS)).toEqual(all)
+  })
+
+  it('sin asignaciones no libera nada', () => {
+    expect(releaseExcess(-1_000, [])).toEqual([])
+  })
+
+  it('a igual fecha, respeta el orden en que llegan (la última es la más reciente)', () => {
+    const same = at('2026-10-01T15:00:00Z')
+    expect(
+      releaseExcess(1_000, [
+        { id: 'a', amountCents: 1_000, createdAt: same },
+        { id: 'b', amountCents: 1_000, createdAt: same },
+      ]),
+    ).toEqual([{ id: 'b', releasedCents: 1_000, leftCents: 0 }])
   })
 })
 

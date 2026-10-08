@@ -309,6 +309,38 @@ export function createAccountsRepo(db: Db | Tx) {
       )
     },
 
+    async liveAllocationsOf(caseId) {
+      const rows = await db
+        .select({
+          id: paymentAllocations.id,
+          paymentId: paymentAllocations.paymentId,
+          amount: paymentAllocations.amount,
+          createdAt: paymentAllocations.createdAt,
+        })
+        .from(paymentAllocations)
+        .innerJoin(payments, eq(payments.id, paymentAllocations.paymentId))
+        .where(and(eq(paymentAllocations.caseId, caseId), isNull(payments.voidedAt)))
+        // Orden estable para el desempate de `releaseExcess` a igual fecha.
+        .orderBy(paymentAllocations.createdAt, paymentAllocations.id)
+      return rows.map((r) => ({
+        id: r.id,
+        paymentId: r.paymentId,
+        amountCents: toCents(r.amount),
+        createdAt: r.createdAt,
+      }))
+    },
+
+    async shrinkAllocation(id, amountCents) {
+      if (amountCents === 0) {
+        await db.delete(paymentAllocations).where(eq(paymentAllocations.id, id))
+        return
+      }
+      await db
+        .update(paymentAllocations)
+        .set({ amount: fromCents(amountCents) })
+        .where(eq(paymentAllocations.id, id))
+    },
+
     async voidPayment(id, v) {
       await db
         .update(payments)

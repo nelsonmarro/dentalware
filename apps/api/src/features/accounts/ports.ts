@@ -90,6 +90,14 @@ export type LockedPayment = {
  * asignaciones de pagos vigentes (decisiones 1, 2 y 4). */
 export type CaseAccountTotals = { caseId: string; adjustmentsCents: number; allocatedCents: number }
 
+/** Una asignación vigente (de un pago no anulado) a un trabajo. */
+export type LiveAllocation = {
+  id: string
+  paymentId: string
+  amountCents: number
+  createdAt: Date
+}
+
 /** Lectura y escritura de las cuentas. Sin `clinicId`, de todas las clínicas (la lista de
  * «Cuentas»). Las escrituras solo se llaman dentro de `AccountsUnitOfWork.run`. */
 export interface AccountsRepository {
@@ -116,6 +124,12 @@ export interface AccountsRepository {
     createdBy: string,
   ): Promise<void>
   voidPayment(id: string, v: { at: Date; by: string; reason: string }): Promise<void>
+  /** Asignaciones vigentes del trabajo (las de pagos anulados no), sin orden garantizado:
+   * `releaseExcess` de shared las ordena por `createdAt`. */
+  liveAllocationsOf(caseId: string): Promise<LiveAllocation[]>
+  /** Deja la asignación en `amountCents` (lo liberado vuelve a su pago como saldo a favor);
+   * con 0, borra la fila (el CHECK `amount > 0` sigue valiendo). */
+  shrinkAllocation(id: string, amountCents: number): Promise<void>
 }
 
 /** Un trabajo bloqueado para cobrarlo, con lo que hace falta para su cargo (decisión 4). */

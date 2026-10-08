@@ -14,6 +14,7 @@ import { validate } from '../../lib/validate.ts'
 import type { AppEnv } from '../auth/session.ts'
 import { ctxFrom, requireAuth, requireRole } from '../auth/session.ts'
 import {
+  AccountBusyError,
   AccountForbiddenError,
   AccountInputError,
   ClinicAccountNotFoundError,
@@ -40,7 +41,9 @@ function toHttp(e: unknown): never {
   if (e instanceof ClinicAccountNotFoundError || e instanceof PaymentNotFoundError) {
     throw new HTTPException(404, { message: 'No encontrado' })
   }
-  if (e instanceof PaymentVoidedError) throw new HTTPException(409, { message: e.message })
+  if (e instanceof PaymentVoidedError || e instanceof AccountBusyError) {
+    throw new HTTPException(409, { message: e.message })
+  }
   if (e instanceof AccountForbiddenError) throw new HTTPException(403, { message: e.message })
   throw e as Error
 }
