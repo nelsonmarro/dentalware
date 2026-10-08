@@ -1,6 +1,6 @@
 import { caseChargeCents, fromSignedCents, isSettled } from '@dentalware/shared'
 import { describe, expect, it } from 'vitest'
-import { ClinicAccountNotFoundError } from './errors.ts'
+import { AccountInputError, ClinicAccountNotFoundError } from './errors.ts'
 import {
   fakeAccounts,
   type FakeAdjustment,
@@ -435,6 +435,8 @@ describe('features/accounts/service', () => {
       const payments: FakePayment[] = []
       const allocations: FakeAllocation[] = []
       const outstanding = new Map<string, number>()
+      /** Neto de cada trabajo antes de pagar: cargo + su ajuste inicial. */
+      const nets = new Map<string, number>()
       for (let i = 0; i < 1 + r(6); i++) {
         const c = makeCase({
           id: `c${i}`,
@@ -456,6 +458,7 @@ describe('features/accounts/service', () => {
           }
         }
         outstanding.set(c.id, pending)
+        nets.set(c.id, pending)
       }
       for (let i = 0; i < r(4); i++) {
         const cents = (r(2) === 0 ? 1 : -1) * (1 + r(5_000))
@@ -493,7 +496,10 @@ describe('features/accounts/service', () => {
         // Más descuentos que recargos: son los que pueden dejar asignado de más.
         const cents = (r(3) === 0 ? 1 : -1) * (1 + r(5_000))
         if (r(2) === 0) {
-          viaService.push({ caseId: c.id, cents })
+          // Por el servicio, la mayoría de los descuentos caben en el neto (y liberan lo
+          // asignado de más); los que lo superan se rechazan con 422.
+          const discount = -(1 + r(nets.get(c.id)! + 1_000))
+          viaService.push({ caseId: c.id, cents: cents > 0 ? cents : discount })
           continue
         }
         adjustments.push(makeAdjustment({ id: `ap-${c.id}`, amountCents: cents, caseId: c.id }))
@@ -510,18 +516,27 @@ describe('features/accounts/service', () => {
       const fake = fakeAccounts({ clinics: [SUR, NORTE], ...data })
       const service = createAccountsService({ accounts: fake.repo, uow: fake.uow, clock: CLOCK })
       let released = 0
+      // Los que dejarían el neto del trabajo por debajo de 0 se rechazan (422 en `monto`) sin
+      // escribir nada; el resto se registra.
+      let rejected = 0
       for (const a of viaService) {
-        const view = await service.registerAdjustment(
-          {
-            clinicaId: SUR.id,
-            trabajoId: a.caseId,
-            monto: fromSignedCents(a.cents),
-            motivo: 'Ajuste',
-            fecha: '2026-10-01',
-          },
-          { userId: 'u-admin', role: 'admin' },
-        )
-        released += cents(view.released)
+        const view = await service
+          .registerAdjustment(
+            {
+              clinicaId: SUR.id,
+              trabajoId: a.caseId,
+              monto: fromSignedCents(a.cents),
+              motivo: 'Ajuste',
+              fecha: '2026-10-01',
+            },
+            { userId: 'u-admin', role: 'admin' },
+          )
+          .catch((e: unknown) => {
+            if (e instanceof AccountInputError && e.path === 'monto') return null
+            throw e
+          })
+        if (view) released += cents(view.released)
+        else rejected += 1
       }
       const account = await service.clinicAccount(SUR.id)
       const adjustments = await fake.repo.adjustments()
@@ -544,6 +559,7 @@ describe('features/accounts/service', () => {
         live,
         final,
         released,
+        rejected,
         viaService,
         seeded: data.outstanding,
       }
@@ -561,6 +577,7 @@ describe('features/accounts/service', () => {
       )
       expect(withSeededNegative.length).toBeGreaterThanOrEqual(5)
       expect(runs.filter((x) => x.released > 0).length).toBeGreaterThanOrEqual(10)
+      expect(runs.filter((x) => x.rejected > 0).length).toBeGreaterThanOrEqual(5)
     })
 
     it.each(SEEDS)(
@@ -594,10 +611,11 @@ describe('features/accounts/service', () => {
           const all = fake.allocations.filter((a) => a.paymentId === p.id)
           expect(all.reduce((t, a) => t + a.amountCents, 0)).toBeLessThanOrEqual(p.amountCents)
         }
-        // Un trabajo ajustado con el servicio nunca tiene asignado más que su neto.
+        // Un trabajo ajustado con el servicio nunca tiene neto negativo ni asignado más que él.
         for (const { caseId } of viaService) {
           const c = final.find((x) => x.id === caseId)!
-          expect(c.allocated).toBeLessThanOrEqual(Math.max(0, c.net))
+          expect(c.net).toBeGreaterThanOrEqual(0)
+          expect(c.allocated).toBeLessThanOrEqual(c.net)
         }
         // El estado de cada trabajo sigue a `isSettled`.
         for (const c of final) {

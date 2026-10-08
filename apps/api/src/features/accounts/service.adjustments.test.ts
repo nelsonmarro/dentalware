@@ -325,20 +325,22 @@ describe('features/accounts/service: ajustes (CTA-3)', () => {
       expect(account.credit).toBe('20.00')
     })
 
-    it('un descuento mayor que el neto libera todo; el pendiente negativo queda a favor', async () => {
+    it('un descuento que deja el neto en 0 libera todo lo asignado', async () => {
       const fake = build({
         cases: [makeCase({ id: 'a', status: 'cobrado' })],
         payments: [payment('p1', 10_000)],
         allocations: [allocation('p1', 10_000, '2026-10-01')],
       })
-      await fake.service.registerAdjustment(
-        ajuste({ trabajoId: 'a', monto: '-120.00', motivo: 'Devolución' }),
+      const view = await fake.service.registerAdjustment(
+        ajuste({ trabajoId: 'a', monto: '-100.00', motivo: 'Devolución' }),
         admin,
       )
+      expect(view.released).toBe('100.00')
       expect(allocatedBy(fake, 'p1')).toEqual([])
+      expect(statusOf(fake, 'a')).toBe('cobrado')
       const account = await fake.service.clinicAccount(SUR.id)
-      // 100.00 del pago vuelven a favor y 20.00 de pendiente negativo (defensa).
-      expect(account).toMatchObject({ credit: '120.00', balance: '-120.00', openCases: [] })
+      // Los 100.00 del pago vuelven a favor; el trabajo no deja pendiente negativo.
+      expect(account).toMatchObject({ credit: '100.00', balance: '-100.00', openCases: [] })
     })
 
     it('no toca las asignaciones de un pago anulado', async () => {
@@ -469,6 +471,58 @@ describe('features/accounts/service: ajustes (CTA-3)', () => {
       expect(error).toMatchObject({ path, message })
       expect(await fake.repo.adjustments()).toEqual([])
       expect(fake.events).toEqual([])
+    })
+  })
+
+  describe('un ajuste no deja el neto del trabajo por debajo de 0 (ruling de la Tarea 5)', () => {
+    const MESSAGE = 'El descuento supera lo que vale el trabajo; regístralo sin trabajo'
+
+    it('un descuento mayor que el cargo da 422 en monto sin escribir nada; hasta el cargo vale', async () => {
+      const fake = build()
+      const error = await fake.service
+        .registerAdjustment(
+          ajuste({ trabajoId: 'a', monto: '-100.01', motivo: 'Descuento' }),
+          admin,
+        )
+        .catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(AccountInputError)
+      expect(error).toMatchObject({ path: 'monto', message: MESSAGE })
+      expect(await fake.repo.adjustments()).toEqual([])
+      expect(fake.events).toEqual([])
+      expect(statusOf(fake, 'a')).toBe('entregado')
+
+      await fake.service.registerAdjustment(
+        ajuste({ trabajoId: 'a', monto: '-100.00', motivo: 'Descuento' }),
+        admin,
+      )
+      expect(statusOf(fake, 'a')).toBe('cobrado')
+    })
+
+    it('cuenta los ajustes que el trabajo ya tiene y el porcentaje de una repetición', async () => {
+      const fake = build({
+        cases: [
+          makeCase({ id: 'a' }),
+          makeCase({ id: 'r', totalCents: 10_000, remakeChargePct: 50 }),
+        ],
+      })
+      await fake.service.registerAdjustment(
+        ajuste({ trabajoId: 'a', monto: '-60.00', motivo: 'Descuento' }),
+        admin,
+      )
+      await expect(
+        fake.service.registerAdjustment(
+          ajuste({ trabajoId: 'a', monto: '-40.01', motivo: 'Otro descuento' }),
+          admin,
+        ),
+      ).rejects.toMatchObject({ path: 'monto', message: MESSAGE })
+      // Repetición al 50 %: su cargo es 50.00, no 100.00.
+      await expect(
+        fake.service.registerAdjustment(
+          ajuste({ trabajoId: 'r', monto: '-50.01', motivo: 'Descuento' }),
+          admin,
+        ),
+      ).rejects.toMatchObject({ path: 'monto', message: MESSAGE })
+      expect(await fake.repo.adjustments()).toHaveLength(1)
     })
   })
 

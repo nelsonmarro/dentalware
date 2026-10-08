@@ -688,6 +688,32 @@ describe('/api/cuentas', () => {
       expect(await ctx.db.select().from(ctx.schema.accountAdjustments)).toEqual([])
     })
 
+    it('un descuento que deja el neto del trabajo por debajo de 0 da 422 en monto; hasta el cargo vale', async () => {
+      const c = await deliverCase()
+      expect(c.total).toBe('45.00')
+      const r = await post(
+        '/api/cuentas/ajustes',
+        admin,
+        ajuste({ trabajoId: c.id, monto: '-45.01', motivo: 'Descuento' }),
+      )
+      expect(r.status).toBe(422)
+      expect(await r.json()).toEqual({
+        message: 'Datos inválidos',
+        issues: [
+          {
+            path: 'monto',
+            message: 'El descuento supera lo que vale el trabajo; regístralo sin trabajo',
+          },
+        ],
+      })
+      expect(await ctx.db.select().from(ctx.schema.accountAdjustments)).toEqual([])
+      expect((await caseOf(c.id)).status).toBe('entregado')
+
+      await addAdjustment(ajuste({ trabajoId: c.id, monto: '-45.00', motivo: 'Cortesía' }))
+      expect((await caseOf(c.id)).status).toBe('cobrado')
+      expect(await detail()).toMatchObject({ balance: '0.00', credit: '0.00', openCases: [] })
+    })
+
     it('un descuento que cubre lo pendiente cierra el trabajo y un recargo lo reabre', async () => {
       const c = await deliverCase()
       await pay(c.id, '40.00')

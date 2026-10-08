@@ -141,6 +141,9 @@ export type AdjustmentView = {
  * ajuste vuelve a empezar (`registerAdjustment`). */
 class LockSetChanged extends Error {}
 
+/** 422 en `monto` de un ajuste que dejaría el neto de su trabajo por debajo de 0. */
+const DISCOUNT_EXCEEDS_CASE = 'El descuento supera lo que vale el trabajo; regístralo sin trabajo'
+
 /** Intentos de un ajuste antes de rendirse con `AccountBusyError` (409). */
 const ADJUSTMENT_ATTEMPTS = 3
 
@@ -448,6 +451,13 @@ export function createAccountsService(deps: {
     const target =
       input.trabajoId === null ? null : await lockForAdjustment(r, input.clinicaId, input.trabajoId)
     const amountCents = toSignedCents(input.monto)
+    if (target) {
+      // Un ajuste ligado no deja el neto del trabajo (cargo + Σ ajustes) por debajo de 0: lo
+      // que la clínica no debe por ningún trabajo es un ajuste sin trabajo (ruling, Tarea 5).
+      const [totals] = await r.accounts.caseTotals([target.locked.id])
+      const net = caseChargeCents(target.locked) + (totals?.adjustmentsCents ?? 0) + amountCents
+      if (net < 0) throw new AccountInputError(DISCOUNT_EXCEEDS_CASE, 'monto')
+    }
     const { id } = await r.accounts.createAdjustment({
       clinicId: input.clinicaId,
       caseId: input.trabajoId,
@@ -686,7 +696,8 @@ export function createAccountsService(deps: {
 
     /**
      * Registra un ajuste (CTA-3; solo admin, con motivo). Con trabajo, lo bloquea, valida que
-     * sea de la clínica y esté `entregado` o `cobrado` (422 en `trabajoId`), escribe
+     * sea de la clínica y esté `entregado` o `cobrado` (422 en `trabajoId`) y que no deje su
+     * neto por debajo de 0 (422 en `monto`), escribe
      * `adjustment_added` y reevalúa `isSettled` (decisiones 1 y 5): un descuento puede cerrarlo
      * y un recargo reabrir uno cobrado. Sin trabajo («Saldo inicial»), solo mueve el saldo de
      * la clínica y entra en la antigüedad por su fecha.
