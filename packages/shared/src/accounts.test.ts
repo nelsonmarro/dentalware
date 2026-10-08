@@ -4,6 +4,7 @@ import {
   ACCOUNT_MOVEMENT_KINDS,
   AGING_BUCKET_LABEL,
   AGING_BUCKETS,
+  agingBucketForDays,
   agingBuckets,
   BILLED_STATUSES,
   caseChargeCents,
@@ -388,5 +389,18 @@ describe('oldestOpenDays (CTA-1: cuántos días tiene vencido)', () => {
         credits: [],
       }),
     ).toBe(0)
+  })
+})
+
+describe('agingBucketForDays (CTA-1: en qué cubo cae lo más antiguo)', () => {
+  it('cada cubo en sus bordes', () => {
+    expect(agingBucketForDays(0)).toBe('0_30')
+    expect(agingBucketForDays(30)).toBe('0_30')
+    expect(agingBucketForDays(31)).toBe('31_60')
+    expect(agingBucketForDays(60)).toBe('31_60')
+    expect(agingBucketForDays(61)).toBe('61_90')
+    expect(agingBucketForDays(90)).toBe('61_90')
+    expect(agingBucketForDays(91)).toBe('90_mas')
+    expect(agingBucketForDays(400)).toBe('90_mas')
   })
 })

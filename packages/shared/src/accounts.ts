@@ -145,7 +145,9 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((utcDay(to) - utcDay(from)) / DAY_MS)
 }
 
-function bucketFor(days: number): AgingBucket {
+/** Cubo de antigüedad de una partida con `days` días (decisión 9). La web lo usa para la
+ * pestaña de color de la cuenta según lo más antiguo que se debe (CTA-1). */
+export function agingBucketForDays(days: number): AgingBucket {
   if (days <= 30) return '0_30'
   if (days <= 60) return '31_60'
   if (days <= 90) return '61_90'
@@ -185,7 +187,7 @@ function openCharges(input: AgingInput): { date: string; cents: number }[] {
 export function agingBuckets(input: AgingInput): Record<AgingBucket, number> {
   const buckets: Record<AgingBucket, number> = { '0_30': 0, '31_60': 0, '61_90': 0, '90_mas': 0 }
   for (const charge of openCharges(input)) {
-    buckets[bucketFor(daysBetween(charge.date, input.today))] += charge.cents
+    buckets[agingBucketForDays(daysBetween(charge.date, input.today))] += charge.cents
   }
   return buckets
 }
