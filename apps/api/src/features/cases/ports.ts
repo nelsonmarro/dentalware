@@ -107,6 +107,8 @@ export type CaseTransitionPatch = {
   finishedAt?: Date | null
   shippedAt?: Date | null
   deliveredAt?: Date | null
+  /** Cobrado al entregarlo, sin nada que cobrar (Iteración 5, decisión 5). */
+  paidAt?: Date | null
 }
 
 /** Estado con el que nace un trabajo: `nuevo`, o `por_recoger` si se programó su recogida

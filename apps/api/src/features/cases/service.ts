@@ -4,6 +4,8 @@ import {
   applyAction,
   ASSIGN_TECHNICIAN_ROLES,
   canActOnDelivery,
+  caseChargeCents,
+  caseOutstandingCents,
   canAssignTechnician,
   canChangeStage,
   canPerform,
@@ -17,6 +19,7 @@ import {
   hasRole,
   hidesPrices,
   isLastStage,
+  isSettled,
   missingForAccept,
   notReassignableMessage,
   nextStage,
@@ -25,6 +28,7 @@ import {
   STAGE_CHANGE_BLOCKED_REASON,
   STAGE_MOVE_BLOCKED_REASON,
   STAGE_CHANGE_ROLES,
+  toCents,
   toIsoDate,
   type AssignTechnicianInput,
   type CaseActionInput,
@@ -148,6 +152,18 @@ const EVENT_TYPE_FOR_ACTION: Record<CaseActionInput['accion'], CaseEventType> = 
  * mitad de una fase desactivada. */
 function stagePositionKnown(activeStages: readonly StageRef[], currentStageId: string | null) {
   return currentStageId !== null && activeStages.some((s) => s.id === currentStageId)
+}
+
+/** ¿No hay nada que cobrar por el trabajo al entregarlo? (decisión 5 de la Iteración 5: una
+ * repetición al 0 % o un trabajo que vale 0). Mismas reglas de shared que `accounts`. Al
+ * entregarlo aún no tiene ajustes ni asignaciones, que solo se registran sobre trabajos ya
+ * entregados: su pendiente es su cargo. */
+function settledOnDelivery(c: Pick<CaseDetail, 'total' | 'remakeChargePct'>): boolean {
+  const charge = caseChargeCents({
+    totalCents: toCents(c.total),
+    remakeChargePct: c.remakeChargePct === null ? null : Number(c.remakeChargePct),
+  })
+  return isSettled(caseOutstandingCents(charge, 0, 0))
 }
 
 /** Cierra la entrega con su constancia. Si la constancia se borró después de validarla (recepción
@@ -427,6 +443,10 @@ export function createCasesService(deps: {
             }
             patch.deliveredAt = now
             event.toValue = constanciaId
+            if (settledOnDelivery(found)) {
+              patch.status = 'cobrado'
+              patch.paidAt = now
+            }
             break
           }
           case 'cancelar': {
@@ -460,6 +480,17 @@ export function createCasesService(deps: {
           ...event,
           actorId: ctx.userId,
         })
+        // Entregado y cobrado en el mismo paso: el historial dice las dos cosas, en ese orden,
+        // como cuando `accounts` lo cobra después (`status_changed` de entregado a cobrado).
+        if (result.status !== patch.status) {
+          await cases.addEvent({
+            caseId: id,
+            type: 'status_changed',
+            fromValue: result.status,
+            toValue: patch.status,
+            actorId: ctx.userId,
+          })
+        }
       })
       const updated = await mustGet(id)
       return hidesPrices(ctx.role) ? stripPrices(updated) : updated

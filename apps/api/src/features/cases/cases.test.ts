@@ -1675,6 +1675,61 @@ describe('/api/trabajos', () => {
     }
   }
 
+  describe('marcar entregado sin nada que cobrar (decisión 5 de la Iteración 5)', () => {
+    type Ficha = {
+      case: {
+        status: string
+        deliveredAt: string | null
+        paidAt: string | null
+      }
+    }
+    type Evento = { type: string; fromValue: string | null; toValue: string | null }
+    const ficha = async (id: string) =>
+      (await (await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))).json()) as Ficha
+    const eventos = async (id: string) =>
+      (
+        (await (await app.request(`/api/trabajos/${id}/eventos`, req(admin, 'GET'))).json()) as {
+          events: Evento[]
+        }
+      ).events
+
+    async function repeticionEntregada(cobroPct: number) {
+      const { id } = await crearTrabajoEntregado()
+      const res = await app.request(
+        `/api/trabajos/${id}/repetir`,
+        req(admin, 'POST', remakeBody({ cobroPct })),
+      )
+      expect(res.status).toBe(201)
+      const { case: hijo } = (await res.json()) as { case: { id: string } }
+      await avanzarAEntregado(hijo.id)
+      return hijo.id
+    }
+
+    it('una repetición al 0 % queda cobrada al entregarla, con delivered_at, paid_at y sus dos eventos', async () => {
+      const id = await repeticionEntregada(0)
+      const { case: c } = await ficha(id)
+      expect(c.status).toBe('cobrado')
+      expect(c.deliveredAt).not.toBeNull()
+      expect(c.paidAt).toBe(c.deliveredAt)
+      expect((await eventos(id)).slice(-2)).toEqual([
+        expect.objectContaining({ type: 'delivered', fromValue: 'enviado' }),
+        expect.objectContaining({
+          type: 'status_changed',
+          fromValue: 'entregado',
+          toValue: 'cobrado',
+        }),
+      ])
+    })
+
+    it('un trabajo normal y una repetición al 50 % quedan entregados, sin paid_at', async () => {
+      const { id } = await crearTrabajoEntregado()
+      expect((await ficha(id)).case).toMatchObject({ status: 'entregado', paidAt: null })
+      const mitad = await repeticionEntregada(50)
+      expect((await ficha(mitad)).case).toMatchObject({ status: 'entregado', paidAt: null })
+      expect((await eventos(mitad)).at(-1)).toMatchObject({ type: 'delivered' })
+    })
+  })
+
   describe('POST /api/trabajos/:id/repetir', () => {
     it('repite un trabajo entregado (201): código nuevo, hijo enlazado al padre y líneas copiadas', async () => {
       const { id } = await crearTrabajoEntregado()

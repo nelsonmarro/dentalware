@@ -1322,6 +1322,8 @@ describe('envío y entrega', () => {
     const c = await service.action('1', entregar('a1'), mensajero)
     expect(c.status).toBe('entregado')
     expect(c.deliveredAt).toEqual(new Date('2026-10-03T12:00:00Z'))
+    // Con algo que cobrar, no se cobra al entregar.
+    expect(c.paidAt).toBeNull()
     expect(c.total).toBeNull()
     expect(deliveries.rows.get('d1')).toMatchObject({
       status: 'hecha',
@@ -1334,6 +1336,54 @@ describe('envío y entrega', () => {
       fromValue: 'enviado',
       toValue: 'a1',
       actorId: 'u3',
+    })
+  })
+
+  describe('sin nada que cobrar, queda cobrado al entregarlo (decisión 5 de la Iteración 5)', () => {
+    const NOW = new Date('2026-10-03T12:00:00Z')
+    const enviadoCon = (over: Partial<CaseDetail>) =>
+      servicioConEntrega(completo({ id: '1', status: 'enviado', total: '90.00', ...over }), {
+        deliveries: fakeDeliveryLog([entregaDeMario]),
+      })
+
+    it('una repetición al 0 %: cobrado con delivered_at y paid_at, y los eventos delivered y status_changed en ese orden', async () => {
+      const { service, rows, deliveries } = enviadoCon({
+        parentCaseId: 'p',
+        remakeChargePct: '0.00',
+      })
+      const c = await service.action('1', entregar('a1'), mensajero)
+      expect(c.status).toBe('cobrado')
+      expect(rows.get('1')).toMatchObject({ status: 'cobrado', deliveredAt: NOW, paidAt: NOW })
+      expect(deliveries.rows.get('d1')).toMatchObject({ status: 'hecha', proofAttachmentId: 'a1' })
+      const eventos = await service.events('1', admin)
+      expect(eventos.slice(-2)).toEqual([
+        expect.objectContaining({
+          type: 'delivered',
+          fromValue: 'enviado',
+          toValue: 'a1',
+          actorId: 'u3',
+        }),
+        expect.objectContaining({
+          type: 'status_changed',
+          fromValue: 'entregado',
+          toValue: 'cobrado',
+          reason: null,
+          actorId: 'u3',
+        }),
+      ])
+    })
+
+    it('un trabajo que vale 0.00 también queda cobrado', async () => {
+      const { service } = enviadoCon({ total: '0.00' })
+      const c = await service.action('1', entregar('a1'), admin)
+      expect(c).toMatchObject({ status: 'cobrado', paidAt: NOW })
+    })
+
+    it('una repetición al 50 % queda entregada, sin paid_at ni status_changed', async () => {
+      const { service } = enviadoCon({ parentCaseId: 'p', remakeChargePct: '50.00' })
+      const c = await service.action('1', entregar('a1'), admin)
+      expect(c).toMatchObject({ status: 'entregado', paidAt: null })
+      expect((await service.events('1', admin)).at(-1)).toMatchObject({ type: 'delivered' })
     })
   })
 
