@@ -100,15 +100,19 @@ export function useEvents(id: string) {
  * (no `void invalidate()`) para que `isPending` — el único indicador de "ocupado" que
  * expone este hook — siga en `true` mientras el detalle todavía está refetcheando: sin
  * esto, un botón de acción se rehabilita con el estado viejo todavía en pantalla y un
- * segundo clic duplica la mutación (M-3, revisión de la Tarea 8). */
+ * segundo clic duplica la mutación (M-3, revisión de la Tarea 8).
+ *
+ * También invalida `['cuentas']` (Iteración 5): «Marcar entregado» carga el trabajo a la cuenta
+ * de su clínica, y la lista de «Cuentas» o la cuenta abiertas deben mostrar el saldo nuevo. */
 export function useCaseAction(id: string) {
+  const qc = useQueryClient()
   const invalidate = useInvalidateCases()
   const onError = useConflictAwareError()
   return useMutation({
     mutationKey: mutationKeys.caseAction(id),
     mutationFn: (input: CaseActionInput) => postCaseAction(id, input),
     onSuccess: async (_updated, input) => {
-      await invalidate()
+      await Promise.all([invalidate(), qc.invalidateQueries({ queryKey: ['cuentas'] })])
       toast.success(CASE_ACTION_DONE[input.accion])
     },
     onError,

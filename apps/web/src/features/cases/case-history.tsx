@@ -3,6 +3,8 @@ import {
   CASE_STATUSES,
   DELIVERY_FAILED_LABEL,
   DELIVERY_TYPES,
+  fromCents,
+  toSignedCents,
   type CaseEventType,
   type CaseStatus,
   type DeliveryType,
@@ -35,6 +37,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { Stage } from '@/features/stages/api'
+import { formatMoney } from '@/lib/format-money'
 import type { CaseDetail, CaseEvent } from './api'
 import { attachmentUrl } from './attachments-api'
 import { formatDate } from './date-format'
@@ -224,6 +227,33 @@ function EventDetail({
           {e.reason && <p className="text-sm text-muted-foreground">Motivo: {e.reason}</p>}
         </>
       )
+    // Iteración 5 (M-4): monto y motivo de los eventos de cobro. A técnico y mensajero les
+    // llegan sin valores (`maskPriceEvents`), así que no se pinta nada más que el rótulo.
+    case 'payment_applied':
+      return e.toValue ? (
+        <p className="text-sm text-muted-foreground">
+          <span className="font-mono">{formatMoney(e.toValue)}</span>
+          {e.reason && ` · ${e.reason}`}
+        </p>
+      ) : null
+    case 'payment_voided':
+      return e.toValue ? (
+        <p className="text-sm text-muted-foreground">
+          Se devolvieron <span className="font-mono">{formatMoney(e.toValue)}</span>
+          {e.reason && ` · Motivo: ${e.reason}`}
+        </p>
+      ) : null
+    case 'adjustment_added': {
+      if (!e.toValue) return null
+      const cents = toSignedCents(e.toValue)
+      return (
+        <p className="text-sm text-muted-foreground">
+          {cents < 0 ? 'Descuento de ' : 'Recargo de '}
+          <span className="font-mono">{formatMoney(fromCents(Math.abs(cents)))}</span>
+          {e.reason && ` · Motivo: ${e.reason}`}
+        </p>
+      )
+    }
     default:
       return null
   }

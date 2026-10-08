@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { CaseAccountLine } from '@/features/accounts/case-account-line'
 import { formatMoney } from '@/lib/format-money'
 import type { CaseDetail, CaseEvent } from './api'
 import { formatDate, formatTimestampDate } from './date-format'
@@ -126,6 +127,17 @@ export function CaseHeader({
             />
           )}
         </div>
+
+        {/* Iteración 5: cuánto falta por cobrar de este trabajo, o cuándo se cobró. */}
+        {c.clinic && (
+          <CaseAccountLine
+            account={c.account}
+            clinicId={c.clinic.id}
+            total={c.total}
+            remakeChargePct={c.remakeChargePct}
+            role={role}
+          />
+        )}
 
         {c.status === 'en_espera' && (
           <p className="rounded-lg border border-[color:var(--wax-amber)]/40 bg-[color:var(--wax-amber)]/10 px-3 py-2 text-sm text-[color:var(--wax-amber-ink)]">
