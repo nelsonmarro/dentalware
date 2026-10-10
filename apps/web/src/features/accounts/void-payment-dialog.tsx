@@ -9,7 +9,6 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import { QueuedNotice } from '@/features/cases/queued-notice'
 import { ApiError, toastApiError } from '@/lib/api-error'
-import { applyIssues } from './allocation'
 import { paymentContext, type PaymentRef } from './payment-context'
 import { useAccountBusy } from './use-account-busy'
 import { useVoidPayment } from './use-void-payment'
@@ -57,11 +56,11 @@ export function VoidPaymentDialog({
           if (!(err instanceof ApiError)) return
           if (err.status === 409) onOpenChange(false)
           if (err.status !== 422) return
-          // El 422 no se traga (M4): en el motivo, bajo el campo; si no tiene campo, un aviso.
-          const unmapped = applyIssues(err.issues, [], ['motivo'], (_field, message) =>
-            setError('motivo', { type: 'server', message }),
-          )
-          if (unmapped) toastApiError(err)
+          // El 422 no se traga (M4): el de `motivo`, bajo el campo, y cualquier otro (o ninguno),
+          // en un aviso; nunca bajo «Motivo» algo que no es suyo (UX5-20).
+          const motivo = err.issues.find((issue) => issue.path === 'motivo')
+          if (motivo) setError('motivo', { type: 'server', message: motivo.message })
+          if (!motivo || err.issues.some((issue) => issue.path !== 'motivo')) toastApiError(err)
         },
       },
     )

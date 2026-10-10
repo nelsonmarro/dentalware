@@ -136,4 +136,34 @@ describe('VoidPaymentDialog («Anular pago», CTA-2)', () => {
     await user.click(screen.getByRole('button', { name: 'Anular pago' }))
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Datos inválidos'))
   })
+
+  // UX5-20: solo el issue de `motivo` va bajo el campo. Uno de otro campo (p. ej. de un reparto,
+  // que este formulario no tiene) no se pinta bajo «Motivo»: va al aviso.
+  it('un 422 que no es del motivo no se pinta bajo «Motivo»: avisa con un toast', async () => {
+    vi.mocked(voidPayment).mockRejectedValue(
+      new ApiError('Datos inválidos', 422, [
+        { path: 'asignaciones', message: 'Lo aplicado no puede superar el pago' },
+      ]),
+    )
+    const { user } = renderDialog()
+    await user.type(screen.getByLabelText('Motivo'), 'Duplicado')
+    await user.click(screen.getByRole('button', { name: 'Anular pago' }))
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Datos inválidos'))
+    expect(screen.queryByText('Lo aplicado no puede superar el pago')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Motivo')).not.toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('un 422 con el motivo y otro campo pinta el motivo y avisa del resto', async () => {
+    vi.mocked(voidPayment).mockRejectedValue(
+      new ApiError('Datos inválidos', 422, [
+        { path: 'motivo', message: 'Máximo 500 caracteres' },
+        { path: 'id', message: 'Identificador inválido' },
+      ]),
+    )
+    const { user } = renderDialog()
+    await user.type(screen.getByLabelText('Motivo'), 'Duplicado')
+    await user.click(screen.getByRole('button', { name: 'Anular pago' }))
+    expect(await screen.findByText('Máximo 500 caracteres')).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledWith('Datos inválidos')
+  })
 })
