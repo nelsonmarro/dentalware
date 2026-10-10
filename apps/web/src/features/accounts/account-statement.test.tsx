@@ -89,6 +89,13 @@ const statement = (over: Partial<Statement> = {}) =>
         days: 0,
       },
     ],
+    breakdown: {
+      openCases: '25.00',
+      unlinkedAdjustments: '150.00',
+      unlinkedSince: '2026-06-30',
+      credit: '10.00',
+      balance: '165.00',
+    },
     ...over,
   }) as unknown as Statement
 
@@ -200,6 +207,36 @@ describe('AccountStatement (estado de cuenta imprimible, CTA-5)', () => {
     expect(row?.textContent).toContain('Ana Ruiz')
     expect(row?.textContent).toContain('0 días')
     expect(within(row!).getByText('$ 25.00')).toHaveClass('font-mono')
+  })
+
+  it('«Por cobrar» cierra con el desglose del saldo final (UX5-02)', async () => {
+    renderStatement()
+    const section = await screen.findByRole('region', { name: 'Por cobrar al 06/10/2026' })
+    const desglose = within(section).getByLabelText('Desglose del saldo')
+    expect(desglose).toHaveTextContent('Trabajos$ 25.00')
+    expect(desglose).toHaveTextContent(
+      'Saldo inicial y ajustes sin trabajo(desde el 30/06/2026)$ 150.00',
+    )
+    expect(desglose).toHaveTextContent('Saldo a favor− $ 10.00')
+    expect(desglose).toHaveTextContent('Saldo$ 165.00')
+  })
+
+  it('sin trabajos por cobrar, el desglose sigue diciendo el saldo inicial', async () => {
+    renderStatement(
+      statement({
+        openCases: [],
+        breakdown: {
+          openCases: '0.00',
+          unlinkedAdjustments: '150.00',
+          unlinkedSince: '2026-06-30',
+          credit: '0.00',
+          balance: '150.00',
+        },
+      } as Partial<Statement>),
+    )
+    const section = await screen.findByRole('region', { name: 'Por cobrar al 06/10/2026' })
+    expect(section).toHaveTextContent('Nada por cobrar al 06/10/2026.')
+    expect(within(section).getByLabelText('Desglose del saldo')).toHaveTextContent('Saldo$ 150.00')
   })
 
   it('sin movimientos ni nada por cobrar, lo dice', async () => {

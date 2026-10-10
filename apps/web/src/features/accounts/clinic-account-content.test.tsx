@@ -17,6 +17,13 @@ const account = (balance: string, extra: Partial<ClinicAccount> = {}) =>
     aging: zero,
     oldestDays: null,
     openCases: [],
+    breakdown: {
+      openCases: '0.00',
+      unlinkedAdjustments: '0.00',
+      unlinkedSince: null,
+      credit: '0.00',
+      balance,
+    },
     movements: [],
     ...extra,
   }) as unknown as ClinicAccount
@@ -56,6 +63,13 @@ const FULL = account('70.00', {
       days: 37,
     },
   ] as unknown as ClinicAccount['openCases'],
+  breakdown: {
+    openCases: '90.00',
+    unlinkedAdjustments: '10.00',
+    unlinkedSince: '2026-09-02',
+    credit: '20.00',
+    balance: '70.00',
+  },
   movements: [
     movement({
       id: 'p-anulado',
@@ -167,6 +181,46 @@ describe('ClinicAccountContent', () => {
       'href',
       `/trabajos/${T1}`,
     )
+  })
+
+  it('«Por cobrar» cierra con el desglose del saldo que da la API (UX5-02)', async () => {
+    vi.mocked(fetchClinicAccount).mockResolvedValue(FULL)
+    renderWithQueryAndRouter(<ClinicAccountContent clinicId="c1" role="recepcion" />)
+    const panel = await screen.findByRole('tabpanel', { name: 'Por cobrar (1)' })
+    const desglose = within(panel).getByLabelText('Desglose del saldo')
+    expect(desglose).toHaveTextContent('Trabajos$ 90.00')
+    expect(desglose).toHaveTextContent(
+      'Saldo inicial y ajustes sin trabajo(desde el 02/09/2026)$ 10.00',
+    )
+    expect(desglose).toHaveTextContent('Saldo a favor− $ 20.00')
+    expect(desglose).toHaveTextContent('Saldo$ 70.00')
+  })
+
+  it('sin trabajos por cobrar, el saldo inicial sigue a la vista en el desglose', async () => {
+    vi.mocked(fetchClinicAccount).mockResolvedValue(
+      account('245.00', {
+        breakdown: {
+          openCases: '0.00',
+          unlinkedAdjustments: '245.00',
+          unlinkedSince: '2026-08-01',
+          credit: '0.00',
+          balance: '245.00',
+        },
+      }),
+    )
+    renderWithQueryAndRouter(<ClinicAccountContent clinicId="c1" role="recepcion" />)
+    const panel = await screen.findByRole('tabpanel', { name: 'Por cobrar (0)' })
+    expect(panel).toHaveTextContent('Nada por cobrar')
+    expect(within(panel).getByLabelText('Desglose del saldo')).toHaveTextContent(
+      'Saldo inicial y ajustes sin trabajo(desde el 01/08/2026)$ 245.00',
+    )
+  })
+
+  it('una cuenta en cero no lleva desglose', async () => {
+    vi.mocked(fetchClinicAccount).mockResolvedValue(account('0.00'))
+    renderWithQueryAndRouter(<ClinicAccountContent clinicId="c1" role="recepcion" />)
+    await screen.findByRole('tabpanel', { name: 'Por cobrar (0)' })
+    expect(screen.queryByLabelText('Desglose del saldo')).not.toBeInTheDocument()
   })
 
   it('«Movimientos» da cada uno con su signo; el anulado, tachado con quién y por qué', async () => {

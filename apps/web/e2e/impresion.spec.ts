@@ -306,12 +306,21 @@ test.describe('Estado de cuenta imprimible', () => {
       const cierre = movimientos.getByRole('row').last()
       await expect(cierre).toContainText(/Saldo al \d{2}\/\d{2}\/\d{4}/)
       await expect(cierre).toContainText('$ 110.00')
+      // UX5-02: «Por cobrar» cierra con el desglose del saldo final, también en papel.
+      const desglose = page
+        .getByRole('region', { name: /^Por cobrar al/ })
+        .getByLabel('Desglose del saldo')
+      await expect(desglose).toContainText('Trabajos$ 0.00')
+      await expect(desglose).toContainText('Saldo inicial y ajustes sin trabajo')
+      await expect(desglose).toContainText('Saldo a favor− $ 40.00')
+      await expect(desglose).toContainText('Saldo$ 110.00')
 
       // En papel: sin controles, y el estado sale en el PDF real de impresión.
       await page.emulateMedia({ media: 'print' })
       await expect(page.getByRole('button', { name: 'Imprimir' })).toBeHidden()
       await expect(page.getByLabel('Desde')).toBeHidden()
       await expect(page.getByRole('heading', { level: 1, name: 'Estado de cuenta' })).toBeVisible()
+      await expect(desglose).toBeVisible()
       if (testInfo.project.name !== 'iphone') {
         expect(await pdfPages(page, testInfo, 'A4', 'estado-de-cuenta')).toBe(1)
       }

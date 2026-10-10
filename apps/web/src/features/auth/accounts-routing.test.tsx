@@ -72,6 +72,13 @@ describe('acceso a «Cuentas» por rol (ACCOUNTS_ROLES)', () => {
       aging: zero,
       oldestDays: 3,
       openCases: [],
+      breakdown: {
+        openCases: '0.00',
+        unlinkedAdjustments: '80.00',
+        unlinkedSince: '2026-10-01',
+        credit: '0.00',
+        balance: '80.00',
+      },
       movements: [],
     } as unknown as Awaited<ReturnType<typeof fetchClinicAccount>>)
   })

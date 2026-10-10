@@ -12,6 +12,7 @@ import { formatDate, formatTimestampDate } from '@/features/cases/date-format'
 import { formatMoney } from '@/lib/format-money'
 import { cn } from '@/lib/utils'
 import type { AccountStatement as Statement } from './api'
+import { BalanceBreakdown } from './balance-breakdown'
 import { balanceParts, signedAmountText } from './balance-text'
 import { daysText } from './days-text'
 
@@ -252,8 +253,9 @@ function AgingBlock({ s }: { s: Statement }) {
   )
 }
 
-/** «Por cobrar» a la fecha `hasta`: cada trabajo con pendiente y los días desde su entrega. El
- * total que importa es el saldo final, que ya incluye ajustes sin trabajo y saldo a favor. */
+/** «Por cobrar» a la fecha `hasta`: cada trabajo con pendiente y los días desde su entrega, y
+ * al pie el desglose del saldo final (UX5-02): trabajos + saldo inicial y ajustes sin trabajo −
+ * saldo a favor, con los números de la API. */
 function OpenCasesBlock({ s }: { s: Statement }) {
   const hasta = formatDate(s.range.hasta)
   return (
@@ -311,6 +313,7 @@ function OpenCasesBlock({ s }: { s: Statement }) {
           </tbody>
         </table>
       )}
+      <BalanceBreakdown breakdown={s.breakdown} className="break-inside-avoid" />
     </section>
   )
 }

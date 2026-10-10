@@ -13,6 +13,7 @@ import { AccountSummary } from './account-summary'
 import { adjustableCases } from './adjustable-cases'
 import { AdjustmentDialog } from './adjustment-dialog'
 import { ApplyCreditDialog } from './apply-credit-dialog'
+import { BalanceBreakdown } from './balance-breakdown'
 import { MovementsTable } from './movements-table'
 import { OpenCasesTable } from './open-cases-table'
 import type { PaymentRef } from './payment-context'
@@ -121,8 +122,9 @@ export function ClinicAccountContent({ clinicId, role }: { clinicId: string; rol
           <TabsTrigger value="por-cobrar">Por cobrar ({data.openCases.length})</TabsTrigger>
           <TabsTrigger value="movimientos">Movimientos ({data.movements.length})</TabsTrigger>
         </TabsList>
-        <TabsContent value="por-cobrar" className="pt-4">
+        <TabsContent value="por-cobrar" className="flex flex-col gap-4 pt-4">
           <OpenCasesTable rows={data.openCases} />
+          <BalanceBreakdown breakdown={data.breakdown} />
         </TabsContent>
         <TabsContent value="movimientos" className="pt-4">
           <MovementsTable

@@ -23,6 +23,13 @@ const STATEMENT = {
   aging: zero,
   oldestDays: null,
   openCases: [],
+  breakdown: {
+    openCases: '0.00',
+    unlinkedAdjustments: '45.00',
+    unlinkedSince: '2026-09-10',
+    credit: '0.00',
+    balance: '45.00',
+  },
 } as unknown as AccountStatement
 
 const RANGE = { desde: '2026-09-01', hasta: '2026-09-30' }

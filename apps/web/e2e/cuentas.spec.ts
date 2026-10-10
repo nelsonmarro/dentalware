@@ -124,6 +124,13 @@ test.describe('Cuentas', () => {
       await expect(summary).toContainText('Más antiguo: 45 días')
       await expect(agingBucket(summary, '0–30 días')).toContainText('$ 50.00')
       await expect(agingBucket(summary, '31–60 días')).toContainText('$ 100.00')
+      // UX5-02: «Por cobrar» cierra con el desglose, que cuadra con el saldo.
+      const desglose = page.getByLabel('Desglose del saldo')
+      await expect(desglose).toContainText('Trabajos$ 50.00')
+      await expect(desglose).toContainText(
+        `Saldo inicial y ajustes sin trabajo(desde el ${daysAgoIso(45).split('-').reverse().join('/')})$ 100.00`,
+      )
+      await expect(desglose).toContainText('Saldo$ 150.00')
 
       // 2-3. Recepción registra un pago de $ 30.00 que cubre solo el más antiguo (pasa a
       //      «Cobrado») y deja $ 5.00 a favor; después aplica ese saldo a favor al otro trabajo.
