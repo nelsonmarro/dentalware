@@ -251,12 +251,13 @@ describe('features/accounts/service', () => {
       })
     })
 
-    it('movimientos: cargos, ajustes y pagos con signo, quién y motivo; el anulado lleva voided', async () => {
+    it('movimientos: cargos, ajustes y pagos con signo, quién y motivo, el trabajo con su paciente; el anulado lleva voided', async () => {
       const service = makeService({
         cases: [
           makeCase({
             id: 'a',
             code: '26-00001',
+            patientRef: 'Ana Pérez',
             totalCents: 10_000,
             deliveredAt: at('2026-09-01'),
           }),
@@ -353,7 +354,8 @@ describe('features/accounts/service', () => {
           kind: 'ajuste',
           date: '2026-09-15',
           amount: '-10.00',
-          case: { id: 'a', code: '26-00001' },
+          // UX5-11: con el paciente, para buscar el trabajo por él en «Registrar ajuste».
+          case: { id: 'a', code: '26-00001', patientRef: 'Ana Pérez' },
           by: 'Admin',
           reason: 'Descuento por demora',
           reference: null,
@@ -367,7 +369,8 @@ describe('features/accounts/service', () => {
           kind: 'cargo',
           date: '2026-09-01',
           amount: '100.00',
-          case: { id: 'a', code: '26-00001' },
+          // UX5-11: con el paciente, para buscar el trabajo por él en «Registrar ajuste».
+          case: { id: 'a', code: '26-00001', patientRef: 'Ana Pérez' },
           by: null,
           reason: null,
           reference: null,

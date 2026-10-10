@@ -2,11 +2,15 @@ import type { AdjustableCase } from './adjustment-dialog'
 
 /**
  * Los trabajos a los que se puede ligar un ajuste (CTA-3): los que cargan a la cuenta, que son
- * los que tienen un movimiento «Cargo» (`entregado` o `cobrado`), cada uno una vez y por código.
+ * los que tienen un movimiento «Cargo» (`entregado` o `cobrado`), cada uno una vez y por código,
+ * con su paciente para buscarlo (UX5-11).
  * Lo que debe y lo pagado salen de «Por cobrar»; si no está ahí, ya está cobrado (`null`).
  */
 export function adjustableCases(
-  movements: readonly { kind: string; case: { id: string; code: string } | null }[],
+  movements: readonly {
+    kind: string
+    case: { id: string; code: string; patientRef: string } | null
+  }[],
   open: readonly { id: string; outstanding: string; allocated: string }[],
 ): AdjustableCase[] {
   const seen = new Map<string, AdjustableCase>()
@@ -16,6 +20,7 @@ export function adjustableCases(
     seen.set(m.case.id, {
       id: m.case.id,
       code: m.case.code,
+      patientRef: m.case.patientRef,
       outstanding: o?.outstanding ?? null,
       allocated: o?.allocated ?? null,
     })

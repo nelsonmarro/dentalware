@@ -215,7 +215,13 @@ describe('/api/cuentas', () => {
       }),
     ])
     expect(after.movements).toEqual([
-      expect.objectContaining({ kind: 'cargo', date: '2026-10-06', amount: '45.00' }),
+      // UX5-11: el trabajo del movimiento trae su paciente.
+      expect.objectContaining({
+        kind: 'cargo',
+        date: '2026-10-06',
+        amount: '45.00',
+        case: { id: delivered.id, code: expect.any(String), patientRef: 'Paciente 1' },
+      }),
     ])
     expect(await (await get('/api/cuentas', recepcion)).json()).toEqual({
       clinics: [

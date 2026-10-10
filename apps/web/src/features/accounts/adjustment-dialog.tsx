@@ -2,6 +2,7 @@ import {
   ADJUSTMENT_SIGN_LABEL,
   ADJUSTMENT_SIGNS,
   adjustmentFormSchema,
+  CASE_STATUS_LABEL,
   discountReleaseCents,
   fromCents,
   OPENING_BALANCE_REASON,
@@ -42,6 +43,7 @@ const NO_CASE = '__sin_trabajo__'
 export type AdjustableCase = {
   id: string
   code: string
+  patientRef: string
   outstanding: string | null
   allocated: string | null
 }
@@ -130,9 +132,12 @@ export function AdjustmentDialog({
 
   const items = [
     { value: NO_CASE, label: 'Sin trabajo: solo la clínica' },
+    // UX5-11: código en monoespaciada, paciente y lo que debe o el estado con su etiqueta.
     ...cases.map((c) => ({
       value: c.id,
-      label: `${c.code} · ${c.outstanding ? `debe ${formatMoney(c.outstanding)}` : 'cobrado'}`,
+      code: c.code,
+      label: c.patientRef,
+      detail: c.outstanding ? `Debe ${formatMoney(c.outstanding)}` : CASE_STATUS_LABEL.cobrado,
     })),
   ]
 
@@ -266,12 +271,12 @@ export function AdjustmentDialog({
                   value={field.value ? field.value : NO_CASE}
                   onChange={(v) => field.onChange(v === NO_CASE ? '' : v)}
                   placeholder="Elegir trabajo"
-                  searchPlaceholder="Buscar por código"
-                  emptyMessage="Ningún trabajo entregado con ese código"
+                  searchPlaceholder="Buscar por código o paciente"
+                  emptyMessage="Ningún trabajo con ese código o paciente"
                   aria-invalid={fieldState.invalid}
                   className="h-11 w-full"
                 />
-                <FieldDescription>Solo trabajos entregados de esta clínica.</FieldDescription>
+                <FieldDescription>Trabajos entregados o cobrados de esta clínica.</FieldDescription>
                 {fieldState.error && <FieldError errors={[fieldState.error]} />}
               </Field>
             )}

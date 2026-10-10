@@ -59,7 +59,7 @@ const statement = (over: Partial<Statement> = {}) =>
         date: '2026-10-06',
         amount: '45.00',
         balance: '185.00',
-        case: { id: 'caso-1', code: '26-00087' },
+        case: { id: 'caso-1', code: '26-00087', patientRef: 'Ana Ruiz' },
       }),
       movement({
         id: 'p1',

@@ -14,8 +14,8 @@ const T1 = '22222222-2222-4222-8222-222222222222'
 const T2 = '33333333-3333-4333-8333-333333333333'
 
 const CASES = [
-  { id: T1, code: '26-00001', outstanding: '50.00', allocated: '30.00' },
-  { id: T2, code: '26-00002', outstanding: null, allocated: null },
+  { id: T1, code: '26-00001', patientRef: 'Ana Ruiz', outstanding: '50.00', allocated: '30.00' },
+  { id: T2, code: '26-00002', patientRef: 'Luis Paz', outstanding: null, allocated: null },
 ]
 
 function renderDialog() {
@@ -186,5 +186,39 @@ describe('AdjustmentDialog («Registrar ajuste», CTA-3)', () => {
     expect(screen.getByLabelText('Fecha')).toHaveAttribute('aria-invalid', 'true')
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
     expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  // UX5-11: el buscador de trabajos dice código (monoespaciada), paciente y estado bien escrito
+  // («Cobrado», de `CASE_STATUS_LABEL`, o lo que debe), busca también por paciente y su ayuda
+  // dice lo que de verdad lista: entregados y cobrados.
+  describe('buscador de trabajos', () => {
+    it('cada trabajo con código, paciente y «Cobrado» o lo que debe', async () => {
+      const { user } = renderDialog()
+      await user.click(screen.getByRole('combobox', { name: 'Trabajo' }))
+      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+        'Sin trabajo: solo la clínica',
+        '26-00001 Ana Ruiz · Debe $ 50.00',
+        '26-00002 Luis Paz · Cobrado',
+      ])
+      const option = screen.getByRole('option', { name: /26-00002/ })
+      expect(within(option).getByText('26-00002')).toHaveClass('font-mono')
+    })
+
+    it('busca por paciente', async () => {
+      const { user } = renderDialog()
+      await user.click(screen.getByRole('combobox', { name: 'Trabajo' }))
+      await user.type(screen.getByPlaceholderText('Buscar por código o paciente'), 'luis')
+      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+        '26-00002 Luis Paz · Cobrado',
+      ])
+    })
+
+    it('la ayuda dice que lista los entregados y los cobrados de la clínica', () => {
+      renderDialog()
+      expect(
+        screen.getByText('Trabajos entregados o cobrados de esta clínica.'),
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/Solo trabajos entregados/)).not.toBeInTheDocument()
+    })
   })
 })

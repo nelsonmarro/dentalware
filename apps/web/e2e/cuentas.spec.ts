@@ -345,7 +345,10 @@ test.describe('Cuentas', () => {
       const ajuste = page.getByRole('dialog', { name: 'Registrar ajuste' })
       await ajuste.getByRole('button', { name: 'Descuento o nota de crédito' }).click()
       await ajuste.getByRole('combobox', { name: 'Trabajo' }).click()
-      await page.getByRole('option', { name: new RegExp(`${cases[0]?.code} · cobrado`) }).click()
+      // UX5-11: código, paciente y el estado con su etiqueta («Cobrado»).
+      await page
+        .getByRole('option', { name: new RegExp(`^${cases[0]?.code} .+ · Cobrado$`) })
+        .click()
       await expect(
         ajuste.getByText(
           'Este trabajo ya está cobrado: lo que le descuentes vuelve al saldo a favor.',

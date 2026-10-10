@@ -117,7 +117,7 @@ const FULL = account('70.00', {
       kind: 'cargo',
       date: '2026-09-01',
       amount: '90.00',
-      case: { id: T1, code: '26-00001' },
+      case: { id: T1, code: '26-00001', patientRef: 'Ana Ruiz' },
     }),
   ],
 })

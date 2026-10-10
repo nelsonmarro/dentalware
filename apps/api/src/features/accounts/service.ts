@@ -51,6 +51,7 @@ import type {
   AccountsUnitOfWork,
   AdjustmentEntry,
   BilledCase,
+  CaseRef,
   ClinicHeader,
   ClinicRef,
   PaymentAllocation,
@@ -89,7 +90,7 @@ export type AccountMovement = {
   kind: AccountMovementKind
   date: string // YYYY-MM-DD
   amount: string
-  case: { id: string; code: string } | null
+  case: CaseRef | null
   /** Quién registró el ajuste o el pago; `null` en un cargo (lo genera la entrega). */
   by: string | null
   /** Motivo del ajuste o notas del pago. */
@@ -191,7 +192,7 @@ export type SettlingPaymentView = PaymentView & { settled: SettledCase[] }
 export type AdjustmentView = {
   id: string
   clinicId: string
-  case: { id: string; code: string } | null
+  case: CaseRef | null
   amount: string
   reason: string
   date: string // YYYY-MM-DD
@@ -426,7 +427,7 @@ export function createAccountsService(deps: {
         kind: 'cargo' as const,
         date: toIsoDate(c.deliveredAt),
         amount: fromSignedCents(caseChargeCents(c)),
-        case: { id: c.id, code: c.code },
+        case: { id: c.id, code: c.code, patientRef: c.patientRef },
         by: null,
         reason: null,
         reference: null,

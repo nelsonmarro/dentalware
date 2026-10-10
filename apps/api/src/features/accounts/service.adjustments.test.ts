@@ -140,7 +140,7 @@ describe('features/accounts/service: ajustes (CTA-3)', () => {
       kind: 'ajuste',
       date: '2026-10-05',
       amount: '-10.00',
-      case: { id: 'a', code: '26-a' },
+      case: { id: 'a', code: '26-a', patientRef: 'Paciente' },
       by: 'Admin',
       reason: 'Descuento por demora',
       reference: null,

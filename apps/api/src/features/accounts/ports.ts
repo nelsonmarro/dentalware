@@ -25,11 +25,15 @@ export type BilledCase = {
   allocatedCents: number
 }
 
+/** El trabajo de un movimiento o de un ajuste: código y paciente, para nombrarlo y buscarlo
+ * («Registrar ajuste», UX5-11). */
+export type CaseRef = { id: string; code: string; patientRef: string }
+
 /** Ajuste de la cuenta (CTA-3), con signo, ligado o no a un trabajo. */
 export type AdjustmentEntry = {
   id: string
   clinicId: string
-  case: { id: string; code: string } | null
+  case: CaseRef | null
   amountCents: number
   reason: string
   date: string // YYYY-MM-DD
