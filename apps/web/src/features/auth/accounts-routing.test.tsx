@@ -4,7 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { routeTree } from '@/routeTree.gen'
-import { fetchAccounts, fetchClinicAccount } from '@/features/accounts/api'
+import { fetchAccountStatement, fetchAccounts, fetchClinicAccount } from '@/features/accounts/api'
 import type * as CasesApiModule from '@/features/cases/api'
 import { authClient } from './auth-client'
 
@@ -25,10 +25,11 @@ vi.mock('@/features/cases/api', async (importOriginal) => ({
   fetchCases: vi.fn().mockResolvedValue({ cases: [], total: 0, page: 1, pageSize: 20 }),
 }))
 
-// «Cuentas» pide la lista y la cuenta de una clínica: se mockea su `api.ts`.
+// «Cuentas» pide la lista, la cuenta de una clínica y su estado de cuenta: se mockea su `api.ts`.
 vi.mock('@/features/accounts/api', () => ({
   fetchAccounts: vi.fn(),
   fetchClinicAccount: vi.fn(),
+  fetchAccountStatement: vi.fn(),
 }))
 
 const zero = { '0_30': '0.00', '31_60': '0.00', '61_90': '0.00', '90_mas': '0.00' }
@@ -94,6 +95,19 @@ describe('acceso a «Cuentas» por rol (ACCOUNTS_ROLES)', () => {
       await waitFor(() => expect(router.state.location.pathname).toBe('/'))
       expect(await screen.findByRole('heading', { level: 1, name: 'Inicio' })).toBeInTheDocument()
       expect(fetchClinicAccount).not.toHaveBeenCalled()
+    },
+  )
+
+  // M7 de la revisión final del PR 2: el estado de cuenta (`$clinicaId_`, fuera del layout de la
+  // cuenta) sigue colgando de la guarda de `/cuentas`; un renombre no puede sacarlo de ella.
+  it.each(['tecnico', 'mensajero'])(
+    'un %s que entra al estado de cuenta de una clínica por URL vuelve al inicio',
+    async (role) => {
+      vi.mocked(authClient.getSession).mockResolvedValue(withRole(role))
+      const router = renderApp('/cuentas/c1/estado')
+      await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+      expect(await screen.findByRole('heading', { level: 1, name: 'Inicio' })).toBeInTheDocument()
+      expect(fetchAccountStatement).not.toHaveBeenCalled()
     },
   )
 

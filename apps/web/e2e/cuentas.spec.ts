@@ -132,13 +132,12 @@ test.describe('Cuentas', () => {
         const rp = await recepcionContext.newPage()
         const recepcionErrors = trackConsoleErrors(rp)
         await login(rp, recepcion)
-        // Recepción ve «Cuentas» en su navegación. Se entra por URL y no tocando el enlace: en
-        // móvil, el botón flotante de TanStack Devtools (solo en `vite dev`) tapa la barra
-        // inferior.
-        await expect(
-          rp.getByRole('link', { name: 'Cuentas', exact: true }).filter({ visible: true }),
-        ).toHaveCount(1)
-        await rp.goto('/cuentas')
+        // Recepción entra a «Cuentas» desde su navegación (en móvil, la barra inferior: las
+        // devtools de `vite dev` ya no la tapan, M1 de la revisión final del PR 2).
+        await rp
+          .getByRole('link', { name: 'Cuentas', exact: true })
+          .filter({ visible: true })
+          .click()
         await expect(rp.getByRole('heading', { level: 1, name: 'Cuentas' })).toBeVisible()
         await rp.getByLabel('Buscar clínica').fill(clinic.name)
         await rp.getByRole('link', { name: new RegExp(clinic.name) }).click()
@@ -229,6 +228,8 @@ test.describe('Cuentas', () => {
       await expect(apertura).toContainText('$ 100.00')
       await expect(movimientos).toContainText('Transferencia · TRX-E2E')
       await expect(movimientos).toContainText('No suma')
+      // M5: el estado de cuenta va a la clínica y no dice quién anuló el pago ni por qué.
+      await expect(movimientos).not.toContainText('Se registró en la clínica equivocada')
       await expect(cierre).toContainText(/Saldo al \d{2}\/\d{2}\/\d{4}/)
       await expect(cierre).toContainText('$ 150.00')
 
