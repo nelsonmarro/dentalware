@@ -151,7 +151,8 @@ describe('AccountStatement (estado de cuenta imprimible, CTA-5)', () => {
     expect(row.textContent).not.toContain('Admin')
     expect(row.textContent).not.toContain('Duplicado')
     expect(within(row).getByText('− $ 5.00')).toHaveClass('line-through')
-    expect(within(row).getByText('No suma')).toBeVisible()
+    // En móvil va bajo el monto y en pantalla ancha en su columna (UX5-14): jsdom no aplica CSS.
+    expect(within(row).getAllByText('No suma')).toHaveLength(2)
     expect(row.textContent).not.toContain('$ 140.00')
   })
 

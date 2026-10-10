@@ -1,11 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { expect, test, type Page, type TestInfo } from '@playwright/test'
+import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test'
 import {
   createClinicWithDoctor,
+  createCourier,
   createProduct,
   login,
   loginAsAdmin,
+  shipAndDeliver,
   testPassword,
   todayIso,
   trackConsoleErrors,
@@ -323,6 +325,141 @@ test.describe('Estado de cuenta imprimible', () => {
       await expect(desglose).toBeVisible()
       if (testInfo.project.name !== 'iphone') {
         expect(await pdfPages(page, testInfo, 'A4', 'estado-de-cuenta')).toBe(1)
+      }
+    },
+  )
+
+  /** Si el código se partiría al final de una línea: lo mide con su párrafo a 1 px de ancho, el
+   * peor caso de donde le toque caer, y lo deja como estaba. */
+  async function codeBreaks(locator: Locator) {
+    return locator.evaluate((el) => {
+      const parent = el.parentElement!
+      const width = parent.style.width
+      parent.style.width = '1px'
+      const range = document.createRange()
+      range.selectNodeContents(el)
+      const lines = new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size
+      parent.style.width = width
+      return lines > 1
+    })
+  }
+
+  /** Cuántas líneas ocupa un elemento en línea: una caja por cada línea en la que se parte. */
+  async function lineCount(locator: Locator) {
+    return locator.evaluate((el) => {
+      const range = document.createRange()
+      range.selectNodeContents(el)
+      return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size
+    })
+  }
+
+  // UX5-13 y UX5-14: en papel (A5), «Saldo al …» del cuadre en una línea, los títulos de sección
+  // nunca se quedan solos al pie de una hoja y el código del trabajo no se parte; en un móvil de
+  // 360, «Detalle» tiene sitio (antes, 102 px y «26-» / «00105»).
+  test(
+    'el estado de cuenta se lee en papel A5 y en un móvil de 360',
+    { tag: '@clave' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const courier = await createCourier(page)
+      const created = await page.request.post('/api/trabajos', {
+        data: {
+          clinicId: clinic.id,
+          doctorId: doctor.id,
+          patientRef: `Paciente E2E ${uniqueSuffix()}`,
+          receivedAt: todayIso(),
+          dueDate: '2026-12-31',
+          prescription: 'Prescripción E2E: corona completa',
+          items: [
+            { productId: product.id, quantity: 1, teeth: [11], unitPrice: null, discountPct: 0 },
+          ],
+        },
+      })
+      expect(created.ok()).toBe(true)
+      const { case: trabajo } = (await created.json()) as { case: { id: string; code: string } }
+      for (const accion of ['aceptar', 'finalizar']) {
+        const res = await page.request.post(`/api/trabajos/${trabajo.id}/acciones`, {
+          data: { accion },
+        })
+        expect(res.ok(), `${accion}: ${await res.text()}`).toBe(true)
+      }
+      await shipAndDeliver(page, trabajo.id, courier.id)
+      // Montos de cuatro cifras, los más anchos que se esperan en el laboratorio.
+      for (const data of [
+        { clinicaId: clinic.id, monto: '1250.75', motivo: 'Saldo inicial', fecha: todayIso() },
+        {
+          clinicaId: clinic.id,
+          trabajoId: trabajo.id,
+          monto: '-1.00',
+          motivo: 'Descuento por demora',
+          fecha: todayIso(),
+        },
+      ]) {
+        const res = await page.request.post('/api/cuentas/ajustes', { data })
+        expect(res.ok(), await res.text()).toBe(true)
+      }
+      const pago = await page.request.post('/api/cuentas/pagos', {
+        data: {
+          clinicaId: clinic.id,
+          monto: '1000.00',
+          metodo: 'transferencia',
+          referencia: 'TRX-E2E',
+          fecha: todayIso(),
+          asignaciones: [],
+        },
+      })
+      expect(pago.ok()).toBe(true)
+
+      // Móvil de 360: «Detalle» con sitio, código y «Saldo al …» sin partirse.
+      await page.setViewportSize({ width: 360, height: 740 })
+      await page.goto(`/cuentas/${clinic.id}/estado`)
+      const movimientos = page.getByRole('table', { name: 'Movimientos' })
+      await expect(movimientos).toContainText(`Trabajo ${trabajo.code}`)
+      const detalle = movimientos.getByRole('columnheader', { name: 'Detalle' })
+      const ancho = (await detalle.boundingBox())?.width ?? 0
+      expect(ancho, '«Detalle» a 360').toBeGreaterThanOrEqual(180)
+      const codigos = movimientos.getByText(trabajo.code, { exact: true })
+      await expect(codigos).toHaveCount(2)
+      for (const codigo of await codigos.all()) {
+        expect(await codeBreaks(codigo), `${trabajo.code} se parte en el guion`).toBe(false)
+      }
+      for (const saldo of await movimientos.getByText(/^Saldo al /).all()) {
+        expect(await lineCount(saldo), '«Saldo al …» partido a 360').toBe(1)
+      }
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+        'sin scroll horizontal a 360',
+      ).toBeLessThanOrEqual(360)
+
+      // Papel A5 (≈ 470 px útiles, ver K-2): el cuadre con cada rótulo en una línea.
+      await page.setViewportSize({ width: 480, height: 900 })
+      await page.emulateMedia({ media: 'print' })
+      const resumen = page.getByRole('region', { name: 'Resumen del periodo' })
+      const rotulos = resumen.getByRole('listitem').locator('> span:first-child')
+      await expect(rotulos).toHaveCount(5)
+      for (const rotulo of await rotulos.all()) {
+        expect(await lineCount(rotulo), `«${await rotulo.textContent()}» partido en A5`).toBe(1)
+      }
+      // … y sin pisar la columna de al lado.
+      for (const item of await resumen.getByRole('listitem').all()) {
+        const { scroll, client } = await item.evaluate((el) => ({
+          scroll: el.scrollWidth,
+          client: el.clientWidth,
+        }))
+        expect(
+          scroll,
+          `«${await item.textContent()}» se sale de su columna en A5`,
+        ).toBeLessThanOrEqual(client)
+      }
+      // Ningún título de sección se queda solo al pie de una hoja: va con lo que le sigue.
+      const titulos = page.getByRole('article').getByRole('heading', { level: 2 })
+      expect(await titulos.count()).toBeGreaterThanOrEqual(4)
+      for (const titulo of await titulos.all()) {
+        expect(
+          await titulo.evaluate((el) => getComputedStyle(el).breakAfter),
+          `«${await titulo.textContent()}» puede quedarse solo al pie`,
+        ).toBe('avoid')
       }
     },
   )

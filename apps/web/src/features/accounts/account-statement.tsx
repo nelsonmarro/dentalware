@@ -24,7 +24,12 @@ const WIDE_ONLY = 'hidden sm:table-cell print:table-cell'
 const NARROW_ONLY = 'sm:hidden print:hidden'
 const CELL = 'px-2 py-2 align-top print:px-1 print:py-0.5'
 const NUM = 'w-px text-right whitespace-nowrap'
-const SECTION_TITLE = 'text-sm font-semibold print:text-print-body'
+/** Un título de sección no se queda solo al pie de una hoja: va con lo que le sigue (UX5-13). */
+const SECTION_TITLE = 'text-sm font-semibold break-after-avoid print:text-print-body'
+/** El código del trabajo no se parte en el guion («26-» / «00105», UX5-13/14). */
+const CODE = 'font-mono whitespace-nowrap'
+/** El saldo final, subrayado doble como en un libro de cuentas. */
+const CLOSING = 'border-b-4 border-double border-foreground pb-0.5 font-semibold'
 
 /** Rótulo del total de cada tipo en el cuadre. `Record` exhaustivo: un tipo nuevo no compila
  * sin el suyo. */
@@ -52,7 +57,7 @@ function Balance({ value, className }: { value: string; className?: string }) {
 /** Lo que dice cada movimiento: su tipo, el trabajo, el método y la referencia o el motivo y,
  * si es un pago anulado, quién lo anuló y por qué. En móvil, también su fecha. */
 function MovementDetail({ m }: { m: Movement }) {
-  const code = m.case && <span className="font-mono">{m.case.code}</span>
+  const code = m.case && <span className={CODE}>{m.case.code}</span>
   return (
     <div className="flex min-w-0 flex-col gap-0.5 print:gap-0">
       <p className="flex flex-wrap items-center gap-2 font-medium">
@@ -91,15 +96,19 @@ function PeriodSummary({ s }: { s: Statement }) {
       <h2 id="estado-resumen" className={SECTION_TITLE}>
         Resumen del periodo
       </h2>
-      <ol className="grid grid-cols-1 gap-x-4 gap-y-2 rounded-lg border border-border p-3 text-sm sm:grid-cols-[repeat(4,minmax(0,1fr))_minmax(0,1.4fr)] print:grid-cols-[repeat(4,minmax(0,1fr))_minmax(0,1.4fr)] print:gap-y-0 print:p-1.5 print:text-print-body [&>li]:print:flex-col [&>li]:print:items-start [&>li]:print:gap-0">
+      <ol className="grid grid-cols-1 gap-x-4 gap-y-2 rounded-lg border border-border p-3 text-sm sm:grid-cols-[auto_repeat(3,minmax(0,1fr))_auto] print:grid-cols-[auto_repeat(3,minmax(0,1fr))_auto] print:gap-x-3 print:gap-y-0 print:p-1.5 print:text-print-body [&>li]:print:flex-col [&>li]:print:items-start [&>li]:print:gap-0">
         <li className={item}>
-          <span className="text-muted-foreground">Saldo al {formatDate(s.openingDate)}</span>
+          <span className="whitespace-nowrap text-muted-foreground">
+            Saldo al {formatDate(s.openingDate)}
+          </span>
           <Balance value={s.openingBalance} />
         </li>
         {ACCOUNT_MOVEMENT_KINDS.map((kind) => (
           <li key={kind} className={item}>
             <span className="text-muted-foreground">{TOTAL_LABEL[kind]}</span>
-            <span className="font-mono tabular-nums">{signedAmountText(s.totals[kind])}</span>
+            <span className="font-mono whitespace-nowrap tabular-nums">
+              {signedAmountText(s.totals[kind])}
+            </span>
           </li>
         ))}
         <li
@@ -108,7 +117,9 @@ function PeriodSummary({ s }: { s: Statement }) {
             'border-t-4 border-double border-foreground pt-2 sm:border-t-0 sm:border-l-4 sm:pt-0 sm:pl-3 print:border-t-0 print:border-l-4 print:pt-0 print:pl-2',
           )}
         >
-          <span className="font-medium">Saldo al {formatDate(s.range.hasta)}</span>
+          <span className="font-medium whitespace-nowrap">
+            Saldo al {formatDate(s.range.hasta)}
+          </span>
           <Balance value={s.closingBalance} className="font-semibold" />
         </li>
       </ol>
@@ -116,8 +127,21 @@ function PeriodSummary({ s }: { s: Statement }) {
   )
 }
 
+/** El saldo corrido de una fila en móvil, bajo su monto (UX5-14): la columna «Saldo» solo va en
+ * pantalla ancha y en papel, para que «Detalle» tenga sitio a 360. */
+function NarrowBalance({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className={cn('mt-0.5 block text-xs whitespace-normal text-muted-foreground', NARROW_ONLY)}
+    >
+      {children}
+    </span>
+  )
+}
+
 /** Movimientos del rango con su saldo corrido, entre el saldo inicial y el final (subrayado
- * doble, como en un libro de cuentas). Un pago anulado se ve tachado y no suma. */
+ * doble, como en un libro de cuentas). Un pago anulado se ve tachado y no suma. En móvil, el
+ * saldo corrido va bajo el monto. */
 function MovementsLedger({ s }: { s: Statement }) {
   const hasta = formatDate(s.range.hasta)
   return (
@@ -140,7 +164,7 @@ function MovementsLedger({ s }: { s: Statement }) {
             <th scope="col" className={cn(CELL, NUM, 'font-medium')}>
               Monto
             </th>
-            <th scope="col" className={cn(CELL, NUM, 'font-medium')}>
+            <th scope="col" className={cn(CELL, NUM, WIDE_ONLY, 'font-medium')}>
               Saldo
             </th>
           </tr>
@@ -149,10 +173,12 @@ function MovementsLedger({ s }: { s: Statement }) {
           <tr className="border-b border-border">
             <td className={cn(CELL, WIDE_ONLY)} />
             <td className={cn(CELL, 'text-muted-foreground')}>
-              Saldo al {formatDate(s.openingDate)}
+              <span className="whitespace-nowrap">Saldo al {formatDate(s.openingDate)}</span>
             </td>
-            <td className={CELL} />
             <td className={cn(CELL, NUM)}>
+              <Balance value={s.openingBalance} className={NARROW_ONLY} />
+            </td>
+            <td className={cn(CELL, NUM, WIDE_ONLY)}>
               <Balance value={s.openingBalance} />
             </td>
           </tr>
@@ -176,8 +202,17 @@ function MovementsLedger({ s }: { s: Statement }) {
                 >
                   {signedAmountText(m.amount)}
                 </span>
+                <NarrowBalance>
+                  {m.voided ? (
+                    'No suma'
+                  ) : (
+                    <>
+                      Saldo <Balance value={m.balance} />
+                    </>
+                  )}
+                </NarrowBalance>
               </td>
-              <td className={cn(CELL, NUM)}>
+              <td className={cn(CELL, NUM, WIDE_ONLY)}>
                 {m.voided ? (
                   <span className="text-xs text-muted-foreground print:text-print-small">
                     No suma
@@ -193,14 +228,13 @@ function MovementsLedger({ s }: { s: Statement }) {
           <tr className="border-t-2 border-foreground">
             <td className={cn(CELL, WIDE_ONLY)} />
             <th scope="row" className={cn(CELL, 'text-left font-semibold')}>
-              Saldo al {hasta}
+              <span className="whitespace-nowrap">Saldo al {hasta}</span>
             </th>
-            <td className={CELL} />
             <td className={cn(CELL, NUM)}>
-              <Balance
-                value={s.closingBalance}
-                className="border-b-4 border-double border-foreground pb-0.5 font-semibold"
-              />
+              <Balance value={s.closingBalance} className={cn(CLOSING, NARROW_ONLY)} />
+            </td>
+            <td className={cn(CELL, NUM, WIDE_ONLY)}>
+              <Balance value={s.closingBalance} className={CLOSING} />
             </td>
           </tr>
         </tfoot>
@@ -295,7 +329,7 @@ function OpenCasesBlock({ s }: { s: Statement }) {
             {s.openCases.map((c) => (
               <tr key={c.id} className="break-inside-avoid border-b border-border">
                 <td className={CELL}>
-                  <span className="font-mono font-medium">{c.code}</span>
+                  <span className={cn(CODE, 'font-medium')}>{c.code}</span>
                   <span className={cn('block text-xs text-muted-foreground', NARROW_ONLY)}>
                     {c.patientRef}
                   </span>
@@ -371,7 +405,10 @@ export function AccountStatement({
       </header>
 
       <section aria-labelledby="estado-clinica" className="flex flex-col gap-1 print:gap-0">
-        <h2 id="estado-clinica" className="text-xs text-muted-foreground print:text-print-small">
+        <h2
+          id="estado-clinica"
+          className="break-after-avoid text-xs text-muted-foreground print:text-print-small"
+        >
           Clínica
         </h2>
         <p className="text-xl font-semibold print:text-sm">{s.clinic.name}</p>
