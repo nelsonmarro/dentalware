@@ -29,6 +29,7 @@ import { Route as AppTrabajosIndexRouteImport } from './routes/_app/trabajos/ind
 import { Route as AppTrabajosCaseIdRouteImport } from './routes/_app/trabajos/$caseId'
 import { Route as AppTrabajosNuevoRouteImport } from './routes/_app/trabajos/nuevo'
 import { Route as AppConfiguracionClinicasClinicIdRouteImport } from './routes/_app/configuracion/clinicas.$clinicId'
+import { Route as AppCuentasClinicaIdEstadoRouteImport } from './routes/_app/cuentas/$clinicaId_.estado'
 import { Route as AppTrabajosCaseIdEditarRouteImport } from './routes/_app/trabajos/$caseId_.editar'
 import { Route as AppTrabajosCaseIdImprimirRouteImport } from './routes/_app/trabajos/$caseId_.imprimir'
 
@@ -136,6 +137,12 @@ const AppConfiguracionClinicasClinicIdRoute =
     path: '/$clinicId',
     getParentRoute: () => AppConfiguracionClinicasRoute,
   } as any)
+const AppCuentasClinicaIdEstadoRoute =
+  AppCuentasClinicaIdEstadoRouteImport.update({
+    id: '/$clinicaId_/estado',
+    path: '/$clinicaId/estado',
+    getParentRoute: () => AppCuentasRoute,
+  } as any)
 const AppTrabajosCaseIdEditarRoute = AppTrabajosCaseIdEditarRouteImport.update({
   id: '/$caseId_/editar',
   path: '/$caseId/editar',
@@ -168,6 +175,7 @@ export interface FileRoutesByFullPath {
   '/cuentas/': typeof AppCuentasIndexRoute
   '/trabajos/': typeof AppTrabajosIndexRoute
   '/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
+  '/cuentas/$clinicaId/estado': typeof AppCuentasClinicaIdEstadoRoute
   '/trabajos/$caseId/editar': typeof AppTrabajosCaseIdEditarRoute
   '/trabajos/$caseId/imprimir': typeof AppTrabajosCaseIdImprimirRoute
 }
@@ -188,6 +196,7 @@ export interface FileRoutesByTo {
   '/cuentas': typeof AppCuentasIndexRoute
   '/trabajos': typeof AppTrabajosIndexRoute
   '/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
+  '/cuentas/$clinicaId/estado': typeof AppCuentasClinicaIdEstadoRoute
   '/trabajos/$caseId/editar': typeof AppTrabajosCaseIdEditarRoute
   '/trabajos/$caseId/imprimir': typeof AppTrabajosCaseIdImprimirRoute
 }
@@ -213,6 +222,7 @@ export interface FileRoutesById {
   '/_app/cuentas/': typeof AppCuentasIndexRoute
   '/_app/trabajos/': typeof AppTrabajosIndexRoute
   '/_app/configuracion/clinicas/$clinicId': typeof AppConfiguracionClinicasClinicIdRoute
+  '/_app/cuentas/$clinicaId_/estado': typeof AppCuentasClinicaIdEstadoRoute
   '/_app/trabajos/$caseId_/editar': typeof AppTrabajosCaseIdEditarRoute
   '/_app/trabajos/$caseId_/imprimir': typeof AppTrabajosCaseIdImprimirRoute
 }
@@ -238,6 +248,7 @@ export interface FileRouteTypes {
     | '/cuentas/'
     | '/trabajos/'
     | '/configuracion/clinicas/$clinicId'
+    | '/cuentas/$clinicaId/estado'
     | '/trabajos/$caseId/editar'
     | '/trabajos/$caseId/imprimir'
   fileRoutesByTo: FileRoutesByTo
@@ -258,6 +269,7 @@ export interface FileRouteTypes {
     | '/cuentas'
     | '/trabajos'
     | '/configuracion/clinicas/$clinicId'
+    | '/cuentas/$clinicaId/estado'
     | '/trabajos/$caseId/editar'
     | '/trabajos/$caseId/imprimir'
   id:
@@ -282,6 +294,7 @@ export interface FileRouteTypes {
     | '/_app/cuentas/'
     | '/_app/trabajos/'
     | '/_app/configuracion/clinicas/$clinicId'
+    | '/_app/cuentas/$clinicaId_/estado'
     | '/_app/trabajos/$caseId_/editar'
     | '/_app/trabajos/$caseId_/imprimir'
   fileRoutesById: FileRoutesById
@@ -433,6 +446,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppConfiguracionClinicasClinicIdRouteImport
       parentRoute: typeof AppConfiguracionClinicasRoute
     }
+    '/_app/cuentas/$clinicaId_/estado': {
+      id: '/_app/cuentas/$clinicaId_/estado'
+      path: '/$clinicaId/estado'
+      fullPath: '/cuentas/$clinicaId/estado'
+      preLoaderRoute: typeof AppCuentasClinicaIdEstadoRouteImport
+      parentRoute: typeof AppCuentasRoute
+    }
     '/_app/trabajos/$caseId_/editar': {
       id: '/_app/trabajos/$caseId_/editar'
       path: '/$caseId/editar'
@@ -489,11 +509,13 @@ const AppConfiguracionRouteWithChildren =
 interface AppCuentasRouteChildren {
   AppCuentasClinicaIdRoute: typeof AppCuentasClinicaIdRoute
   AppCuentasIndexRoute: typeof AppCuentasIndexRoute
+  AppCuentasClinicaIdEstadoRoute: typeof AppCuentasClinicaIdEstadoRoute
 }
 
 const AppCuentasRouteChildren: AppCuentasRouteChildren = {
   AppCuentasClinicaIdRoute: AppCuentasClinicaIdRoute,
   AppCuentasIndexRoute: AppCuentasIndexRoute,
+  AppCuentasClinicaIdEstadoRoute: AppCuentasClinicaIdEstadoRoute,
 }
 
 const AppCuentasRouteWithChildren = AppCuentasRoute._addFileChildren(

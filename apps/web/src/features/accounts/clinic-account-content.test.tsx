@@ -121,6 +121,18 @@ describe('ClinicAccountContent', () => {
     expect(screen.getByRole('link', { name: 'Cuentas' })).toHaveAttribute('href', '/cuentas')
   })
 
+  it.each(['admin', 'recepcion'] as const)(
+    '%s abre el estado de cuenta imprimible de la clínica',
+    async (role) => {
+      vi.mocked(fetchClinicAccount).mockResolvedValue(account('45.00'))
+      renderWithQueryAndRouter(<ClinicAccountContent clinicId="c1" role={role} />)
+      expect(await screen.findByRole('link', { name: 'Estado de cuenta' })).toHaveAttribute(
+        'href',
+        '/cuentas/c1/estado',
+      )
+    },
+  )
+
   it('un saldo negativo se dice «A favor»', async () => {
     vi.mocked(fetchClinicAccount).mockResolvedValue(account('-12.34'))
     renderWithQueryAndRouter(<ClinicAccountContent clinicId="c1" role="admin" />)

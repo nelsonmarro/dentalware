@@ -66,6 +66,7 @@ Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabaj
 - **Accesibilidad**: un `h1` por página, labels o `aria-label`, `aria-pressed` en toggles, foco visible, teclado en diálogos y selects, contraste AA, `alt` e `inputmode`.
 - **Imágenes**: se comprimen en el cliente (≤ 1600 px), las miniaturas usan `loading="lazy"` y todo `createObjectURL` se revoca (`useLocalFile`). Una foto que solo sirve para una acción (la constancia de «Marcar entregado») se sube al confirmar la acción, nunca al elegirla: la miniatura previa es local, y «Volver» o «Cambiar foto» no dejan adjuntos huérfanos (UX4-06). «Foto» es todo adjunto `image/*` (`isPhoto`, una sola regla para la grilla, la pestaña y la ficha corta).
 - **Orden impresa**: en papel, todo en `rem` (la raíz escala por hoja: 16 px en A5 y por omisión, 20 px en A4/Carta); las copias salen de `printCopiesFor(role)` de shared, cada una en su hoja.
+- **Estado de cuenta impreso** (CTA-5, `/cuentas/$clinicaId/estado`): mismas reglas que la orden (`rem`, `@page` de `index.css`, controles con `print:hidden`, «Imprimir» con `window.print()`). El periodo va en la URL (`?desde&hasta`, por omisión el mes en curso, `statementRange`). Sus tablas son `<table>` semánticas, no `DataGrid` (lista sin orden, filtro ni paginación, y en papel no cabe la variante de tarjetas): las columnas que no caben en móvil se leen dentro de otra (`hidden sm:table-cell print:table-cell`). El saldo corrido, los totales y el cuadre vienen de la API (`accountStatement` de shared); la vista no suma nada.
 
 ## 6. Shared
 

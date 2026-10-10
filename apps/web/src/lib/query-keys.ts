@@ -56,6 +56,9 @@ export const queryKeys = {
   accounts: {
     list: (todas: boolean) => ['cuentas', 'lista', { todas }] as const,
     clinic: (clinicId: string) => ['cuentas', clinicId] as const,
+    // Bajo `cuentas/<clínica>`: un pago, un ajuste o una anulación de la clínica lo invalidan.
+    statement: (clinicId: string, desde: string, hasta: string) =>
+      ['cuentas', clinicId, 'estado', { desde, hasta }] as const,
   },
 }
 

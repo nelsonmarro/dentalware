@@ -1,6 +1,6 @@
 import { ACCOUNT_ADMIN_ROLES, hasRole, type UserRole } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, FileText } from 'lucide-react'
 import { useState } from 'react'
 import { EmptyState } from '@/components/empty-state'
 import { LoadError } from '@/components/load-error'
@@ -25,7 +25,8 @@ type OpenDialog = 'pago' | 'ajuste' | 'aplicar' | 'anular' | null
 
 /**
  * La cuenta de una clínica (`/cuentas/$clinicaId`, CTA-1/2/3): la cabecera con el saldo, el saldo
- * a favor y la antigüedad, y las pestañas «Por cobrar» y «Movimientos». Admin y recepción
+ * a favor y la antigüedad, y las pestañas «Por cobrar» y «Movimientos», con el enlace al
+ * estado de cuenta imprimible (CTA-5). Admin y recepción
  * registran pagos y aplican el saldo a favor de cada pago; solo el administrador
  * (`ACCOUNT_ADMIN_ROLES`) registra ajustes y anula pagos. Distingue «no existe» (404) de «no se
  * pudo cargar», cada uno con su `h1`.
@@ -81,6 +82,11 @@ export function ClinicAccountContent({ clinicId, role }: { clinicId: string; rol
         description="Lo que debe, desde cuándo y cada pago, cargo y ajuste."
         action={
           <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
+            <Button asChild variant="outline" className="h-11">
+              <Link to="/cuentas/$clinicaId/estado" params={{ clinicaId: clinicId }}>
+                <FileText aria-hidden /> Estado de cuenta
+              </Link>
+            </Button>
             {canAdmin && (
               <Button
                 type="button"

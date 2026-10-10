@@ -1,4 +1,5 @@
 import type {
+  AccountStatementQuery,
   AdjustmentInput,
   ApplyCreditInput,
   PaymentInput,
@@ -25,6 +26,14 @@ export async function fetchClinicAccount(id: string) {
   return (await throwIfNotOk(await cuentas[':id'].$get({ param: { id } }))).json()
 }
 export type ClinicAccount = Awaited<ReturnType<typeof fetchClinicAccount>>
+
+/** `GET /api/cuentas/:id/estado?desde&hasta` (CTA-5): el estado de cuenta de una clínica por
+ * rango (saldo inicial, movimientos con saldo corrido, saldo final, antigüedad y «Por cobrar» a
+ * `hasta`). 404 si la clínica no existe; 422 si `desde > hasta`. */
+export async function fetchAccountStatement(id: string, query: AccountStatementQuery) {
+  return (await throwIfNotOk(await cuentas[':id'].estado.$get({ param: { id }, query }))).json()
+}
+export type AccountStatement = Awaited<ReturnType<typeof fetchAccountStatement>>
 
 /** `POST /api/cuentas/pagos` (CTA-2): registra un pago y su reparto. Lo no repartido queda a
  * favor de la clínica. 422 con el campo (`asignaciones.N.monto`, `fecha`…). */
