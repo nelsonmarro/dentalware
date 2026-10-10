@@ -14,7 +14,7 @@ import { formatMoney } from '@/lib/format-money'
 import { signedAmountText } from './balance-text'
 
 const Money = ({ value }: { value: string }) => (
-  <span className="font-mono tabular-nums">{formatMoney(value)}</span>
+  <span className="font-mono whitespace-nowrap tabular-nums">{formatMoney(value)}</span>
 )
 
 /**
@@ -68,7 +68,9 @@ export function CaseAccountLine({
         {adjusted && (
           <p className="text-sm text-muted-foreground">
             Incluye ajustes de{' '}
-            <span className="font-mono tabular-nums">{signedAmountText(account.adjustments)}</span>
+            <span className="font-mono whitespace-nowrap tabular-nums">
+              {signedAmountText(account.adjustments)}
+            </span>
             : se cobra <Money value={net} /> en vez de <Money value={account.charge} />
           </p>
         )}

@@ -35,7 +35,7 @@ function itemContent(item: ComboboxItem) {
       {item.detail && (
         <>
           {' '}
-          <span className="text-muted-foreground">· {item.detail}</span>
+          <span className="whitespace-nowrap text-muted-foreground">· {item.detail}</span>
         </>
       )}
     </>

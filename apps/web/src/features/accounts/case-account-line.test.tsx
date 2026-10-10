@@ -110,6 +110,28 @@ describe('CaseAccountLine (la cuenta del trabajo en su ficha)', () => {
     ).toBeInTheDocument()
   })
 
+  // A 360 px, «se cobra $» / «55.00» se partía: cada monto (con su signo) no se parte.
+  it('los montos de la línea de ajustes no se parten', async () => {
+    renderWithRouter(
+      <CaseAccountLine
+        account={{
+          charge: '45.00',
+          adjustments: '10.00',
+          allocated: '45.00',
+          outstanding: '10.00',
+          paidAt: null,
+        }}
+        clinicId="k1"
+        total="45.00"
+        remakeChargePct={null}
+        role="admin"
+      />,
+    )
+    for (const text of ['+ $ 10.00', '$ 55.00', '$ 45.00']) {
+      for (const el of await screen.findAllByText(text)) expect(el).toHaveClass('whitespace-nowrap')
+    }
+  })
+
   it('sin ajustes no añade la línea de ajustes', async () => {
     renderWithRouter(
       <CaseAccountLine

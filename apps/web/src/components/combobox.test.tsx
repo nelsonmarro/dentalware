@@ -203,6 +203,15 @@ describe('Combobox', () => {
       expect(within(option).getByText('Ana Ruiz')).not.toHaveClass('font-mono')
     })
 
+    // A 390 px, «Debe $ 120.00» se partía en «Debe $» / «120.00»: el detalle no se parte.
+    it('el detalle no se parte en dos líneas', async () => {
+      const user = userEvent.setup()
+      render(<Combobox items={cases} value={null} onChange={vi.fn()} placeholder="Trabajo" />)
+      await user.click(screen.getByRole('combobox', { name: 'Trabajo' }))
+      const option = screen.getByRole('option', { name: /26-00102/ })
+      expect(within(option).getByText('· Debe $ 120.00')).toHaveClass('whitespace-nowrap')
+    })
+
     it.each([
       ['el código', '00102'],
       ['la etiqueta', 'luis'],
