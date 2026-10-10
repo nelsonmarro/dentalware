@@ -97,6 +97,54 @@ describe('features/accounts/service', () => {
       expect(account.clinic).toEqual({ id: SUR.id, name: 'Clínica Sur' })
     })
 
+    // Final review M-2: «Registrar ajuste» avisa lo que un descuento devuelve al saldo a favor
+    // también en un trabajo cobrado, con lo que debe y lo pagado de cada trabajo que carga.
+    it('los trabajos que cargan, por código, con su estado, lo que deben y lo pagado', async () => {
+      const service = makeService({
+        cases: [
+          // Repetición al 0 %: «Marcar entregado» la deja cobrada sin nada pagado.
+          makeCase({ id: 'c', totalCents: 10_000, remakeChargePct: 0, status: 'cobrado' }),
+          makeCase({ id: 'b', totalCents: 5_000, status: 'cobrado', patientRef: 'Luis Paz' }),
+          makeCase({ id: 'a', totalCents: 10_000, patientRef: 'Ana Ruiz' }),
+          // No entregado: no carga.
+          makeCase({ id: 'd', totalCents: 7_000, status: 'en_proceso' }),
+        ],
+        adjustments: [makeAdjustment({ id: 'aj', amountCents: -1_000, caseId: 'a' })],
+        payments: [makePayment({ id: 'p1', amountCents: 8_000 })],
+        allocations: [
+          { paymentId: 'p1', caseId: 'a', amountCents: 3_000 },
+          { paymentId: 'p1', caseId: 'b', amountCents: 5_000 },
+        ],
+      })
+      const account = await service.clinicAccount(SUR.id)
+      expect(account.billedCases).toEqual([
+        {
+          id: 'a',
+          code: '26-a',
+          patientRef: 'Ana Ruiz',
+          status: 'entregado',
+          outstanding: '60.00',
+          allocated: '30.00',
+        },
+        {
+          id: 'b',
+          code: '26-b',
+          patientRef: 'Luis Paz',
+          status: 'cobrado',
+          outstanding: '0.00',
+          allocated: '50.00',
+        },
+        {
+          id: 'c',
+          code: '26-c',
+          patientRef: 'Paciente',
+          status: 'cobrado',
+          outstanding: '0.00',
+          allocated: '0.00',
+        },
+      ])
+    })
+
     it('una repetición carga su porcentaje, no su total', async () => {
       const service = makeService({
         cases: [makeCase({ id: 'r', totalCents: 10_000, remakeChargePct: 50 })],

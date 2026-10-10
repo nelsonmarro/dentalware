@@ -339,21 +339,22 @@ test.describe('Cuentas', () => {
       await submit.click()
       await expect(pago).toBeHidden()
 
-      // UX5-15: un descuento sobre un trabajo ya cobrado avisa antes de que vuelve al saldo a
-      // favor.
+      // UX5-15: un descuento sobre un trabajo ya cobrado avisa antes cuánto de lo pagado vuelve
+      // al saldo a favor (final review M-2: con lo pagado que da la API, no a ciegas).
       await page.getByRole('button', { name: 'Registrar ajuste' }).click()
       const ajuste = page.getByRole('dialog', { name: 'Registrar ajuste' })
       await ajuste.getByRole('button', { name: 'Descuento o nota de crédito' }).click()
+      await ajuste.getByLabel('Monto', { exact: true }).fill('10')
       await ajuste.getByRole('combobox', { name: 'Trabajo' }).click()
       // UX5-11: código, paciente y el estado con su etiqueta («Cobrado»).
       await page
         .getByRole('option', { name: new RegExp(`^${cases[0]?.code} .+ · Cobrado$`) })
         .click()
       await expect(
-        ajuste.getByText(
-          'Este trabajo ya está cobrado: lo que le descuentes vuelve al saldo a favor.',
-        ),
-      ).toBeVisible()
+        ajuste.getByText('de lo ya pagado por este trabajo vuelven al saldo a favor.', {
+          exact: false,
+        }),
+      ).toHaveText('$ 10.00 de lo ya pagado por este trabajo vuelven al saldo a favor.')
       await ajuste.getByRole('button', { name: 'Volver' }).click()
       await expect(ajuste).toBeHidden()
     },

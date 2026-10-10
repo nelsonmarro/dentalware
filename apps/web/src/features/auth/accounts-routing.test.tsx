@@ -79,6 +79,7 @@ describe('acceso a «Cuentas» por rol (ACCOUNTS_ROLES)', () => {
         credit: '0.00',
         balance: '80.00',
       },
+      billedCases: [],
       movements: [],
     } as unknown as Awaited<ReturnType<typeof fetchClinicAccount>>)
   })

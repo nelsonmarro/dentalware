@@ -12,11 +12,35 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 const K1 = '11111111-1111-4111-8111-111111111111'
 const T1 = '22222222-2222-4222-8222-222222222222'
 const T2 = '33333333-3333-4333-8333-333333333333'
+const T3 = '44444444-4444-4444-8444-444444444444'
 
 const CASES = [
-  { id: T1, code: '26-00001', patientRef: 'Ana Ruiz', outstanding: '50.00', allocated: '30.00' },
-  { id: T2, code: '26-00002', patientRef: 'Luis Paz', outstanding: null, allocated: null },
-]
+  {
+    id: T1,
+    code: '26-00001',
+    patientRef: 'Ana Ruiz',
+    status: 'entregado',
+    outstanding: '50.00',
+    allocated: '30.00',
+  },
+  {
+    id: T2,
+    code: '26-00002',
+    patientRef: 'Luis Paz',
+    status: 'cobrado',
+    outstanding: '0.00',
+    allocated: '45.00',
+  },
+  // Una repetición al 0 %: cobrada sin nada pagado.
+  {
+    id: T3,
+    code: '26-00003',
+    patientRef: 'Eva Mora',
+    status: 'cobrado',
+    outstanding: '0.00',
+    allocated: '0.00',
+  },
+] as const
 
 function renderDialog() {
   const onOpenChange = vi.fn()
@@ -100,22 +124,43 @@ describe('AdjustmentDialog («Registrar ajuste», CTA-3)', () => {
       await user.click(screen.getByRole('combobox', { name: 'Trabajo' }))
       await user.click(await screen.findByRole('option', { name: new RegExp(code) }))
     }
-    const COBRADO = 'Este trabajo ya está cobrado: lo que le descuentes vuelve al saldo a favor.'
+    const NOTICE = /de lo ya pagado por este trabajo vuelven al saldo a favor\.$/
 
-    it('un descuento sobre un trabajo cobrado lo avisa', async () => {
+    it('un descuento sobre un trabajo cobrado dice cuánto de lo pagado vuelve', async () => {
       const { user } = renderDialog()
       await choose(user, 'Descuento o nota de crédito', '26-00002')
+      await user.type(screen.getByLabelText('Monto'), '20')
+      const notice = screen.getByText(NOTICE)
+      expect(notice).toHaveTextContent(
+        /^\$ 20\.00 de lo ya pagado por este trabajo vuelven al saldo a favor\.$/,
+      )
       // En el pie fijo, junto a «Registrar ajuste»: se ve antes de confirmar aunque el cuerpo
       // no quepa (a 360 px el trabajo queda al borde del cuerpo).
-      expect(
-        screen.getByText(COBRADO).closest('[data-slot="form-dialog-footer"]'),
-      ).toContainElement(screen.getByRole('button', { name: 'Registrar ajuste' }))
+      expect(notice.closest('[data-slot="form-dialog-footer"]')).toContainElement(
+        screen.getByRole('button', { name: 'Registrar ajuste' }),
+      )
+    })
+
+    // Final review M-2: prometía que el descuento volvía al saldo a favor, pero sin nada pagado
+    // la API lo rechaza (422: el neto quedaría bajo 0).
+    it('un descuento sobre un trabajo cobrado sin nada pagado no promete nada', async () => {
+      const { user } = renderDialog()
+      await choose(user, 'Descuento o nota de crédito', '26-00003')
+      await user.type(screen.getByLabelText('Monto'), '10')
+      expect(screen.queryByText(/vuelve.? al saldo a favor/)).toBeNull()
+    })
+
+    it('un descuento mayor que lo pagado de un trabajo cobrado no promete nada', async () => {
+      const { user } = renderDialog()
+      await choose(user, 'Descuento o nota de crédito', '26-00002')
+      await user.type(screen.getByLabelText('Monto'), '45.01')
+      expect(screen.queryByText(/vuelve.? al saldo a favor/)).toBeNull()
     })
 
     it('un recargo sobre un trabajo cobrado no avisa nada', async () => {
       const { user } = renderDialog()
       await choose(user, 'Recargo', '26-00002')
-      expect(screen.queryByText(COBRADO)).toBeNull()
+      await user.type(screen.getByLabelText('Monto'), '20')
       expect(screen.queryByText(/vuelve.? al saldo a favor/)).toBeNull()
     })
 
@@ -199,6 +244,7 @@ describe('AdjustmentDialog («Registrar ajuste», CTA-3)', () => {
         'Sin trabajo: solo la clínica',
         '26-00001 Ana Ruiz · Debe $ 50.00',
         '26-00002 Luis Paz · Cobrado',
+        '26-00003 Eva Mora · Cobrado',
       ])
       const option = screen.getByRole('option', { name: /26-00002/ })
       expect(within(option).getByText('26-00002')).toHaveClass('font-mono')

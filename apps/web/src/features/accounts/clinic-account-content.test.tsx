@@ -25,6 +25,7 @@ const account = (balance: string, extra: Partial<ClinicAccount> = {}) =>
       credit: '0.00',
       balance,
     },
+    billedCases: [],
     movements: [],
     ...extra,
   }) as unknown as ClinicAccount
@@ -271,6 +272,41 @@ describe('ClinicAccountContent', () => {
     expect(await screen.findByRole('dialog', { name: 'Anular pago' })).toHaveTextContent(
       'No estaba aplicado a ningún trabajo.',
     )
+  })
+
+  // Final review M-2: el buscador de «Registrar ajuste» lista los trabajos que cargan tal como
+  // los da la API, con su estado, lo que deben y lo pagado.
+  it('«Registrar ajuste» lista los trabajos que cargan de la API', async () => {
+    vi.mocked(fetchClinicAccount).mockResolvedValue({
+      ...FULL,
+      billedCases: [
+        {
+          id: T1,
+          code: '26-00001',
+          patientRef: 'Ana Ruiz',
+          status: 'entregado',
+          outstanding: '90.00',
+          allocated: '0.00',
+        },
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          code: '26-00007',
+          patientRef: 'Luis Paz',
+          status: 'cobrado',
+          outstanding: '0.00',
+          allocated: '45.00',
+        },
+      ],
+    })
+    const { user } = renderWithQueryAndRouter(<ClinicAccountContent clinicId="c1" role="admin" />)
+    await user.click(await screen.findByRole('button', { name: 'Registrar ajuste' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Registrar ajuste' })
+    await user.click(within(dialog).getByRole('combobox', { name: 'Trabajo' }))
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Sin trabajo: solo la clínica',
+      '26-00001 Ana Ruiz · Debe $ 90.00',
+      '26-00007 Luis Paz · Cobrado',
+    ])
   })
 
   it('«Anular pago» nombra los trabajos a los que se aplicó el pago de esa fila (UX5-03)', async () => {

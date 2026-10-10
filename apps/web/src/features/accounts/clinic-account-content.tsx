@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { QueuedNotice } from '@/features/cases/queued-notice'
 import { isNotFoundError } from '@/lib/api-error'
 import { AccountSummary } from './account-summary'
-import { adjustableCases } from './adjustable-cases'
 import { AdjustmentDialog } from './adjustment-dialog'
 import { ApplyCreditDialog } from './apply-credit-dialog'
 import { BalanceBreakdown } from './balance-breakdown'
@@ -171,7 +170,7 @@ export function ClinicAccountContent({ clinicId, role }: { clinicId: string; rol
       {canAdmin && (
         <AdjustmentDialog
           clinic={data.clinic}
-          cases={adjustableCases(data.movements, data.openCases)}
+          cases={data.billedCases}
           open={dialog === 'ajuste'}
           onOpenChange={close}
         />

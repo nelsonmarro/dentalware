@@ -31,6 +31,7 @@ import type {
   AgingBucket,
   AllocationInput,
   ApplyCreditInput,
+  CaseStatus,
   PaymentInput,
   PaymentMethod,
   UserRole,
@@ -126,6 +127,20 @@ export type BalanceBreakdown = {
   balance: string
 }
 
+/** Un trabajo que carga a la cuenta (`entregado` o `cobrado`), al que se puede ligar un ajuste:
+ * lo que debe con signo y lo pagado (Σ asignaciones vigentes). Con ellos la web dice, antes de
+ * confirmar un descuento, cuánto vuelve al saldo a favor (`discountReleaseCents`), también en
+ * uno cobrado, y no lo promete en uno que no tiene nada pagado (final review M-2). */
+export type BilledCaseView = {
+  id: string
+  code: string
+  patientRef: string
+  /** `entregado` (por cobrar) o `cobrado`. */
+  status: CaseStatus
+  outstanding: string
+  allocated: string
+}
+
 export type ClinicAccount = {
   clinic: { id: string; name: string }
   balance: string
@@ -137,6 +152,8 @@ export type ClinicAccount = {
   openCases: OpenCase[]
   /** Desglose del saldo (UX5-02). */
   breakdown: BalanceBreakdown
+  /** Los trabajos que cargan, por código. */
+  billedCases: BilledCaseView[]
   movements: AccountMovement[]
 }
 
@@ -706,6 +723,20 @@ export function createAccountsService(deps: {
     }))
   }
 
+  /** Los trabajos que cargan de un resumen, por código (el orden del buscador del ajuste). */
+  function billedCasesOf(s: ReturnType<typeof summarize>): BilledCaseView[] {
+    return [...s.cases]
+      .sort((a, b) => a.code.localeCompare(b.code))
+      .map((c) => ({
+        id: c.id,
+        code: c.code,
+        patientRef: c.patientRef,
+        status: c.status,
+        outstanding: fromSignedCents(c.outstandingCents),
+        allocated: fromSignedCents(c.allocatedCents),
+      }))
+  }
+
   return {
     /**
      * Lista de «Cuentas» (CTA-1): las clínicas con saldo o con movimientos (aunque estén
@@ -766,6 +797,7 @@ export function createAccountsService(deps: {
         oldestDays: s.oldestDays,
         openCases: openCasesOf(s),
         breakdown: s.breakdown,
+        billedCases: billedCasesOf(s),
         movements: movementsOf(ledger, allocations),
       }
     },

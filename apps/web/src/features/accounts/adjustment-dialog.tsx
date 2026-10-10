@@ -10,6 +10,7 @@ import {
   toIsoDate,
   toSignedCents,
   type AdjustmentInput,
+  type CaseStatus,
 } from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Check, Info } from 'lucide-react'
@@ -38,32 +39,31 @@ const FIELDS = ['signo', 'monto', 'motivo', 'fecha', 'trabajoId']
 /** Valor interno de «Sin trabajo» en el `Combobox` (que no admite `''`); nunca sale del diálogo. */
 const NO_CASE = '__sin_trabajo__'
 
-/** Un trabajo que carga a la cuenta: lo que debe todavía y lo ya pagado, o `null` si ya está
- * cobrado (no está en «Por cobrar»). */
+/** Un trabajo que carga a la cuenta (`billedCases` de la API): su estado, lo que debe con signo
+ * y lo ya pagado. */
 export type AdjustableCase = {
   id: string
   code: string
   patientRef: string
-  outstanding: string | null
-  allocated: string | null
+  status: CaseStatus
+  outstanding: string
+  allocated: string
 }
 
 /**
  * Lo que un descuento ligado a un trabajo devolverá al saldo a favor, dicho antes de confirmar
- * (UX5-15). Cobrado: todo lo que se le descuente vuelve, sin monto porque la web no tiene su
- * pendiente ni lo pagado. Por cobrar: el monto exacto con `discountReleaseCents` de shared, si el
- * descuento pasa de lo que debe, aparte del texto para la monoespaciada. `null` si no devuelve nada (recargo, sin trabajo, o un descuento
- * que la API rechazará por dejar el neto bajo 0).
+ * (UX5-15): el monto exacto con `discountReleaseCents` de shared, si el descuento pasa de lo que
+ * debe (en uno cobrado, todo lo descontado sale de lo pagado), aparte del texto para la
+ * monoespaciada. `null` si no devuelve nada: recargo, sin trabajo, o un descuento que la API
+ * rechazará por dejar el neto bajo 0 (también en un cobrado sin nada pagado, como una repetición
+ * al 0 %, final review M-2).
  */
 function discountNotice(
   c: AdjustableCase | undefined,
   signo: string | undefined,
   monto: string,
-): { amount?: string; text: string } | null {
+): { amount: string; text: string } | null {
   if (!c || signo !== 'descuento') return null
-  if (c.outstanding === null || c.allocated === null) {
-    return { text: 'Este trabajo ya está cobrado: lo que le descuentes vuelve al saldo a favor.' }
-  }
   const cents = parseMoneyInput(monto)
   if (!cents) return null
   const released = discountReleaseCents(
@@ -137,7 +137,10 @@ export function AdjustmentDialog({
       value: c.id,
       code: c.code,
       label: c.patientRef,
-      detail: c.outstanding ? `Debe ${formatMoney(c.outstanding)}` : CASE_STATUS_LABEL.cobrado,
+      detail:
+        c.status === 'entregado'
+          ? `Debe ${formatMoney(c.outstanding)}`
+          : CASE_STATUS_LABEL[c.status],
     })),
   ]
 
@@ -182,9 +185,7 @@ export function AdjustmentDialog({
             <p className="flex gap-2 rounded-lg border border-wax-amber/60 bg-wax-amber/10 px-3 py-2 text-sm text-foreground">
               <Info aria-hidden className="mt-0.5 size-4 shrink-0 text-wax-amber-ink" />
               <span>
-                {notice.amount && <span className="font-mono">{notice.amount}</span>}
-                {notice.amount && ' '}
-                {notice.text}
+                <span className="font-mono">{notice.amount}</span> {notice.text}
               </span>
             </p>
           )}

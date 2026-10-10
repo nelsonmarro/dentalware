@@ -182,6 +182,7 @@ describe('/api/cuentas', () => {
         credit: '0.00',
         balance: '0.00',
       },
+      billedCases: [],
       movements: [],
     })
     // Sin movimientos, la lista no la muestra salvo con `todas=1`.
@@ -200,6 +201,7 @@ describe('/api/cuentas', () => {
       aging: Record<string, string>
       oldestDays: number | null
       openCases: unknown[]
+      billedCases: unknown[]
       movements: unknown[]
     }
     expect(after.balance).toBe('45.00')
@@ -213,6 +215,18 @@ describe('/api/cuentas', () => {
         outstanding: '45.00',
         days: 0,
       }),
+    ])
+    // Final review M-2: el trabajo que carga, con lo que debe y lo pagado, para el aviso del
+    // descuento en «Registrar ajuste».
+    expect(after.billedCases).toEqual([
+      {
+        id: delivered.id,
+        code: expect.any(String),
+        patientRef: 'Paciente 1',
+        status: 'entregado',
+        outstanding: '45.00',
+        allocated: '0.00',
+      },
     ])
     expect(after.movements).toEqual([
       // UX5-11: el trabajo del movimiento trae su paciente.
