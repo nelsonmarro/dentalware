@@ -152,7 +152,9 @@ async function fillMinimalCase(user: ReturnType<typeof userEvent.setup>) {
   await pickOption(user, 'Producto', /ZR/)
 }
 
-describe('CaseForm', () => {
+// Los recorridos con userEvent (combobox, odontograma) tardan ~1,6 s solos y pasan de los 5 s
+// por omisión cuando corre toda la suite en paralelo: 15 s evita el falso rojo bajo carga.
+describe('CaseForm', { timeout: 15_000 }, () => {
   // Ronda de fixes 1 (UX3-02, punto 3): sin catálogo de clínicas o de productos el formulario
   // es inutilizable (no hay con qué elegir); un fallo de red en cualquiera de los dos se
   // presentaba como un formulario vacío, no como un error que se pueda reintentar.
