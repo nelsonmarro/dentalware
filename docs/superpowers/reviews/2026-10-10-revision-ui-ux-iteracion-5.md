@@ -363,3 +363,41 @@ Todas en `capturas/it5/`. Ninguna muestra credenciales: el formulario de usuario
 - Estado de cuenta:
   - en pantalla: `estado-cuenta-pantalla-1280.png`, `estado-cuenta-detalle-estrecho-360.png`;
   - en papel (PDF a PNG): `estado-papel-norte-A5-1.png`, `estado-papel-norte-A5-2.png`, `estado-papel-norte-A4-1.png`, `estado-papel-norte-A4-2.png`, `estado-papel-valle-carta-1.png`.
+
+## Resultado de la ola
+
+Ola de fixes en la rama `fix/revision-ui-ux-it5` (plan `docs/superpowers/plans/2026-10-10-ola-fixes-ui-ux-it5.md`, 9 tareas, `61492b3..HEAD`). Los 20 hallazgos quedan resueltos.
+
+| Hallazgo | Qué se hizo | Commit(s) |
+|---|---|---|
+| UX5-01 | La cabecera lee el saldo una sola vez (`accountHeadline` de shared) y ofrece «Aplicar saldo a favor» con el pago vigente más antiguo (`paymentToApply`); sigue siendo manual | `e291386`, `f2a7407` |
+| UX5-02 | La API trae el `breakdown` del saldo y «Por cobrar» y el estado de cuenta cierran con su desglose (`BalanceBreakdown`) | `7f5fc67`, `99636ad` |
+| UX5-03 | El pago trae `allocations` con `reopens`: «Aplicado a …» con enlaces, y «Anular pago» nombra lo que quita y lo que reabre, sin partir los códigos | `ee50326`, `be9a5ea`, `d8fd852` |
+| UX5-04 | La API devuelve `settled` y el aviso nombra los trabajos que cerró; desaparece `settledCount` | `429c034` |
+| UX5-05 | La columna de la clínica en «Cuentas» parte el nombre en vez de ensanchar la tabla | `d744963`, `cd5cfcd` |
+| UX5-06 | `FormDialog` con cabecera y pie fijos; lo aplicado en vivo va en el `summary` del pie y el reparto tiene su propio scroll | `5f8b1be`, `85e38ee` |
+| UX5-07 | Variante `destructive-solid` para el botón que confirma lo destructivo | `8e4e5d0` |
+| UX5-08 | `DateField` con la fecha escrita en español debajo (`formatLongDate`) y sin el `lang` que no hacía nada | `79d6c29` |
+| UX5-09 | Un solo «Ordenar» en móvil para todas las tablas del `DataGrid`, con `meta.sortLabels` | `d744963`, `cd5cfcd` |
+| UX5-10 | «Más de 90 días» en `--overdue-wine`, con ΔE ≥ 20 y ≥ 3:1 frente a 61–90 | `1c0d5e7` |
+| UX5-11 | El buscador de trabajos del ajuste dice código en monoespaciada, paciente (`CaseRef` con `patientRef`) y estado, sin partir los montos | `80614ce`, `dca3f84` |
+| UX5-12 | «Movimientos» solo tiene la columna «Acciones» si alguna fila tiene una acción (`movementActions`) | `34be4e5` |
+| UX5-13 | En papel, «Saldo al …» en una línea, títulos que no se quedan solos y código sin partir | `eeb41ae` |
+| UX5-14 | En móvil, el saldo corrido va bajo el monto y «Detalle» pasa de 102 a 186 px a 360 | `eeb41ae` |
+| UX5-15 | Cada fila del reparto dice qué le pasará al trabajo (`allocationOutcome`), el descuento avisa de lo que vuelve al saldo a favor (`discountReleaseCents`) y el vocabulario queda en «Pagado»/«Aplicado» | `26d3028`, `5f8b1be`, `85e38ee` |
+| UX5-16 | La ficha explica los ajustes del trabajo: «Incluye ajustes de + $ X: se cobra $ Y en vez de $ Z» | `9152a52`, `dca3f84` |
+| UX5-17 | Botones de la cabecera en el DOM en orden de importancia, que es el del foco; en móvil, el primario a ancho completo | `f2a7407` |
+| UX5-18 | «Anular pago» va aparte, bajo «Aplicar saldo a favor» | `34be4e5`, `cd5cfcd` |
+| UX5-19 | El periodo del estado de cuenta valida con `statementRangeFormSchema(today)` de shared | `63cbaef` |
+| UX5-20 | «Anular pago» pinta bajo «Motivo» solo el issue del motivo y el resto va al toast | `f39fe8a` |
+
+El cierre (Tarea 9) añade los barridos táctiles de lo nuevo (`c703f2b`: cabecera con «Aplicar saldo a favor», desglose, `DateField` con su fecha escrita, pie fijo del reparto y «Ordenar» de trabajos) y pone al día `docs/architecture.md` y `docs/conventions.md`.
+
+**Queda fuera de la ola**:
+
+- Los campos de fecha fuera de cuentas (`ship-dialog`, `fail-dialog`, `day-picker`, `pickup-fields`, `clinic-patient-fields`, `cases-filters`) siguen sin la fecha escrita: issue aparte.
+- Solo «Cuentas» tiene `sortLabels` propios; las demás tablas dicen «<Columna>: ascendente/descendente» (valorar «Entrega» y «Estado» en trabajos).
+- La mutación de `timeZone` del test de `formatLongDate` solo muere fuera de UTC, y CI corre en UTC.
+- `adjustment-dialog` sigue usando `applyIssues` del reparto: un issue que no sea de sus campos se perdería (hoy la API de ajustes no lo devuelve; mismo patrón que UX5-20).
+- A 1280, el reparto con muchos trabajos tiene doble scroll (cuerpo y lista); aceptado.
+- A 390 con admin, la cabecera de la cuenta tiene 3 filas de botones y la primera tarjeta empieza en y ≈ 735.
