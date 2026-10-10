@@ -117,3 +117,85 @@ describe('MovementsTable: a qué trabajos se aplicó un pago (UX5-03)', () => {
     expect(link).not.toHaveAttribute('data-target-size')
   })
 })
+
+describe('MovementsTable: columna de acciones (UX5-12)', () => {
+  beforeEach(() => setMatchMedia(true))
+
+  const CARGO = movement({
+    id: 'k1',
+    kind: 'cargo',
+    amount: '120.00',
+    method: null,
+    case: { id: C1, code: '26-00101' },
+  } as unknown as Movement)
+  const SIN_SALDO = movement({ id: 'p5', kind: 'pago', reference: 'TRX-5', allocations: [] })
+
+  it('sin ninguna acción posible no reserva la columna «Acciones»', async () => {
+    // Recepción (no anula) y un pago sin nada a favor: ninguna fila tiene acciones.
+    renderWithQueryAndRouter(
+      <MovementsTable rows={[CARGO, SIN_SALDO]} actions={{ ...ACTIONS, canVoid: false }} />,
+    )
+    await screen.findByRole('row', { name: /TRX-5/ })
+    expect(screen.getAllByRole('columnheader')).toHaveLength(3)
+    expect(screen.queryByRole('columnheader', { name: 'Acciones' })).not.toBeInTheDocument()
+  })
+
+  it('con alguna acción, la columna está', async () => {
+    renderWithQueryAndRouter(
+      <MovementsTable
+        rows={[CARGO, { ...SIN_SALDO, remaining: '10.00' }]}
+        actions={{ ...ACTIONS, canVoid: false }}
+      />,
+    )
+    expect(await screen.findByRole('columnheader', { name: 'Acciones' })).toBeInTheDocument()
+  })
+})
+
+describe('MovementsTable: «Anular pago» aparte (UX5-18)', () => {
+  const CON_SALDO = movement({ id: 'p6', kind: 'pago', reference: 'TRX-6', remaining: '10.00' })
+
+  it('en escritorio va después de «Aplicar saldo a favor», separado por una raya', async () => {
+    setMatchMedia(true)
+    renderTable([CON_SALDO])
+    const apply = await screen.findByRole('button', { name: /^Aplicar saldo a favor/ })
+    const anular = screen.getByRole('button', { name: /^Anular pago/ })
+    expect(apply.compareDocumentPosition(anular) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(anular.parentElement).not.toBe(apply.parentElement)
+    expect(anular.parentElement).toHaveClass('border-l')
+  })
+
+  it('en móvil «Aplicar saldo a favor» va a lo ancho y «Anular pago» debajo, tras una raya', async () => {
+    setMatchMedia(false)
+    renderTable([CON_SALDO])
+    const apply = await screen.findByRole('button', { name: /^Aplicar saldo a favor/ })
+    const anular = screen.getByRole('button', { name: /^Anular pago/ })
+    expect(apply).toHaveClass('w-full')
+    expect(apply.compareDocumentPosition(anular) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(anular.parentElement).not.toBe(apply.parentElement)
+    expect(anular.parentElement).toHaveClass('border-t')
+  })
+})
+
+describe('MovementsTable: textos largos sin ensanchar ni partir el código', () => {
+  const AJUSTE = movement({
+    id: 'a1',
+    kind: 'ajuste',
+    amount: '-15.00',
+    method: null,
+    reason: 'Descuento acordado con la doctora por la demora en la entrega de la prótesis',
+    case: { id: C1, code: '26-00105' },
+  } as unknown as Movement)
+
+  it('en escritorio el motivo largo se parte dentro de la celda (la celda es `nowrap`)', async () => {
+    setMatchMedia(true)
+    renderTable([AJUSTE])
+    const text = await screen.findByText(/Descuento acordado/)
+    expect(text.closest('td')).toHaveClass('whitespace-normal')
+  })
+
+  it('el código del trabajo no se parte en «26-» / «00105»', async () => {
+    setMatchMedia(false)
+    renderTable([AJUSTE])
+    expect(await screen.findByRole('link', { name: '26-00105' })).toHaveClass('whitespace-nowrap')
+  })
+})

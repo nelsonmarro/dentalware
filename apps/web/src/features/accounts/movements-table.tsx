@@ -33,7 +33,7 @@ function MovementDetail({ m }: { m: Movement }) {
       to="/trabajos/$caseId"
       params={{ caseId: m.case.id }}
       data-target-size="inline"
-      className="font-mono text-primary hover:underline"
+      className="font-mono whitespace-nowrap text-primary hover:underline"
     >
       {m.case.code}
     </Link>
@@ -108,41 +108,61 @@ export type MovementActionsConfig = {
  * se rehace en cada render. */
 const ActionsContext = createContext<MovementActionsConfig | null>(null)
 
-/** «Aplicar saldo a favor» en cada pago vigente con algo sin asignar, y «Anular pago» (admin)
- * en cada pago vigente; lo destructivo, al final. Los nombres dicen de qué pago se trata. */
-function MovementActions({ m }: { m: Movement }) {
-  const a = useContext(ActionsContext)
+/** Qué acciones tiene un movimiento: «Aplicar saldo a favor» en cada pago vigente con algo sin
+ * asignar (si hay trabajos por cobrar) y «Anular pago» (admin) en cada pago vigente. `null` si
+ * ninguna: la tabla no reserva la columna cuando ninguna fila tiene acciones (UX5-12). */
+function movementActions(m: Movement, a: MovementActionsConfig) {
   const p = livePayment(m)
-  if (!p || !a) return null
-  const when = formatDate(p.date)
+  if (!p) return null
   const apply = a.canApply && toSignedCents(p.remaining) > 0
-  if (!apply && !a.canVoid) return null
+  return apply || a.canVoid ? { p, apply, void: a.canVoid } : null
+}
+
+/** Las acciones de un pago. Lo destructivo, al final y aparte (UX5-18): en la tabla, tras una
+ * raya vertical; en la tarjeta, «Aplicar saldo a favor» a lo ancho y «Anular pago» debajo, tras
+ * una raya. Los nombres dicen de qué pago se trata. */
+function MovementActions({ m, layout }: { m: Movement; layout: 'table' | 'card' }) {
+  const a = useContext(ActionsContext)
+  const actions = a && movementActions(m, a)
+  if (!a || !actions) return null
+  const { p } = actions
+  const when = formatDate(p.date)
+  const card = layout === 'card'
   return (
-    <div className="flex flex-wrap justify-end gap-2">
-      {apply && (
+    <div className={card ? 'flex flex-col gap-2' : 'flex items-center justify-end gap-2'}>
+      {actions.apply && (
         <Button
           type="button"
           size="sm"
           variant="outline"
           disabled={a.disabled}
+          className={cn(card && 'w-full')}
           aria-label={`Aplicar saldo a favor de ${formatMoney(p.remaining)} del ${when}`}
           onClick={() => a.onApply(p)}
         >
           Aplicar saldo a favor
         </Button>
       )}
-      {a.canVoid && (
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={a.disabled}
-          className="text-destructive hover:text-destructive"
-          aria-label={`Anular pago de ${paymentContext(p, '').code} del ${when}`}
-          onClick={() => a.onVoid(p)}
+      {actions.void && (
+        <div
+          className={
+            card
+              ? 'flex justify-end border-t border-border pt-2'
+              : cn('flex', actions.apply && 'ms-1 border-l border-border ps-3')
+          }
         >
-          Anular pago
-        </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={a.disabled}
+            className="text-destructive hover:text-destructive"
+            aria-label={`Anular pago de ${paymentContext(p, '').code} del ${when}`}
+            onClick={() => a.onVoid(p)}
+          >
+            Anular pago
+          </Button>
+        </div>
       )}
     </div>
   )
@@ -156,16 +176,24 @@ const columns = defineColumns<Movement>((col) => [
   col.accessor('kind', {
     header: 'Movimiento',
     cell: (c) => <MovementDetail m={c.row.original} />,
+    // La celda de la tabla es `nowrap`: un motivo largo (ajuste o anulación) se parte aquí en
+    // vez de ensanchar la tabla a 1280.
+    meta: { cellClassName: 'whitespace-normal min-w-64' },
   }),
   col.accessor('amount', {
     header: 'Monto',
     cell: (c) => <MovementAmount m={c.row.original} />,
     meta: { align: 'right' },
   }),
+])
+
+/** Las mismas columnas más la de acciones, para cuando alguna fila tiene alguna. */
+const columnsWithActions = defineColumns<Movement>((col) => [
+  ...columns,
   col.display({
     id: 'acciones',
     header: () => <span className="sr-only">Acciones</span>,
-    cell: (c) => <MovementActions m={c.row.original} />,
+    cell: (c) => <MovementActions m={c.row.original} layout="table" />,
     meta: { align: 'right', label: 'Acciones' },
   }),
 ])
@@ -182,7 +210,7 @@ function MovementCard({ m }: { m: Movement }) {
           <span className="text-xs text-muted-foreground">{formatDate(m.date)}</span>
         </div>
       </div>
-      <MovementActions m={m} />
+      <MovementActions m={m} layout="card" />
     </div>
   )
 }
@@ -199,9 +227,10 @@ export function MovementsTable({
   rows: Movement[]
   actions: MovementActionsConfig
 }) {
+  const withActions = rows.some((m) => movementActions(m, actions) !== null)
   const grid = useDataGrid({
     key: 'cuentas-movimientos',
-    columns,
+    columns: withActions ? columnsWithActions : columns,
     data: rows,
     features: FEATURES,
     getRowId: (r) => `${r.kind}-${r.id}`,
