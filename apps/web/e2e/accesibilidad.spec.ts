@@ -108,6 +108,10 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
   test('trabajos: lista, filtros y pestañas', { tag: '@extendida' }, async ({ page }) => {
     await page.goto('/trabajos')
     await expect(page.getByRole('heading', { name: 'Trabajos' })).toBeVisible()
+    // UX5-09 (#122): en móvil, el orden es un solo `select` «Ordenar» (columna y sentido juntos),
+    // también en esta tabla, que ordena en el servidor. Se mide aparte para que no pase en vacío.
+    await expect(page.getByRole('combobox', { name: 'Ordenar' })).toBeVisible()
+    await expectTouchTargets(page, 'select[id$="-ordenar"]')
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
 
@@ -910,12 +914,22 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       await accountLink.click()
       await expect(page.getByRole('heading', { level: 1, name: clinic.name })).toBeVisible()
       await expect(page.getByRole('link', { name: created.code })).toBeVisible()
+      // UX5-02 (#122): el desglose del saldo al pie de «Por cobrar», con el $ 1.00 a favor.
+      const breakdown = page.locator('dl[aria-label="Desglose del saldo"]')
+      await expect(breakdown).toContainText('Saldo a favor')
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
         ),
       ).toBe(true)
       await expectTouchTargets(page, TOUCH_CONTROLS)
+      // UX5-01/UX5-17 (#122): «Aplicar saldo a favor» en la cabecera (hay algo por cobrar y un
+      // pago con saldo), entre los botones de la cuenta, que se miden aparte.
+      const accountActions = page.getByRole('group', { name: 'Acciones de la cuenta' })
+      await expect(
+        accountActions.getByRole('button', { name: 'Aplicar saldo a favor', exact: true }),
+      ).toBeVisible()
+      await expectTouchTargets(accountActions, 'button')
 
       await page.getByRole('tab', { name: /^Movimientos/ }).click()
       await expect(page.getByText('Le quedan $ 1.00 a favor')).toBeVisible()
@@ -924,17 +938,32 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       // El enlace de «Aplicado a» no es identificador de la tarjeta: se mide (44 px con el dedo).
       await expectTouchTargets(page, `a[href="/trabajos/${created.id}"]:not([data-target-size])`)
 
-      const dialogs: [RegExp, string][] = [
-        [/^Registrar pago$/, 'Registrar pago'],
-        [/^Aplicar saldo a favor de/, 'Aplicar saldo a favor'],
-        [/^Anular pago de/, 'Anular pago'],
-        [/^Registrar ajuste$/, 'Registrar ajuste'],
+      // Qué más se mide en cada diálogo (#122): la fecha con su fecha escrita debajo (UX5-08,
+      // «Sábado, 10 de octubre de 2026») y el pie fijo del reparto, con lo aplicado en vivo
+      // (UX5-06), dentro de la ventana.
+      const longDate = /^\p{Lu}\p{Ll}+, \d{1,2} de \p{Ll}+ de \d{4}$/u
+      const dialogs: { button: RegExp; title: string; dateId?: string; split?: boolean }[] = [
+        { button: /^Registrar pago$/, title: 'Registrar pago', dateId: 'pago-fecha', split: true },
+        { button: /^Aplicar saldo a favor$/, title: 'Aplicar saldo a favor', split: true },
+        { button: /^Aplicar saldo a favor de/, title: 'Aplicar saldo a favor', split: true },
+        { button: /^Anular pago de/, title: 'Anular pago' },
+        { button: /^Registrar ajuste$/, title: 'Registrar ajuste', dateId: 'ajuste-fecha' },
       ]
-      for (const [button, title] of dialogs) {
+      for (const { button, title, dateId, split } of dialogs) {
         await page.getByRole('button', { name: button }).click()
         const dialog = page.getByRole('dialog', { name: title })
         await expect(dialog).toBeVisible()
         await expectTouchTargets(dialog, TOUCH_CONTROLS)
+        if (dateId) {
+          await expect(dialog.locator(`#${dateId}-escrita`)).toHaveText(longDate)
+          await expectTouchTargets(dialog, `input#${dateId}`)
+        }
+        if (split) {
+          const footer = dialog.locator('[data-slot=form-dialog-footer]')
+          await expect(footer.getByRole('status')).toContainText(/^Aplicado \$/)
+          await expect(footer).toBeInViewport({ ratio: 1 })
+          await expectTouchTargets(footer, 'button')
+        }
         // Nada se sale por la derecha del diálogo (el reparto con un paciente largo lo
         // ensanchaba y recortaba los botones del pie).
         expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
