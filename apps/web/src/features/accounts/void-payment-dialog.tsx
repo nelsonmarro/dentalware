@@ -21,7 +21,7 @@ type FormValues = z.input<typeof voidPaymentInputSchema>
  * «Anular pago» (CTA-2, solo admin, decisión 2): no tiene vuelta, así que nombra la consecuencia
  * (qué quita a cada trabajo y cuáles vuelven a «Entregado», UX5-03) y pide el motivo,
  * obligatorio. Es un `FormDialog` y no un `ConfirmDialog` porque lleva campo,
- * como «Cancelar trabajo». El botón principal va en destructivo. Un 409 (otra persona ya lo
+ * como «Cancelar trabajo». El botón principal va en destructivo sólido (UX5-07). Un 409 (otra persona ya lo
  * anuló) cierra el diálogo tras refrescar y avisar; un 422 se pinta bajo el motivo o se avisa.
  */
 export function VoidPaymentDialog({
@@ -79,7 +79,12 @@ export function VoidPaymentDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Volver
           </Button>
-          <Button type="submit" form="void-payment-form" variant="destructive" disabled={busy}>
+          <Button
+            type="submit"
+            form="void-payment-form"
+            variant="destructive-solid"
+            disabled={busy}
+          >
             {busy ? 'Guardando…' : 'Anular pago'}
           </Button>
         </>

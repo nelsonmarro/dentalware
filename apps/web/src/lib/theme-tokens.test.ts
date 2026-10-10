@@ -46,6 +46,14 @@ function extractBadgeDestructiveAlpha(): number {
   return Number.parseInt(match[1]!, 10) / 100
 }
 
+/** Las clases de la variante `destructive-solid` de `Button` (UX5-07), leídas de `button.tsx`. */
+function solidDestructiveClasses(): string {
+  const source = readFileSync(join(import.meta.dirname, '../components/ui/button.tsx'), 'utf8')
+  const match = /'destructive-solid':\s*'([^']+)'/.exec(source)
+  if (!match) throw new Error('No se encontró la variante "destructive-solid" en button.tsx')
+  return match[1]!
+}
+
 function mixHex(foreground: string, alpha: number, background: string): string {
   const parse = (hex: string) => {
     const n = Number.parseInt(hex.replace('#', ''), 16)
@@ -95,5 +103,19 @@ describe('tokens de color del tema claro (index.css)', () => {
   it('el icono "Vence hoy" (--wax-amber-ink) cumple el contraste gráfico AA (>= 3:1) sobre --card', () => {
     expect(contrastRatio(waxAmberInk, card)).toBeGreaterThanOrEqual(3)
     expect(contrastRatio(waxAmber, card)).toBeLessThan(3)
+  })
+
+  // UX5-07: el botón que confirma una acción destructiva es rojo sólido con texto blanco. El
+  // texto cumple AA sobre el rojo y sobre el rojo del hover (compuesto sobre el pie blanco del
+  // diálogo, `--card`).
+  it('el texto blanco del destructivo sólido cumple AA sobre su fondo, también en hover', () => {
+    const classes = solidDestructiveClasses().split(/\s+/)
+    expect(classes).toContain('bg-destructive')
+    expect(classes).toContain('text-white')
+    expect(contrastRatio('#ffffff', destructive)).toBeGreaterThanOrEqual(4.5)
+    const hover = classes.find((c) => /^hover:bg-destructive\/\d+$/.test(c))
+    expect(hover).toBeDefined()
+    const alpha = Number.parseInt(hover!.split('/')[1]!, 10) / 100
+    expect(contrastRatio('#ffffff', mixHex(destructive, alpha, card))).toBeGreaterThanOrEqual(4.5)
   })
 })

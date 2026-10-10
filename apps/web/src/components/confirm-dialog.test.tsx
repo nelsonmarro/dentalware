@@ -33,6 +33,29 @@ describe('ConfirmDialog', () => {
     expect(screen.getByRole('button', { name: 'Guardando…' })).toBeDisabled()
   })
 
+  // UX5-07: el que confirma algo destructivo usa la variante `destructive-solid` de `Button`
+  // (rojo sólido con texto blanco), no una clase suelta; si no, el primario normal.
+  it.each([
+    [true, 'destructive-solid'],
+    [false, 'default'],
+  ])('con destructive=%s, el botón que confirma lleva la variante %s', (destructive, variante) => {
+    render(
+      <ConfirmDialog
+        open
+        onOpenChange={() => {}}
+        title="Bloquear acceso"
+        description="Se cerrará la sesión."
+        confirmLabel="Bloquear"
+        destructive={destructive}
+        onConfirm={() => {}}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Bloquear' })).toHaveAttribute(
+      'data-variant',
+      variante,
+    )
+  })
+
   // UX3-12: todos los diálogos cierran con «Volver»; «Cancelar» se confundía con
   // «Cancelar trabajo».
   it('cierra con «Volver»', async () => {

@@ -43,7 +43,7 @@ beforeEach(() => {
 })
 
 describe('VoidPaymentDialog («Anular pago», CTA-2)', () => {
-  it('nombra el pago y la consecuencia, con la acción en destructivo y «Volver»', () => {
+  it('nombra el pago y la consecuencia, con la acción en destructivo sólido y «Volver»', () => {
     renderDialog()
     const dialog = screen.getByRole('dialog', { name: 'Anular pago' })
     expect(dialog).toHaveTextContent('$ 120.00 · Efectivo del 05/10/2026 · Clínica Sur')
@@ -51,9 +51,10 @@ describe('VoidPaymentDialog («Anular pago», CTA-2)', () => {
       'El pago deja de contar en el saldo y queda tachado en los movimientos.',
     )
     expect(within(dialog).getByRole('button', { name: 'Volver' })).toBeInTheDocument()
+    // UX5-07: el que confirma va en destructivo sólido, no en el suave que parece deshabilitado.
     expect(within(dialog).getByRole('button', { name: 'Anular pago' })).toHaveAttribute(
       'data-variant',
-      'destructive',
+      'destructive-solid',
     )
   })
 

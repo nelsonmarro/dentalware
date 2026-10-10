@@ -45,9 +45,7 @@ export function ConfirmDialog({
           <AlertDialogAction
             onClick={onConfirm}
             disabled={pending}
-            className={
-              destructive ? 'bg-destructive text-white hover:bg-destructive/90' : undefined
-            }
+            variant={destructive ? 'destructive-solid' : 'default'}
           >
             {pending ? 'Guardando…' : confirmLabel}
           </AlertDialogAction>
