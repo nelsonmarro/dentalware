@@ -183,6 +183,15 @@ test.describe('Cuentas', () => {
         await expect(rpSummary).toContainText('$ 120.00')
         await expect(rpSummary).not.toContainText('Saldo a favor')
         await expect(rp.getByText('Le quedan $ 5.00 a favor')).toHaveCount(0)
+        // El pago dice a qué trabajos se aplicó, con enlace a cada ficha (UX5-03).
+        const pagoFila = rp.getByText(/^Aplicado a /).filter({ visible: true })
+        await expect(pagoFila).toHaveText(
+          `Aplicado a ${oldest.code} ($ 25.00) y ${newest.code} ($ 5.00)`,
+        )
+        await expect(pagoFila.getByRole('link', { name: oldest.code })).toHaveAttribute(
+          'href',
+          `/trabajos/${oldest.id}`,
+        )
         // Recepción no anula pagos.
         await expect(rp.getByRole('button', { name: /^Anular pago/ })).toHaveCount(0)
 
@@ -195,14 +204,18 @@ test.describe('Cuentas', () => {
         await recepcionContext.close()
       }
 
-      // 4. Admin anula el pago: el más antiguo vuelve a «Entregado» y los $ 5.00 aplicados al
-      //    otro dejan de contar.
+      // 4. Admin anula el pago: el diálogo nombra lo que quita a cada trabajo, el más antiguo
+      //    vuelve a «Entregado» y los $ 5.00 aplicados al otro dejan de contar.
       await page.reload()
       await expect(page.getByRole('heading', { level: 1, name: clinic.name })).toBeVisible()
       await page.getByRole('tab', { name: /^Movimientos/ }).click()
       await page.getByRole('button', { name: /^Anular pago de/ }).click()
       const anular = page.getByRole('dialog', { name: 'Anular pago' })
-      await expect(anular).toContainText('Los trabajos que cerró este pago vuelven a «Entregado»')
+      // Nombra lo que quita a cada trabajo y cuál vuelve a «Entregado» (UX5-03).
+      await expect(anular).toContainText(
+        `Se quita lo aplicado a ${oldest.code} ($ 25.00) y ${newest.code} ($ 5.00).`,
+      )
+      await expect(anular).toContainText(`Vuelve a «Entregado»: ${oldest.code}.`)
       await anular.getByLabel('Motivo').fill('Se registró en la clínica equivocada')
       await anular.getByRole('button', { name: 'Anular pago' }).click()
       await expect(anular).toBeHidden()

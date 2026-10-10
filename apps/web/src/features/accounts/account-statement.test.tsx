@@ -25,6 +25,7 @@ const movement = (m: Partial<Movement>) =>
     reference: null,
     method: null,
     remaining: null,
+    allocations: null,
     voided: null,
     ...m,
   }) as Movement

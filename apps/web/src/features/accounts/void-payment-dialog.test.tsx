@@ -15,14 +15,20 @@ const PAYMENT = {
   amount: '-120.00',
   method: 'efectivo' as const,
   remaining: '0.00',
+  // Cerró 26-00101 y 26-00102; a 26-00107 le pagó una parte (UX5-03).
+  allocations: [
+    { caseId: 'c1', code: '26-00101', amount: '50.00', reopens: true },
+    { caseId: 'c2', code: '26-00102', amount: '40.00', reopens: true },
+    { caseId: 'c7', code: '26-00107', amount: '30.00', reopens: false },
+  ],
 }
 
-function renderDialog() {
+function renderDialog(payment: Partial<typeof PAYMENT> = {}) {
   const onOpenChange = vi.fn()
   const utils = renderWithProviders(
     <VoidPaymentDialog
       clinic={{ id: 'k1', name: 'Clínica Sur' }}
-      payment={PAYMENT}
+      payment={{ ...PAYMENT, ...payment }}
       open
       onOpenChange={onOpenChange}
     />,
@@ -41,12 +47,41 @@ describe('VoidPaymentDialog («Anular pago», CTA-2)', () => {
     renderDialog()
     const dialog = screen.getByRole('dialog', { name: 'Anular pago' })
     expect(dialog).toHaveTextContent('$ 120.00 · Efectivo del 05/10/2026 · Clínica Sur')
-    expect(dialog).toHaveTextContent('Los trabajos que cerró este pago vuelven a «Entregado»')
+    expect(dialog).toHaveTextContent(
+      'El pago deja de contar en el saldo y queda tachado en los movimientos.',
+    )
     expect(within(dialog).getByRole('button', { name: 'Volver' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Anular pago' })).toHaveAttribute(
       'data-variant',
       'destructive',
     )
+  })
+
+  it('nombra lo que quita a cada trabajo y los que vuelven a «Entregado» (UX5-03)', () => {
+    renderDialog()
+    const dialog = screen.getByRole('dialog', { name: 'Anular pago' })
+    expect(dialog).toHaveTextContent(
+      'Se quita lo aplicado a 26-00101 ($ 50.00), 26-00102 ($ 40.00) y 26-00107 ($ 30.00).',
+    )
+    expect(dialog).toHaveTextContent('Vuelven a «Entregado»: 26-00101 y 26-00102.')
+    expect(within(dialog).getAllByText('26-00101')[0]).toHaveClass('font-mono')
+  })
+
+  it('con uno solo que reabre, en singular; sin ninguno que reabra, no lo dice', () => {
+    const { unmount } = renderDialog({ allocations: [PAYMENT.allocations[0]!] })
+    expect(screen.getByRole('dialog')).toHaveTextContent('Vuelve a «Entregado»: 26-00101.')
+    unmount()
+    renderDialog({ allocations: [PAYMENT.allocations[2]!] })
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('Se quita lo aplicado a 26-00107 ($ 30.00).')
+    expect(dialog).not.toHaveTextContent('«Entregado»')
+  })
+
+  it('sin asignaciones vigentes: «No estaba aplicado a ningún trabajo»', () => {
+    renderDialog({ allocations: [] })
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('No estaba aplicado a ningún trabajo.')
+    expect(dialog).not.toHaveTextContent('Se quita')
   })
 
   it('el motivo es obligatorio', async () => {

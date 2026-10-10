@@ -41,6 +41,7 @@ const PAYMENT = {
   amount: '-120.00',
   method: 'transferencia' as const,
   remaining: '40.00',
+  allocations: [],
 }
 
 function renderDialog() {

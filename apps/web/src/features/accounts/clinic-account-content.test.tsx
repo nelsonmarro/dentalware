@@ -30,6 +30,7 @@ const movement = (m: Partial<Movement>) =>
     reference: null,
     method: null,
     remaining: null,
+    allocations: null,
     voided: null,
     ...m,
   }) as Movement
@@ -64,6 +65,7 @@ const FULL = account('70.00', {
       method: 'efectivo',
       by: 'Rosa',
       remaining: '0.00',
+      allocations: [],
       voided: { at: '2026-10-07T20:00:00.000Z', by: 'Ana Admin', reason: 'Registrado dos veces' },
     } as unknown as Partial<Movement>),
     movement({
@@ -75,6 +77,7 @@ const FULL = account('70.00', {
       reference: 'TRX-1',
       by: 'Rosa',
       remaining: '20.00',
+      allocations: [],
     }),
     movement({
       id: 'p-entero',
@@ -84,6 +87,7 @@ const FULL = account('70.00', {
       method: 'efectivo',
       by: 'Rosa',
       remaining: '0.00',
+      allocations: [{ caseId: T1, code: '26-00001', amount: '10.00', reopens: false }],
     }),
     movement({
       id: 'a1',
@@ -208,7 +212,21 @@ describe('ClinicAccountContent', () => {
     expect(screen.getAllByRole('button', { name: /^Anular pago/ })).toHaveLength(2)
 
     await user.click(screen.getByRole('button', { name: 'Anular pago de $ 20.00 del 06/10/2026' }))
-    expect(await screen.findByRole('dialog', { name: 'Anular pago' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Anular pago' })).toHaveTextContent(
+      'No estaba aplicado a ningún trabajo.',
+    )
+  })
+
+  it('«Anular pago» nombra los trabajos a los que se aplicó el pago de esa fila (UX5-03)', async () => {
+    vi.mocked(fetchClinicAccount).mockResolvedValue(FULL)
+    const { user } = renderWithQueryAndRouter(<ClinicAccountContent clinicId="c1" role="admin" />)
+    await user.click(await screen.findByRole('tab', { name: 'Movimientos (5)' }))
+    const row = screen.getByRole('row', { name: /05\/10\/2026/ })
+    expect(row).toHaveTextContent('Aplicado a 26-00001 ($ 10.00)')
+    await user.click(screen.getByRole('button', { name: 'Anular pago de $ 10.00 del 05/10/2026' }))
+    expect(await screen.findByRole('dialog', { name: 'Anular pago' })).toHaveTextContent(
+      'Se quita lo aplicado a 26-00001 ($ 10.00).',
+    )
   })
 
   it('«Aplicar saldo a favor» abre el reparto de ese pago', async () => {

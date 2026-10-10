@@ -13,12 +13,14 @@ import { applyIssues } from './allocation'
 import { paymentContext, type PaymentRef } from './payment-context'
 import { useAccountBusy } from './use-account-busy'
 import { useVoidPayment } from './use-void-payment'
+import { VoidConsequence } from './void-consequence'
 
 type FormValues = z.input<typeof voidPaymentInputSchema>
 
 /**
  * «Anular pago» (CTA-2, solo admin, decisión 2): no tiene vuelta, así que nombra la consecuencia
- * y pide el motivo, obligatorio. Es un `FormDialog` y no un `ConfirmDialog` porque lleva campo,
+ * (qué quita a cada trabajo y cuáles vuelven a «Entregado», UX5-03) y pide el motivo,
+ * obligatorio. Es un `FormDialog` y no un `ConfirmDialog` porque lleva campo,
  * como «Cancelar trabajo». El botón principal va en destructivo. Un 409 (otra persona ya lo
  * anuló) cierra el diálogo tras refrescar y avisar; un 422 se pinta bajo el motivo o se avisa.
  */
@@ -71,7 +73,7 @@ export function VoidPaymentDialog({
       onOpenChange={onOpenChange}
       title="Anular pago"
       context={paymentContext(payment, clinic.name)}
-      description="El pago deja de contar en el saldo y queda tachado en los movimientos. Los trabajos que cerró este pago vuelven a «Entregado»."
+      description="El pago deja de contar en el saldo y queda tachado en los movimientos."
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -89,6 +91,7 @@ export function VoidPaymentDialog({
         noValidate
         className="flex flex-col gap-4"
       >
+        <VoidConsequence cases={payment.allocations} />
         <Field data-invalid={!!formState.errors.motivo}>
           <FieldLabel htmlFor="anular-motivo">Motivo</FieldLabel>
           <Textarea

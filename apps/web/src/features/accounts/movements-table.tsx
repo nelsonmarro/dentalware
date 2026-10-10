@@ -17,6 +17,7 @@ import { formatDate } from '@/features/cases/date-format'
 import { formatMoney } from '@/lib/format-money'
 import { cn } from '@/lib/utils'
 import type { ClinicAccount } from './api'
+import { AppliedCases } from './applied-cases'
 import { signedAmountText } from './balance-text'
 import { paymentContext, type PaymentRef } from './payment-context'
 
@@ -33,6 +34,7 @@ function livePayment(m: Movement): PaymentRef | null {
     amount: m.amount,
     method: m.method,
     remaining: m.remaining ?? '0.00',
+    allocations: m.allocations ?? [],
   }
 }
 
@@ -72,6 +74,7 @@ function MovementDetail({ m }: { m: Movement }) {
           {caseLink && <> · Trabajo {caseLink}</>}
         </p>
       )}
+      {m.kind === 'pago' && m.allocations && <AppliedCases cases={m.allocations} />}
       {m.kind === 'pago' && m.reason && (
         <p className="text-sm break-words text-muted-foreground">{m.reason}</p>
       )}

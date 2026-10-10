@@ -775,7 +775,8 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
 
   // CTA-2/CTA-3 (#83, #84): la cuenta de una clínica con sus pestañas, la línea de cobro de la
   // ficha y los cuatro diálogos de cobro. Un trabajo entregado queda «Por cobrar» y un pago por
-  // API sin repartir deja saldo a favor, para que «Aplicar saldo a favor» y «Anular pago» salgan.
+  // API que le asigna una parte deja saldo a favor, para que «Aplicado a», «Aplicar saldo a
+  // favor» y «Anular pago» salgan.
   test(
     'cuenta de una clínica: pestañas, línea de cobro y diálogos de pago, saldo a favor, anulación y ajuste',
     { tag: '@extendida' },
@@ -792,13 +793,15 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       }
       const courier = await createCourier(page)
       await shipAndDeliver(page, created.id, courier.id)
+      // $ 2.00: $ 1.00 al trabajo, para que la fila diga «Aplicado a» con su enlace (UX5-03), y
+      // $ 1.00 a favor.
       const paid = await page.request.post('/api/cuentas/pagos', {
         data: {
           clinicaId: clinic.id,
-          monto: '1.00',
+          monto: '2.00',
           metodo: 'efectivo',
           fecha: todayIso(),
-          asignaciones: [],
+          asignaciones: [{ trabajoId: created.id, monto: '1.00' }],
         },
       })
       expect(paid.ok()).toBe(true)
@@ -820,7 +823,10 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
 
       await page.getByRole('tab', { name: /^Movimientos/ }).click()
       await expect(page.getByText('Le quedan $ 1.00 a favor')).toBeVisible()
+      await expect(page.getByText(/^Aplicado a /)).toHaveText(`Aplicado a ${created.code} ($ 1.00)`)
       await expectTouchTargets(page, TOUCH_CONTROLS)
+      // El enlace de «Aplicado a» no es identificador de la tarjeta: se mide (44 px con el dedo).
+      await expectTouchTargets(page, `a[href="/trabajos/${created.id}"]:not([data-target-size])`)
 
       const dialogs: [RegExp, string][] = [
         [/^Registrar pago$/, 'Registrar pago'],
