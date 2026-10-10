@@ -72,11 +72,8 @@ function MovementDetail({ m }: { m: Movement }) {
       {m.kind === 'pago' && m.method && (
         <p>{[PAYMENT_METHOD_LABEL[m.method], m.reference].filter(Boolean).join(' · ')}</p>
       )}
-      {m.voided && (
-        <p className="break-words text-destructive print:text-foreground">
-          Anulado por {m.voided.by}: {m.voided.reason}
-        </p>
-      )}
+      {/* M5: quién anuló un pago y por qué son datos internos; el estado de cuenta se manda a la
+       * clínica y solo dice «Anulado». La pantalla de la cuenta sí los muestra. */}
       <p className={cn('font-mono text-xs text-muted-foreground', NARROW_ONLY)}>
         {formatDate(m.date)}
       </p>

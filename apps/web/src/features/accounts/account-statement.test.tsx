@@ -134,10 +134,14 @@ describe('AccountStatement (estado de cuenta imprimible, CTA-5)', () => {
     expect(text.at(-1)).toContain('$ 165.00')
   })
 
-  it('un pago anulado se ve tachado, dice quién y por qué, y no suma', async () => {
+  // M5 (ruling de la revisión final del PR 2): el estado de cuenta se manda a la clínica; quién
+  // anuló un pago y por qué son datos internos, que solo muestra la pantalla de la cuenta.
+  it('un pago anulado se ve tachado con «Anulado», sin quién ni por qué, y no suma', async () => {
     renderStatement()
     const table = await screen.findByRole('table', { name: 'Movimientos' })
-    const row = within(table).getByText('Anulado por Admin: Duplicado').closest('tr')!
+    const row = within(table).getByText('Anulado').closest('tr')!
+    expect(row.textContent).not.toContain('Admin')
+    expect(row.textContent).not.toContain('Duplicado')
     expect(within(row).getByText('− $ 5.00')).toHaveClass('line-through')
     expect(within(row).getByText('No suma')).toBeVisible()
     expect(row.textContent).not.toContain('$ 140.00')

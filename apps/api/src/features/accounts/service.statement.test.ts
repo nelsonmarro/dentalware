@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ClinicAccountNotFoundError } from './errors.ts'
+import { AccountInputError, ClinicAccountNotFoundError } from './errors.ts'
 import {
   fakeAccounts,
   type FakeAdjustment,
@@ -233,6 +233,25 @@ describe('features/accounts/service — estado de cuenta (CTA-5)', () => {
     expect(after.openCases.map((c) => [c.outstanding, c.adjustments])).toEqual([
       ['40.00', '-10.00'],
     ])
+  })
+
+  // I-2 de la revisión final del PR 2: con `hasta` futura, la antigüedad y los días de «Por
+  // cobrar» saldrían proyectados a esa fecha en un papel que va a la clínica. Como las fechas de
+  // pagos y ajustes, `hasta` no puede ser posterior a hoy (reloj del servicio).
+  it('una fecha final posterior a hoy: 422 en hasta', async () => {
+    const err = await makeService()
+      .statement(SUR.id, { desde: '2026-10-01', hasta: '2026-10-07' })
+      .catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(AccountInputError)
+    expect(err).toMatchObject({
+      path: 'hasta',
+      message: 'La fecha final no puede ser posterior a hoy',
+    })
+  })
+
+  it('hasta = hoy sí se acepta', async () => {
+    const s = await makeService().statement(SUR.id, { desde: '2026-10-01', hasta: '2026-10-06' })
+    expect(s.range.hasta).toBe('2026-10-06')
   })
 
   it('una clínica que no existe: ClinicAccountNotFoundError', async () => {

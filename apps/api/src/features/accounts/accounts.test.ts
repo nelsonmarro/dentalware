@@ -931,6 +931,16 @@ describe('/api/cuentas', () => {
       expect(await missing.json()).toEqual({ message: 'No encontrado' })
     })
 
+    // I-2 de la revisión final del PR 2 (reloj de la suite: hoy es 2026-10-06).
+    it('422 en hasta si es posterior a hoy', async () => {
+      const r = await get(url('desde=2026-10-01&hasta=2026-10-31'), admin)
+      expect(r.status).toBe(422)
+      expect(await r.json()).toEqual({
+        message: 'Datos inválidos',
+        issues: [{ path: 'hasta', message: 'La fecha final no puede ser posterior a hoy' }],
+      })
+    })
+
     it('saldo inicial, movimientos con saldo corrido y saldo final; con hasta = hoy cuadra con la cuenta', async () => {
       await ctx.db
         .update(ctx.schema.clinics)

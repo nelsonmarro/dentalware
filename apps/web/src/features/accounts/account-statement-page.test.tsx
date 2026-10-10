@@ -1,3 +1,4 @@
+import { toIsoDate } from '@dentalware/shared'
 import { screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchLabSettings, type LabSettings } from '@/features/config/api'
@@ -85,6 +86,22 @@ describe('AccountStatementPage (/cuentas/$clinicaId/estado, CTA-5)', () => {
     expect(
       await screen.findByText('La fecha final no puede ser anterior a la inicial'),
     ).toBeVisible()
+    expect(hasta).toHaveAttribute('aria-invalid', 'true')
+    expect(onRangeChange).not.toHaveBeenCalled()
+  })
+
+  // I-2 de la revisión final del PR 2: la API no acepta una fecha final posterior a hoy (la
+  // antigüedad saldría proyectada). El campo no la ofrece y, si se escribe, se avisa sin pedirla.
+  it('«Hasta» no pasa de hoy: el campo tiene su máximo y una fecha futura se avisa', async () => {
+    const { user, onRangeChange } = renderPage()
+    const hasta = await screen.findByLabelText('Hasta')
+    const today = toIsoDate(new Date())
+    expect(hasta).toHaveAttribute('max', today)
+    expect(screen.getByLabelText('Desde')).toHaveAttribute('max', today)
+    await user.clear(hasta)
+    await user.type(hasta, '2999-12-31')
+    await user.click(screen.getByRole('button', { name: 'Ver periodo' }))
+    expect(await screen.findByText('La fecha final no puede ser posterior a hoy')).toBeVisible()
     expect(hasta).toHaveAttribute('aria-invalid', 'true')
     expect(onRangeChange).not.toHaveBeenCalled()
   })

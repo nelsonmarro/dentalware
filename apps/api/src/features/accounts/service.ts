@@ -17,6 +17,7 @@ import {
   PAYMENT_METHOD_LABEL,
   previousDay,
   releaseExcess,
+  STATEMENT_AFTER_TODAY_MESSAGE,
   toCents,
   toIsoDate,
   toSignedCents,
@@ -663,6 +664,11 @@ export function createAccountsService(deps: {
      * la clínica no existe.
      */
     async statement(clinicId: string, q: AccountStatementQuery): Promise<AccountStatement> {
+      // Con `hasta` futura, la antigüedad y los días de «Por cobrar» saldrían proyectados a esa
+      // fecha (I-2 de la revisión final del PR 2): como en pagos y ajustes, no después de hoy.
+      if (q.hasta > deps.clock.today()) {
+        throw new AccountInputError(STATEMENT_AFTER_TODAY_MESSAGE, 'hasta')
+      }
       const clinic = await deps.accounts.clinicHeader(clinicId)
       if (!clinic) throw new ClinicAccountNotFoundError()
       const [cases, adjustments, payments, allocations] = await Promise.all([

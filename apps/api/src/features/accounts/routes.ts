@@ -76,6 +76,7 @@ export const accountsRoutes = (service: AccountsService) =>
           const id = c.req.valid('param').id
           return c.json(await service.statement(id, c.req.valid('query')), 200)
         } catch (e) {
+          if (e instanceof AccountInputError) return c.json(inputIssues(e), 422)
           toHttp(e)
         }
       },

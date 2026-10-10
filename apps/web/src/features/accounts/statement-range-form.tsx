@@ -1,4 +1,8 @@
-import { accountStatementQuerySchema } from '@dentalware/shared'
+import {
+  accountStatementQuerySchema,
+  STATEMENT_AFTER_TODAY_MESSAGE,
+  toIsoDate,
+} from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import type { z } from 'zod'
@@ -9,7 +13,8 @@ import { Input } from '@/components/ui/input'
 type Range = { desde: string; hasta: string }
 
 /** El periodo del estado de cuenta (CTA-5): dos fechas y «Ver periodo». Una fecha final anterior
- * a la inicial se avisa bajo «Hasta» con el mensaje del schema de shared, sin pedir nada. */
+ * a la inicial, o posterior a hoy (la API no la acepta, I-2), se avisa bajo «Hasta» sin pedir
+ * nada; los dos campos llevan hoy como máximo. */
 export function StatementRangeForm({
   range,
   onSubmit,
@@ -17,7 +22,8 @@ export function StatementRangeForm({
   range: Range
   onSubmit: (range: Range) => void
 }) {
-  const { register, handleSubmit, formState } = useForm<
+  const today = toIsoDate(new Date())
+  const { register, handleSubmit, formState, setError } = useForm<
     z.input<typeof accountStatementQuerySchema>,
     unknown,
     z.output<typeof accountStatementQuerySchema>
@@ -28,7 +34,15 @@ export function StatementRangeForm({
     <form
       noValidate
       aria-label="Periodo"
-      onSubmit={(e) => void handleSubmit((v) => onSubmit({ desde: v.desde, hasta: v.hasta }))(e)}
+      onSubmit={(e) =>
+        void handleSubmit((v) => {
+          if (v.hasta > today) {
+            setError('hasta', { type: 'max', message: STATEMENT_AFTER_TODAY_MESSAGE })
+            return
+          }
+          onSubmit({ desde: v.desde, hasta: v.hasta })
+        })(e)
+      }
       className="grid grid-cols-2 items-start gap-3 sm:flex sm:flex-wrap sm:items-end"
     >
       <Field data-invalid={!!errors.desde} className="sm:w-44">
@@ -37,6 +51,7 @@ export function StatementRangeForm({
           {...register('desde')}
           id="estado-desde"
           type="date"
+          max={today}
           lang="es-EC"
           className="h-11"
           aria-invalid={!!errors.desde}
@@ -49,6 +64,7 @@ export function StatementRangeForm({
           {...register('hasta')}
           id="estado-hasta"
           type="date"
+          max={today}
           lang="es-EC"
           className="h-11"
           aria-invalid={!!errors.hasta}

@@ -59,4 +59,17 @@ describe('statementRange (rango del estado de cuenta)', () => {
       hasta: '2026-10-09',
     })
   })
+
+  // I-2: la API responde 422 con una fecha final posterior a hoy. Un enlace viejo o escrito a
+  // mano no rompe la pantalla: el rango se corta en hoy.
+  it('una fecha final posterior a hoy se corta en hoy', () => {
+    expect(statementRange({ desde: '2026-10-01', hasta: '2026-10-31' }, TODAY)).toEqual({
+      desde: '2026-10-01',
+      hasta: '2026-10-09',
+    })
+    expect(statementRange({ hasta: '2026-11-15' }, TODAY)).toEqual({
+      desde: '2026-10-01',
+      hasta: '2026-10-09',
+    })
+  })
 })
