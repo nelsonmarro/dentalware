@@ -9,6 +9,7 @@ import {
   AGING_BUCKET_LABEL,
   AGING_BUCKETS,
   agingBucketForDays,
+  allocationOutcome,
   allocationTotals,
   agingBuckets,
   balanceBreakdown,
@@ -16,6 +17,7 @@ import {
   caseChargeCents,
   caseOutstandingCents,
   daysBetween,
+  discountReleaseCents,
   isBilled,
   isSettled,
   oldestOpenDays,
@@ -504,6 +506,73 @@ describe('allocationTotals (suma de un reparto escrito)', () => {
 
   it('sin monto del pago no hay resto que decir', () => {
     expect(allocationTotals(null, ['20'])).toEqual({ allocatedCents: 2000, leftCents: null })
+  })
+})
+
+// UX5-15: cada fila del reparto dice qué le pasa al trabajo con el monto que se escribe.
+describe('allocationOutcome (consecuencia de una fila del reparto)', () => {
+  it('sin monto, vacío, en cero o inválido, no dice nada', () => {
+    expect(allocationOutcome(24_000, '')).toEqual({ kind: 'sin_monto' })
+    expect(allocationOutcome(24_000, '0')).toEqual({ kind: 'sin_monto' })
+    expect(allocationOutcome(24_000, '0.00')).toEqual({ kind: 'sin_monto' })
+    expect(allocationOutcome(24_000, 'abc')).toEqual({ kind: 'sin_monto' })
+  })
+
+  it('un monto parcial deja el trabajo debiendo lo que falta', () => {
+    expect(allocationOutcome(24_000, '49.50')).toEqual({ kind: 'debiendo', leftCents: 19_050 })
+    expect(allocationOutcome(24_000, '239,99')).toEqual({ kind: 'debiendo', leftCents: 1 })
+  })
+
+  it('el monto exacto de lo que debe lo deja cobrado', () => {
+    expect(allocationOutcome(24_000, '240')).toEqual({ kind: 'cobrado' })
+    expect(allocationOutcome(5_050, ' 50.50 ')).toEqual({ kind: 'cobrado' })
+  })
+
+  it('más de lo que debe dice cuánto lo supera', () => {
+    expect(allocationOutcome(24_000, '240.01')).toEqual({ kind: 'excede', overCents: 1 })
+    expect(allocationOutcome(5_000, '80')).toEqual({ kind: 'excede', overCents: 3_000 })
+  })
+})
+
+// UX5-15: lo que un descuento ligado a un trabajo devolverá al saldo a favor, antes de
+// confirmarlo; el mismo total que libera `releaseExcess` al registrarlo.
+describe('discountReleaseCents (lo que un descuento devuelve al saldo a favor)', () => {
+  it('un descuento que no pasa de lo que el trabajo debe no devuelve nada', () => {
+    expect(discountReleaseCents({ outstandingCents: 5_000, allocatedCents: 3_000 }, 2_000)).toBe(0)
+    expect(discountReleaseCents({ outstandingCents: 5_000, allocatedCents: 3_000 }, 5_000)).toBe(0)
+  })
+
+  it('lo que el descuento pasa de lo que debe vuelve de lo ya pagado', () => {
+    expect(discountReleaseCents({ outstandingCents: 1_000, allocatedCents: 5_000 }, 3_000)).toBe(
+      2_000,
+    )
+  })
+
+  it('en un trabajo cobrado, vuelve todo el descuento', () => {
+    expect(discountReleaseCents({ outstandingCents: 0, allocatedCents: 10_000 }, 2_500)).toBe(2_500)
+  })
+
+  it('null si el descuento deja el neto bajo 0: la API lo rechaza', () => {
+    // Neto = 1 000 + 5 000 = 6 000.
+    expect(
+      discountReleaseCents({ outstandingCents: 1_000, allocatedCents: 5_000 }, 6_001),
+    ).toBeNull()
+    expect(discountReleaseCents({ outstandingCents: 1_000, allocatedCents: 5_000 }, 6_000)).toBe(
+      5_000,
+    )
+  })
+
+  it('coincide con lo que libera releaseExcess', () => {
+    const allocations = [
+      { id: 'a', amountCents: 3_000, createdAt: new Date('2026-06-01') },
+      { id: 'b', amountCents: 2_000, createdAt: new Date('2026-06-02') },
+    ]
+    // Neto 6 000, asignado 5 000: debe 1 000. Descuento de 3 500 → neto 2 500.
+    const released = releaseExcess(2_500, allocations).reduce((s, r) => s + r.releasedCents, 0)
+    expect(discountReleaseCents({ outstandingCents: 1_000, allocatedCents: 5_000 }, 3_500)).toBe(
+      released,
+    )
+    expect(released).toBe(2_500)
   })
 })
 

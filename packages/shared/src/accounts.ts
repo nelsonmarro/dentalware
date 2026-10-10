@@ -135,6 +135,46 @@ export function allocationTotals(
   }
 }
 
+/** Qué le pasa a un trabajo con el monto de su fila del reparto (UX5-15). */
+export type AllocationOutcome =
+  /** Vacío, en cero o inválido: no se le aplica nada y la fila ya dice lo que debe. */
+  | { kind: 'sin_monto' }
+  /** Cubre lo que debe: pasa a «Cobrado» (`isSettled`). */
+  | { kind: 'cobrado' }
+  /** Le falta `leftCents` para quedar cobrado. */
+  | { kind: 'debiendo'; leftCents: number }
+  /** Supera lo que debe en `overCents`: la API lo rechaza (422 en su monto). */
+  | { kind: 'excede'; overCents: number }
+
+/**
+ * La consecuencia de una fila del reparto mientras se escribe (UX5-15): con lo que debe el
+ * trabajo (`outstandingCents`) y el monto escrito (`parseMoneyInput`), si queda cobrado, cuánto
+ * seguirá debiendo o cuánto supera lo que debe. La misma regla que cierra el trabajo al
+ * registrarlo: el pendiente que queda, con `isSettled`.
+ */
+export function allocationOutcome(outstandingCents: number, monto: string): AllocationOutcome {
+  const cents = parseMoneyInput(monto)
+  if (cents === null || cents === 0) return { kind: 'sin_monto' }
+  const left = outstandingCents - cents
+  if (left < 0) return { kind: 'excede', overCents: -left }
+  return isSettled(left) ? { kind: 'cobrado' } : { kind: 'debiendo', leftCents: left }
+}
+
+/**
+ * Lo que un descuento ligado a un trabajo devolverá al saldo a favor de sus pagos (UX5-15),
+ * para avisarlo antes de registrarlo: lo que el descuento pasa de lo que el trabajo debe sale de
+ * lo ya pagado, que es el total que libera `releaseExcess` (asignado − neto nuevo, con neto =
+ * pendiente + asignado). `null` si el descuento deja el neto por debajo de 0: la API lo rechaza
+ * («El descuento supera lo que vale el trabajo»).
+ */
+export function discountReleaseCents(
+  c: { outstandingCents: number; allocatedCents: number },
+  discountCents: number,
+): number | null {
+  if (discountCents > c.outstandingCents + c.allocatedCents) return null
+  return Math.max(0, discountCents - c.outstandingCents)
+}
+
 /**
  * Lo que un ajuste libera de las asignaciones de un trabajo (Nelson, 2026-10-08): si lo
  * asignado supera su neto (p. ej. un descuento sobre un trabajo ya pagado entero), el exceso
