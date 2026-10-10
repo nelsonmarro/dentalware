@@ -200,6 +200,37 @@ describe('AccountStatement (estado de cuenta imprimible, CTA-5)', () => {
     ).toBeVisible()
   })
 
+  it('con trabajos por cobrar cubiertos por el saldo a favor, no dice «Nada pendiente» (como la cabecera, UX5-01)', async () => {
+    renderStatement(
+      statement({
+        closingBalance: '-5.00',
+        credit: '30.00',
+        aging: zero,
+        oldestDays: null,
+        breakdown: {
+          openCases: '25.00',
+          unlinkedAdjustments: '0.00',
+          unlinkedSince: null,
+          credit: '30.00',
+          balance: '-5.00',
+        },
+      } as Partial<Statement>),
+    )
+    const aging = await screen.findByRole('region', { name: 'Antigüedad al 06/10/2026' })
+    expect(
+      within(aging).getByText('1 trabajo por cobrar ($ 25.00), cubierto por el saldo a favor'),
+    ).toBeVisible()
+    expect(within(aging).queryByText('Nada pendiente')).not.toBeInTheDocument()
+  })
+
+  it('sin trabajos por cobrar ni nada vencido: «Nada pendiente»', async () => {
+    renderStatement(
+      statement({ openCases: [], aging: zero, oldestDays: null } as Partial<Statement>),
+    )
+    const aging = await screen.findByRole('region', { name: 'Antigüedad al 06/10/2026' })
+    expect(within(aging).getByText('Nada pendiente')).toBeVisible()
+  })
+
   it('«Por cobrar» con los días desde la entrega y lo pendiente', async () => {
     renderStatement()
     const table = await screen.findByRole('table', { name: 'Por cobrar al 06/10/2026' })

@@ -1,4 +1,5 @@
 import {
+  accountHeadline,
   ACCOUNT_MOVEMENT_KIND_LABEL,
   ACCOUNT_MOVEMENT_KINDS,
   AGING_BUCKET_LABEL,
@@ -12,6 +13,7 @@ import { formatDate, formatTimestampDate } from '@/features/cases/date-format'
 import { formatMoney } from '@/lib/format-money'
 import { cn } from '@/lib/utils'
 import type { AccountStatement as Statement } from './api'
+import { pendingText } from './account-headline-text'
 import { BalanceBreakdown } from './balance-breakdown'
 import { balanceParts, signedAmountText } from './balance-text'
 import { daysText } from './days-text'
@@ -249,8 +251,16 @@ function MovementsLedger({ s }: { s: Statement }) {
 }
 
 /** Antigüedad de lo que se debe a la fecha `hasta` (decisión 9), con lo más antiguo y el saldo
- * a favor si lo hay. */
+ * a favor si lo hay. Lo pendiente se lee con `accountHeadline`, como la cabecera de la cuenta:
+ * «Nada pendiente» solo sin trabajos por cobrar, nunca si el saldo a favor los cubre (UX5-01). */
 function AgingBlock({ s }: { s: Statement }) {
+  const { pending } = accountHeadline({
+    balanceCents: toSignedCents(s.closingBalance),
+    creditCents: toSignedCents(s.credit),
+    openCasesCents: toSignedCents(s.breakdown.openCases),
+    openCasesCount: s.openCases.length,
+    oldestDays: s.oldestDays,
+  })
   return (
     <section
       aria-labelledby="estado-antiguedad"
@@ -276,7 +286,7 @@ function AgingBlock({ s }: { s: Statement }) {
         ))}
       </dl>
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm print:text-print-body">
-        <p>{s.oldestDays === null ? 'Nada pendiente' : `Más antiguo: ${daysText(s.oldestDays)}`}</p>
+        <p>{pendingText(pending)}</p>
         {toSignedCents(s.credit) > 0 && (
           <p>
             Saldo a favor <span className="font-mono font-semibold">{formatMoney(s.credit)}</span>

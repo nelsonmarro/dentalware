@@ -400,6 +400,7 @@ La revisión final de la rama (0 Critical, 0 Important, 4 Minor) dejó una ronda
 | M-1 | El aviso del descuento en «Registrar ajuste» se anuncia por una región `role="status"` `sr-only` siempre en el árbol (sin `empty:hidden`) y con un texto sin el monto, que no se repite con cada tecla | `aefa2e7` |
 | M-2 | La cuenta trae `billedCases` (estado, lo que debe y lo pagado de cada trabajo que carga) y el aviso del descuento usa `discountReleaseCents` también en los cobrados: dice cuánto vuelve y no lo promete en un cobrado sin nada pagado | `737808b` |
 | M-3 | `GET /api/cuentas` trae el saldo a favor y los trabajos por cobrar de cada clínica, y la tarjeta de «Cuentas» lee el saldo con `accountHeadline`, como la cabecera: ya no dice «Nada pendiente» con trabajos por cobrar | `53eea3f` |
+| M-3 (impreso) | El estado de cuenta lee lo pendiente bajo la antigüedad con la misma `accountHeadline`: no dice «Nada pendiente» si el saldo a favor cubre trabajos por cobrar | «fix: el estado de cuenta no dice «Nada pendiente» con trabajos por cobrar» |
 
 **Queda fuera de la ola**:
 
