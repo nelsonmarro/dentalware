@@ -773,6 +773,102 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // UX5-05/09/18 (#122): una clínica de nombre largo, con un ajuste de motivo largo y un pago con
+  // saldo a favor, no desplaza en horizontal ni la página ni ninguna tabla a 360, 412 (Pixel 7) y
+  // 1280. En móvil, el orden es un solo «Ordenar» y «Anular pago» va aparte, bajo una raya.
+  test(
+    'cuentas: clínica de nombre largo sin scroll horizontal y un solo «Ordenar»',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const name = `Centro Odontológico Integral E2E ${uniqueSuffix()} Valle de los Chillos`
+      const created = await page.request.post('/api/config/clinicas', { data: { name } })
+      expect(created.ok()).toBe(true)
+      const { clinic } = (await created.json()) as { clinic: { id: string } }
+      // Un trabajo entregado queda «Por cobrar»: así el pago a favor ofrece «Aplicar saldo a
+      // favor» junto a «Anular pago».
+      const doctorRes = await page.request.post('/api/config/doctores', {
+        data: { clinicId: clinic.id, name: `Dr. E2E ${uniqueSuffix()}` },
+      })
+      expect(doctorRes.ok()).toBe(true)
+      const { doctor } = (await doctorRes.json()) as { doctor: { id: string } }
+      const product = await createProduct(page)
+      const job = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, job.id, accion)
+      }
+      await shipAndDeliver(page, job.id, (await createCourier(page)).id)
+      const adjusted = await page.request.post('/api/cuentas/ajustes', {
+        data: {
+          clinicaId: clinic.id,
+          monto: '150.00',
+          motivo:
+            'Saldo inicial acordado con la doctora por la demora en la entrega de la prótesis y el retraso del mensajero en la recogida',
+          fecha: todayIso(),
+        },
+      })
+      expect(adjusted.ok()).toBe(true)
+      const paid = await page.request.post('/api/cuentas/pagos', {
+        data: {
+          clinicaId: clinic.id,
+          monto: '5.00',
+          metodo: 'efectivo',
+          fecha: todayIso(),
+          asignaciones: [],
+        },
+      })
+      expect(paid.ok()).toBe(true)
+
+      const noPageScroll = () =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        )
+      const noTableScroll = () =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('[data-slot=table-container]')].every(
+            (el) => el.scrollWidth <= el.clientWidth,
+          ),
+        )
+
+      await page.goto('/cuentas')
+      await expect(page.getByRole('heading', { level: 1, name: 'Cuentas' })).toBeVisible()
+      const search = page.getByRole('search')
+      await expect(search.getByRole('combobox', { name: 'Ordenar' })).toBeVisible()
+      await expect(search.locator('select')).toHaveCount(1)
+      await page.getByLabel('Buscar clínica').fill(name)
+      await expect(page.getByRole('link', { name: new RegExp(name) })).toBeVisible()
+      expect(await noPageScroll()).toBe(true)
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+      await page.setViewportSize({ width: 360, height: 740 })
+      expect(await noPageScroll()).toBe(true)
+
+      await page.goto(`/cuentas/${clinic.id}`)
+      await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()
+      await page.getByRole('tab', { name: /^Movimientos/ }).click()
+      const anular = page.getByRole('button', { name: /^Anular pago de/ })
+      await expect(anular).toBeVisible()
+      expect(await noPageScroll()).toBe(true)
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+      // «Anular pago» va aparte: bajo «Aplicar saldo a favor», que va a lo ancho de la tarjeta.
+      const apply = page.getByRole('button', { name: /^Aplicar saldo a favor de/ })
+      const [applyBox, anularBox] = [await apply.boundingBox(), await anular.boundingBox()]
+      expect(anularBox!.y).toBeGreaterThan(applyBox!.y + applyBox!.height)
+
+      await page.setViewportSize({ width: 1280, height: 800 })
+      await expect(page.getByRole('table')).toBeVisible()
+      expect(await noTableScroll()).toBe(true)
+      expect(await noPageScroll()).toBe(true)
+      await page.goto('/cuentas')
+      await page.getByLabel('Buscar clínica').fill(name)
+      await expect(page.getByRole('link', { name })).toBeVisible()
+      expect(await noTableScroll()).toBe(true)
+      expect(await noPageScroll()).toBe(true)
+    },
+  )
+
   // CTA-2/CTA-3 (#83, #84): la cuenta de una clínica con sus pestañas, la línea de cobro de la
   // ficha y los cuatro diálogos de cobro. Un trabajo entregado queda «Por cobrar» y un pago por
   // API que le asigna una parte deja saldo a favor, para que «Aplicado a», «Aplicar saldo a
