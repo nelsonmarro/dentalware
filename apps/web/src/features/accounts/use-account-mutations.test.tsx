@@ -193,7 +193,7 @@ describe('useRegisterAdjustment («Registrar ajuste», CTA-3)', () => {
     expect(api.registerAdjustment).toHaveBeenCalledWith(input)
     expectInvalidated(client)
     expect(toast.success).toHaveBeenCalledWith(
-      'Ajuste registrado: $ 10.00 volvieron al saldo a favor',
+      'Ajuste registrado: $ 10.00 vuelven al saldo a favor',
     )
   })
 

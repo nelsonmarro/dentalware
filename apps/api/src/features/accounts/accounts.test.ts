@@ -783,7 +783,7 @@ describe('/api/cuentas', () => {
       expect((await eventsOf(uno.id)).at(-1)).toMatchObject({
         type: 'adjustment_added',
         toValue: '-5.00',
-        reason: 'Descuento tardío · Se devolvieron $5.00 al saldo a favor',
+        reason: 'Descuento tardío · $ 5.00 vuelven al saldo a favor',
       })
       expect((await eventsOf(uno.id, tecnico)).at(-1)).toMatchObject({
         type: 'adjustment_added',

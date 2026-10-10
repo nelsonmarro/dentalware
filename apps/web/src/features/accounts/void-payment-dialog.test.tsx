@@ -75,4 +75,29 @@ describe('VoidPaymentDialog («Anular pago», CTA-2)', () => {
     await vi.waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     expect(toast.error).toHaveBeenCalledWith('El pago ya está anulado')
   })
+
+  // M4 de la revisión final del PR 2: un 422 no se traga. En el motivo, bajo el campo; si no tiene
+  // campo (un id inválido), con un aviso.
+  it('un 422 en el motivo se pinta bajo el campo y el diálogo sigue abierto', async () => {
+    vi.mocked(voidPayment).mockRejectedValue(
+      new ApiError('Datos inválidos', 422, [{ path: 'motivo', message: 'Máximo 500 caracteres' }]),
+    )
+    const { user, onOpenChange } = renderDialog()
+    await user.type(screen.getByLabelText('Motivo'), 'Duplicado')
+    await user.click(screen.getByRole('button', { name: 'Anular pago' }))
+    expect(await screen.findByText('Máximo 500 caracteres')).toBeInTheDocument()
+    expect(screen.getByLabelText('Motivo')).toHaveAttribute('aria-invalid', 'true')
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('un 422 sin campo en el formulario avisa con un toast', async () => {
+    vi.mocked(voidPayment).mockRejectedValue(
+      new ApiError('Datos inválidos', 422, [{ path: 'id', message: 'Identificador inválido' }]),
+    )
+    const { user } = renderDialog()
+    await user.type(screen.getByLabelText('Motivo'), 'Duplicado')
+    await user.click(screen.getByRole('button', { name: 'Anular pago' }))
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Datos inválidos'))
+  })
 })

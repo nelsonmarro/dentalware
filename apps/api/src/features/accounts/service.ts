@@ -550,7 +550,7 @@ export function createAccountsService(deps: {
         toValue: fromSignedCents(amountCents),
         reason:
           releasedCents > 0
-            ? `${input.motivo} · Se devolvieron $${fromCents(releasedCents)} al saldo a favor`
+            ? `${input.motivo} · $ ${fromCents(releasedCents)} vuelven al saldo a favor`
             : input.motivo,
         actorId: ctx.userId,
       })

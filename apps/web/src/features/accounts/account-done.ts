@@ -23,6 +23,6 @@ export function creditDoneText(settled: number): string {
 /** Aviso de «Registrar ajuste»: si un descuento devolvió algo a los pagos, lo dice. */
 export function adjustmentDoneText(released: string): string {
   return toSignedCents(released) > 0
-    ? `Ajuste registrado: ${formatMoney(released)} volvieron al saldo a favor`
+    ? `Ajuste registrado: ${formatMoney(released)} vuelven al saldo a favor`
     : 'Ajuste registrado'
 }

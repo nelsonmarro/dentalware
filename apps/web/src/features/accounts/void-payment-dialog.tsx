@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import { QueuedNotice } from '@/features/cases/queued-notice'
-import { ApiError } from '@/lib/api-error'
+import { ApiError, toastApiError } from '@/lib/api-error'
+import { applyIssues } from './allocation'
 import { paymentContext, type PaymentRef } from './payment-context'
 import { useAccountBusy } from './use-account-busy'
 import { useVoidPayment } from './use-void-payment'
@@ -19,7 +20,7 @@ type FormValues = z.input<typeof voidPaymentInputSchema>
  * «Anular pago» (CTA-2, solo admin, decisión 2): no tiene vuelta, así que nombra la consecuencia
  * y pide el motivo, obligatorio. Es un `FormDialog` y no un `ConfirmDialog` porque lleva campo,
  * como «Cancelar trabajo». El botón principal va en destructivo. Un 409 (otra persona ya lo
- * anuló) cierra el diálogo tras refrescar y avisar.
+ * anuló) cierra el diálogo tras refrescar y avisar; un 422 se pinta bajo el motivo o se avisa.
  */
 export function VoidPaymentDialog({
   clinic,
@@ -34,7 +35,7 @@ export function VoidPaymentDialog({
 }) {
   const voidIt = useVoidPayment(clinic.id)
   const { busy, queued } = useAccountBusy(clinic.id)
-  const { register, handleSubmit, formState, reset } = useForm<
+  const { register, handleSubmit, formState, reset, setError } = useForm<
     FormValues,
     unknown,
     VoidPaymentInput
@@ -51,7 +52,14 @@ export function VoidPaymentDialog({
       {
         onSuccess: () => onOpenChange(false),
         onError: (err) => {
-          if (err instanceof ApiError && err.status === 409) onOpenChange(false)
+          if (!(err instanceof ApiError)) return
+          if (err.status === 409) onOpenChange(false)
+          if (err.status !== 422) return
+          // El 422 no se traga (M4): en el motivo, bajo el campo; si no tiene campo, un aviso.
+          const unmapped = applyIssues(err.issues, [], ['motivo'], (_field, message) =>
+            setError('motivo', { type: 'server', message }),
+          )
+          if (unmapped) toastApiError(err)
         },
       },
     )
