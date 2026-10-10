@@ -62,7 +62,7 @@ export const paymentFormSchema = z
   // diga todo de una vez; pero solo si hay un monto del pago válido con el que comparar.
   .refine((v) => assignedCents(v.asignaciones) <= (parseMoneyInput(v.monto) ?? 0), {
     path: ['asignaciones'],
-    message: 'Lo asignado no puede superar el monto del pago',
+    message: 'Lo aplicado no puede superar el monto del pago',
     when: ({ value }) => {
       const v = value as { monto?: unknown; asignaciones?: unknown }
       return (
@@ -90,7 +90,7 @@ export function applyCreditFormSchema(availableCents: number) {
         ctx.addIssue({
           code: 'custom',
           path: ['asignaciones'],
-          message: `Lo asignado no puede superar lo que queda a favor ($ ${fromCents(availableCents)})`,
+          message: `Lo aplicado no puede superar lo que queda a favor ($ ${fromCents(availableCents)})`,
         })
       }
     })

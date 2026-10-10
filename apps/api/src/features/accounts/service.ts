@@ -845,7 +845,7 @@ export function createAccountsService(deps: {
           r,
           input.clinicaId,
           input.asignaciones,
-          { cents: amountCents, message: 'Lo asignado no puede superar el monto del pago' },
+          { cents: amountCents, message: 'Lo aplicado no puede superar el monto del pago' },
         )
         const payment = {
           method: input.metodo,

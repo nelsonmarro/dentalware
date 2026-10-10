@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FormDialog } from './form-dialog'
 
@@ -139,5 +139,58 @@ describe('FormDialog', () => {
       .map((ctx, i) => [ctx, focus.mock.calls[i]?.[0]] as const)
       .filter(([ctx]) => ctx === h1)
     expect(calls.map(([, opts]) => opts)).toEqual([{ preventScroll: true }])
+  })
+
+  // UX5-06: con mucho contenido (el reparto de cinco trabajos), solo el cuerpo se desplaza; el
+  // pie con el botón principal, «Volver» y el resumen en vivo queda siempre a la vista.
+  describe('pie fijo', () => {
+    function renderLong(summary?: ReactNode) {
+      render(
+        <FormDialog
+          open
+          onOpenChange={() => {}}
+          title="Registrar pago"
+          summary={summary}
+          footer={
+            <>
+              <button>Volver</button>
+              <button>Registrar pago</button>
+            </>
+          }
+        >
+          <p>Contenido largo</p>
+        </FormDialog>,
+      )
+      const dialog = screen.getByRole('dialog')
+      const body = screen.getByText('Contenido largo').parentElement as HTMLElement
+      return { dialog, body }
+    }
+
+    it('el cuerpo se desplaza y el diálogo no', () => {
+      const { dialog, body } = renderLong()
+      expect(body).toHaveClass('overflow-y-auto', 'min-h-0')
+      expect(dialog).not.toHaveClass('overflow-y-auto')
+      expect(dialog).toHaveClass('flex', 'flex-col')
+    })
+
+    it('los botones del pie quedan fuera del cuerpo que se desplaza', () => {
+      const { dialog, body } = renderLong()
+      const main = screen.getByRole('button', { name: 'Registrar pago' })
+      const back = screen.getByRole('button', { name: 'Volver' })
+      expect(body).not.toContainElement(main)
+      expect(body).not.toContainElement(back)
+      expect(dialog).toContainElement(main)
+    })
+
+    it('el resumen va en el pie, encima de los botones y fuera del cuerpo', () => {
+      const { body } = renderLong(<p role="status">Aplicado $ 80.00 · Queda a favor $ 20.00</p>)
+      const status = screen.getByRole('status')
+      const main = screen.getByRole('button', { name: 'Registrar pago' })
+      expect(body).not.toContainElement(status)
+      const footer = status.closest('[data-slot="form-dialog-footer"]')
+      expect(footer).not.toBeNull()
+      expect(footer).toContainElement(main)
+      expect(status.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
   })
 })

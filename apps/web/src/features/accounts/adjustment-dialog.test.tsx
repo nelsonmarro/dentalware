@@ -14,8 +14,8 @@ const T1 = '22222222-2222-4222-8222-222222222222'
 const T2 = '33333333-3333-4333-8333-333333333333'
 
 const CASES = [
-  { id: T1, code: '26-00001', outstanding: '50.00' },
-  { id: T2, code: '26-00002', outstanding: null },
+  { id: T1, code: '26-00001', outstanding: '50.00', allocated: '30.00' },
+  { id: T2, code: '26-00002', outstanding: null, allocated: null },
 ]
 
 function renderDialog() {
@@ -77,6 +77,55 @@ describe('AdjustmentDialog («Registrar ajuste», CTA-3)', () => {
     })
     await vi.waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     expect(toast.success).toHaveBeenCalledWith('Ajuste registrado')
+  })
+
+  // UX5-15: antes de confirmar, el descuento que deja pagado de más un trabajo dice que ese
+  // dinero vuelve al saldo a favor (antes solo lo decía el toast).
+  describe('aviso del descuento que vuelve al saldo a favor', () => {
+    async function choose(
+      user: ReturnType<typeof renderDialog>['user'],
+      sign: string,
+      code: string,
+    ) {
+      await user.click(signButton(sign))
+      await user.click(screen.getByRole('combobox', { name: 'Trabajo' }))
+      await user.click(await screen.findByRole('option', { name: new RegExp(code) }))
+    }
+    const COBRADO = 'Este trabajo ya está cobrado: lo que le descuentes vuelve al saldo a favor.'
+
+    it('un descuento sobre un trabajo cobrado lo avisa', async () => {
+      const { user } = renderDialog()
+      await choose(user, 'Descuento o nota de crédito', '26-00002')
+      expect(screen.getByText(COBRADO)).toBeInTheDocument()
+    })
+
+    it('un recargo sobre un trabajo cobrado no avisa nada', async () => {
+      const { user } = renderDialog()
+      await choose(user, 'Recargo', '26-00002')
+      expect(screen.queryByText(COBRADO)).toBeNull()
+      expect(screen.queryByText(/vuelve.? al saldo a favor/)).toBeNull()
+    })
+
+    it('un descuento mayor que lo que debe dice cuánto de lo pagado vuelve', async () => {
+      const { user } = renderDialog()
+      await choose(user, 'Descuento o nota de crédito', '26-00001')
+      await user.type(screen.getByLabelText('Monto'), '70')
+      expect(
+        screen.getByText('$ 20.00 de lo ya pagado por este trabajo vuelven al saldo a favor.'),
+      ).toBeInTheDocument()
+    })
+
+    it('un descuento que no pasa de lo que debe, o sin trabajo, no avisa nada', async () => {
+      const { user } = renderDialog()
+      await choose(user, 'Descuento o nota de crédito', '26-00001')
+      await user.type(screen.getByLabelText('Monto'), '50')
+      expect(screen.queryByText(/vuelve.? al saldo a favor/)).toBeNull()
+      await user.click(screen.getByRole('combobox', { name: 'Trabajo' }))
+      await user.click(await screen.findByRole('option', { name: /Sin trabajo/ }))
+      await user.clear(screen.getByLabelText('Monto'))
+      await user.type(screen.getByLabelText('Monto'), '500')
+      expect(screen.queryByText(/vuelve.? al saldo a favor/)).toBeNull()
+    })
   })
 
   it('«Saldo inicial» rellena el motivo y lo deja como recargo sin trabajo', async () => {

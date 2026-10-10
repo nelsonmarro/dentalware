@@ -79,7 +79,7 @@ export const paymentInputSchema = z
       ctx.addIssue({
         code: 'custom',
         path: ['asignaciones'],
-        message: 'Lo asignado no puede superar el monto del pago',
+        message: 'Lo aplicado no puede superar el monto del pago',
       })
     }
   })

@@ -159,7 +159,11 @@ test.describe('Cuentas', () => {
         await expect(pago.getByLabel(`Monto para ${oldest.code}`)).toHaveValue('25.00')
         await expect(pago.getByLabel(`Monto para ${newest.code}`)).toHaveValue('5.00')
         await pago.getByLabel(`Monto para ${newest.code}`).fill('')
-        await expect(pago.getByRole('status')).toHaveText('Asignado $ 25.00 · Queda a favor $ 5.00')
+        await expect(pago.getByRole('status')).toHaveText('Aplicado $ 25.00 · Queda a favor $ 5.00')
+        // UX5-15: cada fila dice qué le pasa a su trabajo.
+        await expect(pago.getByLabel(`Monto para ${oldest.code}`)).toHaveAccessibleDescription(
+          'Queda cobrado',
+        )
         await pago.getByRole('combobox', { name: 'Método' }).click()
         await rp.getByRole('option', { name: 'Transferencia' }).click()
         await pago.getByLabel('Referencia').fill('TRX-E2E')
@@ -186,6 +190,9 @@ test.describe('Cuentas', () => {
         await rp.getByRole('button', { name: 'Aplicar saldo a favor', exact: true }).click()
         const aplicar = rp.getByRole('dialog', { name: 'Aplicar saldo a favor' })
         await expect(aplicar.getByLabel(`Monto para ${newest.code}`)).toHaveValue('5.00')
+        await expect(aplicar.getByLabel(`Monto para ${newest.code}`)).toHaveAccessibleDescription(
+          'Quedará debiendo $ 20.00',
+        )
         await aplicar.getByRole('button', { name: 'Aplicar saldo a favor' }).click()
         await expect(aplicar).toBeHidden()
         await expect(toasts(rp)).toContainText('Saldo a favor aplicado')
@@ -267,6 +274,85 @@ test.describe('Cuentas', () => {
       await expect(apertura).toContainText('$ 0.00')
       await expect(cierre).toContainText('$ 150.00')
       await expect(page.getByRole('button', { name: 'Imprimir' })).toBeVisible()
+    },
+  )
+
+  // UX5-06: con cinco trabajos por cobrar, lo aplicado (`role="status"`) y «Registrar pago»
+  // quedan dentro de la ventana, en el pie fijo del diálogo, y la lista se desplaza sola.
+  test(
+    'con cinco trabajos por cobrar, «Registrar pago» deja a la vista lo aplicado y el botón',
+    { tag: '@clave' },
+    async ({ page, isMobile }) => {
+      test.slow()
+      await page.setViewportSize(
+        isMobile ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+      )
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const courier = await createCourier(page)
+      const cases = []
+      for (let i = 0; i < 5; i++) {
+        const c = await createCase(page, {
+          clinicId: clinic.id,
+          doctorId: doctor.id,
+          productId: product.id,
+        })
+        await deliverCase(page, c.id, courier.id)
+        cases.push(c)
+      }
+
+      await page.goto(`/cuentas/${clinic.id}`)
+      await expect(page.getByRole('heading', { level: 1, name: clinic.name })).toBeVisible()
+      await page.getByRole('button', { name: 'Registrar pago' }).click()
+      const pago = page.getByRole('dialog', { name: 'Registrar pago' })
+      await pago.getByLabel('Monto', { exact: true }).fill('60.00')
+      const status = pago.getByRole('status')
+      const submit = pago.getByRole('button', { name: 'Registrar pago' })
+      await expect(status).toHaveText('Aplicado $ 60.00 · Queda a favor $ 0.00')
+
+      /** ¿Está entero dentro de la ventana? (`getBoundingClientRect`, no solo visible). */
+      const inWindow = (l: Locator) =>
+        l.evaluate((el) => {
+          const r = el.getBoundingClientRect()
+          return r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth
+        })
+      expect(await inWindow(status)).toBe(true)
+      expect(await inWindow(submit)).toBe(true)
+
+      // Con el teclado hasta el último trabajo: la lista se desplaza y el pie sigue a la vista.
+      const last = cases.at(-1)?.code ?? ''
+      await pago.getByLabel(`Monto para ${cases[0]?.code}`).focus()
+      for (let i = 1; i < cases.length; i++) await page.keyboard.press('Tab')
+      await expect(pago.getByLabel(`Monto para ${last}`)).toBeFocused()
+      await expect(pago.getByLabel(`Monto para ${last}`)).toBeInViewport({ ratio: 1 })
+      await page.keyboard.type('5')
+      await expect(status).toHaveText('Aplicado $ 65.00 · Supera el pago en $ 5.00')
+      await expect(pago.getByLabel(`Monto para ${last}`)).toHaveAccessibleDescription(
+        'Quedará debiendo $ 20.00',
+      )
+      expect(await inWindow(status)).toBe(true)
+      expect(await inWindow(submit)).toBe(true)
+
+      await pago.getByLabel(`Monto para ${last}`).fill('')
+      await pago.getByRole('combobox', { name: 'Método' }).click()
+      await page.getByRole('option', { name: 'Efectivo' }).click()
+      await submit.click()
+      await expect(pago).toBeHidden()
+
+      // UX5-15: un descuento sobre un trabajo ya cobrado avisa antes de que vuelve al saldo a
+      // favor.
+      await page.getByRole('button', { name: 'Registrar ajuste' }).click()
+      const ajuste = page.getByRole('dialog', { name: 'Registrar ajuste' })
+      await ajuste.getByRole('button', { name: 'Descuento o nota de crédito' }).click()
+      await ajuste.getByRole('combobox', { name: 'Trabajo' }).click()
+      await page.getByRole('option', { name: new RegExp(`${cases[0]?.code} · cobrado`) }).click()
+      await expect(
+        ajuste.getByText(
+          'Este trabajo ya está cobrado: lo que le descuentes vuelve al saldo a favor.',
+        ),
+      ).toBeVisible()
+      await ajuste.getByRole('button', { name: 'Volver' }).click()
+      await expect(ajuste).toBeHidden()
     },
   )
 

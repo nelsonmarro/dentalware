@@ -80,7 +80,7 @@ describe('ApplyCreditDialog («Aplicar saldo a favor» de un pago, CTA-2)', () =
     renderDialog()
     expect(rowInput('26-00001')).toHaveValue('40.00')
     expect(rowInput('26-00002')).toHaveValue('')
-    expect(screen.getByRole('status')).toHaveTextContent('Asignado $ 40.00 · Sigue a favor $ 0.00')
+    expect(screen.getByRole('status')).toHaveTextContent('Aplicado $ 40.00 · Sigue a favor $ 0.00')
   })
 
   it('aplica el reparto editado y avisa', async () => {
@@ -110,7 +110,7 @@ describe('ApplyCreditDialog («Aplicar saldo a favor» de un pago, CTA-2)', () =
     expect(screen.getByRole('status')).toHaveTextContent('Supera lo disponible en $ 1.00')
     await user.click(screen.getByRole('button', { name: 'Aplicar saldo a favor' }))
     expect(
-      await screen.findByText('Lo asignado no puede superar lo que queda a favor ($ 40.00)'),
+      await screen.findByText('Lo aplicado no puede superar lo que queda a favor ($ 40.00)'),
     ).toBeInTheDocument()
     expect(applyCredit).not.toHaveBeenCalled()
   })

@@ -2,14 +2,18 @@ import {
   ADJUSTMENT_SIGN_LABEL,
   ADJUSTMENT_SIGNS,
   adjustmentFormSchema,
+  discountReleaseCents,
+  fromCents,
   OPENING_BALANCE_REASON,
+  parseMoneyInput,
   toIsoDate,
+  toSignedCents,
   type AdjustmentInput,
 } from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check } from 'lucide-react'
+import { Check, Info } from 'lucide-react'
 import { useEffect } from 'react'
-import { Controller, useForm, type Path } from 'react-hook-form'
+import { Controller, useForm, useWatch, type Path } from 'react-hook-form'
 import type { z } from 'zod'
 import { Combobox } from '@/components/combobox'
 import { FormDialog } from '@/components/form-dialog'
@@ -32,8 +36,41 @@ const FIELDS = ['signo', 'monto', 'motivo', 'fecha', 'trabajoId']
 /** Valor interno de «Sin trabajo» en el `Combobox` (que no admite `''`); nunca sale del diálogo. */
 const NO_CASE = '__sin_trabajo__'
 
-/** Un trabajo que carga a la cuenta: lo que debe todavía, o `null` si ya está cobrado. */
-export type AdjustableCase = { id: string; code: string; outstanding: string | null }
+/** Un trabajo que carga a la cuenta: lo que debe todavía y lo ya pagado, o `null` si ya está
+ * cobrado (no está en «Por cobrar»). */
+export type AdjustableCase = {
+  id: string
+  code: string
+  outstanding: string | null
+  allocated: string | null
+}
+
+/**
+ * Lo que un descuento ligado a un trabajo devolverá al saldo a favor, dicho antes de confirmar
+ * (UX5-15). Cobrado: todo lo que se le descuente vuelve, sin monto porque la web no tiene su
+ * pendiente ni lo pagado. Por cobrar: el monto exacto con `discountReleaseCents` de shared, si el
+ * descuento pasa de lo que debe. `null` si no devuelve nada (recargo, sin trabajo, o un descuento
+ * que la API rechazará por dejar el neto bajo 0).
+ */
+function discountNotice(
+  c: AdjustableCase | undefined,
+  signo: string | undefined,
+  monto: string,
+): string | null {
+  if (!c || signo !== 'descuento') return null
+  if (c.outstanding === null || c.allocated === null) {
+    return 'Este trabajo ya está cobrado: lo que le descuentes vuelve al saldo a favor.'
+  }
+  const cents = parseMoneyInput(monto)
+  if (!cents) return null
+  const released = discountReleaseCents(
+    { outstandingCents: toSignedCents(c.outstanding), allocatedCents: toSignedCents(c.allocated) },
+    cents,
+  )
+  return released
+    ? `${formatMoney(fromCents(released))} de lo ya pagado por este trabajo vuelven al saldo a favor.`
+    : null
+}
 
 /**
  * «Registrar ajuste» (CTA-3, solo admin): descuento o nota de crédito (resta) o recargo (suma),
@@ -76,6 +113,13 @@ export function AdjustmentDialog({
     if (open) reset(defaults())
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al abrir
   }, [open])
+
+  const [signo, monto, trabajoId] = useWatch({ control, name: ['signo', 'monto', 'trabajoId'] })
+  const notice = discountNotice(
+    cases.find((c) => c.id === trabajoId),
+    signo,
+    monto ?? '',
+  )
 
   const items = [
     { value: NO_CASE, label: 'Sin trabajo: solo la clínica' },
@@ -209,6 +253,15 @@ export function AdjustmentDialog({
                 />
                 <FieldDescription>Solo trabajos entregados de esta clínica.</FieldDescription>
                 {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                {/* Siempre montado, para que el lector de pantalla anuncie el aviso al aparecer. */}
+                <div aria-live="polite">
+                  {notice && (
+                    <p className="flex gap-2 rounded-lg border border-wax-amber/60 bg-wax-amber/10 px-3 py-2 text-sm text-foreground">
+                      <Info aria-hidden className="mt-0.5 size-4 shrink-0 text-wax-amber-ink" />
+                      {notice}
+                    </p>
+                  )}
+                </div>
               </Field>
             )}
           />

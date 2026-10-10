@@ -359,7 +359,7 @@ describe('features/accounts/service: pagos (CTA-2)', () => {
             { trabajoId: 'b', monto: '20.00' },
           ],
           'asignaciones',
-          'Lo asignado no puede superar el monto del pago',
+          'Lo aplicado no puede superar el monto del pago',
         ],
       ])('%s', async (_label, asignaciones, path, message) => {
         const fake = build()

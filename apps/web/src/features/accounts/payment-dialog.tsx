@@ -25,6 +25,7 @@ import {
 import { QueuedNotice } from '@/features/cases/queued-notice'
 import { ApiError, toastApiError } from '@/lib/api-error'
 import { AllocationFields } from './allocation-fields'
+import { AllocationSummary } from './allocation-summary'
 import { applyIssues, orderOpenCases, suggestedRows } from './allocation'
 import type { ClinicAccount } from './api'
 import { useAccountBusy } from './use-account-busy'
@@ -133,7 +134,18 @@ export function PaymentDialog({
       onOpenChange={onOpenChange}
       title="Registrar pago"
       context={{ label: clinic.name }}
-      description="Los trabajos que el pago cubra pasan a «Cobrado»; lo que no se reparta queda a favor de la clínica."
+      description="Los trabajos que el pago cubra pasan a «Cobrado»; lo que no se aplique queda a favor de la clínica."
+      summary={
+        ordered.length > 0 && (
+          <AllocationSummary
+            allocatedCents={totals.allocatedCents}
+            leftCents={totals.leftCents}
+            leftLabel="Queda a favor"
+            overLabel="Supera el pago en"
+            error={totalError}
+          />
+        )
+      }
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -230,23 +242,19 @@ export function PaymentDialog({
           <section aria-labelledby="pago-reparto" className="flex flex-col gap-2">
             <div className="flex flex-col gap-0.5">
               <h3 id="pago-reparto" className="text-sm font-medium">
-                Reparto entre trabajos por cobrar
+                A qué trabajos se aplica
               </h3>
               {ordered.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Se reparte de la entrega más antigua a la más nueva. Puedes cambiar cada monto.
+                  Se aplica de la entrega más antigua a la más nueva. Puedes cambiar cada monto.
                 </p>
               )}
             </div>
             <AllocationFields
               cases={ordered}
+              amounts={(rows ?? []).map((r) => r.monto)}
               field={(i) => register(`asignaciones.${i}.monto`)}
               rowError={(i) => errors.asignaciones?.[i]?.monto?.message}
-              totalError={totalError}
-              allocatedCents={totals.allocatedCents}
-              leftCents={totals.leftCents}
-              leftLabel="Queda a favor"
-              overLabel="Supera el pago en"
               emptyText="No hay trabajos por cobrar: todo el pago queda a favor."
             />
           </section>

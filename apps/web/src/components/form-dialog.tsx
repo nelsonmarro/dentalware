@@ -3,7 +3,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -18,6 +17,7 @@ export function FormDialog({
   description,
   children,
   footer,
+  summary,
   size = 'default',
 }: {
   open: boolean
@@ -30,6 +30,9 @@ export function FormDialog({
   description?: string
   children: ReactNode
   footer: ReactNode
+  /** Lo que tiene que verse mientras se edita el cuerpo (el «Aplicado $ X · Queda a favor $ Y»
+   * del reparto, UX5-06): va en el pie fijo, encima de los botones. */
+  summary?: ReactNode
   /**
    * `wide`: para contenido ancho como el odontograma de `TeethDialog`. En móvil deja solo
    * 8 px de margen a cada lado (`max-w-[calc(100%-1rem)]`) y en escritorio `sm:max-w-4xl`.
@@ -43,15 +46,18 @@ export function FormDialog({
       <DialogContent
         // Al cerrar, el foco vuelve a quien lo abrió, o al `h1` (`useReturnFocus`).
         onCloseAutoFocus={returnFocus}
-        // `*:min-w-0`: el contenido es una rejilla y sus hijos medían, como mínimo, lo que su
-        // texto más largo sin cortar (el reparto con un paciente largo). Así se encogen al ancho
-        // del diálogo en vez de salirse por la derecha y recortar los botones del pie.
+        // UX5-06: solo el cuerpo se desplaza. La cabecera y el pie (botones y `summary`) quedan
+        // siempre a la vista, aunque el contenido no quepa (el reparto de cinco trabajos a
+        // 1280×800). Columna flexible con alto máximo: el cuerpo encoge (`min-h-0`) y se desplaza.
+        // `*:min-w-0`: los hijos medían, como mínimo, lo que su texto más largo sin cortar (el
+        // reparto con un paciente largo). Así se encogen al ancho del diálogo en vez de salirse
+        // por la derecha y recortar los botones del pie.
         className={cn(
-          'max-h-[90svh] overflow-x-hidden overflow-y-auto *:min-w-0',
+          'flex max-h-[90svh] flex-col overflow-hidden *:min-w-0',
           size === 'wide' ? 'max-w-[calc(100%-1rem)] sm:max-w-4xl' : 'sm:max-w-lg',
         )}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>
           {(context || description) && (
             <DialogDescription>
@@ -70,8 +76,21 @@ export function FormDialog({
             </DialogDescription>
           )}
         </DialogHeader>
-        {children}
-        <DialogFooter className="gap-2">{footer}</DialogFooter>
+        {/* Llega a los bordes (`-mx-4 px-4`, `-my-1 py-1`) para que el anillo de foco de los
+         * campos no quede recortado por el desplazamiento. */}
+        <div
+          data-slot="form-dialog-body"
+          className="-mx-4 -my-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-1"
+        >
+          {children}
+        </div>
+        <div
+          data-slot="form-dialog-footer"
+          className="-mx-4 -mb-4 flex shrink-0 flex-col gap-3 rounded-b-xl border-t bg-muted/50 p-4"
+        >
+          {summary}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">{footer}</div>
+        </div>
       </DialogContent>
     </Dialog>
   )

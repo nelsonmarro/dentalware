@@ -94,12 +94,15 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
     await user.type(screen.getByLabelText('Monto'), '60')
     expect(rowInput('26-00001')).toHaveValue('50.00')
     expect(rowInput('26-00002')).toHaveValue('10.00')
-    expect(screen.getByRole('status')).toHaveTextContent('Asignado $ 60.00 · Queda a favor $ 0.00')
+    expect(screen.getByRole('status')).toHaveTextContent('Aplicado $ 60.00 · Queda a favor $ 0.00')
+    // UX5-15: cada fila dice qué le pasa a su trabajo.
+    expect(rowInput('26-00001')).toHaveAccessibleDescription('Queda cobrado')
+    expect(rowInput('26-00002')).toHaveAccessibleDescription('Quedará debiendo $ 20.00')
 
     await user.clear(screen.getByLabelText('Monto'))
     await user.type(screen.getByLabelText('Monto'), '100')
     expect(rowInput('26-00002')).toHaveValue('30.00')
-    expect(screen.getByRole('status')).toHaveTextContent('Asignado $ 80.00 · Queda a favor $ 20.00')
+    expect(screen.getByRole('status')).toHaveTextContent('Aplicado $ 80.00 · Queda a favor $ 20.00')
   })
 
   it('cada monto se edita y el pago viaja sin las filas vacías', async () => {
@@ -112,7 +115,7 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
     await user.clear(rowInput('26-00001'))
     await user.clear(rowInput('26-00002'))
     await user.type(rowInput('26-00002'), '30')
-    expect(screen.getByRole('status')).toHaveTextContent('Asignado $ 30.00 · Queda a favor $ 70.00')
+    expect(screen.getByRole('status')).toHaveTextContent('Aplicado $ 30.00 · Queda a favor $ 70.00')
     await chooseMethod(user, 'Transferencia')
     await user.type(screen.getByLabelText('Referencia'), 'TRX-9')
     await user.click(screen.getByRole('button', { name: 'Registrar pago' }))
@@ -132,18 +135,18 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
     )
   })
 
-  it('valida en el formulario: método, y lo asignado contra el monto', async () => {
+  it('valida en el formulario: método, y lo aplicado contra el monto', async () => {
     const { user } = renderDialog()
     await user.type(screen.getByLabelText('Monto'), '10')
     await user.clear(rowInput('26-00001'))
     await user.type(rowInput('26-00001'), '20')
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Asignado $ 20.00 · Supera el pago en $ 10.00',
+      'Aplicado $ 20.00 · Supera el pago en $ 10.00',
     )
     await user.click(screen.getByRole('button', { name: 'Registrar pago' }))
 
     expect(await screen.findByText('Elige un método de pago')).toBeInTheDocument()
-    expect(screen.getByText('Lo asignado no puede superar el monto del pago')).toBeInTheDocument()
+    expect(screen.getByText('Lo aplicado no puede superar el monto del pago')).toBeInTheDocument()
     expect(registerPayment).not.toHaveBeenCalled()
   })
 

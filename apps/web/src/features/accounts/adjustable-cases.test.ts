@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { adjustableCases } from './adjustable-cases'
 
 describe('adjustableCases (los trabajos a los que se puede ligar un ajuste)', () => {
-  it('cada trabajo con cargo, una vez, con lo que debe si está por cobrar', () => {
+  it('cada trabajo con cargo, una vez, con lo que debe y lo pagado si está por cobrar', () => {
     expect(
       adjustableCases(
         [
@@ -11,11 +11,11 @@ describe('adjustableCases (los trabajos a los que se puede ligar un ajuste)', ()
           { kind: 'ajuste', case: { id: 't1', code: '26-00001' } },
           { kind: 'cargo', case: { id: 't1', code: '26-00001' } },
         ],
-        [{ id: 't1', outstanding: '50.00' }],
+        [{ id: 't1', outstanding: '50.00', allocated: '20.00' }],
       ),
     ).toEqual([
-      { id: 't1', code: '26-00001', outstanding: '50.00' },
-      { id: 't2', code: '26-00002', outstanding: null },
+      { id: 't1', code: '26-00001', outstanding: '50.00', allocated: '20.00' },
+      { id: 't2', code: '26-00002', outstanding: null, allocated: null },
     ])
   })
 })
