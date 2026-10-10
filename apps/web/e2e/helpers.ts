@@ -235,15 +235,24 @@ export function trackConsoleErrors(page: Page): string[] {
   return errors
 }
 
+/** Rol de un usuario efímero de E2E: nunca `admin` (los E2E no crean administradores). */
+type StaffRole = 'recepcion' | 'mensajero' | 'tecnico'
+
+const STAFF_NAME: Record<StaffRole, string> = {
+  recepcion: 'Recepción',
+  mensajero: 'Mensajero',
+  tecnico: 'Técnico',
+}
+
 /** Crea un usuario único del `role` dado por API (sesión admin ya iniciada en `page`), con una
  * contraseña generada (`testPassword`, nunca un literal). */
-export async function createStaff(page: Page, role: 'recepcion' | 'mensajero') {
+export async function createStaff(page: Page, role: StaffRole) {
   const suffix = uniqueSuffix()
   const email = `${role}-e2e-${suffix}@t.local`
   const password = testPassword()
   const res = await page.request.post('/api/users', {
     data: {
-      name: `${role === 'mensajero' ? 'Mensajero' : 'Recepción'} E2E ${suffix}`,
+      name: `${STAFF_NAME[role]} E2E ${suffix}`,
       email,
       password,
       role,
