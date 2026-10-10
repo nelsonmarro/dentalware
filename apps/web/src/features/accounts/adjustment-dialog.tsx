@@ -36,6 +36,10 @@ type FormValues = z.input<typeof adjustmentFormSchema>
 /** Campos donde puede caer un 422 de la API. */
 const FIELDS = ['signo', 'monto', 'motivo', 'fecha', 'trabajoId']
 
+/** Lo que oye el lector de pantalla cuando aparece el aviso del descuento: sin el monto, para
+ * no repetirlo con cada tecla (final review M-1). */
+const DISCOUNT_ANNOUNCE = 'Este descuento devuelve dinero al saldo a favor.'
+
 /** Valor interno de «Sin trabajo» en el `Combobox` (que no admite `''`); nunca sale del diálogo. */
 const NO_CASE = '__sin_trabajo__'
 
@@ -177,10 +181,16 @@ export function AdjustmentDialog({
       context={{ label: clinic.name }}
       description="Un descuento baja lo que debe la clínica y un recargo lo sube. Con trabajo, cambia lo que se debe por ese trabajo."
       // El aviso del descuento va en el pie fijo, junto al botón que confirma: se ve antes de
-      // confirmar aunque el cuerpo no quepa. Siempre montado (`aria-live`), para que el lector
-      // de pantalla lo anuncie al aparecer; vacío, `empty:hidden` no deja hueco.
+      // confirmar aunque el cuerpo no quepa. Al lector de pantalla se lo dice una región `sr-only`
+      // siempre montada (nunca `display: none`, que la sacaría del árbol y el aviso podría no
+      // anunciarse al aparecer; `absolute`, no deja hueco en el pie) con un texto sin el monto:
+      // solo cambia cuando el aviso aparece o se va, no con cada tecla del monto (final review
+      // M-1). El monto se lee en el aviso visible.
       summary={
-        <div aria-live="polite" className="empty:hidden">
+        <>
+          <p role="status" className="sr-only">
+            {notice ? DISCOUNT_ANNOUNCE : ''}
+          </p>
           {notice && (
             <p className="flex gap-2 rounded-lg border border-wax-amber/60 bg-wax-amber/10 px-3 py-2 text-sm text-foreground">
               <Info aria-hidden className="mt-0.5 size-4 shrink-0 text-wax-amber-ink" />
@@ -189,7 +199,7 @@ export function AdjustmentDialog({
               </span>
             </p>
           )}
-        </div>
+        </>
       }
       footer={
         <>

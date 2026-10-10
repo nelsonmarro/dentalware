@@ -178,6 +178,46 @@ describe('AdjustmentDialog («Registrar ajuste», CTA-3)', () => {
       expect(within(notice).getByText('$ 20.00')).toHaveClass('font-mono')
     })
 
+    // Final review M-1: con `empty:hidden`, la región vacía era `display: none` y quedaba fuera
+    // del árbol de accesibilidad, así que el lector podía no anunciar el aviso al aparecer; y
+    // con el monto dentro, lo volvía a anunciar con cada tecla.
+    describe('anuncio para el lector de pantalla', () => {
+      const footer = () =>
+        screen.getByRole('button', { name: 'Volver' }).closest('[data-slot="form-dialog-footer"]')
+      const live = () => within(footer() as HTMLElement).getByRole('status')
+      const ANNOUNCE = 'Este descuento devuelve dinero al saldo a favor.'
+
+      it('la región está en el árbol desde que se abre, vacía y sin ocultarse', () => {
+        renderDialog()
+        expect(live()).toHaveTextContent(/^$/)
+        // Ninguna clase que la deje en `display: none` (`hidden`, `empty:hidden`…).
+        expect(live().className).not.toMatch(/(^|\s)(\S+:)?hidden(\s|$)/)
+      })
+
+      it('anuncia que el descuento devuelve dinero, sin el monto, y no cambia con cada tecla', async () => {
+        const { user } = renderDialog()
+        await choose(user, 'Descuento o nota de crédito', '26-00001')
+        const monto = screen.getByLabelText('Monto')
+        // Debe 50.00: 55 devuelve 5.00 y 55.5, 5.50.
+        await user.type(monto, '55')
+        expect(live()).toHaveTextContent(ANNOUNCE)
+        await user.type(monto, '.5')
+        expect(live()).toHaveTextContent(ANNOUNCE)
+        // El monto, a la vista y fuera de la región: no se anuncia en cada tecla.
+        const notice = screen.getByText(NOTICE)
+        expect(notice).toHaveTextContent(/^\$ 5\.50 /)
+        expect(live()).not.toContainElement(notice)
+      })
+
+      it('sin aviso, la región se vacía', async () => {
+        const { user } = renderDialog()
+        await choose(user, 'Descuento o nota de crédito', '26-00001')
+        await user.type(screen.getByLabelText('Monto'), '70')
+        await user.click(signButton('Recargo'))
+        expect(live()).toHaveTextContent(/^$/)
+      })
+    })
+
     it('un descuento que no pasa de lo que debe, o sin trabajo, no avisa nada', async () => {
       const { user } = renderDialog()
       await choose(user, 'Descuento o nota de crédito', '26-00001')
