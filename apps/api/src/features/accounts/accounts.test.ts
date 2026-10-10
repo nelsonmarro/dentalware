@@ -175,6 +175,13 @@ describe('/api/cuentas', () => {
       aging: ZERO,
       oldestDays: null,
       openCases: [],
+      breakdown: {
+        openCases: '0.00',
+        unlinkedAdjustments: '0.00',
+        unlinkedSince: null,
+        credit: '0.00',
+        balance: '0.00',
+      },
       movements: [],
     })
     // Sin movimientos, la lista no la muestra salvo con `todas=1`.
@@ -625,6 +632,7 @@ describe('/api/cuentas', () => {
       oldestDays: number | null
       openCases: { id: string; adjustments: string; outstanding: string }[]
       credit: string
+      breakdown: Record<string, string | null>
       movements: {
         id: string
         kind: string
@@ -701,6 +709,14 @@ describe('/api/cuentas', () => {
         aging: { '0_30': '0.00', '31_60': '0.00', '61_90': '0.00', '90_mas': '150.00' },
         oldestDays: 98,
         openCases: [],
+      })
+      // UX5-02: el saldo inicial es su propia línea del desglose, con su fecha.
+      expect(d.breakdown).toEqual({
+        openCases: '0.00',
+        unlinkedAdjustments: '150.00',
+        unlinkedSince: '2026-06-30',
+        credit: '0.00',
+        balance: '150.00',
       })
       expect(d.movements).toEqual([
         expect.objectContaining({
@@ -952,6 +968,7 @@ describe('/api/cuentas', () => {
       aging: Record<string, string>
       oldestDays: number | null
       openCases: { id: string; outstanding: string; days: number }[]
+      breakdown: Record<string, string | null>
     }
     const url = (q: string) => `/api/cuentas/${clinicId}/estado?${q}`
     const OCTUBRE = 'desde=2026-10-01&hasta=2026-10-06'
@@ -1061,6 +1078,14 @@ describe('/api/cuentas', () => {
       expect(s.openCases).toEqual([
         expect.objectContaining({ id: c.id, outstanding: '25.00', days: 0 }),
       ])
+      // UX5-02: 25 del trabajo + 150 del saldo inicial − 10 del anticipo = saldo final.
+      expect(s.breakdown).toEqual({
+        openCases: '25.00',
+        unlinkedAdjustments: '150.00',
+        unlinkedSince: '2026-06-30',
+        credit: '10.00',
+        balance: '165.00',
+      })
 
       const account = (await (await get(`/api/cuentas/${clinicId}`, admin)).json()) as Statement & {
         balance: string
@@ -1070,6 +1095,7 @@ describe('/api/cuentas', () => {
       expect(s.aging).toEqual(account.aging)
       expect(s.oldestDays).toBe(account.oldestDays)
       expect(s.openCases).toEqual(account.openCases)
+      expect(s.breakdown).toEqual(account.breakdown)
     })
   })
 })

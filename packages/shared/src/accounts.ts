@@ -163,6 +163,49 @@ export function releaseExcess(
   return result
 }
 
+/** De qué se compone el saldo de una clínica (UX5-02), en centavos. */
+export type BalanceBreakdownCents = {
+  /** Σ de los pendientes positivos: lo que se debe por trabajos («Por cobrar»). */
+  openCasesCents: number
+  /** Σ de los ajustes sin trabajo («Saldo inicial», notas de crédito sueltas), con signo. */
+  unlinkedAdjustmentsCents: number
+  /** Fecha del ajuste sin trabajo más antiguo; `null` si no hay o si se compensan (Σ = 0). */
+  unlinkedSince: string | null
+  /** Saldo a favor (decisión 3): lo no asignado de los pagos vigentes más el pendiente negativo
+   * de cada trabajo. */
+  creditCents: number
+  /** Saldo = trabajos + ajustes sin trabajo − saldo a favor (ADR 35). */
+  balanceCents: number
+}
+
+/**
+ * Desglose del saldo de una clínica (UX5-02, ADR 35): trabajos por cobrar + ajustes sin trabajo
+ * − saldo a favor. `caseOutstandingCents` es el pendiente con signo de cada trabajo que carga
+ * (entregado o cobrado; un cobrado nunca tiene pendiente positivo, así que los trabajos son
+ * exactamente Σ de «Por cobrar»), `unallocatedCents` lo no asignado de cada pago vigente. Es la
+ * misma cuenta que «cargos + ajustes − pagos vigentes» (decisión 10), reordenada: lo asignado
+ * sale de los dos lados. La vista no suma nada: pinta estos números.
+ */
+export function balanceBreakdown(input: {
+  caseOutstandingCents: readonly number[]
+  unlinkedAdjustments: readonly { date: string; cents: number }[]
+  unallocatedCents: readonly number[]
+}): BalanceBreakdownCents {
+  const add = (list: readonly number[]) => list.reduce((a, b) => a + b, 0)
+  const openCasesCents = add(input.caseOutstandingCents.map((c) => Math.max(0, c)))
+  const creditCents =
+    add(input.unallocatedCents) + add(input.caseOutstandingCents.map((c) => Math.max(0, -c)))
+  const unlinkedAdjustmentsCents = add(input.unlinkedAdjustments.map((a) => a.cents))
+  const [oldest] = input.unlinkedAdjustments.map((a) => a.date).sort()
+  return {
+    openCasesCents,
+    unlinkedAdjustmentsCents,
+    unlinkedSince: unlinkedAdjustmentsCents === 0 ? null : (oldest ?? null),
+    creditCents,
+    balanceCents: openCasesCents + unlinkedAdjustmentsCents - creditCents,
+  }
+}
+
 const DAY_MS = 86_400_000
 
 function utcDay(isoDate: string): number {

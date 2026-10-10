@@ -5,6 +5,7 @@ import {
   ACCOUNT_MOVEMENT_KINDS,
   AGING_BUCKETS,
   agingBuckets,
+  balanceBreakdown,
   caseChargeCents,
   caseOutstandingCents,
   daysBetween,
@@ -111,6 +112,19 @@ export type AccountMovement = {
  * cumplirse), lo mismo que haría `voidPayment`. */
 export type AppliedCase = { caseId: string; code: string; amount: string; reopens: boolean }
 
+/** De qué se compone el saldo (UX5-02, ADR 35): trabajos por cobrar + ajustes sin trabajo −
+ * saldo a favor = saldo. Montos en cadena decimal; `unlinkedAdjustments` con signo. La web lo
+ * pinta al pie de «Por cobrar» y en el estado de cuenta sin sumar nada. */
+export type BalanceBreakdown = {
+  openCases: string
+  unlinkedAdjustments: string
+  /** Fecha (`YYYY-MM-DD`) del ajuste sin trabajo más antiguo que cuenta; `null` si no hay o
+   * si se compensan. */
+  unlinkedSince: string | null
+  credit: string
+  balance: string
+}
+
 export type ClinicAccount = {
   clinic: { id: string; name: string }
   balance: string
@@ -120,6 +134,8 @@ export type ClinicAccount = {
   aging: Record<AgingBucket, string>
   oldestDays: number | null
   openCases: OpenCase[]
+  /** Desglose del saldo (UX5-02). */
+  breakdown: BalanceBreakdown
   movements: AccountMovement[]
 }
 
@@ -141,6 +157,8 @@ export type AccountStatement = {
   aging: Record<AgingBucket, string>
   oldestDays: number | null
   openCases: OpenCase[]
+  /** Desglose del saldo a la fecha `hasta` (UX5-02): su `balance` es `closingBalance`. */
+  breakdown: BalanceBreakdown
 }
 
 /** Un pago (CTA-2) tal como lo devuelven registrar, aplicar saldo a favor y anular. */
@@ -344,11 +362,15 @@ export function createAccountsService(deps: {
     })
     const vigentes = ledger.payments.filter((p) => p.voided === null)
     const free = ledger.adjustments.filter((a) => a.case === null)
-    // Saldo a favor (decisión 3): lo no asignado de los pagos vigentes y el pendiente negativo
-    // de cada trabajo (un descuento después de pagarlo entero), que la clínica ya pagó de más.
-    const creditCents =
-      sum(vigentes.map((p) => p.amountCents - p.allocatedCents)) +
-      sum(cases.map((c) => Math.max(0, -c.outstandingCents)))
+    // UX5-02: trabajos + ajustes sin trabajo − saldo a favor. El saldo a favor (decisión 3) es
+    // lo no asignado de los pagos vigentes y el pendiente negativo de cada trabajo (un descuento
+    // después de pagarlo entero), que la clínica ya pagó de más.
+    const breakdown = balanceBreakdown({
+      caseOutstandingCents: cases.map((c) => c.outstandingCents),
+      unlinkedAdjustments: free.map((a) => ({ date: a.date, cents: a.amountCents })),
+      unallocatedCents: vigentes.map((p) => p.amountCents - p.allocatedCents),
+    })
+    const creditCents = breakdown.creditCents
     // Decisión 10: cargos de entregados y cobrados + todos los ajustes − pagos vigentes.
     const balanceCents =
       sum(cases.map((c) => c.chargeCents)) +
@@ -379,6 +401,13 @@ export function createAccountsService(deps: {
       open,
       balanceCents,
       creditCents,
+      breakdown: {
+        openCases: fromSignedCents(breakdown.openCasesCents),
+        unlinkedAdjustments: fromSignedCents(breakdown.unlinkedAdjustmentsCents),
+        unlinkedSince: breakdown.unlinkedSince,
+        credit: fromSignedCents(breakdown.creditCents),
+        balance: fromSignedCents(breakdown.balanceCents),
+      } satisfies BalanceBreakdown,
       aging: Object.fromEntries(
         AGING_BUCKETS.map((b) => [b, fromSignedCents(buckets[b])]),
       ) as Record<AgingBucket, string>,
@@ -735,6 +764,7 @@ export function createAccountsService(deps: {
         aging: s.aging,
         oldestDays: s.oldestDays,
         openCases: openCasesOf(s),
+        breakdown: s.breakdown,
         movements: movementsOf(ledger, allocations),
       }
     },
@@ -793,6 +823,7 @@ export function createAccountsService(deps: {
         aging: closing.aging,
         oldestDays: closing.oldestDays,
         openCases: openCasesOf(closing),
+        breakdown: closing.breakdown,
       }
     },
 

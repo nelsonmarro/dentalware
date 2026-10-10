@@ -506,6 +506,55 @@ describe('features/accounts/service', () => {
       expect(account.movements.map((m) => m.id)).toEqual(['a'])
     })
 
+    describe('desglose del saldo (UX5-02)', () => {
+      it('trabajos por cobrar + saldo inicial y ajustes sin trabajo − saldo a favor = saldo', async () => {
+        const service = makeService({
+          cases: [
+            makeCase({ id: 'a', totalCents: 10_000 }),
+            makeCase({ id: 'b', totalCents: 5_000, status: 'cobrado' }),
+          ],
+          adjustments: [
+            makeAdjustment({
+              id: 'ini',
+              amountCents: 24_500,
+              date: '2026-08-01',
+              reason: 'Saldo inicial',
+            }),
+            makeAdjustment({ id: 'nc', amountCents: -2_000, date: '2026-09-15' }),
+            makeAdjustment({ id: 'aj-a', amountCents: -1_000, caseId: 'a', date: '2026-07-01' }),
+          ],
+          payments: [makePayment({ id: 'p1', amountCents: 10_000 })],
+          allocations: [
+            { paymentId: 'p1', caseId: 'a', amountCents: 3_000 },
+            { paymentId: 'p1', caseId: 'b', amountCents: 5_000 },
+          ],
+        })
+        const account = await service.clinicAccount(SUR.id)
+        // «a» debe 60 (100 − 10 − 30); p1 deja 20 a favor. El ajuste ligado a «a» no cuenta
+        // como «sin trabajo» aunque sea el más antiguo.
+        expect(account.breakdown).toEqual({
+          openCases: '60.00',
+          unlinkedAdjustments: '225.00',
+          unlinkedSince: '2026-08-01',
+          credit: '20.00',
+          balance: '265.00',
+        })
+        expect(account.breakdown.balance).toBe(account.balance)
+        expect(account.breakdown.credit).toBe(account.credit)
+      })
+
+      it('sin ajustes sin trabajo: cero y sin fecha', async () => {
+        const service = makeService({ cases: [makeCase({ id: 'a', totalCents: 10_000 })] })
+        expect((await service.clinicAccount(SUR.id)).breakdown).toEqual({
+          openCases: '100.00',
+          unlinkedAdjustments: '0.00',
+          unlinkedSince: null,
+          credit: '0.00',
+          balance: '100.00',
+        })
+      })
+    })
+
     it('una clínica que no existe lanza ClinicAccountNotFoundError', async () => {
       await expect(makeService({}).clinicAccount('no-existe')).rejects.toBeInstanceOf(
         ClinicAccountNotFoundError,

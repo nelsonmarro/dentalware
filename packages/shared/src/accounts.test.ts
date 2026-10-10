@@ -10,6 +10,7 @@ import {
   agingBucketForDays,
   allocationTotals,
   agingBuckets,
+  balanceBreakdown,
   BILLED_STATUSES,
   caseChargeCents,
   caseOutstandingCents,
@@ -501,5 +502,96 @@ describe('allocationTotals (suma de un reparto escrito)', () => {
 
   it('sin monto del pago no hay resto que decir', () => {
     expect(allocationTotals(null, ['20'])).toEqual({ allocatedCents: 2000, leftCents: null })
+  })
+})
+
+describe('balanceBreakdown (UX5-02: de qué se compone el saldo, ADR 35)', () => {
+  it('sin ajustes sin trabajo ni saldo a favor, el saldo son los trabajos por cobrar', () => {
+    expect(
+      balanceBreakdown({
+        caseOutstandingCents: [30_000, 25_050, 0],
+        unlinkedAdjustments: [],
+        unallocatedCents: [],
+      }),
+    ).toEqual({
+      openCasesCents: 55_050,
+      unlinkedAdjustmentsCents: 0,
+      unlinkedSince: null,
+      creditCents: 0,
+      balanceCents: 55_050,
+    })
+  })
+
+  it('con «Saldo inicial», suma los ajustes sin trabajo desde el más antiguo', () => {
+    expect(
+      balanceBreakdown({
+        caseOutstandingCents: [55_050],
+        unlinkedAdjustments: [
+          { date: '2026-08-15', cents: 4_500 },
+          { date: '2026-08-01', cents: 20_000 },
+        ],
+        unallocatedCents: [],
+      }),
+    ).toEqual({
+      openCasesCents: 55_050,
+      unlinkedAdjustmentsCents: 24_500,
+      unlinkedSince: '2026-08-01',
+      creditCents: 0,
+      balanceCents: 79_550,
+    })
+  })
+
+  it('el saldo a favor es lo no asignado de los pagos más el pendiente negativo de un trabajo', () => {
+    expect(
+      balanceBreakdown({
+        caseOutstandingCents: [10_000, -2_000],
+        unlinkedAdjustments: [],
+        unallocatedCents: [4_950, 0],
+      }),
+    ).toEqual({
+      openCasesCents: 10_000,
+      unlinkedAdjustmentsCents: 0,
+      unlinkedSince: null,
+      creditCents: 6_950,
+      balanceCents: 3_050,
+    })
+  })
+
+  it('con todo junto cuadra: trabajos + ajustes sin trabajo − saldo a favor', () => {
+    expect(
+      balanceBreakdown({
+        caseOutstandingCents: [55_050, 0, -1_000],
+        unlinkedAdjustments: [
+          { date: '2026-09-10', cents: -1_000 },
+          { date: '2026-08-01', cents: 24_500 },
+        ],
+        unallocatedCents: [5_950, 0],
+      }),
+    ).toEqual({
+      openCasesCents: 55_050,
+      unlinkedAdjustmentsCents: 23_500,
+      unlinkedSince: '2026-08-01',
+      creditCents: 6_950,
+      balanceCents: 71_600,
+    })
+  })
+
+  it('ajustes sin trabajo que se compensan no dan fecha', () => {
+    expect(
+      balanceBreakdown({
+        caseOutstandingCents: [],
+        unlinkedAdjustments: [
+          { date: '2026-08-01', cents: 5_000 },
+          { date: '2026-09-01', cents: -5_000 },
+        ],
+        unallocatedCents: [],
+      }),
+    ).toEqual({
+      openCasesCents: 0,
+      unlinkedAdjustmentsCents: 0,
+      unlinkedSince: null,
+      creditCents: 0,
+      balanceCents: 0,
+    })
   })
 })
