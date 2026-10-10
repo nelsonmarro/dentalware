@@ -60,6 +60,25 @@ describe('FormDialog', () => {
     expect(screen.getByText('26-00087').parentElement).not.toHaveClass('font-mono')
   })
 
+  // Iteración 5: «Registrar pago» actúa sobre una clínica, sin código que mostrar.
+  it('el contexto puede ser solo un nombre, sin código', () => {
+    render(
+      <FormDialog
+        open
+        onOpenChange={() => {}}
+        title="Registrar pago"
+        context={{ label: 'Clínica Sur' }}
+        description="Lo que no se reparta queda a favor."
+        footer={null}
+      >
+        <p>Contenido</p>
+      </FormDialog>,
+    )
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription(
+      'Clínica Sur Lo que no se reparta queda a favor.',
+    )
+  })
+
   it('al cerrar, el foco vuelve al disparador', async () => {
     const user = userEvent.setup()
     render(<Page removesTrigger={false} />)

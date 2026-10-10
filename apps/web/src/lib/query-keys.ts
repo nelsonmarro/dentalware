@@ -71,4 +71,12 @@ export const mutationKeys = {
   proofUpload: (caseId: string) => ['trabajos', caseId, 'constancia'] as const,
   deliveryFail: (caseId: string) => ['trabajos', caseId, 'no-se-pudo'] as const,
   pickUp: (caseId: string) => ['trabajos', caseId, 'recogido'] as const,
+  // Iteración 5: las mutaciones de la cuenta de una clínica (pago, saldo a favor, anulación y
+  // ajuste) cuelgan de `account(clinicId)`, para que `useAccountBusy` no deje registrar otra
+  // mientras una espera la señal.
+  account: (clinicId: string) => ['cuentas', clinicId] as const,
+  payment: (clinicId: string) => ['cuentas', clinicId, 'pago'] as const,
+  applyCredit: (clinicId: string) => ['cuentas', clinicId, 'saldo-a-favor'] as const,
+  voidPayment: (clinicId: string) => ['cuentas', clinicId, 'anular'] as const,
+  adjustment: (clinicId: string) => ['cuentas', clinicId, 'ajuste'] as const,
 }

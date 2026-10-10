@@ -17,3 +17,11 @@ export function balanceText(balance: string): string {
   const { kind, amount } = balanceParts(balance)
   return kind === 'a_favor' ? `A favor ${amount}` : amount
 }
+
+/** El efecto de un movimiento en el saldo (CTA-2/3): «+ $ 90.00» si suma (cargo, recargo),
+ * «− $ 50.00» si resta (pago, descuento) y «$ 0.00» sin efecto. Signo con texto, no solo color. */
+export function signedAmountText(amount: string): string {
+  const cents = toSignedCents(amount)
+  if (cents === 0) return formatMoney(amount)
+  return `${cents < 0 ? '−' : '+'} ${formatMoney(fromCents(Math.abs(cents)))}`
+}

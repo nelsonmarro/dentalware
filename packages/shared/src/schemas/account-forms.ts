@@ -55,14 +55,19 @@ export const paymentFormSchema = z
     notas: textoOpcional(500),
     asignaciones: z.array(filaReparto),
   })
-  .superRefine((v, ctx) => {
-    if (assignedCents(v.asignaciones) > (parseMoneyInput(v.monto) ?? 0)) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['asignaciones'],
-        message: 'Lo asignado no puede superar el monto del pago',
-      })
-    }
+  // Con `when`, se compara aunque otro campo (el método) haya fallado, para que el formulario
+  // diga todo de una vez; pero solo si hay un monto del pago válido con el que comparar.
+  .refine((v) => assignedCents(v.asignaciones) <= (parseMoneyInput(v.monto) ?? 0), {
+    path: ['asignaciones'],
+    message: 'Lo asignado no puede superar el monto del pago',
+    when: ({ value }) => {
+      const v = value as { monto?: unknown; asignaciones?: unknown }
+      return (
+        typeof v.monto === 'string' &&
+        parseMoneyInput(v.monto) !== null &&
+        Array.isArray(v.asignaciones)
+      )
+    },
   })
   .transform((v): PaymentInput => ({ ...v, asignaciones: filled(v.asignaciones) }))
 

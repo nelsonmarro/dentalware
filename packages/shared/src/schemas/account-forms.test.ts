@@ -103,6 +103,36 @@ describe('paymentFormSchema (formulario «Registrar pago», CTA-2)', () => {
     ])
   })
 
+  // El formulario dice todo lo que falta de una vez: el reparto de más se avisa aunque falte el
+  // método (en zod 4 un refine del objeto no corre si otro campo ya falló, salvo con `when`).
+  it('avisa del reparto de más aunque falte el método', () => {
+    expect(
+      issues(
+        paymentFormSchema.safeParse({
+          ...pago,
+          metodo: undefined,
+          monto: '10',
+          asignaciones: [{ trabajoId: trabajoA, monto: '20' }],
+        }),
+      ),
+    ).toEqual([
+      { message: 'Elige un método de pago', path: ['metodo'] },
+      { message: 'Lo asignado no puede superar el monto del pago', path: ['asignaciones'] },
+    ])
+  })
+
+  it('con el monto del pago inválido no compara el reparto', () => {
+    expect(
+      issues(
+        paymentFormSchema.safeParse({
+          ...pago,
+          monto: 'abc',
+          asignaciones: [{ trabajoId: trabajoA, monto: '20' }],
+        }),
+      ),
+    ).toEqual([{ message: 'El monto debe ser un número con hasta 2 decimales', path: ['monto'] }])
+  })
+
   it('un monto vacío o de 0 se rechaza', () => {
     expect(issues(paymentFormSchema.safeParse({ ...pago, monto: '' }))[0]).toEqual({
       message: 'El monto debe ser un número con hasta 2 decimales',
