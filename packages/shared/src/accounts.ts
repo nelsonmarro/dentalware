@@ -206,6 +206,67 @@ export function balanceBreakdown(input: {
   }
 }
 
+/** Qué hay pendiente, para la línea bajo el saldo (UX5-01):
+ * - `nada`: ningún trabajo «Por cobrar» y nada vencido;
+ * - `vencido`: algo sin cubrir, con los días de lo más antiguo (la antigüedad);
+ * - `cubierto`: hay trabajos «Por cobrar», pero el saldo a favor los cubre;
+ * - `compensado`: hay trabajos «Por cobrar», compensados por ajustes sin trabajo (sin saldo a
+ *   favor que los cubra). */
+export type AccountPending =
+  | { kind: 'nada' }
+  | { kind: 'vencido'; oldestDays: number }
+  | { kind: 'cubierto'; count: number; cents: number }
+  | { kind: 'compensado'; count: number; cents: number }
+
+/** La lectura del saldo en la cabecera de la cuenta (UX5-01), además del saldo mismo:
+ * `unappliedCreditCents` es el saldo a favor sin aplicar que un saldo ≥ 0 ya descuenta («Ya
+ * descuenta $ X a favor sin aplicar»), `null` si no hay o si el saldo ya se lee «A favor» (no
+ * se repite). */
+export type AccountHeadline = {
+  unappliedCreditCents: number | null
+  pending: AccountPending
+}
+
+/**
+ * Una sola lectura del saldo de una clínica (UX5-01), sin contradicciones: el saldo con signo,
+ * el saldo a favor solo si el saldo no lo dice ya, y «nada pendiente» solo sin trabajos «Por
+ * cobrar». `oldestDays` es el de la antigüedad (`oldestOpenDays`): `null` si lo que resta lo
+ * cubre todo. `openCasesCents` es el Σ de «Por cobrar» (`balanceBreakdown`).
+ */
+export function accountHeadline(input: {
+  balanceCents: number
+  creditCents: number
+  openCasesCents: number
+  openCasesCount: number
+  oldestDays: number | null
+}): AccountHeadline {
+  const { balanceCents, creditCents, openCasesCents, openCasesCount, oldestDays } = input
+  return {
+    unappliedCreditCents: balanceCents >= 0 && creditCents > 0 ? creditCents : null,
+    pending:
+      oldestDays !== null
+        ? { kind: 'vencido', oldestDays }
+        : openCasesCount === 0
+          ? { kind: 'nada' }
+          : {
+              kind: creditCents > 0 ? 'cubierto' : 'compensado',
+              count: openCasesCount,
+              cents: openCasesCents,
+            },
+  }
+}
+
+/** El pago cuyo saldo a favor aplica el botón de la cabecera (UX5-01): el vigente más antiguo
+ * con algo sin asignar, por fecha de pago y luego por id; `null` si no hay. */
+export function paymentToApply<
+  T extends { id: string; date: string; remainingCents: number; voided: boolean },
+>(payments: readonly T[]): T | null {
+  const [oldest] = payments
+    .filter((p) => !p.voided && p.remainingCents > 0)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+  return oldest ?? null
+}
+
 const DAY_MS = 86_400_000
 
 function utcDay(isoDate: string): number {

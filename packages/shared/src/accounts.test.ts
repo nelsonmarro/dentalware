@@ -4,6 +4,7 @@ import {
   ADJUSTMENT_SIGN_LABEL,
   ADJUSTMENT_SIGNS,
   ACCOUNT_MOVEMENT_KINDS,
+  accountHeadline,
   accountStatement,
   AGING_BUCKET_LABEL,
   AGING_BUCKETS,
@@ -19,6 +20,7 @@ import {
   isSettled,
   oldestOpenDays,
   OPENING_BALANCE_REASON,
+  paymentToApply,
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHODS,
   previousDay,
@@ -593,5 +595,143 @@ describe('balanceBreakdown (UX5-02: de qué se compone el saldo, ADR 35)', () =>
       creditCents: 0,
       balanceCents: 0,
     })
+  })
+})
+
+describe('accountHeadline (UX5-01: una sola lectura del saldo en la cabecera)', () => {
+  it('saldo negativo: «a favor» por el neto, sin otra línea de saldo a favor', () => {
+    // Clínica Sur: pago de $ 200 sin aplicar y un trabajo de $ 75 por cobrar.
+    expect(
+      accountHeadline({
+        balanceCents: -12_500,
+        creditCents: 20_000,
+        openCasesCents: 7_500,
+        openCasesCount: 1,
+        oldestDays: null,
+      }),
+    ).toEqual({
+      unappliedCreditCents: null,
+      pending: { kind: 'cubierto', count: 1, cents: 7_500 },
+    })
+  })
+
+  it('saldo positivo con saldo a favor sin aplicar: el saldo ya lo descuenta', () => {
+    // Clínica Norte: debe $ 245.50 después de descontar $ 69.50 a favor.
+    expect(
+      accountHeadline({
+        balanceCents: 24_550,
+        creditCents: 6_950,
+        openCasesCents: 1_000,
+        openCasesCount: 1,
+        oldestDays: 131,
+      }),
+    ).toEqual({
+      unappliedCreditCents: 6_950,
+      pending: { kind: 'vencido', oldestDays: 131 },
+    })
+  })
+
+  it('saldo positivo sin saldo a favor', () => {
+    expect(
+      accountHeadline({
+        balanceCents: 9_000,
+        creditCents: 0,
+        openCasesCents: 9_000,
+        openCasesCount: 2,
+        oldestDays: 12,
+      }),
+    ).toEqual({
+      unappliedCreditCents: null,
+      pending: { kind: 'vencido', oldestDays: 12 },
+    })
+  })
+
+  it('en cero y sin nada por cobrar: al día y nada pendiente', () => {
+    expect(
+      accountHeadline({
+        balanceCents: 0,
+        creditCents: 0,
+        openCasesCents: 0,
+        openCasesCount: 0,
+        oldestDays: null,
+      }),
+    ).toEqual({
+      unappliedCreditCents: null,
+      pending: { kind: 'nada' },
+    })
+  })
+
+  it('en cero porque el saldo a favor cubre justo lo que se debe: lo dice', () => {
+    expect(
+      accountHeadline({
+        balanceCents: 0,
+        creditCents: 15_000,
+        openCasesCents: 15_000,
+        openCasesCount: 2,
+        oldestDays: null,
+      }),
+    ).toEqual({
+      unappliedCreditCents: 15_000,
+      pending: { kind: 'cubierto', count: 2, cents: 15_000 },
+    })
+  })
+
+  it('trabajos que compensa un ajuste sin trabajo (sin saldo a favor) no se dicen cubiertos', () => {
+    expect(
+      accountHeadline({
+        balanceCents: -2_500,
+        creditCents: 0,
+        openCasesCents: 7_500,
+        openCasesCount: 1,
+        oldestDays: null,
+      }),
+    ).toEqual({
+      unappliedCreditCents: null,
+      pending: { kind: 'compensado', count: 1, cents: 7_500 },
+    })
+  })
+
+  it('sin trabajos por cobrar pero con saldo inicial vencido, da lo más antiguo', () => {
+    expect(
+      accountHeadline({
+        balanceCents: 24_500,
+        creditCents: 0,
+        openCasesCents: 0,
+        openCasesCount: 0,
+        oldestDays: 70,
+      }),
+    ).toEqual({
+      unappliedCreditCents: null,
+      pending: { kind: 'vencido', oldestDays: 70 },
+    })
+  })
+})
+
+describe('paymentToApply (UX5-01: el pago del botón «Aplicar saldo a favor»)', () => {
+  it('el pago vigente más antiguo con algo a favor, por fecha y luego por id', () => {
+    const p = (id: string, date: string, remainingCents: number, voided = false) => ({
+      id,
+      date,
+      remainingCents,
+      voided,
+    })
+    expect(
+      paymentToApply([
+        p('d', '2026-10-06', 2_000),
+        p('a', '2026-10-01', 5_000, true),
+        p('c', '2026-10-02', 1_000),
+        p('b', '2026-10-02', 3_000),
+        p('e', '2026-09-30', 0),
+      ]),
+    ).toEqual(p('b', '2026-10-02', 3_000))
+  })
+
+  it('sin pagos vigentes con algo a favor no hay pago que aplicar', () => {
+    expect(
+      paymentToApply([
+        { id: 'a', date: '2026-10-01', remainingCents: 5_000, voided: true },
+        { id: 'b', date: '2026-10-02', remainingCents: 0, voided: false },
+      ]),
+    ).toBeNull()
   })
 })
