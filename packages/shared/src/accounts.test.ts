@@ -4,20 +4,25 @@ import {
   ADJUSTMENT_SIGN_LABEL,
   ADJUSTMENT_SIGNS,
   ACCOUNT_MOVEMENT_KINDS,
+  accountHeadline,
   accountStatement,
   AGING_BUCKET_LABEL,
   AGING_BUCKETS,
   agingBucketForDays,
+  allocationOutcome,
   allocationTotals,
   agingBuckets,
+  balanceBreakdown,
   BILLED_STATUSES,
   caseChargeCents,
   caseOutstandingCents,
   daysBetween,
+  discountReleaseCents,
   isBilled,
   isSettled,
   oldestOpenDays,
   OPENING_BALANCE_REASON,
+  paymentToApply,
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHODS,
   previousDay,
@@ -501,5 +506,301 @@ describe('allocationTotals (suma de un reparto escrito)', () => {
 
   it('sin monto del pago no hay resto que decir', () => {
     expect(allocationTotals(null, ['20'])).toEqual({ allocatedCents: 2000, leftCents: null })
+  })
+})
+
+// UX5-15: cada fila del reparto dice qué le pasa al trabajo con el monto que se escribe.
+describe('allocationOutcome (consecuencia de una fila del reparto)', () => {
+  it('sin monto, vacío, en cero o inválido, no dice nada', () => {
+    expect(allocationOutcome(24_000, '')).toEqual({ kind: 'sin_monto' })
+    expect(allocationOutcome(24_000, '0')).toEqual({ kind: 'sin_monto' })
+    expect(allocationOutcome(24_000, '0.00')).toEqual({ kind: 'sin_monto' })
+    expect(allocationOutcome(24_000, 'abc')).toEqual({ kind: 'sin_monto' })
+  })
+
+  it('un monto parcial deja el trabajo debiendo lo que falta', () => {
+    expect(allocationOutcome(24_000, '49.50')).toEqual({ kind: 'debiendo', leftCents: 19_050 })
+    expect(allocationOutcome(24_000, '239,99')).toEqual({ kind: 'debiendo', leftCents: 1 })
+  })
+
+  it('el monto exacto de lo que debe lo deja cobrado', () => {
+    expect(allocationOutcome(24_000, '240')).toEqual({ kind: 'cobrado' })
+    expect(allocationOutcome(5_050, ' 50.50 ')).toEqual({ kind: 'cobrado' })
+  })
+
+  it('más de lo que debe dice cuánto lo supera', () => {
+    expect(allocationOutcome(24_000, '240.01')).toEqual({ kind: 'excede', overCents: 1 })
+    expect(allocationOutcome(5_000, '80')).toEqual({ kind: 'excede', overCents: 3_000 })
+  })
+})
+
+// UX5-15: lo que un descuento ligado a un trabajo devolverá al saldo a favor, antes de
+// confirmarlo; el mismo total que libera `releaseExcess` al registrarlo.
+describe('discountReleaseCents (lo que un descuento devuelve al saldo a favor)', () => {
+  it('un descuento que no pasa de lo que el trabajo debe no devuelve nada', () => {
+    expect(discountReleaseCents({ outstandingCents: 5_000, allocatedCents: 3_000 }, 2_000)).toBe(0)
+    expect(discountReleaseCents({ outstandingCents: 5_000, allocatedCents: 3_000 }, 5_000)).toBe(0)
+  })
+
+  it('lo que el descuento pasa de lo que debe vuelve de lo ya pagado', () => {
+    expect(discountReleaseCents({ outstandingCents: 1_000, allocatedCents: 5_000 }, 3_000)).toBe(
+      2_000,
+    )
+  })
+
+  it('en un trabajo cobrado, vuelve todo el descuento', () => {
+    expect(discountReleaseCents({ outstandingCents: 0, allocatedCents: 10_000 }, 2_500)).toBe(2_500)
+  })
+
+  it('null si el descuento deja el neto bajo 0: la API lo rechaza', () => {
+    // Neto = 1 000 + 5 000 = 6 000.
+    expect(
+      discountReleaseCents({ outstandingCents: 1_000, allocatedCents: 5_000 }, 6_001),
+    ).toBeNull()
+    expect(discountReleaseCents({ outstandingCents: 1_000, allocatedCents: 5_000 }, 6_000)).toBe(
+      5_000,
+    )
+  })
+
+  it('coincide con lo que libera releaseExcess', () => {
+    const allocations = [
+      { id: 'a', amountCents: 3_000, createdAt: new Date('2026-06-01') },
+      { id: 'b', amountCents: 2_000, createdAt: new Date('2026-06-02') },
+    ]
+    // Neto 6 000, asignado 5 000: debe 1 000. Descuento de 3 500 → neto 2 500.
+    const released = releaseExcess(2_500, allocations).reduce((s, r) => s + r.releasedCents, 0)
+    expect(discountReleaseCents({ outstandingCents: 1_000, allocatedCents: 5_000 }, 3_500)).toBe(
+      released,
+    )
+    expect(released).toBe(2_500)
+  })
+})
+
+describe('balanceBreakdown (UX5-02: de qué se compone el saldo, ADR 35)', () => {
+  it('sin ajustes sin trabajo ni saldo a favor, el saldo son los trabajos por cobrar', () => {
+    expect(
+      balanceBreakdown({
+        caseOutstandingCents: [30_000, 25_050, 0],
+        unlinkedAdjustments: [],
+        unallocatedCents: [],
+      }),
+    ).toEqual({
+      openCasesCents: 55_050,
+      unlinkedAdjustmentsCents: 0,
+      unlinkedSince: null,
+      creditCents: 0,
+      balanceCents: 55_050,
+    })
+  })
+
+  it('con «Saldo inicial», suma los ajustes sin trabajo desde el más antiguo', () => {
+    expect(
+      balanceBreakdown({
+        caseOutstandingCents: [55_050],
+        unlinkedAdjustments: [
+          { date: '2026-08-15', cents: 4_500 },
+          { date: '2026-08-01', cents: 20_000 },
+        ],
+        unallocatedCents: [],
+      }),
+    ).toEqual({
+      openCasesCents: 55_050,
+      unlinkedAdjustmentsCents: 24_500,
+      unlinkedSince: '2026-08-01',
+      creditCents: 0,
+      balanceCents: 79_550,
+    })
+  })
+
+  it('el saldo a favor es lo no asignado de los pagos más el pendiente negativo de un trabajo', () => {
+    expect(
+      balanceBreakdown({
+        caseOutstandingCents: [10_000, -2_000],
+        unlinkedAdjustments: [],
+        unallocatedCents: [4_950, 0],
+      }),
+    ).toEqual({
+      openCasesCents: 10_000,
+      unlinkedAdjustmentsCents: 0,
+      unlinkedSince: null,
+      creditCents: 6_950,
+      balanceCents: 3_050,
+    })
+  })
+
+  it('con todo junto cuadra: trabajos + ajustes sin trabajo − saldo a favor', () => {
+    expect(
+      balanceBreakdown({
+        caseOutstandingCents: [55_050, 0, -1_000],
+        unlinkedAdjustments: [
+          { date: '2026-09-10', cents: -1_000 },
+          { date: '2026-08-01', cents: 24_500 },
+        ],
+        unallocatedCents: [5_950, 0],
+      }),
+    ).toEqual({
+      openCasesCents: 55_050,
+      unlinkedAdjustmentsCents: 23_500,
+      unlinkedSince: '2026-08-01',
+      creditCents: 6_950,
+      balanceCents: 71_600,
+    })
+  })
+
+  it('ajustes sin trabajo que se compensan no dan fecha', () => {
+    expect(
+      balanceBreakdown({
+        caseOutstandingCents: [],
+        unlinkedAdjustments: [
+          { date: '2026-08-01', cents: 5_000 },
+          { date: '2026-09-01', cents: -5_000 },
+        ],
+        unallocatedCents: [],
+      }),
+    ).toEqual({
+      openCasesCents: 0,
+      unlinkedAdjustmentsCents: 0,
+      unlinkedSince: null,
+      creditCents: 0,
+      balanceCents: 0,
+    })
+  })
+})
+
+describe('accountHeadline (UX5-01: una sola lectura del saldo en la cabecera)', () => {
+  it('saldo negativo: «a favor» por el neto, sin otra línea de saldo a favor', () => {
+    // Clínica Sur: pago de $ 200 sin aplicar y un trabajo de $ 75 por cobrar.
+    expect(
+      accountHeadline({
+        balanceCents: -12_500,
+        creditCents: 20_000,
+        openCasesCents: 7_500,
+        openCasesCount: 1,
+        oldestDays: null,
+      }),
+    ).toEqual({
+      unappliedCreditCents: null,
+      pending: { kind: 'cubierto', count: 1, cents: 7_500 },
+    })
+  })
+
+  it('saldo positivo con saldo a favor sin aplicar: el saldo ya lo descuenta', () => {
+    // Clínica Norte: debe $ 245.50 después de descontar $ 69.50 a favor.
+    expect(
+      accountHeadline({
+        balanceCents: 24_550,
+        creditCents: 6_950,
+        openCasesCents: 1_000,
+        openCasesCount: 1,
+        oldestDays: 131,
+      }),
+    ).toEqual({
+      unappliedCreditCents: 6_950,
+      pending: { kind: 'vencido', oldestDays: 131 },
+    })
+  })
+
+  it('saldo positivo sin saldo a favor', () => {
+    expect(
+      accountHeadline({
+        balanceCents: 9_000,
+        creditCents: 0,
+        openCasesCents: 9_000,
+        openCasesCount: 2,
+        oldestDays: 12,
+      }),
+    ).toEqual({
+      unappliedCreditCents: null,
+      pending: { kind: 'vencido', oldestDays: 12 },
+    })
+  })
+
+  it('en cero y sin nada por cobrar: al día y nada pendiente', () => {
+    expect(
+      accountHeadline({
+        balanceCents: 0,
+        creditCents: 0,
+        openCasesCents: 0,
+        openCasesCount: 0,
+        oldestDays: null,
+      }),
+    ).toEqual({
+      unappliedCreditCents: null,
+      pending: { kind: 'nada' },
+    })
+  })
+
+  it('en cero porque el saldo a favor cubre justo lo que se debe: lo dice', () => {
+    expect(
+      accountHeadline({
+        balanceCents: 0,
+        creditCents: 15_000,
+        openCasesCents: 15_000,
+        openCasesCount: 2,
+        oldestDays: null,
+      }),
+    ).toEqual({
+      unappliedCreditCents: 15_000,
+      pending: { kind: 'cubierto', count: 2, cents: 15_000 },
+    })
+  })
+
+  it('trabajos que compensa un ajuste sin trabajo (sin saldo a favor) no se dicen cubiertos', () => {
+    expect(
+      accountHeadline({
+        balanceCents: -2_500,
+        creditCents: 0,
+        openCasesCents: 7_500,
+        openCasesCount: 1,
+        oldestDays: null,
+      }),
+    ).toEqual({
+      unappliedCreditCents: null,
+      pending: { kind: 'compensado', count: 1, cents: 7_500 },
+    })
+  })
+
+  it('sin trabajos por cobrar pero con saldo inicial vencido, da lo más antiguo', () => {
+    expect(
+      accountHeadline({
+        balanceCents: 24_500,
+        creditCents: 0,
+        openCasesCents: 0,
+        openCasesCount: 0,
+        oldestDays: 70,
+      }),
+    ).toEqual({
+      unappliedCreditCents: null,
+      pending: { kind: 'vencido', oldestDays: 70 },
+    })
+  })
+})
+
+describe('paymentToApply (UX5-01: el pago del botón «Aplicar saldo a favor»)', () => {
+  it('el pago vigente más antiguo con algo a favor, por fecha y luego por id', () => {
+    const p = (id: string, date: string, remainingCents: number, voided = false) => ({
+      id,
+      date,
+      remainingCents,
+      voided,
+    })
+    expect(
+      paymentToApply([
+        p('d', '2026-10-06', 2_000),
+        p('a', '2026-10-01', 5_000, true),
+        p('c', '2026-10-02', 1_000),
+        p('b', '2026-10-02', 3_000),
+        p('e', '2026-09-30', 0),
+      ]),
+    ).toEqual(p('b', '2026-10-02', 3_000))
+  })
+
+  it('sin pagos vigentes con algo a favor no hay pago que aplicar', () => {
+    expect(
+      paymentToApply([
+        { id: 'a', date: '2026-10-01', remainingCents: 5_000, voided: true },
+        { id: 'b', date: '2026-10-02', remainingCents: 0, voided: false },
+      ]),
+    ).toBeNull()
   })
 })

@@ -135,6 +135,46 @@ export function allocationTotals(
   }
 }
 
+/** Qué le pasa a un trabajo con el monto de su fila del reparto (UX5-15). */
+export type AllocationOutcome =
+  /** Vacío, en cero o inválido: no se le aplica nada y la fila ya dice lo que debe. */
+  | { kind: 'sin_monto' }
+  /** Cubre lo que debe: pasa a «Cobrado» (`isSettled`). */
+  | { kind: 'cobrado' }
+  /** Le falta `leftCents` para quedar cobrado. */
+  | { kind: 'debiendo'; leftCents: number }
+  /** Supera lo que debe en `overCents`: la API lo rechaza (422 en su monto). */
+  | { kind: 'excede'; overCents: number }
+
+/**
+ * La consecuencia de una fila del reparto mientras se escribe (UX5-15): con lo que debe el
+ * trabajo (`outstandingCents`) y el monto escrito (`parseMoneyInput`), si queda cobrado, cuánto
+ * seguirá debiendo o cuánto supera lo que debe. La misma regla que cierra el trabajo al
+ * registrarlo: el pendiente que queda, con `isSettled`.
+ */
+export function allocationOutcome(outstandingCents: number, monto: string): AllocationOutcome {
+  const cents = parseMoneyInput(monto)
+  if (cents === null || cents === 0) return { kind: 'sin_monto' }
+  const left = outstandingCents - cents
+  if (left < 0) return { kind: 'excede', overCents: -left }
+  return isSettled(left) ? { kind: 'cobrado' } : { kind: 'debiendo', leftCents: left }
+}
+
+/**
+ * Lo que un descuento ligado a un trabajo devolverá al saldo a favor de sus pagos (UX5-15),
+ * para avisarlo antes de registrarlo: lo que el descuento pasa de lo que el trabajo debe sale de
+ * lo ya pagado, que es el total que libera `releaseExcess` (asignado − neto nuevo, con neto =
+ * pendiente + asignado). `null` si el descuento deja el neto por debajo de 0: la API lo rechaza
+ * («El descuento supera lo que vale el trabajo»).
+ */
+export function discountReleaseCents(
+  c: { outstandingCents: number; allocatedCents: number },
+  discountCents: number,
+): number | null {
+  if (discountCents > c.outstandingCents + c.allocatedCents) return null
+  return Math.max(0, discountCents - c.outstandingCents)
+}
+
 /**
  * Lo que un ajuste libera de las asignaciones de un trabajo (Nelson, 2026-10-08): si lo
  * asignado supera su neto (p. ej. un descuento sobre un trabajo ya pagado entero), el exceso
@@ -161,6 +201,110 @@ export function releaseExcess(
     excess -= released
   }
   return result
+}
+
+/** De qué se compone el saldo de una clínica (UX5-02), en centavos. */
+export type BalanceBreakdownCents = {
+  /** Σ de los pendientes positivos: lo que se debe por trabajos («Por cobrar»). */
+  openCasesCents: number
+  /** Σ de los ajustes sin trabajo («Saldo inicial», notas de crédito sueltas), con signo. */
+  unlinkedAdjustmentsCents: number
+  /** Fecha del ajuste sin trabajo más antiguo; `null` si no hay o si se compensan (Σ = 0). */
+  unlinkedSince: string | null
+  /** Saldo a favor (decisión 3): lo no asignado de los pagos vigentes más el pendiente negativo
+   * de cada trabajo. */
+  creditCents: number
+  /** Saldo = trabajos + ajustes sin trabajo − saldo a favor (ADR 35). */
+  balanceCents: number
+}
+
+/**
+ * Desglose del saldo de una clínica (UX5-02, ADR 35): trabajos por cobrar + ajustes sin trabajo
+ * − saldo a favor. `caseOutstandingCents` es el pendiente con signo de cada trabajo que carga
+ * (entregado o cobrado; un cobrado nunca tiene pendiente positivo, así que los trabajos son
+ * exactamente Σ de «Por cobrar»), `unallocatedCents` lo no asignado de cada pago vigente. Es la
+ * misma cuenta que «cargos + ajustes − pagos vigentes» (decisión 10), reordenada: lo asignado
+ * sale de los dos lados. La vista no suma nada: pinta estos números.
+ */
+export function balanceBreakdown(input: {
+  caseOutstandingCents: readonly number[]
+  unlinkedAdjustments: readonly { date: string; cents: number }[]
+  unallocatedCents: readonly number[]
+}): BalanceBreakdownCents {
+  const add = (list: readonly number[]) => list.reduce((a, b) => a + b, 0)
+  const openCasesCents = add(input.caseOutstandingCents.map((c) => Math.max(0, c)))
+  const creditCents =
+    add(input.unallocatedCents) + add(input.caseOutstandingCents.map((c) => Math.max(0, -c)))
+  const unlinkedAdjustmentsCents = add(input.unlinkedAdjustments.map((a) => a.cents))
+  const [oldest] = input.unlinkedAdjustments.map((a) => a.date).sort()
+  return {
+    openCasesCents,
+    unlinkedAdjustmentsCents,
+    unlinkedSince: unlinkedAdjustmentsCents === 0 ? null : (oldest ?? null),
+    creditCents,
+    balanceCents: openCasesCents + unlinkedAdjustmentsCents - creditCents,
+  }
+}
+
+/** Qué hay pendiente, para la línea bajo el saldo (UX5-01):
+ * - `nada`: ningún trabajo «Por cobrar» y nada vencido;
+ * - `vencido`: algo sin cubrir, con los días de lo más antiguo (la antigüedad);
+ * - `cubierto`: hay trabajos «Por cobrar», pero el saldo a favor los cubre;
+ * - `compensado`: hay trabajos «Por cobrar», compensados por ajustes sin trabajo (sin saldo a
+ *   favor que los cubra). */
+export type AccountPending =
+  | { kind: 'nada' }
+  | { kind: 'vencido'; oldestDays: number }
+  | { kind: 'cubierto'; count: number; cents: number }
+  | { kind: 'compensado'; count: number; cents: number }
+
+/** La lectura del saldo en la cabecera de la cuenta (UX5-01), además del saldo mismo:
+ * `unappliedCreditCents` es el saldo a favor sin aplicar que un saldo ≥ 0 ya descuenta («Ya
+ * descuenta $ X a favor sin aplicar»), `null` si no hay o si el saldo ya se lee «A favor» (no
+ * se repite). */
+export type AccountHeadline = {
+  unappliedCreditCents: number | null
+  pending: AccountPending
+}
+
+/**
+ * Una sola lectura del saldo de una clínica (UX5-01), sin contradicciones: el saldo con signo,
+ * el saldo a favor solo si el saldo no lo dice ya, y «nada pendiente» solo sin trabajos «Por
+ * cobrar». `oldestDays` es el de la antigüedad (`oldestOpenDays`): `null` si lo que resta lo
+ * cubre todo. `openCasesCents` es el Σ de «Por cobrar» (`balanceBreakdown`).
+ */
+export function accountHeadline(input: {
+  balanceCents: number
+  creditCents: number
+  openCasesCents: number
+  openCasesCount: number
+  oldestDays: number | null
+}): AccountHeadline {
+  const { balanceCents, creditCents, openCasesCents, openCasesCount, oldestDays } = input
+  return {
+    unappliedCreditCents: balanceCents >= 0 && creditCents > 0 ? creditCents : null,
+    pending:
+      oldestDays !== null
+        ? { kind: 'vencido', oldestDays }
+        : openCasesCount === 0
+          ? { kind: 'nada' }
+          : {
+              kind: creditCents > 0 ? 'cubierto' : 'compensado',
+              count: openCasesCount,
+              cents: openCasesCents,
+            },
+  }
+}
+
+/** El pago cuyo saldo a favor aplica el botón de la cabecera (UX5-01): el vigente más antiguo
+ * con algo sin asignar, por fecha de pago y luego por id; `null` si no hay. */
+export function paymentToApply<
+  T extends { id: string; date: string; remainingCents: number; voided: boolean },
+>(payments: readonly T[]): T | null {
+  const [oldest] = payments
+    .filter((p) => !p.voided && p.remainingCents > 0)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+  return oldest ?? null
 }
 
 const DAY_MS = 86_400_000

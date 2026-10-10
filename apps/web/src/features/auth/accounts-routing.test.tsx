@@ -63,7 +63,16 @@ describe('acceso a «Cuentas» por rol (ACCOUNTS_ROLES)', () => {
     vi.mocked(fetchAccounts).mockReset()
     vi.mocked(fetchClinicAccount).mockReset()
     vi.mocked(fetchAccounts).mockResolvedValue([
-      { id: 'c1', name: 'Clínica Sur', balance: '80.00', aging: zero, oldestDays: 3 },
+      {
+        id: 'c1',
+        name: 'Clínica Sur',
+        balance: '80.00',
+        credit: '0.00',
+        aging: zero,
+        oldestDays: 3,
+        openCasesCount: 0,
+        openCasesTotal: '0.00',
+      },
     ])
     vi.mocked(fetchClinicAccount).mockResolvedValue({
       clinic: { id: 'c1', name: 'Clínica Sur' },
@@ -72,6 +81,14 @@ describe('acceso a «Cuentas» por rol (ACCOUNTS_ROLES)', () => {
       aging: zero,
       oldestDays: 3,
       openCases: [],
+      breakdown: {
+        openCases: '0.00',
+        unlinkedAdjustments: '80.00',
+        unlinkedSince: '2026-10-01',
+        credit: '0.00',
+        balance: '80.00',
+      },
+      billedCases: [],
       movements: [],
     } as unknown as Awaited<ReturnType<typeof fetchClinicAccount>>)
   })

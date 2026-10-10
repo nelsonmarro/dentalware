@@ -24,7 +24,7 @@ const CaseLink = ({ c }: { c: OpenCase }) => (
     to="/trabajos/$caseId"
     params={{ caseId: c.id }}
     data-target-size="inline"
-    className="font-mono font-medium text-primary hover:underline"
+    className="font-mono font-medium whitespace-nowrap text-primary hover:underline"
   >
     {c.code}
   </Link>
@@ -84,14 +84,24 @@ function OpenCaseCard({ c }: { c: OpenCase }) {
       <p className="text-sm text-muted-foreground">
         Entregado el {formatTimestampDate(String(c.deliveredAt))} · {daysText(c.days)}
       </p>
+      {/* Cada etiqueta con su monto no se parte (a 360 se partía «Pagado $» / «45.00»); la
+          línea sí, entre una y otra. */}
       <p className="text-xs text-muted-foreground">
-        Cargo <Money value={c.charge} />
+        <span className="whitespace-nowrap">
+          Cargo <Money value={c.charge} />
+        </span>
         {toSignedCents(c.adjustments) !== 0 && (
           <>
-            {' · '}Ajustes <span className="font-mono">{signedAmountText(c.adjustments)}</span>
+            {' · '}
+            <span className="whitespace-nowrap">
+              Ajustes <span className="font-mono">{signedAmountText(c.adjustments)}</span>
+            </span>
           </>
         )}
-        {' · '}Pagado <Money value={c.allocated} />
+        {' · '}
+        <span className="whitespace-nowrap">
+          Pagado <Money value={c.allocated} />
+        </span>
       </p>
     </div>
   )

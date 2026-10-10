@@ -53,6 +53,11 @@ export type GridColumnMeta = {
   groupable?: boolean
   /** Etiqueta para menús y filtros cuando `header` no es texto. */
   label?: string
+  /**
+   * Texto de cada sentido en el «Ordenar» móvil de `sorting` («Clínica A–Z», «Saldo: de mayor a
+   * menor»). Sin él, «<Columna>: ascendente» y «<Columna>: descendente».
+   */
+  sortLabels?: { asc: string; desc: string }
 }
 
 /**

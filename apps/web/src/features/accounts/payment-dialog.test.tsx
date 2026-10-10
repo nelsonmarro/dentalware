@@ -81,6 +81,16 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
     expect(within(dialog).getByRole('button', { name: 'Registrar pago' })).toBeInTheDocument()
   })
 
+  // UX5-08: con Chrome en inglés el campo se ve mm/dd/aaaa; debajo, la fecha escrita.
+  it('bajo «Fecha» dice la fecha escrita en español, como descripción del campo', async () => {
+    const { user } = renderDialog()
+    const fecha = screen.getByLabelText('Fecha')
+    await user.clear(fecha)
+    await user.type(fecha, '2026-06-01')
+    expect(fecha).toHaveAccessibleDescription('Lunes, 1 de junio de 2026')
+    expect(fecha).not.toHaveAttribute('lang')
+  })
+
   it('al escribir el monto reparte de la entrega más antigua a la más nueva y dice lo que queda', async () => {
     const { user } = renderDialog()
     // Los trabajos van en el orden del reparto: primero el más antiguo.
@@ -94,22 +104,28 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
     await user.type(screen.getByLabelText('Monto'), '60')
     expect(rowInput('26-00001')).toHaveValue('50.00')
     expect(rowInput('26-00002')).toHaveValue('10.00')
-    expect(screen.getByRole('status')).toHaveTextContent('Asignado $ 60.00 · Queda a favor $ 0.00')
+    expect(screen.getByRole('status')).toHaveTextContent('Aplicado $ 60.00 · Queda a favor $ 0.00')
+    // UX5-15: cada fila dice qué le pasa a su trabajo.
+    expect(rowInput('26-00001')).toHaveAccessibleDescription('Queda cobrado')
+    expect(rowInput('26-00002')).toHaveAccessibleDescription('Quedará debiendo $ 20.00')
 
     await user.clear(screen.getByLabelText('Monto'))
     await user.type(screen.getByLabelText('Monto'), '100')
     expect(rowInput('26-00002')).toHaveValue('30.00')
-    expect(screen.getByRole('status')).toHaveTextContent('Asignado $ 80.00 · Queda a favor $ 20.00')
+    expect(screen.getByRole('status')).toHaveTextContent('Aplicado $ 80.00 · Queda a favor $ 20.00')
   })
 
   it('cada monto se edita y el pago viaja sin las filas vacías', async () => {
-    vi.mocked(registerPayment).mockResolvedValue({ credit: '70.00' } as never)
+    vi.mocked(registerPayment).mockResolvedValue({
+      credit: '70.00',
+      settled: [{ id: T2, code: '26-00002' }],
+    } as never)
     const { user, onOpenChange } = renderDialog()
     await user.type(screen.getByLabelText('Monto'), '100')
     await user.clear(rowInput('26-00001'))
     await user.clear(rowInput('26-00002'))
     await user.type(rowInput('26-00002'), '30')
-    expect(screen.getByRole('status')).toHaveTextContent('Asignado $ 30.00 · Queda a favor $ 70.00')
+    expect(screen.getByRole('status')).toHaveTextContent('Aplicado $ 30.00 · Queda a favor $ 70.00')
     await chooseMethod(user, 'Transferencia')
     await user.type(screen.getByLabelText('Referencia'), 'TRX-9')
     await user.click(screen.getByRole('button', { name: 'Registrar pago' }))
@@ -125,22 +141,22 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
     })
     await vi.waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     expect(toast.success).toHaveBeenCalledWith(
-      'Pago registrado: 1 trabajo cobrado y $ 70.00 a favor',
+      'Pago registrado: cobrado 26-00002 · $ 70.00 a favor',
     )
   })
 
-  it('valida en el formulario: método, y lo asignado contra el monto', async () => {
+  it('valida en el formulario: método, y lo aplicado contra el monto', async () => {
     const { user } = renderDialog()
     await user.type(screen.getByLabelText('Monto'), '10')
     await user.clear(rowInput('26-00001'))
     await user.type(rowInput('26-00001'), '20')
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Asignado $ 20.00 · Supera el pago en $ 10.00',
+      'Aplicado $ 20.00 · Supera el pago en $ 10.00',
     )
     await user.click(screen.getByRole('button', { name: 'Registrar pago' }))
 
     expect(await screen.findByText('Elige un método de pago')).toBeInTheDocument()
-    expect(screen.getByText('Lo asignado no puede superar el monto del pago')).toBeInTheDocument()
+    expect(screen.getByText('Lo aplicado no puede superar el monto del pago')).toBeInTheDocument()
     expect(registerPayment).not.toHaveBeenCalled()
   })
 
@@ -217,7 +233,7 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
     }
 
     it('un trabajo que desaparece no corre las filas: el monto va al trabajo rotulado', async () => {
-      vi.mocked(registerPayment).mockResolvedValue({ credit: '0.00' } as never)
+      vi.mocked(registerPayment).mockResolvedValue({ credit: '0.00', settled: [] } as never)
       const utils = renderDialog()
       // Otra persona cobró el 26-00001: ya no está por cobrar.
       rerenderWith(
@@ -247,7 +263,7 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
     })
 
     it('un trabajo que aparece no deja una fila sin trabajo ni el botón muerto', async () => {
-      vi.mocked(registerPayment).mockResolvedValue({ credit: '0.00' } as never)
+      vi.mocked(registerPayment).mockResolvedValue({ credit: '0.00', settled: [] } as never)
       const utils = renderDialog()
       rerenderWith(utils, [
         ...OPEN,

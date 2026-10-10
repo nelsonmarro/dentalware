@@ -110,7 +110,7 @@ describe('/api/cuentas', () => {
       items: [{ productId, quantity: 1, teeth: [11, 12] }],
     })
     expect(created.status).toBe(201)
-    return ((await created.json()) as { case: { id: string; total: string } }).case
+    return ((await created.json()) as { case: { id: string; code: string; total: string } }).case
   }
 
   /** Crea un trabajo por la API y lo lleva a `entregado` con las acciones existentes. */
@@ -175,13 +175,30 @@ describe('/api/cuentas', () => {
       aging: ZERO,
       oldestDays: null,
       openCases: [],
+      breakdown: {
+        openCases: '0.00',
+        unlinkedAdjustments: '0.00',
+        unlinkedSince: null,
+        credit: '0.00',
+        balance: '0.00',
+      },
+      billedCases: [],
       movements: [],
     })
     // Sin movimientos, la lista no la muestra salvo con `todas=1`.
     expect(await (await get('/api/cuentas', admin)).json()).toEqual({ clinics: [] })
     expect(await (await get('/api/cuentas?todas=1', admin)).json()).toEqual({
       clinics: [
-        { id: clinicId, name: 'Clínica Sur', balance: '0.00', aging: ZERO, oldestDays: null },
+        {
+          id: clinicId,
+          name: 'Clínica Sur',
+          balance: '0.00',
+          credit: '0.00',
+          aging: ZERO,
+          oldestDays: null,
+          openCasesCount: 0,
+          openCasesTotal: '0.00',
+        },
       ],
     })
 
@@ -193,6 +210,7 @@ describe('/api/cuentas', () => {
       aging: Record<string, string>
       oldestDays: number | null
       openCases: unknown[]
+      billedCases: unknown[]
       movements: unknown[]
     }
     expect(after.balance).toBe('45.00')
@@ -207,8 +225,26 @@ describe('/api/cuentas', () => {
         days: 0,
       }),
     ])
+    // Final review M-2: el trabajo que carga, con lo que debe y lo pagado, para el aviso del
+    // descuento en «Registrar ajuste».
+    expect(after.billedCases).toEqual([
+      {
+        id: delivered.id,
+        code: expect.any(String),
+        patientRef: 'Paciente 1',
+        status: 'entregado',
+        outstanding: '45.00',
+        allocated: '0.00',
+      },
+    ])
     expect(after.movements).toEqual([
-      expect.objectContaining({ kind: 'cargo', date: '2026-10-06', amount: '45.00' }),
+      // UX5-11: el trabajo del movimiento trae su paciente.
+      expect.objectContaining({
+        kind: 'cargo',
+        date: '2026-10-06',
+        amount: '45.00',
+        case: { id: delivered.id, code: expect.any(String), patientRef: 'Paciente 1' },
+      }),
     ])
     expect(await (await get('/api/cuentas', recepcion)).json()).toEqual({
       clinics: [
@@ -216,8 +252,11 @@ describe('/api/cuentas', () => {
           id: clinicId,
           name: 'Clínica Sur',
           balance: '45.00',
+          credit: '0.00',
           aging: { ...ZERO, '0_30': '45.00' },
           oldestDays: 0,
+          openCasesCount: 1,
+          openCasesTotal: '45.00',
         },
       ],
     })
@@ -270,6 +309,27 @@ describe('/api/cuentas', () => {
       expect(r.status).toBe(201)
       return ((await r.json()) as { pago: Pago }).pago
     }
+
+    // Final review M-3: la lista trae el saldo a favor y los trabajos por cobrar, para no decir
+    // «Nada pendiente» cuando el saldo a favor cubre un trabajo que sigue por cobrar.
+    it('la lista de «Cuentas» trae el saldo a favor y los trabajos por cobrar que cubre', async () => {
+      await register(pago({ monto: '200.00' }))
+      await deliverCase()
+      expect(await (await get('/api/cuentas', recepcion)).json()).toEqual({
+        clinics: [
+          {
+            id: clinicId,
+            name: 'Clínica Sur',
+            balance: '-155.00',
+            credit: '200.00',
+            aging: ZERO,
+            oldestDays: null,
+            openCasesCount: 1,
+            openCasesTotal: '45.00',
+          },
+        ],
+      })
+    })
 
     it('permisos: registrar y aplicar saldo a favor admin y recepción; anular, solo admin', async () => {
       expect((await post('/api/cuentas/pagos', '', pago())).status).toBe(401)
@@ -465,6 +525,66 @@ describe('/api/cuentas', () => {
       })
     })
 
+    it('registrar un pago y aplicar saldo a favor dicen qué trabajos cerraron (UX5-04)', async () => {
+      const uno = await deliverCase()
+      const dos = await deliverCase()
+      // 60.00: 45.00 cierran `uno` y 15.00 dejan a `dos` debiendo 30.00.
+      const r = await post('/api/cuentas/pagos', recepcion, {
+        ...pago({
+          asignaciones: [
+            { trabajoId: dos.id, monto: '15.00' },
+            { trabajoId: uno.id, monto: '45.00' },
+          ],
+        }),
+      })
+      expect(r.status).toBe(201)
+      const { pago: p } = (await r.json()) as { pago: Pago & { settled: unknown } }
+      expect(p.settled).toEqual([{ id: uno.id, code: uno.code }])
+
+      // Un anticipo de 30.00 queda a favor y, aplicado a `dos`, lo cierra.
+      const anticipo = await register(pago({ monto: '30.00' }))
+      const aplicado = await post(`/api/cuentas/pagos/${anticipo.id}/asignaciones`, recepcion, {
+        asignaciones: [{ trabajoId: dos.id, monto: '30.00' }],
+      })
+      expect(aplicado.status).toBe(201)
+      expect(((await aplicado.json()) as { pago: { settled: unknown } }).pago.settled).toEqual([
+        { id: dos.id, code: dos.code },
+      ])
+    })
+
+    it('el movimiento del pago dice a qué trabajos se aplicó y cuáles reabre; anulado, ninguno (UX5-03)', async () => {
+      const uno = await deliverCase()
+      const dos = await deliverCase()
+      // 60.00: 45.00 cierran `uno` y 15.00 dejan a `dos` debiendo 30.00. Un segundo pago de
+      // 10.00 a `dos` no sale en este movimiento.
+      const p = await register(
+        pago({
+          asignaciones: [
+            { trabajoId: dos.id, monto: '15.00' },
+            { trabajoId: uno.id, monto: '45.00' },
+          ],
+        }),
+      )
+      await register(
+        pago({ monto: '10.00', asignaciones: [{ trabajoId: dos.id, monto: '10.00' }] }),
+      )
+      type Applied = { allocations: unknown }
+      const movimiento = async () =>
+        (await detail()).movements.find((m) => m.id === p.id) as unknown as Applied
+      // `uno` se entregó antes que `dos`: va primero aunque llegó segundo en el reparto.
+      expect((await movimiento()).allocations).toEqual([
+        { caseId: uno.id, code: uno.code, amount: '45.00', reopens: true },
+        { caseId: dos.id, code: dos.code, amount: '15.00', reopens: false },
+      ])
+
+      const anulado = await post(`/api/cuentas/pagos/${p.id}/anular`, admin, {
+        motivo: 'Duplicado',
+      })
+      expect(anulado.status).toBe(200)
+      expect((await movimiento()).allocations).toEqual([])
+      expect((await caseOf(uno.id)).status).toBe('entregado')
+    })
+
     /** Un pago de 60.00 con 45.00 en un trabajo (le quedan 15.00 a favor) y otros dos
      * trabajos entregados de 45.00 sin pagar. */
     async function creditAndTwoCases() {
@@ -565,6 +685,7 @@ describe('/api/cuentas', () => {
       oldestDays: number | null
       openCases: { id: string; adjustments: string; outstanding: string }[]
       credit: string
+      breakdown: Record<string, string | null>
       movements: {
         id: string
         kind: string
@@ -641,6 +762,14 @@ describe('/api/cuentas', () => {
         aging: { '0_30': '0.00', '31_60': '0.00', '61_90': '0.00', '90_mas': '150.00' },
         oldestDays: 98,
         openCases: [],
+      })
+      // UX5-02: el saldo inicial es su propia línea del desglose, con su fecha.
+      expect(d.breakdown).toEqual({
+        openCases: '0.00',
+        unlinkedAdjustments: '150.00',
+        unlinkedSince: '2026-06-30',
+        credit: '0.00',
+        balance: '150.00',
       })
       expect(d.movements).toEqual([
         expect.objectContaining({
@@ -775,6 +904,10 @@ describe('/api/cuentas', () => {
       expect(after).toMatchObject({ balance: '-5.00', credit: '5.00', openCases: [] })
       expect(after.movements.find((m) => m.id === p)).toMatchObject({ remaining: '5.00' })
       expectBalanced(after)
+      // UX5-03: el movimiento del ajuste dice lo que devolvió al saldo a favor.
+      expect(after.movements.find((m) => m.kind === 'ajuste')).toMatchObject({
+        reason: 'Descuento tardío · $ 5.00 vuelven al saldo a favor',
+      })
       const [asignada] = await ctx.db
         .select()
         .from(ctx.schema.paymentAllocations)
@@ -888,6 +1021,7 @@ describe('/api/cuentas', () => {
       aging: Record<string, string>
       oldestDays: number | null
       openCases: { id: string; outstanding: string; days: number }[]
+      breakdown: Record<string, string | null>
     }
     const url = (q: string) => `/api/cuentas/${clinicId}/estado?${q}`
     const OCTUBRE = 'desde=2026-10-01&hasta=2026-10-06'
@@ -997,6 +1131,14 @@ describe('/api/cuentas', () => {
       expect(s.openCases).toEqual([
         expect.objectContaining({ id: c.id, outstanding: '25.00', days: 0 }),
       ])
+      // UX5-02: 25 del trabajo + 150 del saldo inicial − 10 del anticipo = saldo final.
+      expect(s.breakdown).toEqual({
+        openCases: '25.00',
+        unlinkedAdjustments: '150.00',
+        unlinkedSince: '2026-06-30',
+        credit: '10.00',
+        balance: '165.00',
+      })
 
       const account = (await (await get(`/api/cuentas/${clinicId}`, admin)).json()) as Statement & {
         balance: string
@@ -1006,6 +1148,7 @@ describe('/api/cuentas', () => {
       expect(s.aging).toEqual(account.aging)
       expect(s.oldestDays).toBe(account.oldestDays)
       expect(s.openCases).toEqual(account.openCases)
+      expect(s.breakdown).toEqual(account.breakdown)
     })
   })
 })

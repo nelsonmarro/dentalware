@@ -268,10 +268,11 @@ describe('CaseActions', () => {
     )
   })
 
-  // M-5 (revisión de la Tarea 3): el botón que confirma «Cancelar trabajo» es tan destructivo
-  // como el que abre el diálogo; el de «Pausar» sigue siendo el primario normal.
+  // M-5 (revisión de la Tarea 3): el botón que confirma «Cancelar trabajo» es destructivo como
+  // el que abre el diálogo, y además sólido (UX5-07): el que confirma pesa más que el que abre;
+  // el de «Pausar» sigue siendo el primario normal.
   it.each([
-    ['Cancelar trabajo', 'destructive'],
+    ['Cancelar trabajo', 'destructive-solid'],
     ['Pausar', 'default'],
   ])('el botón que confirma «%s» lleva la variante %s', async (boton, variante) => {
     const { user } = renderWithProviders(

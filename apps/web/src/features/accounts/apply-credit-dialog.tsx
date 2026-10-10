@@ -14,6 +14,7 @@ import { QueuedNotice } from '@/features/cases/queued-notice'
 import { ApiError, toastApiError } from '@/lib/api-error'
 import { formatMoney } from '@/lib/format-money'
 import { AllocationFields } from './allocation-fields'
+import { AllocationSummary } from './allocation-summary'
 import { applyIssues, orderOpenCases, suggestedRows } from './allocation'
 import type { ClinicAccount } from './api'
 import { paymentContext, type PaymentRef } from './payment-context'
@@ -51,7 +52,7 @@ export function ApplyCreditDialog({
   }
   const availableCents = toCents(payment.remaining)
   const schema = useMemo(() => applyCreditFormSchema(availableCents), [availableCents])
-  const apply = useApplyCredit(clinic.id, ordered)
+  const apply = useApplyCredit(clinic.id)
   const { busy, queued } = useAccountBusy(clinic.id)
 
   type FormValues = z.input<typeof schema>
@@ -102,7 +103,18 @@ export function ApplyCreditDialog({
       onOpenChange={onOpenChange}
       title="Aplicar saldo a favor"
       context={paymentContext(payment, clinic.name)}
-      description="Reparte lo que le queda a este pago entre los trabajos por cobrar; los que queden cubiertos pasan a «Cobrado»."
+      description="Aplica lo que le queda a este pago a los trabajos por cobrar; los que queden cubiertos pasan a «Cobrado»."
+      summary={
+        ordered.length > 0 && (
+          <AllocationSummary
+            allocatedCents={totals.allocatedCents}
+            leftCents={totals.leftCents}
+            leftLabel="Sigue a favor"
+            overLabel="Supera lo disponible en"
+            error={errors.asignaciones?.message ?? errors.asignaciones?.root?.message}
+          />
+        )
+      }
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -125,13 +137,9 @@ export function ApplyCreditDialog({
         </p>
         <AllocationFields
           cases={ordered}
+          amounts={(rows ?? []).map((r) => r.monto)}
           field={(i) => register(`asignaciones.${i}.monto`)}
           rowError={(i) => errors.asignaciones?.[i]?.monto?.message}
-          totalError={errors.asignaciones?.message ?? errors.asignaciones?.root?.message}
-          allocatedCents={totals.allocatedCents}
-          leftCents={totals.leftCents}
-          leftLabel="Sigue a favor"
-          overLabel="Supera lo disponible en"
           emptyText="No hay trabajos por cobrar: el saldo sigue a favor hasta la próxima entrega."
         />
         {queued && <QueuedNotice />}

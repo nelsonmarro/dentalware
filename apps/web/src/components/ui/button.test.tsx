@@ -40,4 +40,23 @@ describe('Button', () => {
     render(<Button>Ir</Button>)
     expect(screen.getByRole('button', { name: 'Ir' })).toHaveClass('motion-reduce:transition-none')
   })
+
+  // UX5-07: el botón que confirma una acción destructiva («Anular pago», «Cancelar trabajo»,
+  // «Bloquear») va en rojo sólido con texto blanco; el `destructive` suave (fondo al 10 %) se
+  // leía como deshabilitado junto al «Volver» con contorno.
+  it('variant="destructive-solid" es rojo sólido con texto blanco', () => {
+    render(<Button variant="destructive-solid">Anular pago</Button>)
+    const button = screen.getByRole('button', { name: 'Anular pago' })
+    expect(button).toHaveClass('bg-destructive', 'text-white')
+    expect(button).not.toHaveClass('bg-destructive/10')
+    expect(button).toHaveAttribute('data-variant', 'destructive-solid')
+  })
+
+  it('variant="destructive" sigue siendo el suave, para el botón que abre la acción', () => {
+    render(<Button variant="destructive">Cancelar trabajo</Button>)
+    expect(screen.getByRole('button', { name: 'Cancelar trabajo' })).toHaveClass(
+      'bg-destructive/10',
+      'text-destructive',
+    )
+  })
 })

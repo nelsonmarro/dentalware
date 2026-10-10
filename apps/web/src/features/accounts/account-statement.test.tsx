@@ -25,6 +25,7 @@ const movement = (m: Partial<Movement>) =>
     reference: null,
     method: null,
     remaining: null,
+    allocations: null,
     voided: null,
     ...m,
   }) as Movement
@@ -58,7 +59,7 @@ const statement = (over: Partial<Statement> = {}) =>
         date: '2026-10-06',
         amount: '45.00',
         balance: '185.00',
-        case: { id: 'caso-1', code: '26-00087' },
+        case: { id: 'caso-1', code: '26-00087', patientRef: 'Ana Ruiz' },
       }),
       movement({
         id: 'p1',
@@ -88,6 +89,13 @@ const statement = (over: Partial<Statement> = {}) =>
         days: 0,
       },
     ],
+    breakdown: {
+      openCases: '25.00',
+      unlinkedAdjustments: '150.00',
+      unlinkedSince: '2026-06-30',
+      credit: '10.00',
+      balance: '165.00',
+    },
     ...over,
   }) as unknown as Statement
 
@@ -143,7 +151,8 @@ describe('AccountStatement (estado de cuenta imprimible, CTA-5)', () => {
     expect(row.textContent).not.toContain('Admin')
     expect(row.textContent).not.toContain('Duplicado')
     expect(within(row).getByText('− $ 5.00')).toHaveClass('line-through')
-    expect(within(row).getByText('No suma')).toBeVisible()
+    // En móvil va bajo el monto y en pantalla ancha en su columna (UX5-14): jsdom no aplica CSS.
+    expect(within(row).getAllByText('No suma')).toHaveLength(2)
     expect(row.textContent).not.toContain('$ 140.00')
   })
 
@@ -191,6 +200,37 @@ describe('AccountStatement (estado de cuenta imprimible, CTA-5)', () => {
     ).toBeVisible()
   })
 
+  it('con trabajos por cobrar cubiertos por el saldo a favor, no dice «Nada pendiente» (como la cabecera, UX5-01)', async () => {
+    renderStatement(
+      statement({
+        closingBalance: '-5.00',
+        credit: '30.00',
+        aging: zero,
+        oldestDays: null,
+        breakdown: {
+          openCases: '25.00',
+          unlinkedAdjustments: '0.00',
+          unlinkedSince: null,
+          credit: '30.00',
+          balance: '-5.00',
+        },
+      } as Partial<Statement>),
+    )
+    const aging = await screen.findByRole('region', { name: 'Antigüedad al 06/10/2026' })
+    expect(
+      within(aging).getByText('1 trabajo por cobrar ($ 25.00), cubierto por el saldo a favor'),
+    ).toBeVisible()
+    expect(within(aging).queryByText('Nada pendiente')).not.toBeInTheDocument()
+  })
+
+  it('sin trabajos por cobrar ni nada vencido: «Nada pendiente»', async () => {
+    renderStatement(
+      statement({ openCases: [], aging: zero, oldestDays: null } as Partial<Statement>),
+    )
+    const aging = await screen.findByRole('region', { name: 'Antigüedad al 06/10/2026' })
+    expect(within(aging).getByText('Nada pendiente')).toBeVisible()
+  })
+
   it('«Por cobrar» con los días desde la entrega y lo pendiente', async () => {
     renderStatement()
     const table = await screen.findByRole('table', { name: 'Por cobrar al 06/10/2026' })
@@ -199,6 +239,36 @@ describe('AccountStatement (estado de cuenta imprimible, CTA-5)', () => {
     expect(row?.textContent).toContain('Ana Ruiz')
     expect(row?.textContent).toContain('0 días')
     expect(within(row!).getByText('$ 25.00')).toHaveClass('font-mono')
+  })
+
+  it('«Por cobrar» cierra con el desglose del saldo final (UX5-02)', async () => {
+    renderStatement()
+    const section = await screen.findByRole('region', { name: 'Por cobrar al 06/10/2026' })
+    const desglose = within(section).getByLabelText('Desglose del saldo')
+    expect(desglose).toHaveTextContent('Trabajos$ 25.00')
+    expect(desglose).toHaveTextContent(
+      'Saldo inicial y ajustes sin trabajo(desde el 30/06/2026)$ 150.00',
+    )
+    expect(desglose).toHaveTextContent('Saldo a favor− $ 10.00')
+    expect(desglose).toHaveTextContent('Saldo$ 165.00')
+  })
+
+  it('sin trabajos por cobrar, el desglose sigue diciendo el saldo inicial', async () => {
+    renderStatement(
+      statement({
+        openCases: [],
+        breakdown: {
+          openCases: '0.00',
+          unlinkedAdjustments: '150.00',
+          unlinkedSince: '2026-06-30',
+          credit: '0.00',
+          balance: '150.00',
+        },
+      } as Partial<Statement>),
+    )
+    const section = await screen.findByRole('region', { name: 'Por cobrar al 06/10/2026' })
+    expect(section).toHaveTextContent('Nada por cobrar al 06/10/2026.')
+    expect(within(section).getByLabelText('Desglose del saldo')).toHaveTextContent('Saldo$ 150.00')
   })
 
   it('sin movimientos ni nada por cobrar, lo dice', async () => {

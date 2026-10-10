@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { Combobox, type ComboboxItem } from './combobox'
@@ -184,5 +184,53 @@ describe('Combobox', () => {
 
     expect(trigger).toHaveFocus()
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  // UX5-11: un ítem puede llevar un código (en monoespaciada, como en toda la app) y un detalle
+  // secundario; se busca por cualquiera de los tres.
+  describe('ítems con código y detalle', () => {
+    const cases: ComboboxItem[] = [
+      { value: 't1', code: '26-00101', label: 'Ana Ruiz', detail: 'Cobrado' },
+      { value: 't2', code: '26-00102', label: 'Luis Paz', detail: 'Debe $ 120.00' },
+    ]
+
+    it('la opción dice código, etiqueta y detalle, con el código en monoespaciada', async () => {
+      const user = userEvent.setup()
+      render(<Combobox items={cases} value={null} onChange={vi.fn()} placeholder="Trabajo" />)
+      await user.click(screen.getByRole('combobox', { name: 'Trabajo' }))
+      const option = screen.getByRole('option', { name: '26-00101 Ana Ruiz · Cobrado' })
+      expect(within(option).getByText('26-00101')).toHaveClass('font-mono')
+      expect(within(option).getByText('Ana Ruiz')).not.toHaveClass('font-mono')
+    })
+
+    // A 390 px, «Debe $ 120.00» se partía en «Debe $» / «120.00»: el detalle no se parte.
+    it('el detalle no se parte en dos líneas', async () => {
+      const user = userEvent.setup()
+      render(<Combobox items={cases} value={null} onChange={vi.fn()} placeholder="Trabajo" />)
+      await user.click(screen.getByRole('combobox', { name: 'Trabajo' }))
+      const option = screen.getByRole('option', { name: /26-00102/ })
+      expect(within(option).getByText('· Debe $ 120.00')).toHaveClass('whitespace-nowrap')
+    })
+
+    it.each([
+      ['el código', '00102'],
+      ['la etiqueta', 'luis'],
+      ['el detalle', '120'],
+    ])('filtra por %s', async (_what, text) => {
+      const user = userEvent.setup()
+      render(<Combobox items={cases} value={null} onChange={vi.fn()} placeholder="Trabajo" />)
+      await user.click(screen.getByRole('combobox', { name: 'Trabajo' }))
+      await user.type(screen.getByPlaceholderText('Buscar…'), text)
+      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+        '26-00102 Luis Paz · Debe $ 120.00',
+      ])
+    })
+
+    it('el disparador muestra el elegido igual, con el código en monoespaciada', () => {
+      render(<Combobox items={cases} value="t1" onChange={vi.fn()} placeholder="Trabajo" />)
+      const trigger = screen.getByRole('combobox', { name: 'Trabajo' })
+      expect(trigger).toHaveTextContent('26-00101 Ana Ruiz · Cobrado')
+      expect(within(trigger).getByText('26-00101')).toHaveClass('font-mono')
+    })
   })
 })

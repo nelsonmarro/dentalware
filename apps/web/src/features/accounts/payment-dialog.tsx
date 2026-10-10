@@ -25,8 +25,10 @@ import {
 import { QueuedNotice } from '@/features/cases/queued-notice'
 import { ApiError, toastApiError } from '@/lib/api-error'
 import { AllocationFields } from './allocation-fields'
+import { AllocationSummary } from './allocation-summary'
 import { applyIssues, orderOpenCases, suggestedRows } from './allocation'
 import type { ClinicAccount } from './api'
+import { DateField } from './date-field'
 import { useAccountBusy } from './use-account-busy'
 import { useRegisterPayment } from './use-register-payment'
 
@@ -66,7 +68,7 @@ export function PaymentDialog({
     setWasOpen(open)
     if (open) setOrdered(orderOpenCases(openCases))
   }
-  const pay = useRegisterPayment(clinic.id, ordered)
+  const pay = useRegisterPayment(clinic.id)
   const { busy, queued } = useAccountBusy(clinic.id)
   const today = toIsoDate(new Date())
 
@@ -94,6 +96,7 @@ export function PaymentDialog({
 
   const monto = useWatch({ control, name: 'monto' })
   const rows = useWatch({ control, name: 'asignaciones' })
+  const fecha = useWatch({ control, name: 'fecha' })
   const totals = allocationTotals(
     parseMoneyInput(monto),
     (rows ?? []).map((r) => r.monto),
@@ -133,7 +136,18 @@ export function PaymentDialog({
       onOpenChange={onOpenChange}
       title="Registrar pago"
       context={{ label: clinic.name }}
-      description="Los trabajos que el pago cubra pasan a «Cobrado»; lo que no se reparta queda a favor de la clínica."
+      description="Los trabajos que el pago cubra pasan a «Cobrado»; lo que no se aplique queda a favor de la clínica."
+      summary={
+        ordered.length > 0 && (
+          <AllocationSummary
+            allocatedCents={totals.allocatedCents}
+            leftCents={totals.leftCents}
+            leftLabel="Queda a favor"
+            overLabel="Supera el pago en"
+            error={totalError}
+          />
+        )
+      }
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -191,18 +205,14 @@ export function PaymentDialog({
                 </Field>
               )}
             />
-            <Field data-invalid={!!errors.fecha}>
-              <FieldLabel htmlFor="pago-fecha">Fecha</FieldLabel>
-              <Input
-                {...register('fecha')}
-                id="pago-fecha"
-                type="date"
-                max={today}
-                className="h-11"
-                aria-invalid={!!errors.fecha}
-              />
-              {errors.fecha && <FieldError errors={[errors.fecha]} />}
-            </Field>
+            <DateField
+              id="pago-fecha"
+              label="Fecha"
+              value={fecha}
+              max={today}
+              error={errors.fecha}
+              registration={register('fecha')}
+            />
             <Field data-invalid={!!errors.referencia}>
               <FieldLabel htmlFor="pago-referencia">Referencia</FieldLabel>
               <Input
@@ -230,23 +240,19 @@ export function PaymentDialog({
           <section aria-labelledby="pago-reparto" className="flex flex-col gap-2">
             <div className="flex flex-col gap-0.5">
               <h3 id="pago-reparto" className="text-sm font-medium">
-                Reparto entre trabajos por cobrar
+                A qué trabajos se aplica
               </h3>
               {ordered.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Se reparte de la entrega más antigua a la más nueva. Puedes cambiar cada monto.
+                  Se aplica de la entrega más antigua a la más nueva. Puedes cambiar cada monto.
                 </p>
               )}
             </div>
             <AllocationFields
               cases={ordered}
+              amounts={(rows ?? []).map((r) => r.monto)}
               field={(i) => register(`asignaciones.${i}.monto`)}
               rowError={(i) => errors.asignaciones?.[i]?.monto?.message}
-              totalError={totalError}
-              allocatedCents={totals.allocatedCents}
-              leftCents={totals.leftCents}
-              leftLabel="Queda a favor"
-              overLabel="Supera el pago en"
               emptyText="No hay trabajos por cobrar: todo el pago queda a favor."
             />
           </section>

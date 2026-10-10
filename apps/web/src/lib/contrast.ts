@@ -10,7 +10,7 @@
 
 const HEX_RE = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 
-function parseHex(hex: string): [number, number, number] {
+export function parseHex(hex: string): [number, number, number] {
   const match = HEX_RE.exec(hex.trim())
   if (!match) {
     throw new Error(

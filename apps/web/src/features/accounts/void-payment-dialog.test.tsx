@@ -15,14 +15,20 @@ const PAYMENT = {
   amount: '-120.00',
   method: 'efectivo' as const,
   remaining: '0.00',
+  // Cerró 26-00101 y 26-00102; a 26-00107 le pagó una parte (UX5-03).
+  allocations: [
+    { caseId: 'c1', code: '26-00101', amount: '50.00', reopens: true },
+    { caseId: 'c2', code: '26-00102', amount: '40.00', reopens: true },
+    { caseId: 'c7', code: '26-00107', amount: '30.00', reopens: false },
+  ],
 }
 
-function renderDialog() {
+function renderDialog(payment: Partial<typeof PAYMENT> = {}) {
   const onOpenChange = vi.fn()
   const utils = renderWithProviders(
     <VoidPaymentDialog
       clinic={{ id: 'k1', name: 'Clínica Sur' }}
-      payment={PAYMENT}
+      payment={{ ...PAYMENT, ...payment }}
       open
       onOpenChange={onOpenChange}
     />,
@@ -37,16 +43,59 @@ beforeEach(() => {
 })
 
 describe('VoidPaymentDialog («Anular pago», CTA-2)', () => {
-  it('nombra el pago y la consecuencia, con la acción en destructivo y «Volver»', () => {
+  it('nombra el pago y la consecuencia, con la acción en destructivo sólido y «Volver»', () => {
     renderDialog()
     const dialog = screen.getByRole('dialog', { name: 'Anular pago' })
     expect(dialog).toHaveTextContent('$ 120.00 · Efectivo del 05/10/2026 · Clínica Sur')
-    expect(dialog).toHaveTextContent('Los trabajos que cerró este pago vuelven a «Entregado»')
+    expect(dialog).toHaveTextContent(
+      'El pago deja de contar en el saldo y queda tachado en los movimientos.',
+    )
     expect(within(dialog).getByRole('button', { name: 'Volver' })).toBeInTheDocument()
+    // UX5-07: el que confirma va en destructivo sólido, no en el suave que parece deshabilitado.
     expect(within(dialog).getByRole('button', { name: 'Anular pago' })).toHaveAttribute(
       'data-variant',
-      'destructive',
+      'destructive-solid',
     )
+  })
+
+  it('nombra lo que quita a cada trabajo y los que vuelven a «Entregado» (UX5-03)', () => {
+    renderDialog()
+    const dialog = screen.getByRole('dialog', { name: 'Anular pago' })
+    expect(dialog).toHaveTextContent(
+      'Se quita lo aplicado a 26-00101 ($ 50.00), 26-00102 ($ 40.00) y 26-00107 ($ 30.00).',
+    )
+    expect(dialog).toHaveTextContent('Vuelven a «Entregado»: 26-00101 y 26-00102.')
+    expect(within(dialog).getAllByText('26-00101')[0]).toHaveClass('font-mono')
+  })
+
+  it('ningún código se parte por el guion, ni con su monto ni en «Vuelven a «Entregado»»', () => {
+    renderDialog()
+    const dialog = screen.getByRole('dialog', { name: 'Anular pago' })
+    const quita = within(dialog).getByText(/^Se quita lo aplicado a/)
+    const reabre = within(dialog).getByText(/a «Entregado»:/)
+    // A 360 px, «26-»/«00102» se partía en la línea de los que reabren (T8).
+    for (const code of ['26-00101', '26-00102']) {
+      expect(within(reabre).getByText(code)).toHaveClass('whitespace-nowrap')
+    }
+    // Cada trabajo con su monto va en un solo bloque que no se parte.
+    expect(within(quita).getByText('26-00107').parentElement).toHaveClass('whitespace-nowrap')
+  })
+
+  it('con uno solo que reabre, en singular; sin ninguno que reabra, no lo dice', () => {
+    const { unmount } = renderDialog({ allocations: [PAYMENT.allocations[0]!] })
+    expect(screen.getByRole('dialog')).toHaveTextContent('Vuelve a «Entregado»: 26-00101.')
+    unmount()
+    renderDialog({ allocations: [PAYMENT.allocations[2]!] })
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('Se quita lo aplicado a 26-00107 ($ 30.00).')
+    expect(dialog).not.toHaveTextContent('«Entregado»')
+  })
+
+  it('sin asignaciones vigentes: «No estaba aplicado a ningún trabajo»', () => {
+    renderDialog({ allocations: [] })
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('No estaba aplicado a ningún trabajo.')
+    expect(dialog).not.toHaveTextContent('Se quita')
   })
 
   it('el motivo es obligatorio', async () => {
@@ -99,5 +148,35 @@ describe('VoidPaymentDialog («Anular pago», CTA-2)', () => {
     await user.type(screen.getByLabelText('Motivo'), 'Duplicado')
     await user.click(screen.getByRole('button', { name: 'Anular pago' }))
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Datos inválidos'))
+  })
+
+  // UX5-20: solo el issue de `motivo` va bajo el campo. Uno de otro campo (p. ej. de un reparto,
+  // que este formulario no tiene) no se pinta bajo «Motivo»: va al aviso.
+  it('un 422 que no es del motivo no se pinta bajo «Motivo»: avisa con un toast', async () => {
+    vi.mocked(voidPayment).mockRejectedValue(
+      new ApiError('Datos inválidos', 422, [
+        { path: 'asignaciones', message: 'Lo aplicado no puede superar el pago' },
+      ]),
+    )
+    const { user } = renderDialog()
+    await user.type(screen.getByLabelText('Motivo'), 'Duplicado')
+    await user.click(screen.getByRole('button', { name: 'Anular pago' }))
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Datos inválidos'))
+    expect(screen.queryByText('Lo aplicado no puede superar el pago')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Motivo')).not.toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('un 422 con el motivo y otro campo pinta el motivo y avisa del resto', async () => {
+    vi.mocked(voidPayment).mockRejectedValue(
+      new ApiError('Datos inválidos', 422, [
+        { path: 'motivo', message: 'Máximo 500 caracteres' },
+        { path: 'id', message: 'Identificador inválido' },
+      ]),
+    )
+    const { user } = renderDialog()
+    await user.type(screen.getByLabelText('Motivo'), 'Duplicado')
+    await user.click(screen.getByRole('button', { name: 'Anular pago' }))
+    expect(await screen.findByText('Máximo 500 caracteres')).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledWith('Datos inválidos')
   })
 })

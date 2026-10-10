@@ -295,6 +295,7 @@ export interface CaseSettlementWriter {
   lockCases(caseIds: readonly string[]): Promise<
     {
       id: string
+      code: string
       clinicId: string
       status: CaseStatus
       totalCents: number

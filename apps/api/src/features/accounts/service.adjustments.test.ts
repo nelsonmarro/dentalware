@@ -140,12 +140,13 @@ describe('features/accounts/service: ajustes (CTA-3)', () => {
       kind: 'ajuste',
       date: '2026-10-05',
       amount: '-10.00',
-      case: { id: 'a', code: '26-a' },
+      case: { id: 'a', code: '26-a', patientRef: 'Paciente' },
       by: 'Admin',
       reason: 'Descuento por demora',
       reference: null,
       method: null,
       remaining: null,
+      allocations: null,
       voided: null,
     })
   })
@@ -291,6 +292,22 @@ describe('features/accounts/service: ajustes (CTA-3)', () => {
       expect(account).toMatchObject({ balance: '-10.00', credit: '10.00', openCases: [] })
       expect(account.movements.find((m) => m.id === 'p2')?.remaining).toBe('10.00')
       expect(account.movements.find((m) => m.id === 'p1')?.remaining).toBe('0.00')
+      // UX5-03: el movimiento del ajuste dice lo que devolvió, con el mismo texto que el
+      // historial del trabajo (no hay dónde guardar de qué pago: ni columnas ni migraciones).
+      expect(account.movements.find((m) => m.id === view.id)?.reason).toBe(
+        'Descuento · $ 10.00 vuelven al saldo a favor',
+      )
+    })
+
+    it('el ajuste que no libera nada guarda solo su motivo', async () => {
+      const fake = paidTwice()
+      const view = await fake.service.registerAdjustment(
+        ajuste({ trabajoId: 'a', monto: '15.00', motivo: 'Recargo por urgencia' }),
+        admin,
+      )
+      expect(view.reason).toBe('Recargo por urgencia')
+      const account = await fake.service.clinicAccount(SUR.id)
+      expect(account.movements.find((m) => m.id === view.id)?.reason).toBe('Recargo por urgencia')
     })
 
     it('si el más reciente no alcanza, lo deja en cero (borra la asignación) y sigue con el anterior', async () => {

@@ -124,6 +124,13 @@ test.describe('Cuentas', () => {
       await expect(summary).toContainText('Más antiguo: 45 días')
       await expect(agingBucket(summary, '0–30 días')).toContainText('$ 50.00')
       await expect(agingBucket(summary, '31–60 días')).toContainText('$ 100.00')
+      // UX5-02: «Por cobrar» cierra con el desglose, que cuadra con el saldo.
+      const desglose = page.getByLabel('Desglose del saldo')
+      await expect(desglose).toContainText('Trabajos$ 50.00')
+      await expect(desglose).toContainText(
+        `Saldo inicial y ajustes sin trabajo(desde el ${daysAgoIso(45).split('-').reverse().join('/')})$ 100.00`,
+      )
+      await expect(desglose).toContainText('Saldo$ 150.00')
 
       // 2-3. Recepción registra un pago de $ 30.00 que cubre solo el más antiguo (pasa a
       //      «Cobrado») y deja $ 5.00 a favor; después aplica ese saldo a favor al otro trabajo.
@@ -152,19 +159,26 @@ test.describe('Cuentas', () => {
         await expect(pago.getByLabel(`Monto para ${oldest.code}`)).toHaveValue('25.00')
         await expect(pago.getByLabel(`Monto para ${newest.code}`)).toHaveValue('5.00')
         await pago.getByLabel(`Monto para ${newest.code}`).fill('')
-        await expect(pago.getByRole('status')).toHaveText('Asignado $ 25.00 · Queda a favor $ 5.00')
+        await expect(pago.getByRole('status')).toHaveText('Aplicado $ 25.00 · Queda a favor $ 5.00')
+        // UX5-15: cada fila dice qué le pasa a su trabajo.
+        await expect(pago.getByLabel(`Monto para ${oldest.code}`)).toHaveAccessibleDescription(
+          'Queda cobrado',
+        )
         await pago.getByRole('combobox', { name: 'Método' }).click()
         await rp.getByRole('option', { name: 'Transferencia' }).click()
         await pago.getByLabel('Referencia').fill('TRX-E2E')
         await pago.getByRole('button', { name: 'Registrar pago' }).click()
         await expect(pago).toBeHidden()
+        // El aviso nombra el trabajo que cerró la API (UX5-04).
         await expect(toasts(rp)).toContainText(
-          'Pago registrado: 1 trabajo cobrado y $ 5.00 a favor',
+          `Pago registrado: cobrado ${oldest.code} · $ 5.00 a favor`,
         )
 
         const rpSummary = rp.getByRole('region', { name: 'Saldo' })
         await expect(rpSummary).toContainText('$ 120.00')
-        await expect(rpSummary).toContainText('Saldo a favor $ 5.00')
+        // Una sola lectura del saldo (UX5-01): el saldo ya descuenta lo que queda a favor.
+        await expect(rpSummary).toContainText('Ya descuenta $ 5.00 a favor sin aplicar')
+        await expect(rpSummary).not.toContainText('Saldo a favor')
         // El saldo a favor se descuenta de lo más antiguo: el saldo inicial.
         await expect(agingBucket(rpSummary, '31–60 días')).toContainText('$ 95.00')
         await expect(rp.getByRole('tab', { name: 'Por cobrar (1)' })).toBeVisible()
@@ -172,15 +186,32 @@ test.describe('Cuentas', () => {
 
         await rp.getByRole('tab', { name: /^Movimientos/ }).click()
         await expect(rp.getByText('Le quedan $ 5.00 a favor')).toBeVisible()
-        await rp.getByRole('button', { name: /^Aplicar saldo a favor de \$ 5\.00/ }).click()
+        // La cabecera ofrece aplicarlo (UX5-01), con el pago vigente más antiguo con algo a favor.
+        await rp.getByRole('button', { name: 'Aplicar saldo a favor', exact: true }).click()
         const aplicar = rp.getByRole('dialog', { name: 'Aplicar saldo a favor' })
         await expect(aplicar.getByLabel(`Monto para ${newest.code}`)).toHaveValue('5.00')
+        await expect(aplicar.getByLabel(`Monto para ${newest.code}`)).toHaveAccessibleDescription(
+          'Quedará debiendo $ 20.00',
+        )
         await aplicar.getByRole('button', { name: 'Aplicar saldo a favor' }).click()
         await expect(aplicar).toBeHidden()
         await expect(toasts(rp)).toContainText('Saldo a favor aplicado')
+        await expect(toasts(rp)).not.toContainText('Saldo a favor aplicado: cobrado')
         await expect(rpSummary).toContainText('$ 120.00')
-        await expect(rpSummary).not.toContainText('Saldo a favor')
+        await expect(rpSummary).not.toContainText('a favor')
+        await expect(
+          rp.getByRole('button', { name: 'Aplicar saldo a favor', exact: true }),
+        ).toHaveCount(0)
         await expect(rp.getByText('Le quedan $ 5.00 a favor')).toHaveCount(0)
+        // El pago dice a qué trabajos se aplicó, con enlace a cada ficha (UX5-03).
+        const pagoFila = rp.getByText(/^Aplicado a /).filter({ visible: true })
+        await expect(pagoFila).toHaveText(
+          `Aplicado a ${oldest.code} ($ 25.00) y ${newest.code} ($ 5.00)`,
+        )
+        await expect(pagoFila.getByRole('link', { name: oldest.code })).toHaveAttribute(
+          'href',
+          `/trabajos/${oldest.id}`,
+        )
         // Recepción no anula pagos.
         await expect(rp.getByRole('button', { name: /^Anular pago/ })).toHaveCount(0)
 
@@ -193,14 +224,18 @@ test.describe('Cuentas', () => {
         await recepcionContext.close()
       }
 
-      // 4. Admin anula el pago: el más antiguo vuelve a «Entregado» y los $ 5.00 aplicados al
-      //    otro dejan de contar.
+      // 4. Admin anula el pago: el diálogo nombra lo que quita a cada trabajo, el más antiguo
+      //    vuelve a «Entregado» y los $ 5.00 aplicados al otro dejan de contar.
       await page.reload()
       await expect(page.getByRole('heading', { level: 1, name: clinic.name })).toBeVisible()
       await page.getByRole('tab', { name: /^Movimientos/ }).click()
       await page.getByRole('button', { name: /^Anular pago de/ }).click()
       const anular = page.getByRole('dialog', { name: 'Anular pago' })
-      await expect(anular).toContainText('Los trabajos que cerró este pago vuelven a «Entregado»')
+      // Nombra lo que quita a cada trabajo y cuál vuelve a «Entregado» (UX5-03).
+      await expect(anular).toContainText(
+        `Se quita lo aplicado a ${oldest.code} ($ 25.00) y ${newest.code} ($ 5.00).`,
+      )
+      await expect(anular).toContainText(`Vuelve a «Entregado»: ${oldest.code}.`)
       await anular.getByLabel('Motivo').fill('Se registró en la clínica equivocada')
       await anular.getByRole('button', { name: 'Anular pago' }).click()
       await expect(anular).toBeHidden()
@@ -239,6 +274,89 @@ test.describe('Cuentas', () => {
       await expect(apertura).toContainText('$ 0.00')
       await expect(cierre).toContainText('$ 150.00')
       await expect(page.getByRole('button', { name: 'Imprimir' })).toBeVisible()
+    },
+  )
+
+  // UX5-06: con cinco trabajos por cobrar, lo aplicado (`role="status"`) y «Registrar pago»
+  // quedan dentro de la ventana, en el pie fijo del diálogo, y la lista se desplaza sola.
+  test(
+    'con cinco trabajos por cobrar, «Registrar pago» deja a la vista lo aplicado y el botón',
+    { tag: '@clave' },
+    async ({ page, isMobile }) => {
+      test.slow()
+      await page.setViewportSize(
+        isMobile ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+      )
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const courier = await createCourier(page)
+      const cases = []
+      for (let i = 0; i < 5; i++) {
+        const c = await createCase(page, {
+          clinicId: clinic.id,
+          doctorId: doctor.id,
+          productId: product.id,
+        })
+        await deliverCase(page, c.id, courier.id)
+        cases.push(c)
+      }
+
+      await page.goto(`/cuentas/${clinic.id}`)
+      await expect(page.getByRole('heading', { level: 1, name: clinic.name })).toBeVisible()
+      await page.getByRole('button', { name: 'Registrar pago' }).click()
+      const pago = page.getByRole('dialog', { name: 'Registrar pago' })
+      await pago.getByLabel('Monto', { exact: true }).fill('60.00')
+      const status = pago.getByRole('status')
+      const submit = pago.getByRole('button', { name: 'Registrar pago' })
+      await expect(status).toHaveText('Aplicado $ 60.00 · Queda a favor $ 0.00')
+
+      /** ¿Está entero dentro de la ventana? (`getBoundingClientRect`, no solo visible). */
+      const inWindow = (l: Locator) =>
+        l.evaluate((el) => {
+          const r = el.getBoundingClientRect()
+          return r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth
+        })
+      expect(await inWindow(status)).toBe(true)
+      expect(await inWindow(submit)).toBe(true)
+
+      // Con el teclado hasta el último trabajo: la lista se desplaza y el pie sigue a la vista.
+      const last = cases.at(-1)?.code ?? ''
+      await pago.getByLabel(`Monto para ${cases[0]?.code}`).focus()
+      for (let i = 1; i < cases.length; i++) await page.keyboard.press('Tab')
+      await expect(pago.getByLabel(`Monto para ${last}`)).toBeFocused()
+      await expect(pago.getByLabel(`Monto para ${last}`)).toBeInViewport({ ratio: 1 })
+      await page.keyboard.type('5')
+      await expect(status).toHaveText('Aplicado $ 65.00 · Supera el pago en $ 5.00')
+      await expect(pago.getByLabel(`Monto para ${last}`)).toHaveAccessibleDescription(
+        'Quedará debiendo $ 20.00',
+      )
+      expect(await inWindow(status)).toBe(true)
+      expect(await inWindow(submit)).toBe(true)
+
+      await pago.getByLabel(`Monto para ${last}`).fill('')
+      await pago.getByRole('combobox', { name: 'Método' }).click()
+      await page.getByRole('option', { name: 'Efectivo' }).click()
+      await submit.click()
+      await expect(pago).toBeHidden()
+
+      // UX5-15: un descuento sobre un trabajo ya cobrado avisa antes cuánto de lo pagado vuelve
+      // al saldo a favor (final review M-2: con lo pagado que da la API, no a ciegas).
+      await page.getByRole('button', { name: 'Registrar ajuste' }).click()
+      const ajuste = page.getByRole('dialog', { name: 'Registrar ajuste' })
+      await ajuste.getByRole('button', { name: 'Descuento o nota de crédito' }).click()
+      await ajuste.getByLabel('Monto', { exact: true }).fill('10')
+      await ajuste.getByRole('combobox', { name: 'Trabajo' }).click()
+      // UX5-11: código, paciente y el estado con su etiqueta («Cobrado»).
+      await page
+        .getByRole('option', { name: new RegExp(`^${cases[0]?.code} .+ · Cobrado$`) })
+        .click()
+      await expect(
+        ajuste.getByText('de lo ya pagado por este trabajo vuelven al saldo a favor.', {
+          exact: false,
+        }),
+      ).toHaveText('$ 10.00 de lo ya pagado por este trabajo vuelven al saldo a favor.')
+      await ajuste.getByRole('button', { name: 'Volver' }).click()
+      await expect(ajuste).toBeHidden()
     },
   )
 

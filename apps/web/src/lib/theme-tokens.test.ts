@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { AGING_BUCKETS } from '@dentalware/shared'
 import { describe, expect, it } from 'vitest'
+import { AGING_TAB_COLOR } from '@/features/accounts/aging-tab'
 import { contrastRatio } from './contrast'
+import { deltaE76 } from './delta-e'
 
 /**
  * Lee los tokens de color del tema claro directamente de `index.css` (no de
@@ -44,6 +47,14 @@ function extractBadgeDestructiveAlpha(): number {
   const match = /(?<!dark:)bg-destructive\/(\d+)/.exec(badgeSource)
   if (!match) throw new Error('No se encontró "bg-destructive/NN" en badge.tsx')
   return Number.parseInt(match[1]!, 10) / 100
+}
+
+/** Las clases de la variante `destructive-solid` de `Button` (UX5-07), leídas de `button.tsx`. */
+function solidDestructiveClasses(): string {
+  const source = readFileSync(join(import.meta.dirname, '../components/ui/button.tsx'), 'utf8')
+  const match = /'destructive-solid':\s*'([^']+)'/.exec(source)
+  if (!match) throw new Error('No se encontró la variante "destructive-solid" en button.tsx')
+  return match[1]!
 }
 
 function mixHex(foreground: string, alpha: number, background: string): string {
@@ -95,5 +106,46 @@ describe('tokens de color del tema claro (index.css)', () => {
   it('el icono "Vence hoy" (--wax-amber-ink) cumple el contraste gráfico AA (>= 3:1) sobre --card', () => {
     expect(contrastRatio(waxAmberInk, card)).toBeGreaterThanOrEqual(3)
     expect(contrastRatio(waxAmber, card)).toBeLessThan(3)
+  })
+
+  // UX5-07: el botón que confirma una acción destructiva es rojo sólido con texto blanco. El
+  // texto cumple AA sobre el rojo y sobre el rojo del hover (compuesto sobre el pie blanco del
+  // diálogo, `--card`).
+  it('el texto blanco del destructivo sólido cumple AA sobre su fondo, también en hover', () => {
+    const classes = solidDestructiveClasses().split(/\s+/)
+    expect(classes).toContain('bg-destructive')
+    expect(classes).toContain('text-white')
+    expect(contrastRatio('#ffffff', destructive)).toBeGreaterThanOrEqual(4.5)
+    const hover = classes.find((c) => /^hover:bg-destructive\/\d+$/.test(c))
+    expect(hover).toBeDefined()
+    const alpha = Number.parseInt(hover!.split('/')[1]!, 10) / 100
+    expect(contrastRatio('#ffffff', mixHex(destructive, alpha, card))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  // UX5-10 (ruling): los cubos de antigüedad que van juntos en la regleta de la cuenta no se
+  // confunden. «Más de 90 días» se separa de 61–90 por luminosidad, no solo por tono: antes
+  // eran dos rojos a ΔE 11,5 y 1,49:1 entre sí. Cada cubo lleva además su rótulo (nunca solo
+  // color, `account-summary.test.tsx`).
+  describe('tonos de antigüedad (AGING_TAB_COLOR)', () => {
+    /** El hex de un `var(--token)` de `AGING_TAB_COLOR`, leído de `:root`. */
+    const hexOf = (value: string) => {
+      const name = /^var\((--[\w-]+)\)$/.exec(value)?.[1]
+      if (!name) throw new Error(`"${value}" no es un var(--token)`)
+      return extractToken(lightBlock, name)
+    }
+    const pairs = AGING_BUCKETS.slice(1).map((b, i) => [AGING_BUCKETS[i]!, b] as const)
+
+    it.each(pairs)('%s y %s, contiguos, están a ΔE ≥ 20', (a, b) => {
+      expect(deltaE76(hexOf(AGING_TAB_COLOR[a]), hexOf(AGING_TAB_COLOR[b]))).toBeGreaterThanOrEqual(
+        20,
+      )
+    })
+
+    it('«Más de 90 días» es más oscuro que 61–90, con ≥ 3:1 entre ellos (contraste gráfico)', () => {
+      const red = hexOf(AGING_TAB_COLOR['61_90'])
+      const wine = hexOf(AGING_TAB_COLOR['90_mas'])
+      expect(contrastRatio(wine, card)).toBeGreaterThan(contrastRatio(red, card))
+      expect(contrastRatio(wine, red)).toBeGreaterThanOrEqual(3)
+    })
   })
 })

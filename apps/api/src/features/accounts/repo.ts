@@ -85,7 +85,7 @@ export function createAccountsRepo(db: Db | Tx) {
     }))
   }
 
-  /** Ajustes con el código de su trabajo (si lo tienen) y quién los registró. */
+  /** Ajustes con el código y el paciente de su trabajo (si lo tienen) y quién los registró. */
   async function adjustmentRows(where: SQL | undefined): Promise<AdjustmentEntry[]> {
     const rows = await db
       .select({
@@ -93,6 +93,7 @@ export function createAccountsRepo(db: Db | Tx) {
         clinicId: accountAdjustments.clinicId,
         caseId: cases.id,
         caseCode: cases.code,
+        casePatientRef: cases.patientRef,
         amount: accountAdjustments.amount,
         reason: accountAdjustments.reason,
         date: accountAdjustments.date,
@@ -106,7 +107,10 @@ export function createAccountsRepo(db: Db | Tx) {
     return rows.map((r) => ({
       id: r.id,
       clinicId: r.clinicId,
-      case: r.caseId !== null && r.caseCode !== null ? { id: r.caseId, code: r.caseCode } : null,
+      case:
+        r.caseId !== null && r.caseCode !== null && r.casePatientRef !== null
+          ? { id: r.caseId, code: r.caseCode, patientRef: r.casePatientRef }
+          : null,
       amountCents: toSignedCents(r.amount),
       reason: r.reason,
       date: r.date,

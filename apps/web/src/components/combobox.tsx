@@ -10,6 +10,36 @@ import { cn } from '@/lib/utils'
 export type ComboboxItem = {
   value: string
   label: string
+  /** Código que va delante, en monoespaciada (un trabajo: «26-00101», UX5-11). */
+  code?: string
+  /** Texto secundario tras la etiqueta, en gris («Cobrado», «Debe $ 120.00»). */
+  detail?: string
+}
+
+/** Todo el texto de un ítem, por el que se busca. */
+const searchText = (item: ComboboxItem) =>
+  [item.code, item.label, item.detail].filter(Boolean).join(' ')
+
+/** El contenido de un ítem, igual en la opción y en el disparador: «26-00101 Ana Ruiz · Cobrado»,
+ * con el código en monoespaciada. Los espacios y el «·» van en el texto, para que el nombre
+ * accesible se lea igual que se ve. */
+function itemContent(item: ComboboxItem) {
+  return (
+    <>
+      {item.code && (
+        <>
+          <span className="font-mono whitespace-nowrap">{item.code}</span>{' '}
+        </>
+      )}
+      <span>{item.label}</span>
+      {item.detail && (
+        <>
+          {' '}
+          <span className="whitespace-nowrap text-muted-foreground">· {item.detail}</span>
+        </>
+      )}
+    </>
+  )
 }
 
 /**
@@ -76,7 +106,7 @@ export function Combobox({
   const filtered = useMemo(() => {
     const needle = normalize(query.trim())
     if (!needle) return items
-    return items.filter((item) => normalize(item.label).includes(needle))
+    return items.filter((item) => normalize(searchText(item)).includes(needle))
   }, [items, query])
 
   function handleOpenChange(next: boolean) {
@@ -138,7 +168,7 @@ export function Combobox({
           <span
             className={cn('line-clamp-1 flex-1 text-left', !selected && 'text-muted-foreground')}
           >
-            {selected ? selected.label : placeholder}
+            {selected ? itemContent(selected) : placeholder}
           </span>
           <ChevronsUpDown className="pointer-events-none size-4 shrink-0 text-muted-foreground" />
         </button>
@@ -185,7 +215,7 @@ export function Combobox({
                       item.value === value ? 'opacity-100' : 'opacity-0',
                     )}
                   />
-                  <span className="flex-1">{item.label}</span>
+                  <span className="flex-1">{itemContent(item)}</span>
                 </CommandPrimitive.Item>
               ))}
             </CommandPrimitive.List>

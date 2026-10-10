@@ -9,17 +9,18 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import { QueuedNotice } from '@/features/cases/queued-notice'
 import { ApiError, toastApiError } from '@/lib/api-error'
-import { applyIssues } from './allocation'
 import { paymentContext, type PaymentRef } from './payment-context'
 import { useAccountBusy } from './use-account-busy'
 import { useVoidPayment } from './use-void-payment'
+import { VoidConsequence } from './void-consequence'
 
 type FormValues = z.input<typeof voidPaymentInputSchema>
 
 /**
  * «Anular pago» (CTA-2, solo admin, decisión 2): no tiene vuelta, así que nombra la consecuencia
- * y pide el motivo, obligatorio. Es un `FormDialog` y no un `ConfirmDialog` porque lleva campo,
- * como «Cancelar trabajo». El botón principal va en destructivo. Un 409 (otra persona ya lo
+ * (qué quita a cada trabajo y cuáles vuelven a «Entregado», UX5-03) y pide el motivo,
+ * obligatorio. Es un `FormDialog` y no un `ConfirmDialog` porque lleva campo,
+ * como «Cancelar trabajo». El botón principal va en destructivo sólido (UX5-07). Un 409 (otra persona ya lo
  * anuló) cierra el diálogo tras refrescar y avisar; un 422 se pinta bajo el motivo o se avisa.
  */
 export function VoidPaymentDialog({
@@ -55,11 +56,11 @@ export function VoidPaymentDialog({
           if (!(err instanceof ApiError)) return
           if (err.status === 409) onOpenChange(false)
           if (err.status !== 422) return
-          // El 422 no se traga (M4): en el motivo, bajo el campo; si no tiene campo, un aviso.
-          const unmapped = applyIssues(err.issues, [], ['motivo'], (_field, message) =>
-            setError('motivo', { type: 'server', message }),
-          )
-          if (unmapped) toastApiError(err)
+          // El 422 no se traga (M4): el de `motivo`, bajo el campo, y cualquier otro (o ninguno),
+          // en un aviso; nunca bajo «Motivo» algo que no es suyo (UX5-20).
+          const motivo = err.issues.find((issue) => issue.path === 'motivo')
+          if (motivo) setError('motivo', { type: 'server', message: motivo.message })
+          if (!motivo || err.issues.some((issue) => issue.path !== 'motivo')) toastApiError(err)
         },
       },
     )
@@ -71,13 +72,18 @@ export function VoidPaymentDialog({
       onOpenChange={onOpenChange}
       title="Anular pago"
       context={paymentContext(payment, clinic.name)}
-      description="El pago deja de contar en el saldo y queda tachado en los movimientos. Los trabajos que cerró este pago vuelven a «Entregado»."
+      description="El pago deja de contar en el saldo y queda tachado en los movimientos."
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Volver
           </Button>
-          <Button type="submit" form="void-payment-form" variant="destructive" disabled={busy}>
+          <Button
+            type="submit"
+            form="void-payment-form"
+            variant="destructive-solid"
+            disabled={busy}
+          >
             {busy ? 'Guardando…' : 'Anular pago'}
           </Button>
         </>
@@ -89,6 +95,7 @@ export function VoidPaymentDialog({
         noValidate
         className="flex flex-col gap-4"
       >
+        <VoidConsequence cases={payment.allocations} />
         <Field data-invalid={!!formState.errors.motivo}>
           <FieldLabel htmlFor="anular-motivo">Motivo</FieldLabel>
           <Textarea

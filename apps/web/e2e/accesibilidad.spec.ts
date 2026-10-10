@@ -108,6 +108,10 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
   test('trabajos: lista, filtros y pestañas', { tag: '@extendida' }, async ({ page }) => {
     await page.goto('/trabajos')
     await expect(page.getByRole('heading', { name: 'Trabajos' })).toBeVisible()
+    // UX5-09 (#122): en móvil, el orden es un solo `select` «Ordenar» (columna y sentido juntos),
+    // también en esta tabla, que ordena en el servidor. Se mide aparte para que no pase en vacío.
+    await expect(page.getByRole('combobox', { name: 'Ordenar' })).toBeVisible()
+    await expectTouchTargets(page, 'select[id$="-ordenar"]')
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
 
@@ -773,9 +777,106 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // UX5-05/09/18 (#122): una clínica de nombre largo, con un ajuste de motivo largo y un pago con
+  // saldo a favor, no desplaza en horizontal ni la página ni ninguna tabla a 360, 412 (Pixel 7) y
+  // 1280. En móvil, el orden es un solo «Ordenar» y «Anular pago» va aparte, bajo una raya.
+  test(
+    'cuentas: clínica de nombre largo sin scroll horizontal y un solo «Ordenar»',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const name = `Centro Odontológico Integral E2E ${uniqueSuffix()} Valle de los Chillos`
+      const created = await page.request.post('/api/config/clinicas', { data: { name } })
+      expect(created.ok()).toBe(true)
+      const { clinic } = (await created.json()) as { clinic: { id: string } }
+      // Un trabajo entregado queda «Por cobrar»: así el pago a favor ofrece «Aplicar saldo a
+      // favor» junto a «Anular pago».
+      const doctorRes = await page.request.post('/api/config/doctores', {
+        data: { clinicId: clinic.id, name: `Dr. E2E ${uniqueSuffix()}` },
+      })
+      expect(doctorRes.ok()).toBe(true)
+      const { doctor } = (await doctorRes.json()) as { doctor: { id: string } }
+      const product = await createProduct(page)
+      const job = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, job.id, accion)
+      }
+      await shipAndDeliver(page, job.id, (await createCourier(page)).id)
+      const adjusted = await page.request.post('/api/cuentas/ajustes', {
+        data: {
+          clinicaId: clinic.id,
+          monto: '150.00',
+          motivo:
+            'Saldo inicial acordado con la doctora por la demora en la entrega de la prótesis y el retraso del mensajero en la recogida',
+          fecha: todayIso(),
+        },
+      })
+      expect(adjusted.ok()).toBe(true)
+      const paid = await page.request.post('/api/cuentas/pagos', {
+        data: {
+          clinicaId: clinic.id,
+          monto: '5.00',
+          metodo: 'efectivo',
+          fecha: todayIso(),
+          asignaciones: [],
+        },
+      })
+      expect(paid.ok()).toBe(true)
+
+      const noPageScroll = () =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        )
+      const noTableScroll = () =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('[data-slot=table-container]')].every(
+            (el) => el.scrollWidth <= el.clientWidth,
+          ),
+        )
+
+      await page.goto('/cuentas')
+      await expect(page.getByRole('heading', { level: 1, name: 'Cuentas' })).toBeVisible()
+      const search = page.getByRole('search')
+      await expect(search.getByRole('combobox', { name: 'Ordenar' })).toBeVisible()
+      await expect(search.locator('select')).toHaveCount(1)
+      await page.getByLabel('Buscar clínica').fill(name)
+      await expect(page.getByRole('link', { name: new RegExp(name) })).toBeVisible()
+      expect(await noPageScroll()).toBe(true)
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+      await page.setViewportSize({ width: 360, height: 740 })
+      expect(await noPageScroll()).toBe(true)
+
+      await page.goto(`/cuentas/${clinic.id}`)
+      await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()
+      await page.getByRole('tab', { name: /^Movimientos/ }).click()
+      const anular = page.getByRole('button', { name: /^Anular pago de/ })
+      await expect(anular).toBeVisible()
+      expect(await noPageScroll()).toBe(true)
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+      // «Anular pago» va aparte: bajo «Aplicar saldo a favor», que va a lo ancho de la tarjeta.
+      const apply = page.getByRole('button', { name: /^Aplicar saldo a favor de/ })
+      const [applyBox, anularBox] = [await apply.boundingBox(), await anular.boundingBox()]
+      expect(anularBox!.y).toBeGreaterThan(applyBox!.y + applyBox!.height)
+
+      await page.setViewportSize({ width: 1280, height: 800 })
+      await expect(page.getByRole('table')).toBeVisible()
+      expect(await noTableScroll()).toBe(true)
+      expect(await noPageScroll()).toBe(true)
+      await page.goto('/cuentas')
+      await page.getByLabel('Buscar clínica').fill(name)
+      await expect(page.getByRole('link', { name })).toBeVisible()
+      expect(await noTableScroll()).toBe(true)
+      expect(await noPageScroll()).toBe(true)
+    },
+  )
+
   // CTA-2/CTA-3 (#83, #84): la cuenta de una clínica con sus pestañas, la línea de cobro de la
   // ficha y los cuatro diálogos de cobro. Un trabajo entregado queda «Por cobrar» y un pago por
-  // API sin repartir deja saldo a favor, para que «Aplicar saldo a favor» y «Anular pago» salgan.
+  // API que le asigna una parte deja saldo a favor, para que «Aplicado a», «Aplicar saldo a
+  // favor» y «Anular pago» salgan.
   test(
     'cuenta de una clínica: pestañas, línea de cobro y diálogos de pago, saldo a favor, anulación y ajuste',
     { tag: '@extendida' },
@@ -792,13 +893,15 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       }
       const courier = await createCourier(page)
       await shipAndDeliver(page, created.id, courier.id)
+      // $ 2.00: $ 1.00 al trabajo, para que la fila diga «Aplicado a» con su enlace (UX5-03), y
+      // $ 1.00 a favor.
       const paid = await page.request.post('/api/cuentas/pagos', {
         data: {
           clinicaId: clinic.id,
-          monto: '1.00',
+          monto: '2.00',
           metodo: 'efectivo',
           fecha: todayIso(),
-          asignaciones: [],
+          asignaciones: [{ trabajoId: created.id, monto: '1.00' }],
         },
       })
       expect(paid.ok()).toBe(true)
@@ -811,28 +914,56 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       await accountLink.click()
       await expect(page.getByRole('heading', { level: 1, name: clinic.name })).toBeVisible()
       await expect(page.getByRole('link', { name: created.code })).toBeVisible()
+      // UX5-02 (#122): el desglose del saldo al pie de «Por cobrar», con el $ 1.00 a favor.
+      const breakdown = page.locator('dl[aria-label="Desglose del saldo"]')
+      await expect(breakdown).toContainText('Saldo a favor')
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
         ),
       ).toBe(true)
       await expectTouchTargets(page, TOUCH_CONTROLS)
+      // UX5-01/UX5-17 (#122): «Aplicar saldo a favor» en la cabecera (hay algo por cobrar y un
+      // pago con saldo), entre los botones de la cuenta, que se miden aparte.
+      const accountActions = page.getByRole('group', { name: 'Acciones de la cuenta' })
+      await expect(
+        accountActions.getByRole('button', { name: 'Aplicar saldo a favor', exact: true }),
+      ).toBeVisible()
+      await expectTouchTargets(accountActions, 'button')
 
       await page.getByRole('tab', { name: /^Movimientos/ }).click()
       await expect(page.getByText('Le quedan $ 1.00 a favor')).toBeVisible()
+      await expect(page.getByText(/^Aplicado a /)).toHaveText(`Aplicado a ${created.code} ($ 1.00)`)
       await expectTouchTargets(page, TOUCH_CONTROLS)
+      // El enlace de «Aplicado a» no es identificador de la tarjeta: se mide (44 px con el dedo).
+      await expectTouchTargets(page, `a[href="/trabajos/${created.id}"]:not([data-target-size])`)
 
-      const dialogs: [RegExp, string][] = [
-        [/^Registrar pago$/, 'Registrar pago'],
-        [/^Aplicar saldo a favor de/, 'Aplicar saldo a favor'],
-        [/^Anular pago de/, 'Anular pago'],
-        [/^Registrar ajuste$/, 'Registrar ajuste'],
+      // Qué más se mide en cada diálogo (#122): la fecha con su fecha escrita debajo (UX5-08,
+      // «Sábado, 10 de octubre de 2026») y el pie fijo del reparto, con lo aplicado en vivo
+      // (UX5-06), dentro de la ventana.
+      const longDate = /^\p{Lu}\p{Ll}+, \d{1,2} de \p{Ll}+ de \d{4}$/u
+      const dialogs: { button: RegExp; title: string; dateId?: string; split?: boolean }[] = [
+        { button: /^Registrar pago$/, title: 'Registrar pago', dateId: 'pago-fecha', split: true },
+        { button: /^Aplicar saldo a favor$/, title: 'Aplicar saldo a favor', split: true },
+        { button: /^Aplicar saldo a favor de/, title: 'Aplicar saldo a favor', split: true },
+        { button: /^Anular pago de/, title: 'Anular pago' },
+        { button: /^Registrar ajuste$/, title: 'Registrar ajuste', dateId: 'ajuste-fecha' },
       ]
-      for (const [button, title] of dialogs) {
+      for (const { button, title, dateId, split } of dialogs) {
         await page.getByRole('button', { name: button }).click()
         const dialog = page.getByRole('dialog', { name: title })
         await expect(dialog).toBeVisible()
         await expectTouchTargets(dialog, TOUCH_CONTROLS)
+        if (dateId) {
+          await expect(dialog.locator(`#${dateId}-escrita`)).toHaveText(longDate)
+          await expectTouchTargets(dialog, `input#${dateId}`)
+        }
+        if (split) {
+          const footer = dialog.locator('[data-slot=form-dialog-footer]')
+          await expect(footer.getByRole('status')).toContainText(/^Aplicado \$/)
+          await expect(footer).toBeInViewport({ ratio: 1 })
+          await expectTouchTargets(footer, 'button')
+        }
         // Nada se sale por la derecha del diálogo (el reparto con un paciente largo lo
         // ensanchaba y recortaba los botones del pie).
         expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)

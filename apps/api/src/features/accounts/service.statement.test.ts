@@ -169,6 +169,32 @@ describe('features/accounts/service — estado de cuenta (CTA-5)', () => {
     expect(s.aging).toEqual(account.aging)
     expect(s.oldestDays).toBe(account.oldestDays)
     expect(s.openCases).toEqual(account.openCases)
+    expect(s.breakdown).toEqual(account.breakdown)
+  })
+
+  it('trae el desglose del saldo a la fecha hasta (UX5-02): trabajos + ajustes sin trabajo − a favor', async () => {
+    const s = await makeService().statement(SUR.id, { desde: '2026-09-01', hasta: '2026-09-30' })
+    // Al 30/09: «a» debe 40 (100 − 60 de p1) y «b» 50 (p2 anulado); p3 aún no existe.
+    expect(s.breakdown).toEqual({
+      openCases: '90.00',
+      unlinkedAdjustments: '200.00',
+      unlinkedSince: '2026-08-01',
+      credit: '0.00',
+      balance: '290.00',
+    })
+    expect(s.breakdown.balance).toBe(s.closingBalance)
+  })
+
+  it('el desglose a hoy cuenta el saldo a favor que dejó un pago', async () => {
+    const s = await makeService().statement(SUR.id, { desde: '2026-10-01', hasta: '2026-10-06' })
+    // «c» debe 70 (80 − 10); p3 dejó 10 a favor.
+    expect(s.breakdown).toEqual({
+      openCases: '70.00',
+      unlinkedAdjustments: '200.00',
+      unlinkedSince: '2026-08-01',
+      credit: '10.00',
+      balance: '260.00',
+    })
   })
 
   it('el mismo día, los movimientos van en el orden en que se registraron', async () => {

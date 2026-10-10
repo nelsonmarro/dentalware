@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   dayPhrase,
   formatDate,
+  formatLongDate,
   formatTimestampDate,
   formatTimestampDayMonth,
   formatTimestampTime,
@@ -47,5 +48,25 @@ describe('dayPhrase', () => {
   it('otro día lleva la fecha con artículo', () => {
     expect(dayPhrase('2026-10-09', '2026-10-04')).toBe('el 09/10/2026')
     expect(dayPhrase('2026-10-01', '2026-10-04')).toBe('el 01/10/2026')
+  })
+})
+
+// UX5-08: el `input type="date"` se ve como dd/mm o mm/dd según el idioma del navegador; bajo
+// cada campo va la fecha escrita, que no deja dudas.
+describe('formatLongDate', () => {
+  it('escribe la fecha en español con el día de la semana en mayúscula', () => {
+    expect(formatLongDate('2026-06-01')).toBe('Lunes, 1 de junio de 2026')
+    expect(formatLongDate('2026-10-10')).toBe('Sábado, 10 de octubre de 2026')
+  })
+
+  it('el día es el de la fecha de negocio, sin correrse por la zona horaria', () => {
+    expect(formatLongDate('2026-09-30')).toBe('Miércoles, 30 de septiembre de 2026')
+  })
+
+  it('sin una fecha completa y real, no dice nada', () => {
+    expect(formatLongDate('')).toBeNull()
+    expect(formatLongDate(undefined)).toBeNull()
+    expect(formatLongDate('2026-02-30')).toBeNull()
+    expect(formatLongDate('0002-06-1')).toBeNull()
   })
 })

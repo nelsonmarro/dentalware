@@ -14,17 +14,32 @@ const ROWS: AccountRow[] = [
     id: 'c1',
     name: 'Clínica Sur',
     balance: '1250.00',
+    credit: '0.00',
     aging: { ...zero, '0_30': '200.00', '90_mas': '1050.00' },
     oldestDays: 95,
+    openCasesCount: 3,
+    openCasesTotal: '1250.00',
   },
   {
     id: 'c2',
     name: 'Dental Norte',
     balance: '300.00',
+    credit: '0.00',
     aging: { ...zero, '31_60': '300.00' },
     oldestDays: 1,
+    openCasesCount: 1,
+    openCasesTotal: '300.00',
   },
-  { id: 'c3', name: 'Odonto Centro', balance: '-12.34', aging: zero, oldestDays: null },
+  {
+    id: 'c3',
+    name: 'Odonto Centro',
+    balance: '-12.34',
+    credit: '12.34',
+    aging: zero,
+    oldestDays: null,
+    openCasesCount: 0,
+    openCasesTotal: '0.00',
+  },
 ]
 
 const rowOf = (name: string) => screen.getByRole('link', { name }).closest('tr')!
@@ -105,7 +120,16 @@ describe('AccountsTable — escritorio', () => {
     // Dos saldos a favor: como texto «-12.34» iría antes que «-100.00».
     const rows = [
       ...ROWS,
-      { id: 'c4', name: 'Labo Este', balance: '-100.00', aging: zero, oldestDays: null },
+      {
+        id: 'c4',
+        name: 'Labo Este',
+        balance: '-100.00',
+        credit: '100.00',
+        aging: zero,
+        oldestDays: null,
+        openCasesCount: 0,
+        openCasesTotal: '0.00',
+      },
     ]
     renderWithRouter(<AccountsTable rows={rows} todas={false} />)
     await user.click(await screen.findByRole('button', { name: 'Ordenar por Saldo' }))
@@ -116,6 +140,16 @@ describe('AccountsTable — escritorio', () => {
     const asc = ['Labo Este', 'Odonto Centro', 'Dental Norte', 'Clínica Sur']
     expect([first, second]).toContainEqual(asc)
     expect([first, second]).toContainEqual([...asc].reverse())
+  })
+
+  it('un nombre largo se parte en la columna de la clínica en vez de ensanchar la tabla (UX5-05)', async () => {
+    setMatchMedia(true)
+    renderWithRouter(<AccountsTable rows={ROWS} todas={false} />)
+    const cell = (await screen.findByRole('link', { name: 'Clínica Sur' })).closest('td')!
+    // La celda de la tabla es `nowrap`: sin esto, «Centro Odontológico Integral … Valle de los
+    // Chillos» ocupaba una sola línea y la tabla se desplazaba a 1280.
+    expect(cell).toHaveClass('whitespace-normal')
+    expect(screen.getByRole('columnheader', { name: 'Clínica' })).toHaveClass('min-w-48')
   })
 
   it('busca por clínica', async () => {
@@ -185,5 +219,50 @@ describe('AccountsTable — móvil', () => {
     const card = await screen.findByRole('link', { name: /Odonto Centro/ })
     expect(card).toHaveTextContent('A favor $ 12.34')
     expect(card).toHaveTextContent('Nada pendiente')
+  })
+
+  // Final review M-3: la tarjeta decía «A favor $ 125.00 · Nada pendiente» y, al entrar, la
+  // cabecera «1 trabajo por cobrar ($ 75.00), cubierto por el saldo a favor» (UX5-01).
+  it('con trabajos por cobrar que cubre el saldo a favor, lo dice como la cabecera de la cuenta', async () => {
+    setMatchMedia(false)
+    const sur: AccountRow = {
+      id: 'c5',
+      name: 'Clínica Sur UX',
+      balance: '-125.00',
+      credit: '200.00',
+      aging: zero,
+      oldestDays: null,
+      openCasesCount: 1,
+      openCasesTotal: '75.00',
+    }
+    renderWithRouter(<AccountsTable rows={[sur]} todas={false} />)
+    const card = await screen.findByRole('link', { name: /Clínica Sur UX/ })
+    expect(card).toHaveTextContent('A favor $ 125.00')
+    expect(card).toHaveTextContent('1 trabajo por cobrar ($ 75.00), cubierto por el saldo a favor')
+    expect(card).not.toHaveTextContent('Nada pendiente')
+  })
+
+  it('un solo «Ordenar» con cada orden escrito en palabras (UX5-09)', async () => {
+    setMatchMedia(false)
+    const user = userEvent.setup()
+    renderWithRouter(<AccountsTable rows={ROWS} todas={false} />)
+    const select = await screen.findByRole('combobox', { name: 'Ordenar' })
+    expect(screen.queryByLabelText('Dirección')).not.toBeInTheDocument()
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual([
+      'Sin orden',
+      'Clínica A–Z',
+      'Clínica Z–A',
+      'Saldo: de menor a mayor',
+      'Saldo: de mayor a menor',
+      'Más reciente primero',
+      'Más antiguo primero',
+    ])
+    await user.selectOptions(select, 'Más reciente primero')
+    const cards = screen.getAllByRole('link').map((l) => l.getAttribute('href'))
+    expect(cards).toEqual(['/cuentas/c3', '/cuentas/c2', '/cuentas/c1'])
   })
 })

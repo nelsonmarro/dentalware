@@ -325,7 +325,7 @@ describe('CasesTable', () => {
 
   it('en escritorio la toolbar de orden queda envuelta en `lg:hidden` (M-1)', async () => {
     // Regresión estructural del arreglo M-1: el único slot de toolbar de esta tabla
-    // (`sorting`'s "Ordenar por"/"Dirección") es solo-móvil, así que `<DataGrid.Toolbar />` se
+    // (el «Ordenar» de `sorting`) es solo-móvil, así que `<DataGrid.Toolbar />` se
     // envuelve en `lg:hidden` en `cases-table.tsx` (no en el núcleo, ver el comentario junto al
     // JSX) para que en escritorio no quede un `<div>` vacío consumiendo el `gap-3` del
     // `DataGrid.Root`. Verificado también visualmente en Chrome DevTools a 1280×800.
@@ -334,7 +334,7 @@ describe('CasesTable', () => {
       <CasesTable rows={rows} total={2} hidePrices={false} search={{}} onSearchChange={vi.fn()} />,
     )
     await screen.findByRole('table')
-    const sortLabel = screen.getByText('Ordenar por')
+    const sortLabel = screen.getByText('Ordenar')
     // El contenedor `lg:hidden` debe ser un ancestro directo de la toolbar de orden, no una clase
     // suelta en cualquier otro `div` de la tabla. No se cuentan los `div.lg:hidden` del árbol
     // (M-5 de la revisión final del PR 3): ese recuento es frágil ante cualquier `div` solo-móvil

@@ -318,6 +318,15 @@ async function run(seed: number): Promise<Stats> {
       expect(cents(account.balance), `cuadre de ${clinic.id}; ${ctx}`).toBe(
         pending + free - cents(account.credit),
       )
+      // UX5-02: el desglose de la API dice esos mismos números, y su saldo es el saldo.
+      const freeDates = own.filter((a) => a.case === null).map((a) => a.date)
+      expect(account.breakdown, `desglose de ${clinic.id}; ${ctx}`).toEqual({
+        openCases: fromSignedCents(pending),
+        unlinkedAdjustments: fromSignedCents(free),
+        unlinkedSince: free === 0 ? null : freeDates.sort()[0],
+        credit: account.credit,
+        balance: account.balance,
+      })
 
       // La antigüedad nunca es negativa y reparte el saldo positivo.
       const aging = Object.values(account.aging).map(cents)

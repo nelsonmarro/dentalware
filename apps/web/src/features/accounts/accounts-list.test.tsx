@@ -12,8 +12,11 @@ const ROW: AccountRow = {
   id: 'c1',
   name: 'Clínica Sur',
   balance: '80.00',
+  credit: '0.00',
   aging: { ...zero, '0_30': '80.00' },
   oldestDays: 3,
+  openCasesCount: 1,
+  openCasesTotal: '80.00',
 }
 
 describe('AccountsList', () => {

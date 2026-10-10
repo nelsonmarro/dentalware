@@ -41,6 +41,7 @@ const PAYMENT = {
   amount: '-120.00',
   method: 'transferencia' as const,
   remaining: '40.00',
+  allocations: [],
 }
 
 function renderDialog() {
@@ -79,11 +80,14 @@ describe('ApplyCreditDialog («Aplicar saldo a favor» de un pago, CTA-2)', () =
     renderDialog()
     expect(rowInput('26-00001')).toHaveValue('40.00')
     expect(rowInput('26-00002')).toHaveValue('')
-    expect(screen.getByRole('status')).toHaveTextContent('Asignado $ 40.00 · Sigue a favor $ 0.00')
+    expect(screen.getByRole('status')).toHaveTextContent('Aplicado $ 40.00 · Sigue a favor $ 0.00')
   })
 
   it('aplica el reparto editado y avisa', async () => {
-    vi.mocked(applyCredit).mockResolvedValue({ credit: '10.00' } as never)
+    vi.mocked(applyCredit).mockResolvedValue({
+      credit: '10.00',
+      settled: [{ id: T2, code: '26-00002' }],
+    } as never)
     const { user, onOpenChange } = renderDialog()
     await user.clear(rowInput('26-00001'))
     await user.type(rowInput('26-00002'), '30')
@@ -93,7 +97,7 @@ describe('ApplyCreditDialog («Aplicar saldo a favor» de un pago, CTA-2)', () =
       asignaciones: [{ trabajoId: T2, monto: '30' }],
     })
     await vi.waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
-    expect(toast.success).toHaveBeenCalledWith('Saldo a favor aplicado: 1 trabajo cobrado')
+    expect(toast.success).toHaveBeenCalledWith('Saldo a favor aplicado: cobrado 26-00002')
   })
 
   it('pide al menos un trabajo y no deja pasar de lo que queda a favor', async () => {
@@ -106,7 +110,7 @@ describe('ApplyCreditDialog («Aplicar saldo a favor» de un pago, CTA-2)', () =
     expect(screen.getByRole('status')).toHaveTextContent('Supera lo disponible en $ 1.00')
     await user.click(screen.getByRole('button', { name: 'Aplicar saldo a favor' }))
     expect(
-      await screen.findByText('Lo asignado no puede superar lo que queda a favor ($ 40.00)'),
+      await screen.findByText('Lo aplicado no puede superar lo que queda a favor ($ 40.00)'),
     ).toBeInTheDocument()
     expect(applyCredit).not.toHaveBeenCalled()
   })
@@ -127,7 +131,7 @@ describe('ApplyCreditDialog («Aplicar saldo a favor» de un pago, CTA-2)', () =
   // I-1 de la revisión final del PR 2: con el diálogo abierto, «Por cobrar» se vuelve a pedir
   // y cambia. Las filas no se mueven: el monto viaja con el trabajo de su fila.
   it('si «Por cobrar» cambia con el diálogo abierto, cada monto va al trabajo rotulado', async () => {
-    vi.mocked(applyCredit).mockResolvedValue({ credit: '10.00' } as never)
+    vi.mocked(applyCredit).mockResolvedValue({ credit: '10.00', settled: [] } as never)
     const utils = renderDialog()
     utils.rerender(
       <QueryClientProvider client={utils.client}>

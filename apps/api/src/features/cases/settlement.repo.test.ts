@@ -64,7 +64,7 @@ describe('features/cases/repo: CaseSettlement (cuentas, ADR 35)', () => {
   const eventsOf = (caseId: string) =>
     ctx.db.query.caseEvents.findMany({ where: { caseId }, orderBy: { createdAt: 'asc' } })
 
-  it('lockCases devuelve los trabajos pedidos, en orden de id, y los bloquea hasta el fin de la transacción', async () => {
+  it('lockCases devuelve los trabajos pedidos (con su código), en orden de id, y los bloquea hasta el fin de la transacción', async () => {
     const a = await insertCase({ total: '80.50' })
     const r = await insertCase({ remakeChargePct: '50.00', status: 'cobrado' })
     const otro = await insertCase()
@@ -78,6 +78,7 @@ describe('features/cases/repo: CaseSettlement (cuentas, ADR 35)', () => {
         [
           {
             id: a.id,
+            code: a.code,
             clinicId,
             status: 'entregado',
             totalCents: 8_050,
@@ -86,6 +87,7 @@ describe('features/cases/repo: CaseSettlement (cuentas, ADR 35)', () => {
           },
           {
             id: r.id,
+            code: r.code,
             clinicId,
             status: 'cobrado',
             totalCents: 10_000,

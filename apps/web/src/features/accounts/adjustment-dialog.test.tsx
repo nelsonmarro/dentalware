@@ -12,11 +12,35 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 const K1 = '11111111-1111-4111-8111-111111111111'
 const T1 = '22222222-2222-4222-8222-222222222222'
 const T2 = '33333333-3333-4333-8333-333333333333'
+const T3 = '44444444-4444-4444-8444-444444444444'
 
 const CASES = [
-  { id: T1, code: '26-00001', outstanding: '50.00' },
-  { id: T2, code: '26-00002', outstanding: null },
-]
+  {
+    id: T1,
+    code: '26-00001',
+    patientRef: 'Ana Ruiz',
+    status: 'entregado',
+    outstanding: '50.00',
+    allocated: '30.00',
+  },
+  {
+    id: T2,
+    code: '26-00002',
+    patientRef: 'Luis Paz',
+    status: 'cobrado',
+    outstanding: '0.00',
+    allocated: '45.00',
+  },
+  // Una repetición al 0 %: cobrada sin nada pagado.
+  {
+    id: T3,
+    code: '26-00003',
+    patientRef: 'Eva Mora',
+    status: 'cobrado',
+    outstanding: '0.00',
+    allocated: '0.00',
+  },
+] as const
 
 function renderDialog() {
   const onOpenChange = vi.fn()
@@ -48,6 +72,15 @@ describe('AdjustmentDialog («Registrar ajuste», CTA-3)', () => {
     expect(within(dialog).getByRole('button', { name: 'Volver' })).toBeInTheDocument()
   })
 
+  // UX5-08: el «Saldo inicial» del 1 de junio se veía «06/01/2026» con Chrome en inglés.
+  it('bajo «Fecha» dice la fecha escrita en español, como descripción del campo', async () => {
+    const { user } = renderDialog()
+    const fecha = screen.getByLabelText('Fecha')
+    await user.clear(fecha)
+    await user.type(fecha, '2026-06-01')
+    expect(fecha).toHaveAccessibleDescription('Lunes, 1 de junio de 2026')
+  })
+
   it('pide elegir el tipo, el monto y el motivo', async () => {
     const { user } = renderDialog()
     await user.click(screen.getByRole('button', { name: 'Registrar ajuste' }))
@@ -77,6 +110,125 @@ describe('AdjustmentDialog («Registrar ajuste», CTA-3)', () => {
     })
     await vi.waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     expect(toast.success).toHaveBeenCalledWith('Ajuste registrado')
+  })
+
+  // UX5-15: antes de confirmar, el descuento que deja pagado de más un trabajo dice que ese
+  // dinero vuelve al saldo a favor (antes solo lo decía el toast).
+  describe('aviso del descuento que vuelve al saldo a favor', () => {
+    async function choose(
+      user: ReturnType<typeof renderDialog>['user'],
+      sign: string,
+      code: string,
+    ) {
+      await user.click(signButton(sign))
+      await user.click(screen.getByRole('combobox', { name: 'Trabajo' }))
+      await user.click(await screen.findByRole('option', { name: new RegExp(code) }))
+    }
+    const NOTICE = /de lo ya pagado por este trabajo vuelven al saldo a favor\.$/
+
+    it('un descuento sobre un trabajo cobrado dice cuánto de lo pagado vuelve', async () => {
+      const { user } = renderDialog()
+      await choose(user, 'Descuento o nota de crédito', '26-00002')
+      await user.type(screen.getByLabelText('Monto'), '20')
+      const notice = screen.getByText(NOTICE)
+      expect(notice).toHaveTextContent(
+        /^\$ 20\.00 de lo ya pagado por este trabajo vuelven al saldo a favor\.$/,
+      )
+      // En el pie fijo, junto a «Registrar ajuste»: se ve antes de confirmar aunque el cuerpo
+      // no quepa (a 360 px el trabajo queda al borde del cuerpo).
+      expect(notice.closest('[data-slot="form-dialog-footer"]')).toContainElement(
+        screen.getByRole('button', { name: 'Registrar ajuste' }),
+      )
+    })
+
+    // Final review M-2: prometía que el descuento volvía al saldo a favor, pero sin nada pagado
+    // la API lo rechaza (422: el neto quedaría bajo 0).
+    it('un descuento sobre un trabajo cobrado sin nada pagado no promete nada', async () => {
+      const { user } = renderDialog()
+      await choose(user, 'Descuento o nota de crédito', '26-00003')
+      await user.type(screen.getByLabelText('Monto'), '10')
+      expect(screen.queryByText(/vuelve.? al saldo a favor/)).toBeNull()
+    })
+
+    it('un descuento mayor que lo pagado de un trabajo cobrado no promete nada', async () => {
+      const { user } = renderDialog()
+      await choose(user, 'Descuento o nota de crédito', '26-00002')
+      await user.type(screen.getByLabelText('Monto'), '45.01')
+      expect(screen.queryByText(/vuelve.? al saldo a favor/)).toBeNull()
+    })
+
+    it('un recargo sobre un trabajo cobrado no avisa nada', async () => {
+      const { user } = renderDialog()
+      await choose(user, 'Recargo', '26-00002')
+      await user.type(screen.getByLabelText('Monto'), '20')
+      expect(screen.queryByText(/vuelve.? al saldo a favor/)).toBeNull()
+    })
+
+    it('un descuento mayor que lo que debe dice cuánto de lo pagado vuelve', async () => {
+      const { user } = renderDialog()
+      await choose(user, 'Descuento o nota de crédito', '26-00001')
+      await user.type(screen.getByLabelText('Monto'), '70')
+      const notice = screen.getByText(
+        /de lo ya pagado por este trabajo vuelven al saldo a favor\.$/,
+      )
+      expect(notice).toHaveTextContent(
+        /^\$ 20\.00 de lo ya pagado por este trabajo vuelven al saldo a favor\.$/,
+      )
+      // El monto, en monoespaciada.
+      expect(within(notice).getByText('$ 20.00')).toHaveClass('font-mono')
+    })
+
+    // Final review M-1: con `empty:hidden`, la región vacía era `display: none` y quedaba fuera
+    // del árbol de accesibilidad, así que el lector podía no anunciar el aviso al aparecer; y
+    // con el monto dentro, lo volvía a anunciar con cada tecla.
+    describe('anuncio para el lector de pantalla', () => {
+      const footer = () =>
+        screen.getByRole('button', { name: 'Volver' }).closest('[data-slot="form-dialog-footer"]')
+      const live = () => within(footer() as HTMLElement).getByRole('status')
+      const ANNOUNCE = 'Este descuento devuelve dinero al saldo a favor.'
+
+      it('la región está en el árbol desde que se abre, vacía y sin ocultarse', () => {
+        renderDialog()
+        expect(live()).toHaveTextContent(/^$/)
+        // Ninguna clase que la deje en `display: none` (`hidden`, `empty:hidden`…).
+        expect(live().className).not.toMatch(/(^|\s)(\S+:)?hidden(\s|$)/)
+      })
+
+      it('anuncia que el descuento devuelve dinero, sin el monto, y no cambia con cada tecla', async () => {
+        const { user } = renderDialog()
+        await choose(user, 'Descuento o nota de crédito', '26-00001')
+        const monto = screen.getByLabelText('Monto')
+        // Debe 50.00: 55 devuelve 5.00 y 55.5, 5.50.
+        await user.type(monto, '55')
+        expect(live()).toHaveTextContent(ANNOUNCE)
+        await user.type(monto, '.5')
+        expect(live()).toHaveTextContent(ANNOUNCE)
+        // El monto, a la vista y fuera de la región: no se anuncia en cada tecla.
+        const notice = screen.getByText(NOTICE)
+        expect(notice).toHaveTextContent(/^\$ 5\.50 /)
+        expect(live()).not.toContainElement(notice)
+      })
+
+      it('sin aviso, la región se vacía', async () => {
+        const { user } = renderDialog()
+        await choose(user, 'Descuento o nota de crédito', '26-00001')
+        await user.type(screen.getByLabelText('Monto'), '70')
+        await user.click(signButton('Recargo'))
+        expect(live()).toHaveTextContent(/^$/)
+      })
+    })
+
+    it('un descuento que no pasa de lo que debe, o sin trabajo, no avisa nada', async () => {
+      const { user } = renderDialog()
+      await choose(user, 'Descuento o nota de crédito', '26-00001')
+      await user.type(screen.getByLabelText('Monto'), '50')
+      expect(screen.queryByText(/vuelve.? al saldo a favor/)).toBeNull()
+      await user.click(screen.getByRole('combobox', { name: 'Trabajo' }))
+      await user.click(await screen.findByRole('option', { name: /Sin trabajo/ }))
+      await user.clear(screen.getByLabelText('Monto'))
+      await user.type(screen.getByLabelText('Monto'), '500')
+      expect(screen.queryByText(/vuelve.? al saldo a favor/)).toBeNull()
+    })
   })
 
   it('«Saldo inicial» rellena el motivo y lo deja como recargo sin trabajo', async () => {
@@ -119,5 +271,40 @@ describe('AdjustmentDialog («Registrar ajuste», CTA-3)', () => {
     expect(screen.getByLabelText('Fecha')).toHaveAttribute('aria-invalid', 'true')
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
     expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  // UX5-11: el buscador de trabajos dice código (monoespaciada), paciente y estado bien escrito
+  // («Cobrado», de `CASE_STATUS_LABEL`, o lo que debe), busca también por paciente y su ayuda
+  // dice lo que de verdad lista: entregados y cobrados.
+  describe('buscador de trabajos', () => {
+    it('cada trabajo con código, paciente y «Cobrado» o lo que debe', async () => {
+      const { user } = renderDialog()
+      await user.click(screen.getByRole('combobox', { name: 'Trabajo' }))
+      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+        'Sin trabajo: solo la clínica',
+        '26-00001 Ana Ruiz · Debe $ 50.00',
+        '26-00002 Luis Paz · Cobrado',
+        '26-00003 Eva Mora · Cobrado',
+      ])
+      const option = screen.getByRole('option', { name: /26-00002/ })
+      expect(within(option).getByText('26-00002')).toHaveClass('font-mono')
+    })
+
+    it('busca por paciente', async () => {
+      const { user } = renderDialog()
+      await user.click(screen.getByRole('combobox', { name: 'Trabajo' }))
+      await user.type(screen.getByPlaceholderText('Buscar por código o paciente'), 'luis')
+      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+        '26-00002 Luis Paz · Cobrado',
+      ])
+    })
+
+    it('la ayuda dice que lista los entregados y los cobrados de la clínica', () => {
+      renderDialog()
+      expect(
+        screen.getByText('Trabajos entregados o cobrados de esta clínica.'),
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/Solo trabajos entregados/)).not.toBeInTheDocument()
+    })
   })
 })

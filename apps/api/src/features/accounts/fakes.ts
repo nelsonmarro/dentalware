@@ -103,7 +103,10 @@ export function fakeAccounts(seed: Seed = {}) {
 
   const withCase = ({ caseId, ...a }: FakeAdjustment): AdjustmentEntry => {
     const found = caseId === null ? undefined : cases.find((c) => c.id === caseId)
-    return { ...a, case: found ? { id: found.id, code: found.code } : null }
+    return {
+      ...a,
+      case: found ? { id: found.id, code: found.code, patientRef: found.patientRef } : null,
+    }
   }
 
   const repo: AccountsRepository = {
@@ -249,6 +252,7 @@ export function fakeAccounts(seed: Seed = {}) {
         .filter((c) => caseIds.includes(c.id))
         .map((c) => ({
           id: c.id,
+          code: c.code,
           clinicId: c.clinicId,
           status: c.status,
           totalCents: c.totalCents,

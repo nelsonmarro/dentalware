@@ -70,11 +70,12 @@ export function CaseActionDialog({
           </Button>
           {/* M-5: el botón que confirma es el principal del diálogo, salvo que la acción sea
            * destructiva en `ACTION_EMPHASIS` (la misma clasificación que pinta la barra):
-           * confirmar «Cancelar trabajo» no puede verse como el primario teal de un avance. */}
+           * confirmar «Cancelar trabajo» no puede verse como el primario teal de un avance, y va
+           * en rojo sólido (UX5-07), con más peso que el suave de la barra que lo abrió. */}
           <Button
             type="submit"
             form="case-action-form"
-            variant={ACTION_EMPHASIS[action] === 'destructive' ? 'destructive' : 'default'}
+            variant={ACTION_EMPHASIS[action] === 'destructive' ? 'destructive-solid' : 'default'}
             disabled={pending}
           >
             {pending ? 'Guardando…' : confirmLabel}

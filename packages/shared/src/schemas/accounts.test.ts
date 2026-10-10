@@ -94,7 +94,7 @@ describe('paymentInputSchema', () => {
       ],
     })
     expect(firstIssue(r)).toEqual({
-      message: 'Lo asignado no puede superar el monto del pago',
+      message: 'Lo aplicado no puede superar el monto del pago',
       path: ['asignaciones'],
     })
   })

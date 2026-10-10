@@ -237,7 +237,7 @@ describe('features/accounts/repo', () => {
       {
         id: ligado!.id,
         clinicId: surId,
-        case: { id: c.id, code: c.code },
+        case: { id: c.id, code: c.code, patientRef: c.patientRef },
         amountCents: -1_025,
         reason: 'Descuento',
         date: '2026-09-11',
@@ -524,7 +524,7 @@ describe('features/accounts/repo', () => {
       expect(await repo.adjustmentById(ligado.id)).toEqual({
         id: ligado.id,
         clinicId: surId,
-        case: { id: c.id, code: c.code },
+        case: { id: c.id, code: c.code, patientRef: c.patientRef },
         amountCents: -1_050,
         reason: 'Descuento acordado',
         date: '2026-10-05',

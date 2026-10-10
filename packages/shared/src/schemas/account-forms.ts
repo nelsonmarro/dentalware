@@ -2,9 +2,11 @@ import { z } from 'zod'
 import { ADJUSTMENT_SIGNS, allocationTotals, PAYMENT_METHODS } from '../accounts.ts'
 import { fromCents, parseMoneyInput } from '../money.ts'
 import {
+  accountStatementQuerySchema,
   MONTO_FORMAT,
   montoPositivo,
   motivoObligatorio,
+  STATEMENT_AFTER_TODAY_MESSAGE,
   type AdjustmentInput,
   type ApplyCreditInput,
   type PaymentInput,
@@ -62,7 +64,7 @@ export const paymentFormSchema = z
   // diga todo de una vez; pero solo si hay un monto del pago válido con el que comparar.
   .refine((v) => assignedCents(v.asignaciones) <= (parseMoneyInput(v.monto) ?? 0), {
     path: ['asignaciones'],
-    message: 'Lo asignado no puede superar el monto del pago',
+    message: 'Lo aplicado no puede superar el monto del pago',
     when: ({ value }) => {
       const v = value as { monto?: unknown; asignaciones?: unknown }
       return (
@@ -90,7 +92,7 @@ export function applyCreditFormSchema(availableCents: number) {
         ctx.addIssue({
           code: 'custom',
           path: ['asignaciones'],
-          message: `Lo asignado no puede superar lo que queda a favor ($ ${fromCents(availableCents)})`,
+          message: `Lo aplicado no puede superar lo que queda a favor ($ ${fromCents(availableCents)})`,
         })
       }
     })
@@ -118,3 +120,13 @@ export const adjustmentFormSchema = z
     motivo: v.motivo,
     fecha: v.fecha,
   }))
+
+/** Periodo del estado de cuenta (CTA-5, UX5-19): el mismo rango que acepta la API
+ * (`desde ≤ hasta`) y, además, que no termine después de hoy (`today`, `AAAA-MM-DD` local), que
+ * la API también rechaza con su reloj. Los dos errores van bajo «Hasta». */
+export function statementRangeFormSchema(today: string) {
+  return accountStatementQuerySchema.refine((v) => v.hasta <= today, {
+    path: ['hasta'],
+    error: STATEMENT_AFTER_TODAY_MESSAGE,
+  })
+}

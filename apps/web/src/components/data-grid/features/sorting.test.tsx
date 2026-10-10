@@ -61,34 +61,85 @@ describe('feature sorting', () => {
     expect(screen.queryByRole('button', { name: /Ordenar por/ })).not.toBeInTheDocument()
   })
 
-  it('en móvil ordena las tarjetas desde los selectores «Ordenar por» y «Dirección» de la toolbar', async () => {
+  it('en móvil un solo control «Ordenar» combina columna y dirección (UX5-09)', async () => {
     setMatchMedia(false)
     const user = userEvent.setup()
     renderWithRouter(<Grid features={FEATURES} />)
     await screen.findByRole('list')
     const cards = () => screen.getAllByRole('listitem')
     expect(within(cards()[0]!).getByText('Zirconio')).toBeInTheDocument()
-    expect(within(cards()[1]!).getByText('Acrílico')).toBeInTheDocument()
-    await user.selectOptions(await screen.findByLabelText('Ordenar por'), 'name')
-    await user.selectOptions(screen.getByLabelText('Dirección'), 'asc')
+    // Un único `select`: sin «Ordenar por» y «Dirección» por separado.
+    expect(screen.getAllByRole('combobox')).toHaveLength(1)
+    expect(screen.queryByLabelText('Dirección')).not.toBeInTheDocument()
+    const select = screen.getByRole('combobox', { name: 'Ordenar' })
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual([
+      'Sin orden',
+      'Nombre: ascendente',
+      'Nombre: descendente',
+      'Días: ascendente',
+      'Días: descendente',
+    ])
+    await user.selectOptions(select, 'Nombre: ascendente')
     expect(within(cards()[0]!).getByText('Acrílico')).toBeInTheDocument()
     expect(within(cards()[1]!).getByText('Zirconio')).toBeInTheDocument()
+    await user.selectOptions(select, 'Días: descendente')
+    expect(within(cards()[0]!).getByText('Acrílico')).toBeInTheDocument()
+    await user.selectOptions(select, 'Días: ascendente')
+    expect(within(cards()[0]!).getByText('Zirconio')).toBeInTheDocument()
+    await user.selectOptions(select, 'Sin orden')
+    expect(select).toHaveValue('')
   })
 
-  it('el selector de orden móvil está en el DOM en escritorio, oculto solo por CSS (`lg:hidden`)', async () => {
-    setMatchMedia(true)
-    renderWithRouter(<Grid features={FEATURES} />)
-    const select = await screen.findByLabelText('Ordenar por')
-    const wrapper = select.closest('div')?.parentElement
-    expect(wrapper).toHaveClass('lg:hidden')
+  it('cada columna puede nombrar sus dos órdenes con `meta.sortLabels`', async () => {
+    setMatchMedia(false)
+    const labelled = defineColumns<Row>((col) => [
+      col.accessor('name', {
+        header: 'Nombre',
+        meta: { mobile: 'title', sortLabels: { asc: 'Nombre A–Z', desc: 'Nombre Z–A' } },
+      }),
+      col.accessor('days', {
+        header: 'Días',
+        meta: { sortLabels: { asc: 'Menos días primero', desc: 'Más días primero' } },
+      }),
+    ])
+    function Labelled() {
+      const grid = useDataGrid({
+        key: 'test',
+        columns: labelled,
+        data: rows,
+        features: FEATURES,
+        getRowId: (r) => r.id,
+      })
+      return (
+        <DataGrid.Root grid={grid} emptyMessage="Vacío">
+          <DataGrid.Toolbar />
+          <DataGrid.Content />
+        </DataGrid.Root>
+      )
+    }
+    renderWithRouter(<Labelled />)
+    const select = await screen.findByRole('combobox', { name: 'Ordenar' })
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['Sin orden', 'Nombre A–Z', 'Nombre Z–A', 'Menos días primero', 'Más días primero'])
   })
 
-  it('los ids de los selectores incluyen la key del grid (dos grids en la misma página no chocan)', async () => {
+  it('el control de orden móvil está en el DOM en escritorio, oculto solo por CSS (`lg:hidden`)', async () => {
     setMatchMedia(true)
     renderWithRouter(<Grid features={FEATURES} />)
-    const columnaSelect = await screen.findByLabelText('Ordenar por')
-    const direccionSelect = screen.getByLabelText('Dirección')
-    expect(columnaSelect).toHaveAttribute('id', 'test-ordenar-por')
-    expect(direccionSelect).toHaveAttribute('id', 'test-direccion-orden')
+    const select = await screen.findByLabelText('Ordenar')
+    expect(select.parentElement).toHaveClass('lg:hidden')
+  })
+
+  it('el id del control incluye la key del grid (dos grids en la misma página no chocan)', async () => {
+    setMatchMedia(true)
+    renderWithRouter(<Grid features={FEATURES} />)
+    expect(await screen.findByLabelText('Ordenar')).toHaveAttribute('id', 'test-ordenar')
   })
 })

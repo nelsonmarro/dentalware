@@ -2,14 +2,20 @@ import {
   ADJUSTMENT_SIGN_LABEL,
   ADJUSTMENT_SIGNS,
   adjustmentFormSchema,
+  CASE_STATUS_LABEL,
+  discountReleaseCents,
+  fromCents,
   OPENING_BALANCE_REASON,
+  parseMoneyInput,
   toIsoDate,
+  toSignedCents,
   type AdjustmentInput,
+  type CaseStatus,
 } from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check } from 'lucide-react'
+import { Check, Info } from 'lucide-react'
 import { useEffect } from 'react'
-import { Controller, useForm, type Path } from 'react-hook-form'
+import { Controller, useForm, useWatch, type Path } from 'react-hook-form'
 import type { z } from 'zod'
 import { Combobox } from '@/components/combobox'
 import { FormDialog } from '@/components/form-dialog'
@@ -21,6 +27,7 @@ import { QueuedNotice } from '@/features/cases/queued-notice'
 import { ApiError, toastApiError } from '@/lib/api-error'
 import { formatMoney } from '@/lib/format-money'
 import { applyIssues } from './allocation'
+import { DateField } from './date-field'
 import { useAccountBusy } from './use-account-busy'
 import { useRegisterAdjustment } from './use-register-adjustment'
 
@@ -29,11 +36,51 @@ type FormValues = z.input<typeof adjustmentFormSchema>
 /** Campos donde puede caer un 422 de la API. */
 const FIELDS = ['signo', 'monto', 'motivo', 'fecha', 'trabajoId']
 
+/** Lo que oye el lector de pantalla cuando aparece el aviso del descuento: sin el monto, para
+ * no repetirlo con cada tecla (final review M-1). */
+const DISCOUNT_ANNOUNCE = 'Este descuento devuelve dinero al saldo a favor.'
+
 /** Valor interno de «Sin trabajo» en el `Combobox` (que no admite `''`); nunca sale del diálogo. */
 const NO_CASE = '__sin_trabajo__'
 
-/** Un trabajo que carga a la cuenta: lo que debe todavía, o `null` si ya está cobrado. */
-export type AdjustableCase = { id: string; code: string; outstanding: string | null }
+/** Un trabajo que carga a la cuenta (`billedCases` de la API): su estado, lo que debe con signo
+ * y lo ya pagado. */
+export type AdjustableCase = {
+  id: string
+  code: string
+  patientRef: string
+  status: CaseStatus
+  outstanding: string
+  allocated: string
+}
+
+/**
+ * Lo que un descuento ligado a un trabajo devolverá al saldo a favor, dicho antes de confirmar
+ * (UX5-15): el monto exacto con `discountReleaseCents` de shared, si el descuento pasa de lo que
+ * debe (en uno cobrado, todo lo descontado sale de lo pagado), aparte del texto para la
+ * monoespaciada. `null` si no devuelve nada: recargo, sin trabajo, o un descuento que la API
+ * rechazará por dejar el neto bajo 0 (también en un cobrado sin nada pagado, como una repetición
+ * al 0 %, final review M-2).
+ */
+function discountNotice(
+  c: AdjustableCase | undefined,
+  signo: string | undefined,
+  monto: string,
+): { amount: string; text: string } | null {
+  if (!c || signo !== 'descuento') return null
+  const cents = parseMoneyInput(monto)
+  if (!cents) return null
+  const released = discountReleaseCents(
+    { outstandingCents: toSignedCents(c.outstanding), allocatedCents: toSignedCents(c.allocated) },
+    cents,
+  )
+  return released
+    ? {
+        amount: formatMoney(fromCents(released)),
+        text: 'de lo ya pagado por este trabajo vuelven al saldo a favor.',
+      }
+    : null
+}
 
 /**
  * «Registrar ajuste» (CTA-3, solo admin): descuento o nota de crédito (resta) o recargo (suma),
@@ -77,11 +124,27 @@ export function AdjustmentDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al abrir
   }, [open])
 
+  const [signo, monto, trabajoId, fecha] = useWatch({
+    control,
+    name: ['signo', 'monto', 'trabajoId', 'fecha'],
+  })
+  const notice = discountNotice(
+    cases.find((c) => c.id === trabajoId),
+    signo,
+    monto ?? '',
+  )
+
   const items = [
     { value: NO_CASE, label: 'Sin trabajo: solo la clínica' },
+    // UX5-11: código en monoespaciada, paciente y lo que debe o el estado con su etiqueta.
     ...cases.map((c) => ({
       value: c.id,
-      label: `${c.code} · ${c.outstanding ? `debe ${formatMoney(c.outstanding)}` : 'cobrado'}`,
+      code: c.code,
+      label: c.patientRef,
+      detail:
+        c.status === 'entregado'
+          ? `Debe ${formatMoney(c.outstanding)}`
+          : CASE_STATUS_LABEL[c.status],
     })),
   ]
 
@@ -117,6 +180,27 @@ export function AdjustmentDialog({
       title="Registrar ajuste"
       context={{ label: clinic.name }}
       description="Un descuento baja lo que debe la clínica y un recargo lo sube. Con trabajo, cambia lo que se debe por ese trabajo."
+      // El aviso del descuento va en el pie fijo, junto al botón que confirma: se ve antes de
+      // confirmar aunque el cuerpo no quepa. Al lector de pantalla se lo dice una región `sr-only`
+      // siempre montada (nunca `display: none`, que la sacaría del árbol y el aviso podría no
+      // anunciarse al aparecer; `absolute`, no deja hueco en el pie) con un texto sin el monto:
+      // solo cambia cuando el aviso aparece o se va, no con cada tecla del monto (final review
+      // M-1). El monto se lee en el aviso visible.
+      summary={
+        <>
+          <p role="status" className="sr-only">
+            {notice ? DISCOUNT_ANNOUNCE : ''}
+          </p>
+          {notice && (
+            <p className="flex gap-2 rounded-lg border border-wax-amber/60 bg-wax-amber/10 px-3 py-2 text-sm text-foreground">
+              <Info aria-hidden className="mt-0.5 size-4 shrink-0 text-wax-amber-ink" />
+              <span>
+                <span className="font-mono">{notice.amount}</span> {notice.text}
+              </span>
+            </p>
+          )}
+        </>
+      }
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -176,18 +260,14 @@ export function AdjustmentDialog({
               />
               {errors.monto && <FieldError errors={[errors.monto]} />}
             </Field>
-            <Field data-invalid={!!errors.fecha}>
-              <FieldLabel htmlFor="ajuste-fecha">Fecha</FieldLabel>
-              <Input
-                {...register('fecha')}
-                id="ajuste-fecha"
-                type="date"
-                max={today}
-                className="h-11"
-                aria-invalid={!!errors.fecha}
-              />
-              {errors.fecha && <FieldError errors={[errors.fecha]} />}
-            </Field>
+            <DateField
+              id="ajuste-fecha"
+              label="Fecha"
+              value={fecha}
+              max={today}
+              error={errors.fecha}
+              registration={register('fecha')}
+            />
           </div>
           <Controller
             name="trabajoId"
@@ -202,12 +282,12 @@ export function AdjustmentDialog({
                   value={field.value ? field.value : NO_CASE}
                   onChange={(v) => field.onChange(v === NO_CASE ? '' : v)}
                   placeholder="Elegir trabajo"
-                  searchPlaceholder="Buscar por código"
-                  emptyMessage="Ningún trabajo entregado con ese código"
+                  searchPlaceholder="Buscar por código o paciente"
+                  emptyMessage="Ningún trabajo con ese código o paciente"
                   aria-invalid={fieldState.invalid}
                   className="h-11 w-full"
                 />
-                <FieldDescription>Solo trabajos entregados de esta clínica.</FieldDescription>
+                <FieldDescription>Trabajos entregados o cobrados de esta clínica.</FieldDescription>
                 {fieldState.error && <FieldError errors={[fieldState.error]} />}
               </Field>
             )}

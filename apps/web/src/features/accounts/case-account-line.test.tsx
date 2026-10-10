@@ -32,6 +32,120 @@ describe('CaseAccountLine (la cuenta del trabajo en su ficha)', () => {
     )
   })
 
+  // UX5-16: la cabecera dice «Total $ 45.00» y la línea «de $ 55.00»; la diferencia son los
+  // ajustes del trabajo, y la línea lo dice con signo y lo que cambia lo que se cobra.
+  it('con un recargo explica la diferencia con el total: ajustes con signo y lo que se cobra', async () => {
+    renderWithRouter(
+      <CaseAccountLine
+        account={{
+          charge: '45.00',
+          adjustments: '10.00',
+          allocated: '45.00',
+          outstanding: '10.00',
+          paidAt: null,
+        }}
+        clinicId="k1"
+        total="45.00"
+        remakeChargePct={null}
+        role="admin"
+      />,
+    )
+    expect(await screen.findByText(paragraph('Pendiente $ 10.00 de $ 55.00'))).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        paragraph('Incluye ajustes de + $ 10.00: se cobra $ 55.00 en vez de $ 45.00'),
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('con un descuento, el ajuste va con signo menos, también ya cobrado', async () => {
+    renderWithRouter(
+      <CaseAccountLine
+        account={{
+          ...pending,
+          allocated: '80.00',
+          outstanding: '0.00',
+          paidAt: '2026-10-08T17:00:00.000Z',
+        }}
+        clinicId="k1"
+        total="90.00"
+        remakeChargePct={null}
+        role="recepcion"
+      />,
+    )
+    expect(await screen.findByText(paragraph('Cobrado el 08/10'))).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        paragraph('Incluye ajustes de − $ 10.00: se cobra $ 80.00 en vez de $ 90.00'),
+      ),
+    ).toBeInTheDocument()
+  })
+
+  // Con una repetición al 50 %, los ajustes cambian lo que se cobra (el cargo), no el «Total».
+  it('en una repetición con ajustes, los ajustes cambian lo que se cobra y no el total', async () => {
+    renderWithRouter(
+      <CaseAccountLine
+        account={{
+          charge: '45.00',
+          adjustments: '10.00',
+          allocated: '0.00',
+          outstanding: '55.00',
+          paidAt: null,
+        }}
+        clinicId="k1"
+        total="90.00"
+        remakeChargePct="50.00"
+        role="admin"
+      />,
+    )
+    expect(
+      await screen.findByText(
+        paragraph('Repetición al 50 %: se cobra $ 45.00, no el total de $ 90.00'),
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        paragraph('Incluye ajustes de + $ 10.00: se cobra $ 55.00 en vez de $ 45.00'),
+      ),
+    ).toBeInTheDocument()
+  })
+
+  // A 360 px, «se cobra $» / «55.00» se partía: cada monto (con su signo) no se parte.
+  it('los montos de la línea de ajustes no se parten', async () => {
+    renderWithRouter(
+      <CaseAccountLine
+        account={{
+          charge: '45.00',
+          adjustments: '10.00',
+          allocated: '45.00',
+          outstanding: '10.00',
+          paidAt: null,
+        }}
+        clinicId="k1"
+        total="45.00"
+        remakeChargePct={null}
+        role="admin"
+      />,
+    )
+    for (const text of ['+ $ 10.00', '$ 55.00', '$ 45.00']) {
+      for (const el of await screen.findAllByText(text)) expect(el).toHaveClass('whitespace-nowrap')
+    }
+  })
+
+  it('sin ajustes no añade la línea de ajustes', async () => {
+    renderWithRouter(
+      <CaseAccountLine
+        account={{ ...pending, adjustments: '0.00', outstanding: '60.00' }}
+        clinicId="k1"
+        total="90.00"
+        remakeChargePct={null}
+        role="admin"
+      />,
+    )
+    await screen.findByText(paragraph('Pendiente $ 60.00 de $ 90.00'))
+    expect(screen.queryByText(/Incluye ajustes/)).not.toBeInTheDocument()
+  })
+
   it('un trabajo cobrado dice el día en que se cobró', async () => {
     renderWithRouter(
       <CaseAccountLine

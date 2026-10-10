@@ -97,6 +97,54 @@ describe('features/accounts/service', () => {
       expect(account.clinic).toEqual({ id: SUR.id, name: 'Clínica Sur' })
     })
 
+    // Final review M-2: «Registrar ajuste» avisa lo que un descuento devuelve al saldo a favor
+    // también en un trabajo cobrado, con lo que debe y lo pagado de cada trabajo que carga.
+    it('los trabajos que cargan, por código, con su estado, lo que deben y lo pagado', async () => {
+      const service = makeService({
+        cases: [
+          // Repetición al 0 %: «Marcar entregado» la deja cobrada sin nada pagado.
+          makeCase({ id: 'c', totalCents: 10_000, remakeChargePct: 0, status: 'cobrado' }),
+          makeCase({ id: 'b', totalCents: 5_000, status: 'cobrado', patientRef: 'Luis Paz' }),
+          makeCase({ id: 'a', totalCents: 10_000, patientRef: 'Ana Ruiz' }),
+          // No entregado: no carga.
+          makeCase({ id: 'd', totalCents: 7_000, status: 'en_proceso' }),
+        ],
+        adjustments: [makeAdjustment({ id: 'aj', amountCents: -1_000, caseId: 'a' })],
+        payments: [makePayment({ id: 'p1', amountCents: 8_000 })],
+        allocations: [
+          { paymentId: 'p1', caseId: 'a', amountCents: 3_000 },
+          { paymentId: 'p1', caseId: 'b', amountCents: 5_000 },
+        ],
+      })
+      const account = await service.clinicAccount(SUR.id)
+      expect(account.billedCases).toEqual([
+        {
+          id: 'a',
+          code: '26-a',
+          patientRef: 'Ana Ruiz',
+          status: 'entregado',
+          outstanding: '60.00',
+          allocated: '30.00',
+        },
+        {
+          id: 'b',
+          code: '26-b',
+          patientRef: 'Luis Paz',
+          status: 'cobrado',
+          outstanding: '0.00',
+          allocated: '50.00',
+        },
+        {
+          id: 'c',
+          code: '26-c',
+          patientRef: 'Paciente',
+          status: 'cobrado',
+          outstanding: '0.00',
+          allocated: '0.00',
+        },
+      ])
+    })
+
     it('una repetición carga su porcentaje, no su total', async () => {
       const service = makeService({
         cases: [makeCase({ id: 'r', totalCents: 10_000, remakeChargePct: 50 })],
@@ -251,12 +299,13 @@ describe('features/accounts/service', () => {
       })
     })
 
-    it('movimientos: cargos, ajustes y pagos con signo, quién y motivo; el anulado lleva voided', async () => {
+    it('movimientos: cargos, ajustes y pagos con signo, quién y motivo, el trabajo con su paciente; el anulado lleva voided', async () => {
       const service = makeService({
         cases: [
           makeCase({
             id: 'a',
             code: '26-00001',
+            patientRef: 'Ana Pérez',
             totalCents: 10_000,
             deliveredAt: at('2026-09-01'),
           }),
@@ -314,6 +363,7 @@ describe('features/accounts/service', () => {
           method: 'cheque',
           // Lo que le queda sin asignar: 30.00 − 10.00.
           remaining: '20.00',
+          allocations: [{ caseId: 'a', code: '26-00001', amount: '10.00', reopens: false }],
           voided: null,
         },
         {
@@ -328,6 +378,7 @@ describe('features/accounts/service', () => {
           method: 'transferencia',
           // Asignado entero.
           remaining: '0.00',
+          allocations: [{ caseId: 'a', code: '26-00001', amount: '20.00', reopens: false }],
           voided: null,
         },
         {
@@ -340,8 +391,10 @@ describe('features/accounts/service', () => {
           reason: null,
           reference: null,
           method: 'transferencia',
-          // Anulado: no le queda nada a favor aunque tuviera parte sin asignar.
+          // Anulado: no le queda nada a favor aunque tuviera parte sin asignar, y sus
+          // asignaciones dejaron de contar.
           remaining: '0.00',
+          allocations: [],
           voided: { at: at('2026-09-21'), by: 'Admin', reason: 'Duplicado' },
         },
         {
@@ -349,12 +402,14 @@ describe('features/accounts/service', () => {
           kind: 'ajuste',
           date: '2026-09-15',
           amount: '-10.00',
-          case: { id: 'a', code: '26-00001' },
+          // UX5-11: con el paciente, para buscar el trabajo por él en «Registrar ajuste».
+          case: { id: 'a', code: '26-00001', patientRef: 'Ana Pérez' },
           by: 'Admin',
           reason: 'Descuento por demora',
           reference: null,
           method: null,
           remaining: null,
+          allocations: null,
           voided: null,
         },
         {
@@ -362,15 +417,112 @@ describe('features/accounts/service', () => {
           kind: 'cargo',
           date: '2026-09-01',
           amount: '100.00',
-          case: { id: 'a', code: '26-00001' },
+          // UX5-11: con el paciente, para buscar el trabajo por él en «Registrar ajuste».
+          case: { id: 'a', code: '26-00001', patientRef: 'Ana Pérez' },
           by: null,
           reason: null,
           reference: null,
           method: null,
           remaining: null,
+          allocations: null,
           voided: null,
         },
       ])
+    })
+
+    describe('a qué trabajos se aplicó cada pago (UX5-03)', () => {
+      // `b` se entregó primero; `c` y `a`, el mismo día, van por código.
+      const cases = [
+        makeCase({ id: 'a', code: '26-00003', deliveredAt: at('2026-09-10'), status: 'cobrado' }),
+        makeCase({ id: 'b', code: '26-00002', deliveredAt: at('2026-09-01') }),
+        makeCase({ id: 'c', code: '26-00001', deliveredAt: at('2026-09-10'), status: 'cobrado' }),
+      ]
+      const pagoDe = (m: { id: string }[], id: string) => m.find((x) => x.id === id)
+
+      it('el pago vigente trae sus asignaciones por trabajo, de la entrega más antigua a la más nueva y por código', async () => {
+        const service = makeService({
+          cases,
+          payments: [makePayment({ id: 'p1', amountCents: 30_000 })],
+          allocations: [
+            { paymentId: 'p1', caseId: 'a', amountCents: 10_000 },
+            { paymentId: 'p1', caseId: 'b', amountCents: 2_550 },
+            { paymentId: 'p1', caseId: 'c', amountCents: 10_000 },
+          ],
+        })
+        const { movements } = await service.clinicAccount(SUR.id)
+        expect(pagoDe(movements, 'p1')).toMatchObject({
+          allocations: [
+            { caseId: 'b', code: '26-00002', amount: '25.50', reopens: false },
+            { caseId: 'c', code: '26-00001', amount: '100.00', reopens: true },
+            { caseId: 'a', code: '26-00003', amount: '100.00', reopens: true },
+          ],
+        })
+      })
+
+      it('suma en una sola entrada lo que el mismo pago asignó dos veces al mismo trabajo', async () => {
+        const service = makeService({
+          cases: [makeCase({ id: 'b', code: '26-00002' })],
+          payments: [makePayment({ id: 'p1', amountCents: 9_000 })],
+          allocations: [
+            { paymentId: 'p1', caseId: 'b', amountCents: 6_000 },
+            { paymentId: 'p1', caseId: 'b', amountCents: 1_500 },
+          ],
+        })
+        const { movements } = await service.clinicAccount(SUR.id)
+        expect(pagoDe(movements, 'p1')).toMatchObject({
+          allocations: [{ caseId: 'b', code: '26-00002', amount: '75.00', reopens: false }],
+        })
+      })
+
+      it('reabre solo el cobrado que dejaría de estar cubierto: otro pago puede seguir cubriéndolo', async () => {
+        const service = makeService({
+          cases: [
+            // Cobrado con dos pagos: anular p1 lo deja debiendo 60.00.
+            makeCase({ id: 'a', code: '26-00003', status: 'cobrado' }),
+            // Cobrado con un pendiente negativo (defensa, decisión 3): sin los 10.00 de p1,
+            // sigue cubierto por p2 y no reabre.
+            makeCase({ id: 'c', code: '26-00001', totalCents: 2_000, status: 'cobrado' }),
+          ],
+          payments: [
+            makePayment({ id: 'p1', amountCents: 7_000 }),
+            makePayment({ id: 'p2', amountCents: 7_000, paidOn: '2026-10-03' }),
+          ],
+          allocations: [
+            { paymentId: 'p1', caseId: 'a', amountCents: 6_000 },
+            { paymentId: 'p2', caseId: 'a', amountCents: 4_000 },
+            { paymentId: 'p1', caseId: 'c', amountCents: 1_000 },
+            { paymentId: 'p2', caseId: 'c', amountCents: 3_000 },
+          ],
+        })
+        const { movements } = await service.clinicAccount(SUR.id)
+        expect(pagoDe(movements, 'p1')).toMatchObject({
+          allocations: [
+            { caseId: 'c', amount: '10.00', reopens: false },
+            { caseId: 'a', amount: '60.00', reopens: true },
+          ],
+        })
+      })
+
+      it('el pago anulado y el que no repartió nada no traen asignaciones; el cargo y el ajuste, null', async () => {
+        const service = makeService({
+          cases,
+          adjustments: [makeAdjustment({ id: 'aj', amountCents: 500, caseId: 'b' })],
+          payments: [
+            makePayment({
+              id: 'anulado',
+              amountCents: 10_000,
+              voided: { at: at('2026-10-03'), byName: 'Admin', reason: 'Duplicado' },
+            }),
+            makePayment({ id: 'anticipo', amountCents: 5_000 }),
+          ],
+          allocations: [{ paymentId: 'anulado', caseId: 'a', amountCents: 10_000 }],
+        })
+        const { movements } = await service.clinicAccount(SUR.id)
+        expect(pagoDe(movements, 'anulado')).toMatchObject({ allocations: [] })
+        expect(pagoDe(movements, 'anticipo')).toMatchObject({ allocations: [] })
+        expect(pagoDe(movements, 'aj')).toMatchObject({ allocations: null })
+        expect(pagoDe(movements, 'b')).toMatchObject({ allocations: null })
+      })
     })
 
     it('el mismo día, el movimiento registrado después va primero', async () => {
@@ -403,6 +555,55 @@ describe('features/accounts/service', () => {
       const account = await service.clinicAccount(SUR.id)
       expect(account.balance).toBe('100.00')
       expect(account.movements.map((m) => m.id)).toEqual(['a'])
+    })
+
+    describe('desglose del saldo (UX5-02)', () => {
+      it('trabajos por cobrar + saldo inicial y ajustes sin trabajo − saldo a favor = saldo', async () => {
+        const service = makeService({
+          cases: [
+            makeCase({ id: 'a', totalCents: 10_000 }),
+            makeCase({ id: 'b', totalCents: 5_000, status: 'cobrado' }),
+          ],
+          adjustments: [
+            makeAdjustment({
+              id: 'ini',
+              amountCents: 24_500,
+              date: '2026-08-01',
+              reason: 'Saldo inicial',
+            }),
+            makeAdjustment({ id: 'nc', amountCents: -2_000, date: '2026-09-15' }),
+            makeAdjustment({ id: 'aj-a', amountCents: -1_000, caseId: 'a', date: '2026-07-01' }),
+          ],
+          payments: [makePayment({ id: 'p1', amountCents: 10_000 })],
+          allocations: [
+            { paymentId: 'p1', caseId: 'a', amountCents: 3_000 },
+            { paymentId: 'p1', caseId: 'b', amountCents: 5_000 },
+          ],
+        })
+        const account = await service.clinicAccount(SUR.id)
+        // «a» debe 60 (100 − 10 − 30); p1 deja 20 a favor. El ajuste ligado a «a» no cuenta
+        // como «sin trabajo» aunque sea el más antiguo.
+        expect(account.breakdown).toEqual({
+          openCases: '60.00',
+          unlinkedAdjustments: '225.00',
+          unlinkedSince: '2026-08-01',
+          credit: '20.00',
+          balance: '265.00',
+        })
+        expect(account.breakdown.balance).toBe(account.balance)
+        expect(account.breakdown.credit).toBe(account.credit)
+      })
+
+      it('sin ajustes sin trabajo: cero y sin fecha', async () => {
+        const service = makeService({ cases: [makeCase({ id: 'a', totalCents: 10_000 })] })
+        expect((await service.clinicAccount(SUR.id)).breakdown).toEqual({
+          openCases: '100.00',
+          unlinkedAdjustments: '0.00',
+          unlinkedSince: null,
+          credit: '0.00',
+          balance: '100.00',
+        })
+      })
     })
 
     it('una clínica que no existe lanza ClinicAccountNotFoundError', async () => {
@@ -660,18 +861,54 @@ describe('features/accounts/service', () => {
           id: NORTE.id,
           name: 'Clínica Norte',
           balance: '200.00',
+          credit: '0.00',
           aging: { ...ZERO, '90_mas': '200.00' },
           oldestDays: 127,
+          openCasesCount: 1,
+          openCasesTotal: '200.00',
         },
         {
           id: SUR.id,
           name: 'Clínica Sur',
           balance: '50.00',
+          credit: '0.00',
           aging: { ...ZERO, '31_60': '50.00' },
           oldestDays: 35,
+          openCasesCount: 1,
+          openCasesTotal: '50.00',
         },
         // Inactiva, pero con movimientos y saldo 0: se ve.
-        { id: VIEJA.id, name: 'Clínica Vieja', balance: '0.00', aging: ZERO, oldestDays: null },
+        {
+          id: VIEJA.id,
+          name: 'Clínica Vieja',
+          balance: '0.00',
+          credit: '0.00',
+          aging: ZERO,
+          oldestDays: null,
+          openCasesCount: 0,
+          openCasesTotal: '0.00',
+        },
+      ])
+    })
+
+    // Final review M-3: la lista decía «Nada pendiente» con un trabajo por cobrar que cubre el
+    // saldo a favor. Trae lo que `accountHeadline` necesita para leer el saldo como la cabecera.
+    it('cada clínica trae su saldo a favor y sus trabajos por cobrar, aunque el saldo a favor los cubra', async () => {
+      const service = makeService({
+        cases: [makeCase({ id: 'x', totalCents: 7_500 })],
+        payments: [makePayment({ id: 'p', amountCents: 20_000 })],
+      })
+      expect(await service.list({ todas: false })).toEqual([
+        {
+          id: SUR.id,
+          name: 'Clínica Sur',
+          balance: '-125.00',
+          credit: '200.00',
+          aging: ZERO,
+          oldestDays: null,
+          openCasesCount: 1,
+          openCasesTotal: '75.00',
+        },
       ])
     })
 
@@ -687,8 +924,11 @@ describe('features/accounts/service', () => {
         id: OESTE.id,
         name: 'Clínica Oeste',
         balance: '0.00',
+        credit: '0.00',
         aging: ZERO,
         oldestDays: null,
+        openCasesCount: 0,
+        openCasesTotal: '0.00',
       })
     })
   })
