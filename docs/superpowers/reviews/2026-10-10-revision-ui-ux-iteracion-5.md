@@ -393,6 +393,14 @@ Ola de fixes en la rama `fix/revision-ui-ux-it5` (plan `docs/superpowers/plans/2
 
 El cierre (Tarea 9) añade los barridos táctiles de lo nuevo (`c703f2b`: cabecera con «Aplicar saldo a favor», desglose, `DateField` con su fecha escrita, pie fijo del reparto y «Ordenar» de trabajos) y pone al día `docs/architecture.md` y `docs/conventions.md`.
 
+La revisión final de la rama (0 Critical, 0 Important, 4 Minor) dejó una ronda de fixes antes del PR:
+
+| Hallazgo | Qué se hizo | Commit |
+|---|---|---|
+| M-1 | El aviso del descuento en «Registrar ajuste» se anuncia por una región `role="status"` `sr-only` siempre en el árbol (sin `empty:hidden`) y con un texto sin el monto, que no se repite con cada tecla | `aefa2e7` |
+| M-2 | La cuenta trae `billedCases` (estado, lo que debe y lo pagado de cada trabajo que carga) y el aviso del descuento usa `discountReleaseCents` también en los cobrados: dice cuánto vuelve y no lo promete en un cobrado sin nada pagado | `737808b` |
+| M-3 | `GET /api/cuentas` trae el saldo a favor y los trabajos por cobrar de cada clínica, y la tarjeta de «Cuentas» lee el saldo con `accountHeadline`, como la cabecera: ya no dice «Nada pendiente» con trabajos por cobrar | `53eea3f` |
+
 **Queda fuera de la ola**:
 
 - Los campos de fecha fuera de cuentas (`ship-dialog`, `fail-dialog`, `day-picker`, `pickup-fields`, `clinic-patient-fields`, `cases-filters`) siguen sin la fecha escrita: issue aparte.
@@ -401,3 +409,6 @@ El cierre (Tarea 9) añade los barridos táctiles de lo nuevo (`c703f2b`: cabece
 - `adjustment-dialog` sigue usando `applyIssues` del reparto: un issue que no sea de sus campos se perdería (hoy la API de ajustes no lo devuelve; mismo patrón que UX5-20).
 - A 1280, el reparto con muchos trabajos tiene doble scroll (cuerpo y lista); aceptado.
 - A 390 con admin, la cabecera de la cuenta tiene 3 filas de botones y la primera tarjeta empieza en y ≈ 735.
+- En «Cuentas», «Más reciente primero» pone arriba las clínicas sin nada pendiente (ordena `oldestDays ?? -1`).
+- `paymentToApply` desempata los pagos del mismo día por id (UUID), no por orden de registro: con dos pagos del mismo día, el botón de la cabecera puede elegir el más nuevo.
+- A 360, en la tarjeta de un pago, «Aplicado a» queda solo en su línea y los enlaces de 44 px separan mucho las líneas.
