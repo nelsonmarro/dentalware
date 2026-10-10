@@ -8,7 +8,7 @@ import { isoDate, textoOpcional, uuid } from './config.ts'
  * decimal `"12.34"` (`money.ts`): hasta 10 enteros (`numeric(12,2)`) y 2 decimales.
  */
 
-const MONTO_FORMAT = 'El monto debe ser un número con hasta 2 decimales'
+export const MONTO_FORMAT = 'El monto debe ser un número con hasta 2 decimales'
 const POSITIVE_MONEY = /^\d{1,10}(\.\d{1,2})?$/
 const SIGNED_MONEY = /^-?\d{1,10}(\.\d{1,2})?$/
 
@@ -19,7 +19,7 @@ function centsOf(monto: string): number | null {
 }
 
 /** Monto de un pago o de una asignación: mayor que 0 y sin signo. */
-const montoPositivo = z
+export const montoPositivo = z
   .string()
   .trim()
   .regex(POSITIVE_MONEY, { error: MONTO_FORMAT })
@@ -32,7 +32,7 @@ const montoConSigno = z
   .regex(SIGNED_MONEY, { error: MONTO_FORMAT })
   .refine((m) => centsOf(m.replace(/^-/, '')) !== 0, { error: 'El monto no puede ser 0' })
 
-const motivoObligatorio = z
+export const motivoObligatorio = z
   .string()
   .trim()
   .min(1, { error: 'Escribe el motivo' })
@@ -112,6 +112,11 @@ export const adjustmentInputSchema = z.object({
   fecha: isoDate,
 })
 export type AdjustmentInput = z.infer<typeof adjustmentInputSchema>
+
+/** El estado de cuenta llega hasta hoy (I-2): con una fecha final futura, la antigüedad y los
+ * días de «Por cobrar» saldrían proyectados. Lo comprueban el servicio (con su reloj, 422 en
+ * `hasta`) y el formulario del periodo. */
+export const STATEMENT_AFTER_TODAY_MESSAGE = 'La fecha final no puede ser posterior a hoy'
 
 /** `GET /api/cuentas/:clinicaId/estado` (CTA-5): rango de fechas de negocio, `desde ≤ hasta`. */
 export const accountStatementQuerySchema = z

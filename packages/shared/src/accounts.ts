@@ -1,5 +1,5 @@
 import type { CaseStatus } from './case-status.ts'
-import { percentOfCents } from './money.ts'
+import { parseMoneyInput, percentOfCents } from './money.ts'
 
 /**
  * Reglas puras de cuentas y cobro (Iteración 5, CTA-1/2/3/5). Todo en centavos (`money.ts`):
@@ -30,6 +30,21 @@ export const ACCOUNT_MOVEMENT_KIND_LABEL: Record<AccountMovementKind, string> = 
   ajuste: 'Ajuste',
   pago: 'Pago',
 }
+
+/** Signo de un ajuste en el formulario (CTA-3): el descuento o nota de crédito resta del saldo
+ * (se guarda negativo) y el recargo suma. */
+export const ADJUSTMENT_SIGNS = ['descuento', 'recargo'] as const
+export type AdjustmentSign = (typeof ADJUSTMENT_SIGNS)[number]
+
+/** Rótulo de cada signo. `Record` exhaustivo: un signo nuevo no compila sin rótulo. */
+export const ADJUSTMENT_SIGN_LABEL: Record<AdjustmentSign, string> = {
+  descuento: 'Descuento o nota de crédito',
+  recargo: 'Recargo',
+}
+
+/** Motivo que rellena el atajo «Saldo inicial» (CTA-3): la deuda de la clínica al arrancar,
+ * como ajuste sin trabajo. */
+export const OPENING_BALANCE_REASON = 'Saldo inicial'
 
 /** Cubos de antigüedad de la deuda, por días desde la fecha de cada partida (decisión 9). */
 export const AGING_BUCKETS = ['0_30', '31_60', '61_90', '90_mas'] as const
@@ -105,6 +120,21 @@ export function suggestAllocation(
   return result
 }
 
+/** Lo repartido de un monto mientras se escribe el reparto (CTA-2): Σ de las filas con un monto
+ * válido (`parseMoneyInput`: los vacíos o inválidos no cuentan) y lo que queda de `amountCents`
+ * (negativo si se asigna de más; `null` sin monto). Una sola suma para el «Asignado $X» de la
+ * web y para la validación de los formularios (`account-forms.ts`). */
+export function allocationTotals(
+  amountCents: number | null,
+  montos: readonly string[],
+): { allocatedCents: number; leftCents: number | null } {
+  const allocatedCents = montos.reduce((sum, m) => sum + (parseMoneyInput(m) ?? 0), 0)
+  return {
+    allocatedCents,
+    leftCents: amountCents === null ? null : amountCents - allocatedCents,
+  }
+}
+
 /**
  * Lo que un ajuste libera de las asignaciones de un trabajo (Nelson, 2026-10-08): si lo
  * asignado supera su neto (p. ej. un descuento sobre un trabajo ya pagado entero), el exceso
@@ -145,7 +175,40 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((utcDay(to) - utcDay(from)) / DAY_MS)
 }
 
-function bucketFor(days: number): AgingBucket {
+/** El día anterior a una fecha de negocio `YYYY-MM-DD` (CTA-5): el saldo inicial de un estado
+ * de cuenta es el del cierre del día anterior a `desde`. */
+export function previousDay(isoDate: string): string {
+  return new Date(utcDay(isoDate) - DAY_MS).toISOString().slice(0, 10)
+}
+
+/** Un movimiento del estado de cuenta (CTA-5): su efecto en el saldo con signo (el cargo y el
+ * recargo suman; el pago y el descuento restan) y si es un pago anulado. */
+export type StatementMovement = { kind: AccountMovementKind; cents: number; voided: boolean }
+
+/**
+ * Cuadre del estado de cuenta (decisión 12): el saldo corrido tras cada movimiento (de más
+ * antiguo a más nuevo, desde `openingCents`), los totales por tipo y el saldo final = inicial +
+ * Σ totales. Un pago anulado se lista pero no suma: su fila repite el saldo anterior.
+ */
+export function accountStatement(input: {
+  openingCents: number
+  movements: readonly StatementMovement[]
+}): { balances: number[]; totals: Record<AccountMovementKind, number>; closingCents: number } {
+  const totals: Record<AccountMovementKind, number> = { cargo: 0, ajuste: 0, pago: 0 }
+  let running = input.openingCents
+  const balances = input.movements.map((m) => {
+    if (!m.voided) {
+      running += m.cents
+      totals[m.kind] += m.cents
+    }
+    return running
+  })
+  return { balances, totals, closingCents: running }
+}
+
+/** Cubo de antigüedad de una partida con `days` días (decisión 9). La web lo usa para la
+ * pestaña de color de la cuenta según lo más antiguo que se debe (CTA-1). */
+export function agingBucketForDays(days: number): AgingBucket {
   if (days <= 30) return '0_30'
   if (days <= 60) return '31_60'
   if (days <= 90) return '61_90'
@@ -185,7 +248,7 @@ function openCharges(input: AgingInput): { date: string; cents: number }[] {
 export function agingBuckets(input: AgingInput): Record<AgingBucket, number> {
   const buckets: Record<AgingBucket, number> = { '0_30': 0, '31_60': 0, '61_90': 0, '90_mas': 0 }
   for (const charge of openCharges(input)) {
-    buckets[bucketFor(daysBetween(charge.date, input.today))] += charge.cents
+    buckets[agingBucketForDays(daysBetween(charge.date, input.today))] += charge.cents
   }
   return buckets
 }

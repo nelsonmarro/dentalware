@@ -10,7 +10,7 @@ import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as ApiModule from './api'
 import type { CaseDetail, CaseEvent } from './api'
-import { CaseHistory, historyTabLabel } from './case-history'
+import { CaseHistory, EVENT_LABEL, historyTabLabel } from './case-history'
 
 // UX3-13: el historial no consulta la lista de técnicos (los nombres vienen con el evento);
 // si volviera a hacerlo, este mock lo delata en el test de abajo.
@@ -207,6 +207,60 @@ describe('CaseHistory', () => {
       expect(item).not.toHaveTextContent('2026-10-0')
       expect(item).not.toHaveTextContent('9b2f7c1e')
       expect(item).not.toHaveTextContent('Nuevo estado')
+    },
+  )
+
+  // M-4 de la revisión final del PR 1 de la Iteración 5: admin y recepción ven el monto y el
+  // motivo de los eventos de cobro, con palabras y el monto con formato.
+  it.each([
+    [
+      'payment_applied',
+      { toValue: '50.00', reason: 'Transferencia · TRX-1' },
+      'Pago aplicado',
+      '$ 50.00 · Transferencia · TRX-1',
+    ],
+    [
+      'payment_voided',
+      { toValue: '50.00', reason: 'Pago duplicado' },
+      'Pago anulado',
+      'Se devolvieron $ 50.00 · Motivo: Pago duplicado',
+    ],
+    [
+      'adjustment_added',
+      { toValue: '-10.00', reason: 'Acuerdo de precio' },
+      'Ajuste registrado',
+      'Descuento de $ 10.00 · Motivo: Acuerdo de precio',
+    ],
+    [
+      'adjustment_added',
+      { toValue: '5.50', reason: 'Envío urgente' },
+      'Ajuste registrado',
+      'Recargo de $ 5.50 · Motivo: Envío urgente',
+    ],
+  ] as const)('el evento %s dice su monto y su motivo', async (type, campos, rotulo, detalle) => {
+    renderWithProviders(
+      <CaseHistory case={caso()} stages={[]} events={[event({ type, ...campos })]} />,
+    )
+    const item = await screen.findByRole('listitem')
+    expect(within(item).getByText(rotulo)).toBeInTheDocument()
+    expect(item).toHaveTextContent(detalle)
+  })
+
+  // Técnico y mensajero reciben estos eventos enmascarados (`maskPriceEvents`: `fromValue`,
+  // `toValue` y `reason` en null): se ve qué pasó, nunca un monto ni un hueco roto.
+  it.each(['payment_applied', 'payment_voided', 'adjustment_added'] as const)(
+    'el evento %s enmascarado se lee sin monto ni motivo',
+    async (type) => {
+      renderWithProviders(
+        <CaseHistory
+          case={caso()}
+          stages={[]}
+          events={[event({ type, fromValue: null, toValue: null, reason: null })]}
+        />,
+      )
+      const item = await screen.findByRole('listitem')
+      expect(item).toHaveTextContent(EVENT_LABEL[type])
+      expect(item).not.toHaveTextContent(/\$|Motivo|null|undefined|NaN/)
     },
   )
 

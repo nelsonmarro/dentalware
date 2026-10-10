@@ -5,6 +5,7 @@ import type {
   AdjustmentEntry,
   BilledCase,
   CaseSettlement,
+  ClinicHeader,
   ClinicRef,
   PaymentEntry,
 } from './ports.ts'
@@ -15,6 +16,8 @@ export type FakeCase = Omit<BilledCase, 'adjustmentsCents' | 'allocatedCents'> &
 }
 export type FakeAdjustment = Omit<AdjustmentEntry, 'case'> & { caseId: string | null }
 export type FakePayment = Omit<PaymentEntry, 'allocatedCents'>
+/** Una clínica; los datos del encabezado del estado de cuenta, si faltan, son `null`. */
+export type FakeClinic = ClinicRef & Partial<Omit<ClinicHeader, 'id' | 'name'>>
 /** Una asignación; sin `id` ni `createdAt`, la fake les da uno (todas con la misma fecha: la
  * que llega después es la más reciente). */
 export type FakeAllocation = {
@@ -38,7 +41,7 @@ export type FakeCaseEvent = {
 }
 
 type Seed = {
-  clinics?: ClinicRef[]
+  clinics?: FakeClinic[]
   cases?: FakeCase[]
   adjustments?: FakeAdjustment[]
   payments?: FakePayment[]
@@ -105,10 +108,24 @@ export function fakeAccounts(seed: Seed = {}) {
 
   const repo: AccountsRepository = {
     async clinicById(id) {
-      return clinics.find((c) => c.id === id)
+      const c = clinics.find((x) => x.id === id)
+      return c && { id: c.id, name: c.name, active: c.active }
     },
     async clinics() {
-      return [...clinics]
+      return clinics.map((c) => ({ id: c.id, name: c.name, active: c.active }))
+    },
+    async clinicHeader(id) {
+      const c = clinics.find((x) => x.id === id)
+      return (
+        c && {
+          id: c.id,
+          name: c.name,
+          ruc: c.ruc ?? null,
+          address: c.address ?? null,
+          city: c.city ?? null,
+          phone: c.phone ?? null,
+        }
+      )
     },
     async billedCases(clinicId) {
       return of(cases, clinicId)
@@ -132,6 +149,12 @@ export function fakeAccounts(seed: Seed = {}) {
     async paymentById(id) {
       const p = payments.find((x) => x.id === id)
       return p && withAllocated(p)
+    },
+    async allocations(clinicId) {
+      const ids = new Set(of(payments, clinicId).map((p) => p.id))
+      return allocations
+        .filter((a) => ids.has(a.paymentId))
+        .map((a) => ({ paymentId: a.paymentId, caseId: a.caseId, amountCents: a.amountCents }))
     },
     async caseTotals(caseIds) {
       return caseIds.map((caseId) => ({

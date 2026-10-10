@@ -741,6 +741,170 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // CTA-1 (#82): «Cuentas» y la cuenta de una clínica, pantallas nuevas de la Iteración 5. Un
+  // «Saldo inicial» por API pone la clínica en la lista; se busca por su nombre (la BD de E2E
+  // tiene más clínicas con saldo y la lista pagina de 25 en 25).
+  test(
+    'cuentas: buscador, interruptor y tarjeta de la clínica',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic } = await createClinicWithDoctor(page)
+      const res = await page.request.post('/api/cuentas/ajustes', {
+        data: { clinicaId: clinic.id, monto: '150.00', motivo: 'Saldo inicial', fecha: todayIso() },
+      })
+      expect(res.ok()).toBe(true)
+
+      await page.goto('/cuentas')
+      await expect(page.getByRole('heading', { level: 1, name: 'Cuentas' })).toBeVisible()
+      await page.getByLabel('Buscar clínica').fill(clinic.name)
+      const card = page.getByRole('link', { name: new RegExp(clinic.name) })
+      await expect(card).toContainText('$ 150.00')
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true)
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+      await expectTouchTargets(page, TOUCH_SWITCHES, { minHeight: 24 })
+
+      await card.click()
+      await expect(page.getByRole('heading', { level: 1, name: clinic.name })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+    },
+  )
+
+  // CTA-2/CTA-3 (#83, #84): la cuenta de una clínica con sus pestañas, la línea de cobro de la
+  // ficha y los cuatro diálogos de cobro. Un trabajo entregado queda «Por cobrar» y un pago por
+  // API sin repartir deja saldo a favor, para que «Aplicar saldo a favor» y «Anular pago» salgan.
+  test(
+    'cuenta de una clínica: pestañas, línea de cobro y diálogos de pago, saldo a favor, anulación y ajuste',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, created.id, accion)
+      }
+      const courier = await createCourier(page)
+      await shipAndDeliver(page, created.id, courier.id)
+      const paid = await page.request.post('/api/cuentas/pagos', {
+        data: {
+          clinicaId: clinic.id,
+          monto: '1.00',
+          metodo: 'efectivo',
+          fecha: todayIso(),
+          asignaciones: [],
+        },
+      })
+      expect(paid.ok()).toBe(true)
+
+      await page.goto(`/trabajos/${created.id}`)
+      const accountLink = page.getByRole('link', { name: 'Ver cuenta de la clínica' })
+      await expect(accountLink).toBeVisible()
+      await expectTouchTargets(page, 'a[href]:has-text("Ver cuenta de la clínica")')
+
+      await accountLink.click()
+      await expect(page.getByRole('heading', { level: 1, name: clinic.name })).toBeVisible()
+      await expect(page.getByRole('link', { name: created.code })).toBeVisible()
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true)
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+
+      await page.getByRole('tab', { name: /^Movimientos/ }).click()
+      await expect(page.getByText('Le quedan $ 1.00 a favor')).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+
+      const dialogs: [RegExp, string][] = [
+        [/^Registrar pago$/, 'Registrar pago'],
+        [/^Aplicar saldo a favor de/, 'Aplicar saldo a favor'],
+        [/^Anular pago de/, 'Anular pago'],
+        [/^Registrar ajuste$/, 'Registrar ajuste'],
+      ]
+      for (const [button, title] of dialogs) {
+        await page.getByRole('button', { name: button }).click()
+        const dialog = page.getByRole('dialog', { name: title })
+        await expect(dialog).toBeVisible()
+        await expectTouchTargets(dialog, TOUCH_CONTROLS)
+        // Nada se sale por la derecha del diálogo (el reparto con un paciente largo lo
+        // ensanchaba y recortaba los botones del pie).
+        expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+        await dialog.getByRole('button', { name: 'Volver' }).click()
+        await expect(dialog).toBeHidden()
+      }
+    },
+  )
+
+  // CTA-2/CTA-3 (#83, #84): los desplegables de los diálogos de cobro, que el barrido de arriba
+  // no abre: el método de «Registrar pago» (`Select`) y el trabajo de «Registrar ajuste»
+  // (`Combobox` con buscador). Las opciones son lo que se toca con guantes.
+  test(
+    'cuenta de una clínica: desplegables de método de pago y de trabajo del ajuste',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, created.id, accion)
+      }
+      const courier = await createCourier(page)
+      await shipAndDeliver(page, created.id, courier.id)
+
+      await page.goto(`/cuentas/${clinic.id}`)
+      await expect(page.getByRole('heading', { level: 1, name: clinic.name })).toBeVisible()
+
+      await page.getByRole('button', { name: 'Registrar pago' }).click()
+      const pago = page.getByRole('dialog', { name: 'Registrar pago' })
+      await pago.getByRole('combobox', { name: 'Método' }).click()
+      const metodos = page.getByRole('listbox')
+      await expect(metodos.getByRole('option', { name: 'Transferencia' })).toBeVisible()
+      await expectTouchTargets(metodos, '[role=option]')
+      await page.keyboard.press('Escape')
+      await expect(metodos).toBeHidden()
+      await pago.getByRole('button', { name: 'Volver' }).click()
+      await expect(pago).toBeHidden()
+
+      await page.getByRole('button', { name: 'Registrar ajuste' }).click()
+      const ajuste = page.getByRole('dialog', { name: 'Registrar ajuste' })
+      await ajuste.getByRole('combobox', { name: 'Trabajo' }).click()
+      const trabajos = page.getByRole('dialog', { name: 'Elegir trabajo' })
+      await expect(trabajos.getByRole('option', { name: new RegExp(created.code) })).toBeVisible()
+      await expectTouchTargets(trabajos, '[role=option]')
+      await expectTouchTargets(trabajos, 'input')
+    },
+  )
+
+  // CTA-5 (#86): el estado de cuenta imprimible, con sus controles de periodo e «Imprimir».
+  test('estado de cuenta: periodo, imprimir y tablas', { tag: '@extendida' }, async ({ page }) => {
+    const { clinic } = await createClinicWithDoctor(page)
+    const res = await page.request.post('/api/cuentas/ajustes', {
+      data: { clinicaId: clinic.id, monto: '150.00', motivo: 'Saldo inicial', fecha: todayIso() },
+    })
+    expect(res.ok()).toBe(true)
+
+    await page.goto(`/cuentas/${clinic.id}/estado`)
+    await expect(page.getByRole('heading', { level: 1, name: 'Estado de cuenta' })).toBeVisible()
+    await expect(page.getByRole('table', { name: 'Movimientos' })).toContainText('Saldo inicial')
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBe(true)
+    await expectTouchTargets(page, TOUCH_CONTROLS)
+  })
+
   // I-1 (ronda de fixes 1, T12): el criterio de INI-1 ("sin scroll horizontal a 390 px") no
   // tenía test y el inicio no estaba en este barrido. `scrollWidth <= clientWidth` se mide
   // sobre `document.documentElement` (no sobre un contenedor interno como en

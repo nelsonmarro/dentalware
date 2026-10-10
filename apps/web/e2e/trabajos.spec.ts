@@ -462,7 +462,13 @@ test.describe('Trabajos', () => {
       // contiene el id del padre.
       await expect(page).toHaveURL(/\/trabajos\/[^/]+$/)
       await expect(page).not.toHaveURL(new RegExp(`/trabajos/${trabajo.id}$`))
-      await expect(page.getByText(trabajo.code)).not.toBeVisible()
+      // La ficha del hijo enlaza al padre («Repetición de 26-00061»), así que el código del padre
+      // sí está en pantalla: se espera a que cargue (el enlace) y se afirma sobre el h1, que es
+      // el código del hijo. Un `getByText(code)` negado pasaba solo si se evaluaba antes de cargar.
+      await expect(page.getByRole('link', { name: `Repetición de ${trabajo.code}` })).toBeVisible()
+      const titulo = page.getByRole('heading', { level: 1 })
+      await expect(titulo).toHaveText(/^\d{2}-\d{5}$/)
+      await expect(titulo).not.toHaveText(trabajo.code)
       await expect(page.getByText('Nuevo', { exact: true })).toBeVisible()
     },
   )

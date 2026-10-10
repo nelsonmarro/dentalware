@@ -783,7 +783,7 @@ describe('/api/cuentas', () => {
       expect((await eventsOf(uno.id)).at(-1)).toMatchObject({
         type: 'adjustment_added',
         toValue: '-5.00',
-        reason: 'Descuento tardío · Se devolvieron $5.00 al saldo a favor',
+        reason: 'Descuento tardío · $ 5.00 vuelven al saldo a favor',
       })
       expect((await eventsOf(uno.id, tecnico)).at(-1)).toMatchObject({
         type: 'adjustment_added',
@@ -872,6 +872,140 @@ describe('/api/cuentas', () => {
           reason: null,
         })
       }
+    })
+  })
+
+  describe('estado de cuenta (CTA-5)', () => {
+    type Statement = {
+      clinic: Record<string, unknown>
+      range: { desde: string; hasta: string }
+      openingDate: string
+      openingBalance: string
+      movements: { kind: string; amount: string; balance: string; voided: unknown }[]
+      totals: Record<string, string>
+      closingBalance: string
+      credit: string
+      aging: Record<string, string>
+      oldestDays: number | null
+      openCases: { id: string; outstanding: string; days: number }[]
+    }
+    const url = (q: string) => `/api/cuentas/${clinicId}/estado?${q}`
+    const OCTUBRE = 'desde=2026-10-01&hasta=2026-10-06'
+
+    async function pay(body: Record<string, unknown>) {
+      const r = await post('/api/cuentas/pagos', recepcion, {
+        clinicaId: clinicId,
+        metodo: 'efectivo',
+        asignaciones: [],
+        ...body,
+      })
+      expect(r.status).toBe(201)
+      return ((await r.json()) as { pago: { id: string } }).pago.id
+    }
+
+    it('401 sin sesión, 403 técnico y mensajero, 200 admin y recepción', async () => {
+      expect((await get(url(OCTUBRE), '')).status).toBe(401)
+      expect((await get(url(OCTUBRE), tecnico)).status).toBe(403)
+      expect((await get(url(OCTUBRE), mensajero)).status).toBe(403)
+      expect((await get(url(OCTUBRE), admin)).status).toBe(200)
+      expect((await get(url(OCTUBRE), recepcion)).status).toBe(200)
+    })
+
+    it('422 con desde posterior a hasta, sin fechas o con un id que no es uuid; 404 sin clínica', async () => {
+      const r = await get(url('desde=2026-10-07&hasta=2026-10-06'), admin)
+      expect(r.status).toBe(422)
+      expect(await r.json()).toMatchObject({
+        message: 'Datos inválidos',
+        issues: [
+          expect.objectContaining({
+            path: 'hasta',
+            message: 'La fecha final no puede ser anterior a la inicial',
+          }),
+        ],
+      })
+      expect((await get(url('desde=2026-10-01'), admin)).status).toBe(422)
+      expect((await get(url('desde=ayer&hasta=hoy'), admin)).status).toBe(422)
+      expect((await get(`/api/cuentas/abc/estado?${OCTUBRE}`, admin)).status).toBe(422)
+      const missing = await get(`/api/cuentas/${randomUUID()}/estado?${OCTUBRE}`, admin)
+      expect(missing.status).toBe(404)
+      expect(await missing.json()).toEqual({ message: 'No encontrado' })
+    })
+
+    // I-2 de la revisión final del PR 2 (reloj de la suite: hoy es 2026-10-06).
+    it('422 en hasta si es posterior a hoy', async () => {
+      const r = await get(url('desde=2026-10-01&hasta=2026-10-31'), admin)
+      expect(r.status).toBe(422)
+      expect(await r.json()).toEqual({
+        message: 'Datos inválidos',
+        issues: [{ path: 'hasta', message: 'La fecha final no puede ser posterior a hoy' }],
+      })
+    })
+
+    it('saldo inicial, movimientos con saldo corrido y saldo final; con hasta = hoy cuadra con la cuenta', async () => {
+      await ctx.db
+        .update(ctx.schema.clinics)
+        .set({
+          ruc: '1790012345001',
+          address: 'Av. Amazonas N34-120',
+          city: 'Quito',
+          phone: '022345678',
+        })
+        .where(eq(ctx.schema.clinics.id, clinicId))
+      const ini = await post('/api/cuentas/ajustes', admin, {
+        clinicaId: clinicId,
+        monto: '150.00',
+        motivo: 'Saldo inicial',
+        fecha: '2026-06-30',
+      })
+      expect(ini.status).toBe(201)
+      // Anticipo de septiembre: a favor, antes del rango.
+      await pay({ monto: '10.00', fecha: '2026-09-15' })
+      const c = await deliverCase()
+      await pay({
+        monto: '20.00',
+        fecha: '2026-10-06',
+        asignaciones: [{ trabajoId: c.id, monto: '20.00' }],
+      })
+      const anulado = await pay({ monto: '5.00', fecha: '2026-10-05' })
+      const voided = await post(`/api/cuentas/pagos/${anulado}/anular`, admin, {
+        motivo: 'Duplicado',
+      })
+      expect(voided.status).toBe(200)
+
+      const r = await get(url(OCTUBRE), recepcion)
+      expect(r.status).toBe(200)
+      const s = (await r.json()) as Statement
+      expect(s.clinic).toEqual({
+        id: clinicId,
+        name: 'Clínica Sur',
+        ruc: '1790012345001',
+        address: 'Av. Amazonas N34-120',
+        city: 'Quito',
+        phone: '022345678',
+      })
+      expect(s.range).toEqual({ desde: '2026-10-01', hasta: '2026-10-06' })
+      expect(s.openingDate).toBe('2026-09-30')
+      // 150 − 10.
+      expect(s.openingBalance).toBe('140.00')
+      expect(s.movements.map((m) => [m.kind, m.amount, m.balance, m.voided !== null])).toEqual([
+        ['pago', '-5.00', '140.00', true],
+        ['cargo', '45.00', '185.00', false],
+        ['pago', '-20.00', '165.00', false],
+      ])
+      expect(s.totals).toEqual({ cargo: '45.00', ajuste: '0.00', pago: '-20.00' })
+      expect(s.closingBalance).toBe('165.00')
+      expect(s.openCases).toEqual([
+        expect.objectContaining({ id: c.id, outstanding: '25.00', days: 0 }),
+      ])
+
+      const account = (await (await get(`/api/cuentas/${clinicId}`, admin)).json()) as Statement & {
+        balance: string
+      }
+      expect(s.closingBalance).toBe(account.balance)
+      expect(s.credit).toBe(account.credit)
+      expect(s.aging).toEqual(account.aging)
+      expect(s.oldestDays).toBe(account.oldestDays)
+      expect(s.openCases).toEqual(account.openCases)
     })
   })
 })

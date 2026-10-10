@@ -87,6 +87,25 @@ describe('use-cases: invalidación de queryKeys.summary', () => {
   })
 })
 
+/** Iteración 5 (nota de la Tarea 7): «Marcar entregado» carga el trabajo a la cuenta de su
+ * clínica, así que una acción de estado también invalida `['cuentas']` (lista y cuenta de la
+ * clínica abiertas en otra pestaña). */
+describe('use-cases: una acción de estado refresca las cuentas', () => {
+  it('invalida la lista de «Cuentas» y la cuenta de la clínica', async () => {
+    postCaseAction.mockResolvedValue({ id: 'c1', status: 'entregado' } as never)
+    const client = makeClient()
+    client.setQueryData(queryKeys.accounts.list(false), [])
+    client.setQueryData(queryKeys.accounts.clinic('k1'), {})
+
+    const { result } = renderHook(() => useCaseAction('c1'), { wrapper: wrapperFor(client) })
+    result.current.mutate({ accion: 'marcar_entregado', motivo: null, constanciaId: 'a1' })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(client.getQueryState(queryKeys.accounts.list(false))?.isInvalidated).toBe(true)
+    expect(client.getQueryState(queryKeys.accounts.clinic('k1'))?.isInvalidated).toBe(true)
+  })
+})
+
 /** UX3-11: «Trabajo actualizado» no decía qué pasó. Tabla literal, no derivada del `Record`
  * que la produce: si alguien cambia un texto o lo deja genérico, este test lo ve. */
 describe('use-cases: toast de éxito con el nombre de la acción', () => {

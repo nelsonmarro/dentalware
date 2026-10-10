@@ -3,6 +3,7 @@ import {
   fromCents,
   fromSignedCents,
   lineTotalCents,
+  parseMoneyInput,
   percentOfCents,
   sumCents,
   toCents,
@@ -71,5 +72,20 @@ describe('montos con signo (ajustes y saldos, Iteración 5)', () => {
   })
   it('rechaza centavos no enteros', () => {
     expect(() => fromSignedCents(-1.5)).toThrow()
+  })
+})
+
+describe('parseMoneyInput (lo que se escribe en un campo de monto)', () => {
+  it('lee punto o coma decimal, con espacios alrededor', () => {
+    expect(parseMoneyInput('12.50')).toBe(1250)
+    expect(parseMoneyInput(' 12,5 ')).toBe(1250)
+    expect(parseMoneyInput('7')).toBe(700)
+  })
+
+  it('vacío, con signo, con letras o con 3 decimales no es un monto', () => {
+    expect(parseMoneyInput('')).toBeNull()
+    expect(parseMoneyInput('-5')).toBeNull()
+    expect(parseMoneyInput('12a')).toBeNull()
+    expect(parseMoneyInput('1.005')).toBeNull()
   })
 })

@@ -25,8 +25,8 @@ export function FormDialog({
   title: string
   /** Sobre qué se actúa («26-00087 · Clínica Sur», UX4-12): abre la descripción, para que quien
    * tiene la lista tapada por el diálogo compruebe que eligió el bueno. El código va en
-   * monoespaciada; el resto, no. */
-  context?: { code: string; label: string }
+   * monoespaciada; el resto, no. Sin código, solo el nombre (la clínica de «Registrar pago»). */
+  context?: { code?: string; label: string }
   description?: string
   children: ReactNode
   footer: ReactNode
@@ -43,8 +43,11 @@ export function FormDialog({
       <DialogContent
         // Al cerrar, el foco vuelve a quien lo abrió, o al `h1` (`useReturnFocus`).
         onCloseAutoFocus={returnFocus}
+        // `*:min-w-0`: el contenido es una rejilla y sus hijos medían, como mínimo, lo que su
+        // texto más largo sin cortar (el reparto con un paciente largo). Así se encogen al ancho
+        // del diálogo en vez de salirse por la derecha y recortar los botones del pie.
         className={cn(
-          'max-h-[90svh] overflow-x-hidden overflow-y-auto',
+          'max-h-[90svh] overflow-x-hidden overflow-y-auto *:min-w-0',
           size === 'wide' ? 'max-w-[calc(100%-1rem)] sm:max-w-4xl' : 'sm:max-w-lg',
         )}
       >
@@ -54,7 +57,12 @@ export function FormDialog({
             <DialogDescription>
               {context && (
                 <span className="block font-medium text-foreground">
-                  <span className="font-mono">{context.code}</span> · {context.label}
+                  {context.code && (
+                    <>
+                      <span className="font-mono">{context.code}</span> ·{' '}
+                    </>
+                  )}
+                  {context.label}
                 </span>
               )}
               {context && description && ' '}

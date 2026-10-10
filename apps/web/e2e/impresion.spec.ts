@@ -7,6 +7,7 @@ import {
   login,
   loginAsAdmin,
   testPassword,
+  todayIso,
   trackConsoleErrors,
   uniqueSuffix,
 } from './helpers'
@@ -251,6 +252,68 @@ test.describe('Orden de trabajo imprimible', () => {
         expect(tecnicoErrors).toEqual([])
       } finally {
         await tecnicoContext.close()
+      }
+    },
+  )
+})
+
+/**
+ * CTA-5 (#86): el estado de cuenta de una clínica se abre desde su cuenta y su saldo final cuadra
+ * con el saldo de la cuenta (CTA-1). En papel, los controles no salen y el estado cabe en el PDF
+ * real de impresión de Chromium.
+ */
+test.describe('Estado de cuenta imprimible', () => {
+  let consoleErrors: string[] = []
+  test.beforeEach(async ({ page }) => {
+    consoleErrors = trackConsoleErrors(page)
+    await loginAsAdmin(page)
+  })
+  test.afterEach(() => {
+    expect(consoleErrors).toEqual([])
+  })
+
+  test(
+    'abre el estado de cuenta de una clínica con movimientos y su saldo final cuadra con la cuenta',
+    { tag: '@clave' },
+    async ({ page }, testInfo) => {
+      const { clinic } = await createClinicWithDoctor(page)
+      const ajuste = await page.request.post('/api/cuentas/ajustes', {
+        data: { clinicaId: clinic.id, monto: '150.00', motivo: 'Saldo inicial', fecha: todayIso() },
+      })
+      expect(ajuste.ok()).toBe(true)
+      const pago = await page.request.post('/api/cuentas/pagos', {
+        data: {
+          clinicaId: clinic.id,
+          monto: '40.00',
+          metodo: 'transferencia',
+          referencia: 'TRX-E2E',
+          fecha: todayIso(),
+          asignaciones: [],
+        },
+      })
+      expect(pago.ok()).toBe(true)
+
+      await page.goto(`/cuentas/${clinic.id}`)
+      await expect(page.getByRole('heading', { level: 1, name: clinic.name })).toBeVisible()
+      await expect(page.getByRole('region', { name: 'Saldo' })).toContainText('$ 110.00')
+      await page.getByRole('link', { name: 'Estado de cuenta' }).click()
+
+      await expect(page.getByRole('heading', { level: 1, name: 'Estado de cuenta' })).toBeVisible()
+      await expect(page.getByText(clinic.name, { exact: true })).toBeVisible()
+      const movimientos = page.getByRole('table', { name: 'Movimientos' })
+      await expect(movimientos).toContainText('Saldo inicial')
+      await expect(movimientos).toContainText('Transferencia · TRX-E2E')
+      const cierre = movimientos.getByRole('row').last()
+      await expect(cierre).toContainText(/Saldo al \d{2}\/\d{2}\/\d{4}/)
+      await expect(cierre).toContainText('$ 110.00')
+
+      // En papel: sin controles, y el estado sale en el PDF real de impresión.
+      await page.emulateMedia({ media: 'print' })
+      await expect(page.getByRole('button', { name: 'Imprimir' })).toBeHidden()
+      await expect(page.getByLabel('Desde')).toBeHidden()
+      await expect(page.getByRole('heading', { level: 1, name: 'Estado de cuenta' })).toBeVisible()
+      if (testInfo.project.name !== 'iphone') {
+        expect(await pdfPages(page, testInfo, 'A4', 'estado-de-cuenta')).toBe(1)
       }
     },
   )

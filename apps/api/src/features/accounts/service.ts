@@ -1,6 +1,8 @@
 import {
   ACCOUNT_ADMIN_ROLES,
   ACCOUNTS_ROLES,
+  accountStatement,
+  ACCOUNT_MOVEMENT_KINDS,
   AGING_BUCKETS,
   agingBuckets,
   caseChargeCents,
@@ -13,7 +15,9 @@ import {
   isSettled,
   oldestOpenDays,
   PAYMENT_METHOD_LABEL,
+  previousDay,
   releaseExcess,
+  STATEMENT_AFTER_TODAY_MESSAGE,
   toCents,
   toIsoDate,
   toSignedCents,
@@ -21,6 +25,7 @@ import {
 import type {
   AccountListQuery,
   AccountMovementKind,
+  AccountStatementQuery,
   AdjustmentInput,
   AgingBucket,
   AllocationInput,
@@ -45,7 +50,9 @@ import type {
   AccountsUnitOfWork,
   AdjustmentEntry,
   BilledCase,
+  ClinicHeader,
   ClinicRef,
+  PaymentAllocation,
   PaymentEntry,
   SettlementCase,
 } from './ports.ts'
@@ -106,6 +113,26 @@ export type ClinicAccount = {
   movements: AccountMovement[]
 }
 
+/** Estado de cuenta de una clínica por rango de fechas de negocio (CTA-5, decisión 12). Todo
+ * con signo, en cadena decimal: el saldo, los totales por tipo y el saldo corrido. */
+export type AccountStatement = {
+  clinic: ClinicHeader
+  range: { desde: string; hasta: string }
+  /** Día cuyo cierre es el saldo inicial: el anterior a `desde`. */
+  openingDate: string
+  openingBalance: string
+  /** Movimientos del rango, de más antiguo a más nuevo, con el saldo tras cada uno. Un pago
+   * anulado lleva `voided`, no suma y repite el saldo anterior. */
+  movements: (AccountMovement & { balance: string })[]
+  totals: Record<AccountMovementKind, string>
+  closingBalance: string
+  /** Saldo a favor, antigüedad y «Por cobrar» (días desde la entrega) a la fecha `hasta`. */
+  credit: string
+  aging: Record<AgingBucket, string>
+  oldestDays: number | null
+  openCases: OpenCase[]
+}
+
 /** Un pago (CTA-2) tal como lo devuelven registrar, aplicar saldo a favor y anular. */
 export type PaymentView = {
   id: string
@@ -152,6 +179,47 @@ type Ledger = { cases: BilledCase[]; adjustments: AdjustmentEntry[]; payments: P
 
 const sum = (list: readonly number[]) => list.reduce((a, b) => a + b, 0)
 
+/**
+ * La cuenta como estaba al cierre de `date` (CTA-5): los cargos entregados hasta ese día, los
+ * ajustes y los pagos con fecha hasta ese día y, de cada trabajo, sus ajustes y lo asignado por
+ * los pagos vigentes de esa fecha. Un pago solo cuenta como asignado a los trabajos ya
+ * entregados; lo demás queda a favor. El estado de cada trabajo sale de `isSettled` a esa
+ * fecha. Con `date` = hoy, es la cuenta de hoy (las fechas de pagos y ajustes nunca son
+ * futuras).
+ */
+function ledgerAt(ledger: Ledger, allocations: readonly PaymentAllocation[], date: string): Ledger {
+  const cases = ledger.cases.filter((c) => toIsoDate(c.deliveredAt) <= date)
+  const caseIds = new Set(cases.map((c) => c.id))
+  const payments = ledger.payments.filter((p) => p.paidOn <= date)
+  const live = new Set(payments.filter((p) => p.voided === null).map((p) => p.id))
+  const counted = allocations.filter((a) => live.has(a.paymentId) && caseIds.has(a.caseId))
+  // Un ajuste con fecha anterior a la entrega de su trabajo (no lo deja la API, pero la fecha la
+  // escribe el administrador) mueve el saldo como uno sin trabajo hasta que el trabajo cargue.
+  const adjustments = ledger.adjustments
+    .filter((a) => a.date <= date)
+    .map((a) => (a.case && !caseIds.has(a.case.id) ? { ...a, case: null } : a))
+  return {
+    cases: cases.map((c) => {
+      const adjustmentsCents = sum(
+        adjustments.filter((a) => a.case?.id === c.id).map((a) => a.amountCents),
+      )
+      const allocatedCents = sum(counted.filter((a) => a.caseId === c.id).map((a) => a.amountCents))
+      const outstanding = caseOutstandingCents(caseChargeCents(c), adjustmentsCents, allocatedCents)
+      return {
+        ...c,
+        adjustmentsCents,
+        allocatedCents,
+        status: isSettled(outstanding) ? 'cobrado' : 'entregado',
+      }
+    }),
+    adjustments,
+    payments: payments.map((p) => ({
+      ...p,
+      allocatedCents: sum(counted.filter((a) => a.paymentId === p.id).map((a) => a.amountCents)),
+    })),
+  }
+}
+
 type UowRepos = Parameters<Parameters<AccountsUnitOfWork['run']>[0]>[0]
 
 /** Lo que le queda a favor a un pago (decisión 3): lo no asignado si está vigente; 0 si está
@@ -197,8 +265,7 @@ export function createAccountsService(deps: {
   clock: Clock
 }) {
   /** Todo lo de una clínica a partir de sus datos, a la fecha de hoy. */
-  function summarize(ledger: Ledger) {
-    const today = deps.clock.today()
+  function summarize(ledger: Ledger, today = deps.clock.today()) {
     const cases = ledger.cases.map((c) => {
       const chargeCents = caseChargeCents(c)
       return {
@@ -484,7 +551,7 @@ export function createAccountsService(deps: {
         toValue: fromSignedCents(amountCents),
         reason:
           releasedCents > 0
-            ? `${input.motivo} · Se devolvieron $${fromCents(releasedCents)} al saldo a favor`
+            ? `${input.motivo} · $ ${fromCents(releasedCents)} vuelven al saldo a favor`
             : input.motivo,
         actorId: ctx.userId,
       })
@@ -509,6 +576,22 @@ export function createAccountsService(deps: {
     const p = await r.accounts.paymentById(paymentId)
     if (!p) throw new PaymentNotFoundError()
     return toPaymentView(p)
+  }
+
+  /** «Por cobrar» de un resumen: de la entrega más antigua a la más nueva, con los días hasta
+   * la fecha del resumen. */
+  function openCasesOf(s: ReturnType<typeof summarize>): OpenCase[] {
+    return s.open.map((c) => ({
+      id: c.id,
+      code: c.code,
+      patientRef: c.patientRef,
+      deliveredAt: c.deliveredAt,
+      charge: fromSignedCents(c.chargeCents),
+      adjustments: fromSignedCents(c.adjustmentsCents),
+      allocated: fromSignedCents(c.allocatedCents),
+      outstanding: fromSignedCents(c.outstandingCents),
+      days: daysBetween(c.deliveredOn, s.today),
+    }))
   }
 
   return {
@@ -568,18 +651,65 @@ export function createAccountsService(deps: {
         credit: fromSignedCents(s.creditCents),
         aging: s.aging,
         oldestDays: s.oldestDays,
-        openCases: s.open.map((c) => ({
-          id: c.id,
-          code: c.code,
-          patientRef: c.patientRef,
-          deliveredAt: c.deliveredAt,
-          charge: fromSignedCents(c.chargeCents),
-          adjustments: fromSignedCents(c.adjustmentsCents),
-          allocated: fromSignedCents(c.allocatedCents),
-          outstanding: fromSignedCents(c.outstandingCents),
-          days: daysBetween(c.deliveredOn, s.today),
-        })),
+        openCases: openCasesOf(s),
         movements: movementsOf(ledger),
+      }
+    },
+
+    /**
+     * Estado de cuenta de una clínica (CTA-5, decisión 12): el saldo al cierre del día anterior
+     * a `desde`, los movimientos del rango con su saldo corrido (`accountStatement` de shared:
+     * los pagos anulados se listan y no suman), el saldo final y, a la fecha `hasta`, el saldo a
+     * favor, la antigüedad y «Por cobrar». Con `hasta` = hoy cuadra con `clinicAccount`. 404 si
+     * la clínica no existe.
+     */
+    async statement(clinicId: string, q: AccountStatementQuery): Promise<AccountStatement> {
+      // Con `hasta` futura, la antigüedad y los días de «Por cobrar» saldrían proyectados a esa
+      // fecha (I-2 de la revisión final del PR 2): como en pagos y ajustes, no después de hoy.
+      if (q.hasta > deps.clock.today()) {
+        throw new AccountInputError(STATEMENT_AFTER_TODAY_MESSAGE, 'hasta')
+      }
+      const clinic = await deps.accounts.clinicHeader(clinicId)
+      if (!clinic) throw new ClinicAccountNotFoundError()
+      const [cases, adjustments, payments, allocations] = await Promise.all([
+        deps.accounts.billedCases(clinicId),
+        deps.accounts.adjustments(clinicId),
+        deps.accounts.payments(clinicId),
+        deps.accounts.allocations(clinicId),
+      ])
+      const ledger: Ledger = { cases, adjustments, payments }
+      const openingDate = previousDay(q.desde)
+      const opening = summarize(ledgerAt(ledger, allocations, openingDate), openingDate)
+      const closing = summarize(ledgerAt(ledger, allocations, q.hasta), q.hasta)
+      // De más antiguo a más nuevo: al revés que la cuenta (CTA-1), para el saldo corrido.
+      const movements = movementsOf(ledger)
+        .filter((m) => m.date >= q.desde && m.date <= q.hasta)
+        .reverse()
+      const running = accountStatement({
+        openingCents: opening.balanceCents,
+        movements: movements.map((m) => ({
+          kind: m.kind,
+          cents: toSignedCents(m.amount),
+          voided: m.voided !== null,
+        })),
+      })
+      return {
+        clinic,
+        range: { desde: q.desde, hasta: q.hasta },
+        openingDate,
+        openingBalance: fromSignedCents(opening.balanceCents),
+        movements: movements.map((m, i) => ({
+          ...m,
+          balance: fromSignedCents(running.balances[i] ?? running.closingCents),
+        })),
+        totals: Object.fromEntries(
+          ACCOUNT_MOVEMENT_KINDS.map((k) => [k, fromSignedCents(running.totals[k])]),
+        ) as Record<AccountMovementKind, string>,
+        closingBalance: fromSignedCents(running.closingCents),
+        credit: fromSignedCents(closing.creditCents),
+        aging: closing.aging,
+        oldestDays: closing.oldestDays,
+        openCases: openCasesOf(closing),
       }
     },
 

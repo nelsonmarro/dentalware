@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACCOUNT_MOVEMENT_KIND_LABEL,
+  ADJUSTMENT_SIGN_LABEL,
+  ADJUSTMENT_SIGNS,
   ACCOUNT_MOVEMENT_KINDS,
+  accountStatement,
   AGING_BUCKET_LABEL,
   AGING_BUCKETS,
+  agingBucketForDays,
+  allocationTotals,
   agingBuckets,
   BILLED_STATUSES,
   caseChargeCents,
@@ -12,8 +17,10 @@ import {
   isBilled,
   isSettled,
   oldestOpenDays,
+  OPENING_BALANCE_REASON,
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHODS,
+  previousDay,
   releaseExcess,
   suggestAllocation,
 } from './accounts.ts'
@@ -51,6 +58,18 @@ describe('constantes de cuentas (Iteración 5)', () => {
       ajuste: 'Ajuste',
       pago: 'Pago',
     })
+  })
+
+  it('signos de un ajuste en orden, con su rótulo (CTA-3)', () => {
+    expect(ADJUSTMENT_SIGNS).toEqual(['descuento', 'recargo'])
+    expect(ADJUSTMENT_SIGN_LABEL).toEqual({
+      descuento: 'Descuento o nota de crédito',
+      recargo: 'Recargo',
+    })
+  })
+
+  it('motivo del atajo «Saldo inicial» (CTA-3)', () => {
+    expect(OPENING_BALANCE_REASON).toBe('Saldo inicial')
   })
 
   it('cubos de antigüedad en orden', () => {
@@ -388,5 +407,99 @@ describe('oldestOpenDays (CTA-1: cuántos días tiene vencido)', () => {
         credits: [],
       }),
     ).toBe(0)
+  })
+})
+
+describe('agingBucketForDays (CTA-1: en qué cubo cae lo más antiguo)', () => {
+  it('cada cubo en sus bordes', () => {
+    expect(agingBucketForDays(0)).toBe('0_30')
+    expect(agingBucketForDays(30)).toBe('0_30')
+    expect(agingBucketForDays(31)).toBe('31_60')
+    expect(agingBucketForDays(60)).toBe('31_60')
+    expect(agingBucketForDays(61)).toBe('61_90')
+    expect(agingBucketForDays(90)).toBe('61_90')
+    expect(agingBucketForDays(91)).toBe('90_mas')
+    expect(agingBucketForDays(400)).toBe('90_mas')
+  })
+})
+
+describe('previousDay (CTA-5: el saldo inicial es el del cierre del día anterior)', () => {
+  it.each([
+    ['2026-10-09', '2026-10-08'],
+    ['2026-10-01', '2026-09-30'],
+    ['2026-01-01', '2025-12-31'],
+    ['2028-03-01', '2028-02-29'],
+    ['2026-03-01', '2026-02-28'],
+  ])('el día anterior a %s es %s', (day, expected) => {
+    expect(previousDay(day)).toBe(expected)
+  })
+})
+
+describe('accountStatement (CTA-5: saldo corrido y cuadre del estado de cuenta)', () => {
+  it('cada movimiento deja su saldo corrido, desde el saldo inicial', () => {
+    const s = accountStatement({
+      openingCents: 10_000,
+      movements: [
+        { kind: 'cargo', cents: 4_500, voided: false },
+        { kind: 'pago', cents: -3_000, voided: false },
+        { kind: 'ajuste', cents: -500, voided: false },
+        { kind: 'ajuste', cents: 1_000, voided: false },
+      ],
+    })
+    expect(s.balances).toEqual([14_500, 11_500, 11_000, 12_000])
+    expect(s.closingCents).toBe(12_000)
+  })
+
+  it('un pago anulado no suma: su fila repite el saldo anterior', () => {
+    const s = accountStatement({
+      openingCents: 5_000,
+      movements: [
+        { kind: 'pago', cents: -2_000, voided: true },
+        { kind: 'cargo', cents: 1_000, voided: false },
+      ],
+    })
+    expect(s.balances).toEqual([5_000, 6_000])
+    expect(s.closingCents).toBe(6_000)
+    expect(s.totals).toEqual({ cargo: 1_000, ajuste: 0, pago: 0 })
+  })
+
+  it('totales por tipo con signo; saldo final = inicial + Σ totales', () => {
+    const s = accountStatement({
+      openingCents: -1_000,
+      movements: [
+        { kind: 'cargo', cents: 4_500, voided: false },
+        { kind: 'cargo', cents: 2_000, voided: false },
+        { kind: 'pago', cents: -3_000, voided: false },
+        { kind: 'ajuste', cents: -500, voided: false },
+      ],
+    })
+    expect(s.totals).toEqual({ cargo: 6_500, ajuste: -500, pago: -3_000 })
+    expect(s.closingCents).toBe(2_000)
+  })
+
+  it('sin movimientos, el saldo final es el inicial', () => {
+    const s = accountStatement({ openingCents: 7_700, movements: [] })
+    expect(s.balances).toEqual([])
+    expect(s.totals).toEqual({ cargo: 0, ajuste: 0, pago: 0 })
+    expect(s.closingCents).toBe(7_700)
+  })
+})
+
+// M2 de la revisión final del PR 2: una sola suma del reparto para el «Asignado $X» en vivo
+// y para la validación de los formularios.
+describe('allocationTotals (suma de un reparto escrito)', () => {
+  it('suma lo asignado y dice lo que queda, sin contar filas vacías ni inválidas', () => {
+    expect(allocationTotals(10000, ['20', '', '40,5', 'abc'])).toEqual({
+      allocatedCents: 6050,
+      leftCents: 3950,
+    })
+  })
+
+  it('lo que queda es negativo si se asigna de más', () => {
+    expect(allocationTotals(1000, ['20'])).toEqual({ allocatedCents: 2000, leftCents: -1000 })
+  })
+
+  it('sin monto del pago no hay resto que decir', () => {
+    expect(allocationTotals(null, ['20'])).toEqual({ allocatedCents: 2000, leftCents: null })
   })
 })

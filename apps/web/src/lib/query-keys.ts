@@ -51,6 +51,15 @@ export const queryKeys = {
   // aparte.
   caseRemakes: (id: string) => ['trabajos', id, 'repeticiones'] as const,
   attachments: (caseId: string) => ['trabajos', caseId, 'adjuntos'] as const,
+  // Bajo su propio prefijo `cuentas` (Iteración 5): las mutaciones de cuentas (pagos, ajustes,
+  // anulación) invalidan `['cuentas']` y `['trabajos']`, porque cambian el estado de los trabajos.
+  accounts: {
+    list: (todas: boolean) => ['cuentas', 'lista', { todas }] as const,
+    clinic: (clinicId: string) => ['cuentas', clinicId] as const,
+    // Bajo `cuentas/<clínica>`: un pago, un ajuste o una anulación de la clínica lo invalidan.
+    statement: (clinicId: string, desde: string, hasta: string) =>
+      ['cuentas', clinicId, 'estado', { desde, hasta }] as const,
+  },
 }
 
 /**
@@ -65,4 +74,12 @@ export const mutationKeys = {
   proofUpload: (caseId: string) => ['trabajos', caseId, 'constancia'] as const,
   deliveryFail: (caseId: string) => ['trabajos', caseId, 'no-se-pudo'] as const,
   pickUp: (caseId: string) => ['trabajos', caseId, 'recogido'] as const,
+  // Iteración 5: las mutaciones de la cuenta de una clínica (pago, saldo a favor, anulación y
+  // ajuste) cuelgan de `account(clinicId)`, para que `useAccountBusy` no deje registrar otra
+  // mientras una espera la señal.
+  account: (clinicId: string) => ['cuentas', clinicId] as const,
+  payment: (clinicId: string) => ['cuentas', clinicId, 'pago'] as const,
+  applyCredit: (clinicId: string) => ['cuentas', clinicId, 'saldo-a-favor'] as const,
+  voidPayment: (clinicId: string) => ['cuentas', clinicId, 'anular'] as const,
+  adjustment: (clinicId: string) => ['cuentas', clinicId, 'ajuste'] as const,
 }

@@ -1,6 +1,7 @@
 import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { renderWithRouter } from '@/test/router'
+import { paragraph } from '@/test/text'
 import type { CaseDetail, CaseEvent } from './api'
 import { CaseHeader } from './case-header'
 
@@ -71,6 +72,53 @@ describe('CaseHeader', () => {
     expect(await screen.findByText('$ 90.00')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Editar/ })).toBeInTheDocument()
   })
+
+  // Iteración 5: la línea de cobro, con enlace a la cuenta de la clínica, para admin y
+  // recepción; a técnico y mensajero la API les manda `account: null`.
+  it.each(['admin', 'recepcion'] as const)(
+    '%s ve la línea de cobro de un trabajo entregado',
+    async (role) => {
+      renderWithRouter(
+        <CaseHeader
+          case={baseCase({
+            status: 'entregado',
+            account: {
+              charge: '90.00',
+              adjustments: '0.00',
+              allocated: '40.00',
+              outstanding: '50.00',
+              paidAt: null,
+            },
+          } as Partial<CaseDetail>)}
+          missing={[]}
+          role={role}
+        />,
+      )
+      expect(await screen.findByText(paragraph('Pendiente $ 50.00 de $ 90.00'))).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Ver cuenta de la clínica' })).toHaveAttribute(
+        'href',
+        '/cuentas/clinica-1',
+      )
+    },
+  )
+
+  it.each(['tecnico', 'mensajero'] as const)(
+    '%s no ve la línea de cobro (la API no le manda la cuenta)',
+    async (role) => {
+      renderWithRouter(
+        <CaseHeader
+          case={baseCase({ status: 'entregado', account: null } as Partial<CaseDetail>)}
+          missing={[]}
+          role={role}
+        />,
+      )
+      await screen.findByText('26-00001')
+      expect(screen.queryByText(/Pendiente|Cobrado el/)).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('link', { name: 'Ver cuenta de la clínica' }),
+      ).not.toBeInTheDocument()
+    },
+  )
 
   it('el código del trabajo se renderiza como encabezado h1', async () => {
     renderWithRouter(<CaseHeader case={baseCase()} missing={[]} role="admin" />)

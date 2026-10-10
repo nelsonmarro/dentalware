@@ -21,8 +21,10 @@ createRoot(document.getElementById('root')!).render(
       <RouterProvider router={router} />
       {/* Envuelto en `print:hidden`: los botones flotantes de las devtools salían en cada PDF de
        * la orden imprimible, encima de la firma (K-3/N-1, Tarea 14). Un `display: none` en el
-       * ancestro oculta también a los hijos con `position: fixed`. */}
-      <div className="print:hidden">
+       * ancestro oculta también a los hijos con `position: fixed`. Y solo desde `lg`: en móvil
+       * tapaban la barra de navegación inferior (M1 de la revisión final del PR 2 de la
+       * Iteración 5). En producción no pintan nada. */}
+      <div className="hidden lg:block print:hidden">
         <ReactQueryDevtools initialIsOpen={false} />
       </div>
     </QueryClientProvider>

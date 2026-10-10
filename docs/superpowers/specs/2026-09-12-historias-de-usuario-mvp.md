@@ -329,21 +329,23 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 7 = baja.
 
 ### CTA — Cuentas y cobro
 
-**CTA-1.** Como administrador, quiero ver el saldo de cada clínica y cuántos días tiene vencido para saber a quién cobrar.
+**Decisiones de Nelson (2026-10-06 y 2026-10-08).** Los pagos no se editan: el administrador los anula con motivo, dejan de contar, quedan tachados en los movimientos y los trabajos que cerraron vuelven a «Entregado». Lo que un pago no reparte (anticipo o pago de más) queda como saldo a favor de la clínica y se aplica después con «Aplicar saldo a favor». Un descuento que deja un trabajo pagado de más libera el exceso: vuelve como saldo a favor del pago, de la asignación más reciente a la más antigua. Detalle en ADR 35 de `docs/architecture.md`.
+
+**CTA-1.** Como administrador, quiero ver el saldo de cada clínica y cuántos días tiene vencido para saber a quién cobrar. _(Hecha en la Iteración 5.)_
 - Versión mínima aceptable: pantalla «Cuentas» con lista de clínicas, saldo (Σ entregados + Σ ajustes − Σ pagos) y antigüedad 0-30 / 31-60 / 61-90 / 90+.
 - Criterios:
   - El saldo cambia al entregar un trabajo, registrar un pago o un ajuste.
   - Una repetición suma `total × remake_charge_pct / 100`, no su `total` (`docs/architecture.md` §4).
   - Técnico y mensajero no acceden (403 y sin enlace).
 
-**CTA-2.** Como recepción, quiero registrar un pago de una clínica y repartirlo entre sus trabajos entregados para que los trabajos cobrados se cierren solos.
+**CTA-2.** Como recepción, quiero registrar un pago de una clínica y repartirlo entre sus trabajos entregados para que los trabajos cobrados se cierren solos. _(Hecha en la Iteración 5.)_
 - Versión mínima aceptable: formulario de pago (monto, método, fecha, referencia) con asignación automática a los más antiguos primero, editable; `payment_allocations`.
 - Criterios:
   - Cuando lo asignado a un trabajo alcanza su total, pasa a `cobrado` con `paid_at`.
   - No se puede asignar más que el monto del pago ni más que el saldo del trabajo.
   - Queda el evento en cada trabajo afectado.
 
-**CTA-3.** Como administrador, quiero registrar ajustes (descuentos, recargos, notas de crédito) con motivo para que la cuenta refleje los acuerdos con la clínica.
+**CTA-3.** Como administrador, quiero registrar ajustes (descuentos, recargos, notas de crédito) con motivo para que la cuenta refleje los acuerdos con la clínica. _(Hecha en la Iteración 5.)_
 - Versión mínima aceptable: ajuste con signo, monto, motivo y trabajo opcional. Es también la vía para cargar el **saldo inicial** de cada clínica al arrancar (PEM-2 salió del MVP).
 - Criterios:
   - Motivo obligatorio; el ajuste aparece en los movimientos con quién lo registró.
@@ -356,7 +358,7 @@ Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 7 = baja.
   - Un trabajo no puede estar en dos facturas.
   - La ficha del trabajo muestra su número de factura.
 
-**CTA-5.** Como administrador, quiero imprimir el estado de cuenta de una clínica por rango de fechas para enviárselo con el cobro.
+**CTA-5.** Como administrador, quiero imprimir el estado de cuenta de una clínica por rango de fechas para enviárselo con el cobro. _(Hecha en la Iteración 5.)_
 - Versión mínima aceptable: vista imprimible con saldo inicial, movimientos (cargos, ajustes, pagos), saldo final y antigüedad; vista «Por cobrar» por trabajo con días desde la entrega.
 - Criterios:
   - Los totales cuadran con el saldo de CTA-1.

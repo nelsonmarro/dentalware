@@ -283,7 +283,7 @@ describe('features/accounts/service: ajustes (CTA-3)', () => {
           type: 'adjustment_added',
           fromValue: null,
           toValue: '-10.00',
-          reason: 'Descuento · Se devolvieron $10.00 al saldo a favor',
+          reason: 'Descuento · $ 10.00 vuelven al saldo a favor',
           actorId: 'u-admin',
         },
       ])
@@ -318,7 +318,7 @@ describe('features/accounts/service: ajustes (CTA-3)', () => {
       expect(allocatedBy(fake, 'p1')).toEqual([1_000])
       expect(statusOf(fake, 'a')).toBe('cobrado')
       expect(fake.events.map((e) => [e.type, e.reason])).toEqual([
-        ['adjustment_added', 'Descuento · Se devolvieron $20.00 al saldo a favor'],
+        ['adjustment_added', 'Descuento · $ 20.00 vuelven al saldo a favor'],
         ['status_changed', null],
       ])
       const account = await fake.service.clinicAccount(SUR.id)

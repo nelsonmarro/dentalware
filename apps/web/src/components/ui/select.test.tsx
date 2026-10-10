@@ -34,3 +34,22 @@ describe('SelectTrigger', () => {
     expect(trigger.className).toContain('pointer-coarse:h-11')
   })
 })
+
+describe('SelectItem', () => {
+  // Barrido táctil de «Registrar pago» (Iteración 5): las opciones del desplegable medían 28 px
+  // en móvil. Como las del `Combobox`, llegan a 44 px con el dedo.
+  it('llega a 44 px en dispositivos táctiles (pointer-coarse:min-h-11)', () => {
+    render(
+      <Select defaultOpen>
+        <SelectTrigger aria-label="Método">
+          <SelectValue placeholder="Elegir método" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="efectivo">Efectivo</SelectItem>
+        </SelectContent>
+      </Select>,
+    )
+    const option = screen.getByRole('option', { name: 'Efectivo' })
+    expect(option.className).toContain('pointer-coarse:min-h-11')
+  })
+})
