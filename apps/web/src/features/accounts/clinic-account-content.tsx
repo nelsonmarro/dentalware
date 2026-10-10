@@ -80,7 +80,7 @@ export function ClinicAccountContent({ clinicId, role }: { clinicId: string; rol
         title={data.clinic.name}
         description="Lo que debe, desde cuándo y cada pago, cargo y ajuste."
         action={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
             {canAdmin && (
               <Button
                 type="button"

@@ -773,6 +773,72 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // CTA-2/CTA-3 (#83, #84): la cuenta de una clínica con sus pestañas, la línea de cobro de la
+  // ficha y los cuatro diálogos de cobro. Un trabajo entregado queda «Por cobrar» y un pago por
+  // API sin repartir deja saldo a favor, para que «Aplicar saldo a favor» y «Anular pago» salgan.
+  test(
+    'cuenta de una clínica: pestañas, línea de cobro y diálogos de pago, saldo a favor, anulación y ajuste',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, created.id, accion)
+      }
+      const courier = await createCourier(page)
+      await shipAndDeliver(page, created.id, courier.id)
+      const paid = await page.request.post('/api/cuentas/pagos', {
+        data: {
+          clinicaId: clinic.id,
+          monto: '1.00',
+          metodo: 'efectivo',
+          fecha: todayIso(),
+          asignaciones: [],
+        },
+      })
+      expect(paid.ok()).toBe(true)
+
+      await page.goto(`/trabajos/${created.id}`)
+      const accountLink = page.getByRole('link', { name: 'Ver cuenta de la clínica' })
+      await expect(accountLink).toBeVisible()
+      await expectTouchTargets(page, 'a[href]:has-text("Ver cuenta de la clínica")')
+
+      await accountLink.click()
+      await expect(page.getByRole('heading', { level: 1, name: clinic.name })).toBeVisible()
+      await expect(page.getByRole('link', { name: created.code })).toBeVisible()
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true)
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+
+      await page.getByRole('tab', { name: /^Movimientos/ }).click()
+      await expect(page.getByText('Le quedan $ 1.00 a favor')).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+
+      const dialogs: [RegExp, string][] = [
+        [/^Registrar pago$/, 'Registrar pago'],
+        [/^Aplicar saldo a favor de/, 'Aplicar saldo a favor'],
+        [/^Anular pago de/, 'Anular pago'],
+        [/^Registrar ajuste$/, 'Registrar ajuste'],
+      ]
+      for (const [button, title] of dialogs) {
+        await page.getByRole('button', { name: button }).click()
+        const dialog = page.getByRole('dialog', { name: title })
+        await expect(dialog).toBeVisible()
+        await expectTouchTargets(dialog, TOUCH_CONTROLS)
+        await dialog.getByRole('button', { name: 'Volver' }).click()
+        await expect(dialog).toBeHidden()
+      }
+    },
+  )
+
   // I-1 (ronda de fixes 1, T12): el criterio de INI-1 ("sin scroll horizontal a 390 px") no
   // tenía test y el inicio no estaba en este barrido. `scrollWidth <= clientWidth` se mide
   // sobre `document.documentElement` (no sobre un contenedor interno como en
