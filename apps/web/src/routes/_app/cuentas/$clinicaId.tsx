@@ -7,5 +7,6 @@ export const Route = createFileRoute('/_app/cuentas/$clinicaId')({
 
 function ClinicAccountRoute() {
   const { clinicaId } = Route.useParams()
-  return <ClinicAccountContent clinicId={clinicaId} />
+  const { user } = Route.useRouteContext()
+  return <ClinicAccountContent clinicId={clinicaId} role={user.role} />
 }

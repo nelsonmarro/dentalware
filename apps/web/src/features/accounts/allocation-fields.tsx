@@ -4,6 +4,7 @@ import { FieldError } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { formatMoney } from '@/lib/format-money'
 import { cn } from '@/lib/utils'
+import { daysText } from './days-text'
 
 /** Un trabajo «Por cobrar» en el reparto. */
 export type AllocationCase = {
@@ -13,8 +14,6 @@ export type AllocationCase = {
   outstanding: string
   days: number
 }
-
-const daysText = (days: number) => (days === 1 ? '1 día' : `${days} días`)
 
 /**
  * El reparto de un pago entre los trabajos «Por cobrar» (CTA-2), compartido por «Registrar pago»

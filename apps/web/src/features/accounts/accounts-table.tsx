@@ -12,6 +12,7 @@ import { formatMoney } from '@/lib/format-money'
 import { AGING_TAB_COLOR, agingTab } from './aging-tab'
 import type { AccountRow } from './api'
 import { BalanceAmount } from './balance-amount'
+import { daysText } from './days-text'
 
 const FEATURES = [
   filtering({
@@ -20,12 +21,6 @@ const FEATURES = [
   sorting(),
   pagination(),
 ]
-
-/** «95 días», «1 día»; `—` si no debe nada. */
-function daysText(days: number | null) {
-  if (days === null) return '—'
-  return days === 1 ? '1 día' : `${days} días`
-}
 
 /** Un cubo de antigüedad: el monto, o `—` si está en cero (para que lo vencido resalte). */
 function AgingAmount({ value }: { value: string }) {

@@ -1,20 +1,42 @@
+import { ACCOUNT_ADMIN_ROLES, hasRole, type UserRole } from '@dentalware/shared'
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
+import { useState } from 'react'
 import { EmptyState } from '@/components/empty-state'
 import { LoadError } from '@/components/load-error'
 import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { QueuedNotice } from '@/features/cases/queued-notice'
 import { isNotFoundError } from '@/lib/api-error'
-import { BalanceAmount } from './balance-amount'
+import { AccountSummary } from './account-summary'
+import { adjustableCases } from './adjustable-cases'
+import { AdjustmentDialog } from './adjustment-dialog'
+import { ApplyCreditDialog } from './apply-credit-dialog'
+import { MovementsTable } from './movements-table'
+import { OpenCasesTable } from './open-cases-table'
+import type { PaymentRef } from './payment-context'
+import { PaymentDialog } from './payment-dialog'
+import { useAccountBusy } from './use-account-busy'
 import { useClinicAccount } from './use-clinic-account'
+import { VoidPaymentDialog } from './void-payment-dialog'
+
+type OpenDialog = 'pago' | 'ajuste' | 'aplicar' | 'anular' | null
 
 /**
- * La cuenta de una clínica (`/cuentas/$clinicaId`). Por ahora, su nombre y su saldo; los
- * movimientos, «Por cobrar», pagos y ajustes llegan con CTA-2 y CTA-3. Distingue «no existe»
- * (404) de «no se pudo cargar», cada uno con su `h1`.
+ * La cuenta de una clínica (`/cuentas/$clinicaId`, CTA-1/2/3): la cabecera con el saldo, el saldo
+ * a favor y la antigüedad, y las pestañas «Por cobrar» y «Movimientos». Admin y recepción
+ * registran pagos y aplican el saldo a favor de cada pago; solo el administrador
+ * (`ACCOUNT_ADMIN_ROLES`) registra ajustes y anula pagos. Distingue «no existe» (404) de «no se
+ * pudo cargar», cada uno con su `h1`.
  */
-export function ClinicAccountContent({ clinicId }: { clinicId: string }) {
+export function ClinicAccountContent({ clinicId, role }: { clinicId: string; role: UserRole }) {
   const account = useClinicAccount(clinicId)
+  const { busy, queued } = useAccountBusy(clinicId)
+  const [dialog, setDialog] = useState<OpenDialog>(null)
+  // El pago de «Aplicar saldo a favor» o «Anular pago»; se queda al cerrar, para la animación.
+  const [payment, setPayment] = useState<PaymentRef | null>(null)
+  const canAdmin = hasRole(ACCOUNT_ADMIN_ROLES, role)
 
   if (account.isPending) return <p className="text-sm text-muted-foreground">Cargando…</p>
   if (account.isError) {
@@ -37,7 +59,15 @@ export function ClinicAccountContent({ clinicId }: { clinicId: string }) {
     )
   }
 
-  const { clinic, balance } = account.data
+  const data = account.data
+  const close = (open: boolean) => {
+    if (!open) setDialog(null)
+  }
+  const openFor = (kind: 'aplicar' | 'anular') => (p: PaymentRef) => {
+    setPayment(p)
+    setDialog(kind)
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <Link
@@ -46,11 +76,95 @@ export function ClinicAccountContent({ clinicId }: { clinicId: string }) {
       >
         <ArrowLeft aria-hidden className="size-4" /> Cuentas
       </Link>
-      <PageHeader title={clinic.name} />
-      <div className="flex flex-col gap-1 self-start rounded-xl border border-border bg-card px-4 py-3">
-        <span className="text-sm text-muted-foreground">Saldo</span>
-        <BalanceAmount balance={balance} className="text-2xl" />
-      </div>
+      <PageHeader
+        title={data.clinic.name}
+        description="Lo que debe, desde cuándo y cada pago, cargo y ajuste."
+        action={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            {canAdmin && (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11"
+                disabled={busy}
+                onClick={() => setDialog('ajuste')}
+              >
+                Registrar ajuste
+              </Button>
+            )}
+            <Button
+              type="button"
+              className="h-11"
+              disabled={busy}
+              onClick={() => setDialog('pago')}
+            >
+              Registrar pago
+            </Button>
+          </div>
+        }
+      />
+      {queued && <QueuedNotice className="-mt-4" />}
+      <AccountSummary
+        balance={data.balance}
+        credit={data.credit}
+        aging={data.aging}
+        oldestDays={data.oldestDays}
+      />
+      <Tabs defaultValue="por-cobrar">
+        <TabsList>
+          <TabsTrigger value="por-cobrar">Por cobrar ({data.openCases.length})</TabsTrigger>
+          <TabsTrigger value="movimientos">Movimientos ({data.movements.length})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="por-cobrar" className="pt-4">
+          <OpenCasesTable rows={data.openCases} />
+        </TabsContent>
+        <TabsContent value="movimientos" className="pt-4">
+          <MovementsTable
+            rows={data.movements}
+            actions={{
+              canApply: data.openCases.length > 0,
+              canVoid: canAdmin,
+              disabled: busy,
+              onApply: openFor('aplicar'),
+              onVoid: openFor('anular'),
+            }}
+          />
+        </TabsContent>
+      </Tabs>
+
+      <PaymentDialog
+        clinic={data.clinic}
+        openCases={data.openCases}
+        open={dialog === 'pago'}
+        onOpenChange={close}
+      />
+      {canAdmin && (
+        <AdjustmentDialog
+          clinic={data.clinic}
+          cases={adjustableCases(data.movements, data.openCases)}
+          open={dialog === 'ajuste'}
+          onOpenChange={close}
+        />
+      )}
+      {payment && (
+        <ApplyCreditDialog
+          key={`aplicar-${payment.id}`}
+          clinic={data.clinic}
+          payment={payment}
+          openCases={data.openCases}
+          open={dialog === 'aplicar'}
+          onOpenChange={close}
+        />
+      )}
+      {payment && canAdmin && (
+        <VoidPaymentDialog
+          key={`anular-${payment.id}`}
+          clinic={data.clinic}
+          payment={payment}
+          open={dialog === 'anular'}
+          onOpenChange={close}
+        />
+      )}
     </div>
   )
 }

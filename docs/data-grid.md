@@ -401,6 +401,8 @@ Estado real del código (verificado contra `features` en cada `*-table.tsx`, Tar
 | `products-table.tsx` | cliente | ✓ | ✓ | ✓ (buscador + columnas) | ✓ | ✓ (por categoría) | ✓ | — | — |
 | `cases-table.tsx` | **servidor** | ✓ | ✓ | — (`CasesFilters`, fuera del grid) | — | — | ✓ | ✓ (`codigo` izq.) | ✓ |
 | `accounts-table.tsx` | cliente | ✓ | ✓ | ✓ (buscador) | — | — | — | — | — |
+| `open-cases-table.tsx` | cliente | — | — | — | — | — | — | — | — |
+| `movements-table.tsx` | cliente | ✓ | — | — | — | — | — | — | — |
 
 `stages-table.tsx` no usa ninguna feature de orden/filtro/paginación a propósito: las fases tienen
 un orden manual propio (Subir/Bajar en la tabla, sin drag) que una lista reordenable no debe
@@ -410,7 +412,11 @@ mezclar con orden por columna; su `FEATURES` es un array vacío (`GridFeature[] 
 `grouping`. `accounts-table.tsx` («Cuentas», CTA-1) conserva el orden de la API (de mayor a
 menor saldo) mientras nadie ordene, ordena el saldo por centavos con signo (como texto, «-12.34»
 iría antes que «-100.00») y usa `renderCard` propio: toda la tarjeta es el enlace a la cuenta, con
-la pestaña de color de lo más antiguo que se debe. Ninguna tabla combina `grouping` con `pinning` (ver la nota en la feature `pinning`
+la pestaña de color de lo más antiguo que se debe. En la cuenta de una clínica (CTA-1/2/3),
+`open-cases-table.tsx` («Por cobrar») no lleva features porque la API ya la da en el orden en que
+se cobra (de la entrega más antigua a la más nueva), y `movements-table.tsx` («Movimientos») solo
+pagina; sus acciones por pago («Aplicar saldo a favor», «Anular pago») llegan por contexto, para
+que las columnas sean una constante de módulo. Ninguna tabla combina `grouping` con `pinning` (ver la nota en la feature `pinning`
 más arriba) ni `advancedFilter` con `mode: 'server'` (no tendría efecto).
 
 ## Convenciones y límites conocidos
