@@ -43,8 +43,11 @@ export function FormDialog({
       <DialogContent
         // Al cerrar, el foco vuelve a quien lo abrió, o al `h1` (`useReturnFocus`).
         onCloseAutoFocus={returnFocus}
+        // `*:min-w-0`: el contenido es una rejilla y sus hijos medían, como mínimo, lo que su
+        // texto más largo sin cortar (el reparto con un paciente largo). Así se encogen al ancho
+        // del diálogo en vez de salirse por la derecha y recortar los botones del pie.
         className={cn(
-          'max-h-[90svh] overflow-x-hidden overflow-y-auto',
+          'max-h-[90svh] overflow-x-hidden overflow-y-auto *:min-w-0',
           size === 'wide' ? 'max-w-[calc(100%-1rem)] sm:max-w-4xl' : 'sm:max-w-lg',
         )}
       >

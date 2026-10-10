@@ -833,6 +833,9 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
         const dialog = page.getByRole('dialog', { name: title })
         await expect(dialog).toBeVisible()
         await expectTouchTargets(dialog, TOUCH_CONTROLS)
+        // Nada se sale por la derecha del diálogo (el reparto con un paciente largo lo
+        // ensanchaba y recortaba los botones del pie).
+        expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
         await dialog.getByRole('button', { name: 'Volver' }).click()
         await expect(dialog).toBeHidden()
       }
