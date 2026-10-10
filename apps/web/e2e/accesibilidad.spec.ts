@@ -839,6 +839,25 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // CTA-5 (#86): el estado de cuenta imprimible, con sus controles de periodo e «Imprimir».
+  test('estado de cuenta: periodo, imprimir y tablas', { tag: '@extendida' }, async ({ page }) => {
+    const { clinic } = await createClinicWithDoctor(page)
+    const res = await page.request.post('/api/cuentas/ajustes', {
+      data: { clinicaId: clinic.id, monto: '150.00', motivo: 'Saldo inicial', fecha: todayIso() },
+    })
+    expect(res.ok()).toBe(true)
+
+    await page.goto(`/cuentas/${clinic.id}/estado`)
+    await expect(page.getByRole('heading', { level: 1, name: 'Estado de cuenta' })).toBeVisible()
+    await expect(page.getByRole('table', { name: 'Movimientos' })).toContainText('Saldo inicial')
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBe(true)
+    await expectTouchTargets(page, TOUCH_CONTROLS)
+  })
+
   // I-1 (ronda de fixes 1, T12): el criterio de INI-1 ("sin scroll horizontal a 390 px") no
   // tenía test y el inicio no estaba en este barrido. `scrollWidth <= clientWidth` se mide
   // sobre `document.documentElement` (no sobre un contenedor interno como en
