@@ -83,6 +83,9 @@ un índice calculado). `GridColumnMeta` (`apps/web/src/components/data-grid/type
   tabla genérica): castea dentro de la función a tu tipo de fila.
 - **`label`**: etiqueta a usar en menús y filtros cuando `header` no es una cadena (por ejemplo un
   nodo JSX). `columnLabel()` cae a `meta.label` → `header` si es texto → `column.id`.
+- **`sortLabels`**: `{ asc: string; desc: string }`, el texto completo de cada sentido en el
+  «Ordenar» móvil de `sorting` («Clínica A–Z», «Más antiguo primero»). Sin él, «<Columna>:
+  ascendente/descendente». Úsalo cuando «ascendente» no dice nada (fechas, montos, días).
 
 `enableGlobalFilter: false` (opción estándar de TanStack, no de `meta`) excluye una columna del
 buscador global de la feature `filtering` — típico en columnas ya cubiertas por un filtro de
@@ -155,7 +158,7 @@ return (
     cliente, pero ese componente devuelve `null` sin pintar nada (solo funciona en modo cliente,
     ver más abajo), así que una tabla servidor con 3 features registradas podría plegar con menos
     de 3 controles realmente visibles. Hoy es inocuo porque ninguna tabla combina ambas cosas.
-  - El único slot de `sorting` (`MobileSortControls`, dos `<select>` «Ordenar por»/«Dirección») se
+  - El único slot de `sorting` (`MobileSortControl`, un `<select>` «Ordenar») se
     oculta a sí mismo con `lg:hidden` porque en escritorio el orden se acciona desde el botón de
     cada cabecera (`slots.headerCell`), no desde la toolbar. Si esa es la **única** feature con
     slot de una tabla (hoy solo `cases-table.tsx`), `GridToolbar` queda con un contenedor vacío en
@@ -183,10 +186,14 @@ Cada feature es una factoría que devuelve un `GridFeature`; se importan desde
 - **`sorting({ multi?: boolean })`**: orden por columna, cliente o servidor. Aporta un botón por
   cabecera (`slots.headerCell`) con `aria-label="Ordenar por <columna>"` y `aria-sort` en el
   `<th>` (`ascending`/`descending`/ausente). `multi` (por defecto `false`) habilita ordenar por
-  varias columnas con Shift+clic (`enableMultiSort`). También aporta un `slots.toolbar` con dos
-  `<select>` nativos de 44 px, «Ordenar por» y «Dirección» (spec §4: el orden debe poder
-  accionarse desde la toolbar en `< lg`, donde la cabecera con el botón de orden no existe). El
-  control está siempre en el DOM — se oculta en escritorio solo con la clase `lg:hidden`, no
+  varias columnas con Shift+clic (`enableMultiSort`). También aporta un `slots.toolbar` con un
+  solo `<select>` nativo de 44 px, «Ordenar» (spec §4: el orden debe poder accionarse desde la
+  toolbar en `< lg`, donde la cabecera con el botón de orden no existe). Cada opción combina
+  columna y sentido («Sin orden», y por cada columna ordenable, su sentido ascendente y luego el
+  descendente), para no apilar «Ordenar por» y «Dirección» antes de la primera tarjeta (UX5-09).
+  El texto de cada opción sale de `meta.sortLabels` (`{ asc, desc }`, por ejemplo «Clínica A–Z»
+  o «Saldo: de mayor a menor») y, sin él, es «<Columna>: ascendente» / «<Columna>: descendente».
+  El id del control lleva la `key` del grid (`<key>-ordenar`). El control está siempre en el DOM — se oculta en escritorio solo con la clase `lg:hidden`, no
   condicionado por `useMediaQuery` — para que sea accionable con teclado y sencillo de probar.
 - **`pagination({ pageSize?: number })`**: paginación cliente o servidor; tamaño de página por
   defecto 25 (`DEFAULT_PAGE_SIZE`). Su UI vive en `DataGrid.Pagination`, no en la toolbar: botones

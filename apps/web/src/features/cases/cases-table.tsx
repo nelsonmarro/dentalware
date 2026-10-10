@@ -268,11 +268,11 @@ export function CasesTable({
     >
       {/* Solo `sorting` aporta un slot `toolbar` en esta tabla (pagination/resizing/pinning/
           urlState no tienen UI de toolbar): la barra móvil nunca se pliega aquí (el umbral es 3+
-          slots registrados, `parts/toolbar.tsx`) y queda como los "Ordenar por"/"Dirección" de
+          slots registrados, `parts/toolbar.tsx`) y queda como el «Ordenar» de
           `sorting`, la única forma de cambiar el orden en `< lg` — la tabla de escritorio oculta
           las tarjetas y con ellas el botón de orden de cada cabecera.
           `lg:hidden` aquí (no en `parts/toolbar.tsx`): el único slot de esta tabla
-          (`MobileSortControls`) ya se oculta a sí mismo con `lg:hidden` porque en escritorio el
+          (`MobileSortControl`) ya se oculta a sí mismo con `lg:hidden` porque en escritorio el
           orden se acciona desde el botón de cada cabecera, así que en escritorio `GridToolbar`
           pintaba un contenedor vacío (su único hijo en `display: none`) que igual participaba del
           `gap-3` del `DataGrid.Root`, dejando una banda de 12 px sobre la tabla (Tarea 18, minor

@@ -118,6 +118,16 @@ describe('AccountsTable — escritorio', () => {
     expect([first, second]).toContainEqual([...asc].reverse())
   })
 
+  it('un nombre largo se parte en la columna de la clínica en vez de ensanchar la tabla (UX5-05)', async () => {
+    setMatchMedia(true)
+    renderWithRouter(<AccountsTable rows={ROWS} todas={false} />)
+    const cell = (await screen.findByRole('link', { name: 'Clínica Sur' })).closest('td')!
+    // La celda de la tabla es `nowrap`: sin esto, «Centro Odontológico Integral … Valle de los
+    // Chillos» ocupaba una sola línea y la tabla se desplazaba a 1280.
+    expect(cell).toHaveClass('whitespace-normal')
+    expect(screen.getByRole('columnheader', { name: 'Clínica' })).toHaveClass('min-w-48')
+  })
+
   it('busca por clínica', async () => {
     setMatchMedia(true)
     const user = userEvent.setup()
@@ -185,5 +195,29 @@ describe('AccountsTable — móvil', () => {
     const card = await screen.findByRole('link', { name: /Odonto Centro/ })
     expect(card).toHaveTextContent('A favor $ 12.34')
     expect(card).toHaveTextContent('Nada pendiente')
+  })
+
+  it('un solo «Ordenar» con cada orden escrito en palabras (UX5-09)', async () => {
+    setMatchMedia(false)
+    const user = userEvent.setup()
+    renderWithRouter(<AccountsTable rows={ROWS} todas={false} />)
+    const select = await screen.findByRole('combobox', { name: 'Ordenar' })
+    expect(screen.queryByLabelText('Dirección')).not.toBeInTheDocument()
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual([
+      'Sin orden',
+      'Clínica A–Z',
+      'Clínica Z–A',
+      'Saldo: de menor a mayor',
+      'Saldo: de mayor a menor',
+      'Más reciente primero',
+      'Más antiguo primero',
+    ])
+    await user.selectOptions(select, 'Más reciente primero')
+    const cards = screen.getAllByRole('link').map((l) => l.getAttribute('href'))
+    expect(cards).toEqual(['/cuentas/c3', '/cuentas/c2', '/cuentas/c1'])
   })
 })
