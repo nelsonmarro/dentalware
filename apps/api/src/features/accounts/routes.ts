@@ -2,6 +2,7 @@ import {
   ACCOUNT_ADMIN_ROLES,
   ACCOUNTS_ROLES,
   accountListQuerySchema,
+  accountStatementQuerySchema,
   adjustmentInputSchema,
   applyCreditInputSchema,
   idParamSchema,
@@ -49,7 +50,8 @@ function toHttp(e: unknown): never {
 }
 
 /** `/api/cuentas` (Iteración 5): la lista de «Cuentas» y la cuenta de una clínica (CTA-1), los
- * pagos con su reparto, el saldo a favor y la anulación (CTA-2), y los ajustes (CTA-3). */
+ * pagos con su reparto, el saldo a favor y la anulación (CTA-2), los ajustes (CTA-3) y el
+ * estado de cuenta por rango de fechas (CTA-5). */
 export const accountsRoutes = (service: AccountsService) =>
   new Hono<AppEnv>()
     // Todo el router exige sesión antes que rol: sin sesión, 401; con otro rol, 403.
@@ -64,6 +66,20 @@ export const accountsRoutes = (service: AccountsService) =>
         toHttp(e)
       }
     })
+    .get(
+      '/:id/estado',
+      canUseAccounts,
+      validate('param', idParamSchema),
+      validate('query', accountStatementQuerySchema),
+      async (c) => {
+        try {
+          const id = c.req.valid('param').id
+          return c.json(await service.statement(id, c.req.valid('query')), 200)
+        } catch (e) {
+          toHttp(e)
+        }
+      },
+    )
     .post('/pagos', canUseAccounts, validate('json', paymentInputSchema), async (c) => {
       try {
         return c.json({ pago: await service.registerPayment(c.req.valid('json'), ctxFrom(c)) }, 201)

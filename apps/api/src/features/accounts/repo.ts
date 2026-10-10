@@ -129,6 +129,22 @@ export function createAccountsRepo(db: Db | Tx) {
       return db.select({ id: clinics.id, name: clinics.name, active: clinics.active }).from(clinics)
     },
 
+    async clinicHeader(id) {
+      const [row] = await db
+        .select({
+          id: clinics.id,
+          name: clinics.name,
+          ruc: clinics.ruc,
+          address: clinics.address,
+          city: clinics.city,
+          phone: clinics.phone,
+        })
+        .from(clinics)
+        .where(eq(clinics.id, id))
+        .limit(1)
+      return row
+    },
+
     async billedCases(clinicId) {
       // Σ ajustes del trabajo y Σ asignaciones de pagos vigentes (las de un pago anulado dejan
       // de contar sin borrarse, decisión 2), agrupadas por trabajo y unidas por `leftJoin`: una
@@ -201,6 +217,23 @@ export function createAccountsRepo(db: Db | Tx) {
     async paymentById(id) {
       const [row] = await paymentRows(eq(payments.id, id))
       return row
+    },
+
+    async allocations(clinicId) {
+      const rows = await db
+        .select({
+          paymentId: paymentAllocations.paymentId,
+          caseId: paymentAllocations.caseId,
+          amount: paymentAllocations.amount,
+        })
+        .from(paymentAllocations)
+        .innerJoin(payments, eq(payments.id, paymentAllocations.paymentId))
+        .where(eq(payments.clinicId, clinicId))
+      return rows.map((r) => ({
+        paymentId: r.paymentId,
+        caseId: r.caseId,
+        amountCents: toCents(r.amount),
+      }))
     },
 
     async caseTotals(caseIds) {

@@ -55,6 +55,19 @@ export type PaymentEntry = {
 
 export type ClinicRef = { id: string; name: string; active: boolean }
 
+/** Los datos de la clínica para el encabezado del estado de cuenta (CTA-5). */
+export type ClinicHeader = {
+  id: string
+  name: string
+  ruc: string | null
+  address: string | null
+  city: string | null
+  phone: string | null
+}
+
+/** Una asignación de un pago a un trabajo (de cualquier pago, vigente o anulado). */
+export type PaymentAllocation = { paymentId: string; caseId: string; amountCents: number }
+
 /** Pago nuevo (CTA-2): lo registra quien está en sesión. */
 export type NewPayment = {
   clinicId: string
@@ -103,10 +116,14 @@ export type LiveAllocation = {
 export interface AccountsRepository {
   clinicById(id: string): Promise<ClinicRef | undefined>
   clinics(): Promise<ClinicRef[]>
+  clinicHeader(id: string): Promise<ClinicHeader | undefined>
   billedCases(clinicId?: string): Promise<BilledCase[]>
   adjustments(clinicId?: string): Promise<AdjustmentEntry[]>
   payments(clinicId?: string): Promise<PaymentEntry[]>
   paymentById(id: string): Promise<PaymentEntry | undefined>
+  /** Asignaciones de los pagos de la clínica, vigentes y anuladas, sin orden garantizado: el
+   * estado de cuenta (CTA-5) suma las de los pagos vigentes con fecha hasta su corte. */
+  allocations(clinicId: string): Promise<PaymentAllocation[]>
   adjustmentById(id: string): Promise<AdjustmentEntry | undefined>
   /** Σ ajustes y Σ asignaciones vigentes de cada trabajo pedido (0 si no tiene). */
   caseTotals(caseIds: readonly string[]): Promise<CaseAccountTotals[]>

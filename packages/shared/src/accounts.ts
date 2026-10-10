@@ -160,6 +160,37 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((utcDay(to) - utcDay(from)) / DAY_MS)
 }
 
+/** El día anterior a una fecha de negocio `YYYY-MM-DD` (CTA-5): el saldo inicial de un estado
+ * de cuenta es el del cierre del día anterior a `desde`. */
+export function previousDay(isoDate: string): string {
+  return new Date(utcDay(isoDate) - DAY_MS).toISOString().slice(0, 10)
+}
+
+/** Un movimiento del estado de cuenta (CTA-5): su efecto en el saldo con signo (el cargo y el
+ * recargo suman; el pago y el descuento restan) y si es un pago anulado. */
+export type StatementMovement = { kind: AccountMovementKind; cents: number; voided: boolean }
+
+/**
+ * Cuadre del estado de cuenta (decisión 12): el saldo corrido tras cada movimiento (de más
+ * antiguo a más nuevo, desde `openingCents`), los totales por tipo y el saldo final = inicial +
+ * Σ totales. Un pago anulado se lista pero no suma: su fila repite el saldo anterior.
+ */
+export function accountStatement(input: {
+  openingCents: number
+  movements: readonly StatementMovement[]
+}): { balances: number[]; totals: Record<AccountMovementKind, number>; closingCents: number } {
+  const totals: Record<AccountMovementKind, number> = { cargo: 0, ajuste: 0, pago: 0 }
+  let running = input.openingCents
+  const balances = input.movements.map((m) => {
+    if (!m.voided) {
+      running += m.cents
+      totals[m.kind] += m.cents
+    }
+    return running
+  })
+  return { balances, totals, closingCents: running }
+}
+
 /** Cubo de antigüedad de una partida con `days` días (decisión 9). La web lo usa para la
  * pestaña de color de la cuenta según lo más antiguo que se debe (CTA-1). */
 export function agingBucketForDays(days: number): AgingBucket {

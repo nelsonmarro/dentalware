@@ -4,6 +4,7 @@ import {
   ADJUSTMENT_SIGN_LABEL,
   ADJUSTMENT_SIGNS,
   ACCOUNT_MOVEMENT_KINDS,
+  accountStatement,
   AGING_BUCKET_LABEL,
   AGING_BUCKETS,
   agingBucketForDays,
@@ -18,6 +19,7 @@ import {
   OPENING_BALANCE_REASON,
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHODS,
+  previousDay,
   releaseExcess,
   suggestAllocation,
 } from './accounts.ts'
@@ -417,5 +419,67 @@ describe('agingBucketForDays (CTA-1: en qué cubo cae lo más antiguo)', () => {
     expect(agingBucketForDays(90)).toBe('61_90')
     expect(agingBucketForDays(91)).toBe('90_mas')
     expect(agingBucketForDays(400)).toBe('90_mas')
+  })
+})
+
+describe('previousDay (CTA-5: el saldo inicial es el del cierre del día anterior)', () => {
+  it.each([
+    ['2026-10-09', '2026-10-08'],
+    ['2026-10-01', '2026-09-30'],
+    ['2026-01-01', '2025-12-31'],
+    ['2028-03-01', '2028-02-29'],
+    ['2026-03-01', '2026-02-28'],
+  ])('el día anterior a %s es %s', (day, expected) => {
+    expect(previousDay(day)).toBe(expected)
+  })
+})
+
+describe('accountStatement (CTA-5: saldo corrido y cuadre del estado de cuenta)', () => {
+  it('cada movimiento deja su saldo corrido, desde el saldo inicial', () => {
+    const s = accountStatement({
+      openingCents: 10_000,
+      movements: [
+        { kind: 'cargo', cents: 4_500, voided: false },
+        { kind: 'pago', cents: -3_000, voided: false },
+        { kind: 'ajuste', cents: -500, voided: false },
+        { kind: 'ajuste', cents: 1_000, voided: false },
+      ],
+    })
+    expect(s.balances).toEqual([14_500, 11_500, 11_000, 12_000])
+    expect(s.closingCents).toBe(12_000)
+  })
+
+  it('un pago anulado no suma: su fila repite el saldo anterior', () => {
+    const s = accountStatement({
+      openingCents: 5_000,
+      movements: [
+        { kind: 'pago', cents: -2_000, voided: true },
+        { kind: 'cargo', cents: 1_000, voided: false },
+      ],
+    })
+    expect(s.balances).toEqual([5_000, 6_000])
+    expect(s.closingCents).toBe(6_000)
+    expect(s.totals).toEqual({ cargo: 1_000, ajuste: 0, pago: 0 })
+  })
+
+  it('totales por tipo con signo; saldo final = inicial + Σ totales', () => {
+    const s = accountStatement({
+      openingCents: -1_000,
+      movements: [
+        { kind: 'cargo', cents: 4_500, voided: false },
+        { kind: 'cargo', cents: 2_000, voided: false },
+        { kind: 'pago', cents: -3_000, voided: false },
+        { kind: 'ajuste', cents: -500, voided: false },
+      ],
+    })
+    expect(s.totals).toEqual({ cargo: 6_500, ajuste: -500, pago: -3_000 })
+    expect(s.closingCents).toBe(2_000)
+  })
+
+  it('sin movimientos, el saldo final es el inicial', () => {
+    const s = accountStatement({ openingCents: 7_700, movements: [] })
+    expect(s.balances).toEqual([])
+    expect(s.totals).toEqual({ cargo: 0, ajuste: 0, pago: 0 })
+    expect(s.closingCents).toBe(7_700)
   })
 })
