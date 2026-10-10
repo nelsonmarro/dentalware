@@ -98,8 +98,18 @@ export type AccountMovement = {
   /** En un pago, lo que le queda sin asignar (su saldo a favor, para «Aplicar saldo a
    * favor»): `"0.00"` si está anulado o asignado entero. `null` en un cargo o un ajuste. */
   remaining: string | null
+  /** En un pago vigente, a qué trabajos se aplicó (UX5-03): sus asignaciones sumadas por
+   * trabajo, de la entrega más antigua a la más nueva y, a igualdad, por código. `[]` si está
+   * anulado (sus asignaciones dejaron de contar) o no repartió nada; `null` en un cargo o un
+   * ajuste. */
+  allocations: AppliedCase[] | null
   voided: { at: Date; by: string; reason: string } | null
 }
+
+/** Lo que un pago vigente tiene asignado a un trabajo (UX5-03). `reopens`: anular el pago lo
+ * devolvería de `cobrado` a `entregado` (hoy está cobrado y, sin esto, `isSettled` deja de
+ * cumplirse), lo mismo que haría `voidPayment`. */
+export type AppliedCase = { caseId: string; code: string; amount: string; reopens: boolean }
 
 export type ClinicAccount = {
   clinic: { id: string; name: string }
@@ -186,6 +196,55 @@ const ADJUSTMENT_ATTEMPTS = 3
 type Ledger = { cases: BilledCase[]; adjustments: AdjustmentEntry[]; payments: PaymentEntry[] }
 
 const sum = (list: readonly number[]) => list.reduce((a, b) => a + b, 0)
+
+/** De la entrega más antigua a la más nueva y, a igualdad, por código: el orden del reparto
+ * sugerido, de `settled` (UX5-04) y de lo aplicado por un pago (UX5-03). */
+const byDelivery = (
+  a: { deliveredAt: Date | null; code: string },
+  b: { deliveredAt: Date | null; code: string },
+) =>
+  (a.deliveredAt?.getTime() ?? 0) - (b.deliveredAt?.getTime() ?? 0) || a.code.localeCompare(b.code)
+
+/** Lo que tiene asignado cada pago vigente, por trabajo (`paymentId → caseId → centavos`). Las
+ * asignaciones de un pago anulado no cuentan (decisión 2). */
+function liveAllocationsByPayment(
+  payments: readonly PaymentEntry[],
+  allocations: readonly PaymentAllocation[],
+): Map<string, Map<string, number>> {
+  const live = new Set(payments.filter((p) => p.voided === null).map((p) => p.id))
+  const byPayment = new Map<string, Map<string, number>>()
+  for (const a of allocations) {
+    if (!live.has(a.paymentId)) continue
+    const byCase = byPayment.get(a.paymentId) ?? new Map<string, number>()
+    byCase.set(a.caseId, (byCase.get(a.caseId) ?? 0) + a.amountCents)
+    byPayment.set(a.paymentId, byCase)
+  }
+  return byPayment
+}
+
+/** A qué trabajos se aplicó un pago (UX5-03), con lo que anularlo reabriría. Las asignaciones
+ * solo van a trabajos entregados, que ya no salen de `entregado`/`cobrado`: todas están en
+ * `cases`. */
+function appliedCases(cases: readonly BilledCase[], byCase: Map<string, number> | undefined) {
+  if (!byCase) return []
+  return cases
+    .filter((c) => byCase.has(c.id))
+    .sort(byDelivery)
+    .map((c): AppliedCase => {
+      const cents = byCase.get(c.id) ?? 0
+      const outstanding = caseOutstandingCents(
+        caseChargeCents(c),
+        c.adjustmentsCents,
+        c.allocatedCents,
+      )
+      return {
+        caseId: c.id,
+        code: c.code,
+        amount: fromCents(cents),
+        reopens: c.status === 'cobrado' && !isSettled(outstanding + cents),
+      }
+    })
+}
 
 /**
  * La cuenta como estaba al cierre de `date` (CTA-5): los cargos entregados hasta ese día, los
@@ -327,7 +386,11 @@ export function createAccountsService(deps: {
     }
   }
 
-  function movementsOf(ledger: Ledger): AccountMovement[] {
+  function movementsOf(
+    ledger: Ledger,
+    allocations: readonly PaymentAllocation[],
+  ): AccountMovement[] {
+    const applied = liveAllocationsByPayment(ledger.payments, allocations)
     const rows: (AccountMovement & { at: Date })[] = [
       ...ledger.cases.map((c) => ({
         id: c.id,
@@ -340,6 +403,7 @@ export function createAccountsService(deps: {
         reference: null,
         method: null,
         remaining: null,
+        allocations: null,
         voided: null,
         at: c.deliveredAt,
       })),
@@ -354,6 +418,7 @@ export function createAccountsService(deps: {
         reference: null,
         method: null,
         remaining: null,
+        allocations: null,
         voided: null,
         at: a.createdAt,
       })),
@@ -368,6 +433,7 @@ export function createAccountsService(deps: {
         reference: p.reference,
         method: p.method,
         remaining: fromSignedCents(paymentRemainingCents(p)),
+        allocations: appliedCases(ledger.cases, applied.get(p.id)),
         voided: p.voided && { at: p.voided.at, by: p.voided.byName, reason: p.voided.reason },
         at: p.createdAt,
       })),
@@ -460,13 +526,7 @@ export function createAccountsService(deps: {
         await r.cases.setPaid(c.id, null, actorId)
       }
     }
-    return closed
-      .sort(
-        (a, b) =>
-          (a.deliveredAt?.getTime() ?? 0) - (b.deliveredAt?.getTime() ?? 0) ||
-          a.code.localeCompare(b.code),
-      )
-      .map((c) => ({ id: c.id, code: c.code }))
+    return closed.sort(byDelivery).map((c) => ({ id: c.id, code: c.code }))
   }
 
   /** Crea las asignaciones del pago y escribe `payment_applied` en cada trabajo. */
@@ -541,40 +601,40 @@ export function createAccountsService(deps: {
     const target =
       input.trabajoId === null ? null : await lockForAdjustment(r, input.clinicaId, input.trabajoId)
     const amountCents = toSignedCents(input.monto)
+    let release: ReturnType<typeof releaseExcess> = []
     if (target) {
       // Un ajuste ligado no deja el neto del trabajo (cargo + Σ ajustes) por debajo de 0: lo
       // que la clínica no debe por ningún trabajo es un ajuste sin trabajo (ruling, Tarea 5).
       const [totals] = await r.accounts.caseTotals([target.locked.id])
       const net = caseChargeCents(target.locked) + (totals?.adjustmentsCents ?? 0) + amountCents
       if (net < 0) throw new AccountInputError(DISCOUNT_EXCEEDS_CASE, 'monto')
+      // Neto con el ajuste nuevo (decisión 1): si lo asignado lo supera, el exceso vuelve a
+      // los pagos, de la asignación más reciente a la más antigua (Nelson, 2026-10-08).
+      release = releaseExcess(net, target.live)
     }
+    const releasedCents = sum(release.map((p) => p.releasedCents))
+    // UX5-03: el movimiento del ajuste dice lo que devolvió, con el mismo texto que el
+    // historial del trabajo; se guarda con el motivo porque no hay dónde guardar a qué pago.
+    const reason =
+      releasedCents > 0
+        ? `${input.motivo} · $ ${fromCents(releasedCents)} vuelven al saldo a favor`
+        : input.motivo
     const { id } = await r.accounts.createAdjustment({
       clinicId: input.clinicaId,
       caseId: input.trabajoId,
       amountCents,
-      reason: input.motivo,
+      reason,
       date: input.fecha,
       createdBy: ctx.userId,
     })
-    let releasedCents = 0
     if (target) {
       const c = target.locked
-      // Neto con el ajuste nuevo (decisión 1): si lo asignado lo supera, el exceso vuelve a
-      // los pagos, de la asignación más reciente a la más antigua (Nelson, 2026-10-08).
-      const [totals] = await r.accounts.caseTotals([c.id])
-      const net = caseChargeCents(c) + (totals?.adjustmentsCents ?? 0)
-      for (const p of releaseExcess(net, target.live)) {
-        await r.accounts.shrinkAllocation(p.id, p.leftCents)
-        releasedCents += p.releasedCents
-      }
+      for (const p of release) await r.accounts.shrinkAllocation(p.id, p.leftCents)
       await r.cases.addEvent({
         caseId: c.id,
         type: 'adjustment_added',
         toValue: fromSignedCents(amountCents),
-        reason:
-          releasedCents > 0
-            ? `${input.motivo} · $ ${fromCents(releasedCents)} vuelven al saldo a favor`
-            : input.motivo,
+        reason,
         actorId: ctx.userId,
       })
       await settle(r, [c], ctx.userId)
@@ -660,10 +720,11 @@ export function createAccountsService(deps: {
     async clinicAccount(clinicId: string): Promise<ClinicAccount> {
       const clinic = await deps.accounts.clinicById(clinicId)
       if (!clinic) throw new ClinicAccountNotFoundError()
-      const [cases, adjustments, payments] = await Promise.all([
+      const [cases, adjustments, payments, allocations] = await Promise.all([
         deps.accounts.billedCases(clinicId),
         deps.accounts.adjustments(clinicId),
         deps.accounts.payments(clinicId),
+        deps.accounts.allocations(clinicId),
       ])
       const ledger: Ledger = { cases, adjustments, payments }
       const s = summarize(ledger)
@@ -674,7 +735,7 @@ export function createAccountsService(deps: {
         aging: s.aging,
         oldestDays: s.oldestDays,
         openCases: openCasesOf(s),
-        movements: movementsOf(ledger),
+        movements: movementsOf(ledger, allocations),
       }
     },
 
@@ -704,7 +765,7 @@ export function createAccountsService(deps: {
       const opening = summarize(ledgerAt(ledger, allocations, openingDate), openingDate)
       const closing = summarize(ledgerAt(ledger, allocations, q.hasta), q.hasta)
       // De más antiguo a más nuevo: al revés que la cuenta (CTA-1), para el saldo corrido.
-      const movements = movementsOf(ledger)
+      const movements = movementsOf(ledger, allocations)
         .filter((m) => m.date >= q.desde && m.date <= q.hasta)
         .reverse()
       const running = accountStatement({

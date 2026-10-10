@@ -314,6 +314,7 @@ describe('features/accounts/service', () => {
           method: 'cheque',
           // Lo que le queda sin asignar: 30.00 − 10.00.
           remaining: '20.00',
+          allocations: [{ caseId: 'a', code: '26-00001', amount: '10.00', reopens: false }],
           voided: null,
         },
         {
@@ -328,6 +329,7 @@ describe('features/accounts/service', () => {
           method: 'transferencia',
           // Asignado entero.
           remaining: '0.00',
+          allocations: [{ caseId: 'a', code: '26-00001', amount: '20.00', reopens: false }],
           voided: null,
         },
         {
@@ -340,8 +342,10 @@ describe('features/accounts/service', () => {
           reason: null,
           reference: null,
           method: 'transferencia',
-          // Anulado: no le queda nada a favor aunque tuviera parte sin asignar.
+          // Anulado: no le queda nada a favor aunque tuviera parte sin asignar, y sus
+          // asignaciones dejaron de contar.
           remaining: '0.00',
+          allocations: [],
           voided: { at: at('2026-09-21'), by: 'Admin', reason: 'Duplicado' },
         },
         {
@@ -355,6 +359,7 @@ describe('features/accounts/service', () => {
           reference: null,
           method: null,
           remaining: null,
+          allocations: null,
           voided: null,
         },
         {
@@ -368,9 +373,105 @@ describe('features/accounts/service', () => {
           reference: null,
           method: null,
           remaining: null,
+          allocations: null,
           voided: null,
         },
       ])
+    })
+
+    describe('a qué trabajos se aplicó cada pago (UX5-03)', () => {
+      // `b` se entregó primero; `c` y `a`, el mismo día, van por código.
+      const cases = [
+        makeCase({ id: 'a', code: '26-00003', deliveredAt: at('2026-09-10'), status: 'cobrado' }),
+        makeCase({ id: 'b', code: '26-00002', deliveredAt: at('2026-09-01') }),
+        makeCase({ id: 'c', code: '26-00001', deliveredAt: at('2026-09-10'), status: 'cobrado' }),
+      ]
+      const pagoDe = (m: { id: string }[], id: string) => m.find((x) => x.id === id)
+
+      it('el pago vigente trae sus asignaciones por trabajo, de la entrega más antigua a la más nueva y por código', async () => {
+        const service = makeService({
+          cases,
+          payments: [makePayment({ id: 'p1', amountCents: 30_000 })],
+          allocations: [
+            { paymentId: 'p1', caseId: 'a', amountCents: 10_000 },
+            { paymentId: 'p1', caseId: 'b', amountCents: 2_550 },
+            { paymentId: 'p1', caseId: 'c', amountCents: 10_000 },
+          ],
+        })
+        const { movements } = await service.clinicAccount(SUR.id)
+        expect(pagoDe(movements, 'p1')).toMatchObject({
+          allocations: [
+            { caseId: 'b', code: '26-00002', amount: '25.50', reopens: false },
+            { caseId: 'c', code: '26-00001', amount: '100.00', reopens: true },
+            { caseId: 'a', code: '26-00003', amount: '100.00', reopens: true },
+          ],
+        })
+      })
+
+      it('suma en una sola entrada lo que el mismo pago asignó dos veces al mismo trabajo', async () => {
+        const service = makeService({
+          cases: [makeCase({ id: 'b', code: '26-00002' })],
+          payments: [makePayment({ id: 'p1', amountCents: 9_000 })],
+          allocations: [
+            { paymentId: 'p1', caseId: 'b', amountCents: 6_000 },
+            { paymentId: 'p1', caseId: 'b', amountCents: 1_500 },
+          ],
+        })
+        const { movements } = await service.clinicAccount(SUR.id)
+        expect(pagoDe(movements, 'p1')).toMatchObject({
+          allocations: [{ caseId: 'b', code: '26-00002', amount: '75.00', reopens: false }],
+        })
+      })
+
+      it('reabre solo el cobrado que dejaría de estar cubierto: otro pago puede seguir cubriéndolo', async () => {
+        const service = makeService({
+          cases: [
+            // Cobrado con dos pagos: anular p1 lo deja debiendo 60.00.
+            makeCase({ id: 'a', code: '26-00003', status: 'cobrado' }),
+            // Cobrado con un pendiente negativo (defensa, decisión 3): sin los 10.00 de p1,
+            // sigue cubierto por p2 y no reabre.
+            makeCase({ id: 'c', code: '26-00001', totalCents: 2_000, status: 'cobrado' }),
+          ],
+          payments: [
+            makePayment({ id: 'p1', amountCents: 7_000 }),
+            makePayment({ id: 'p2', amountCents: 7_000, paidOn: '2026-10-03' }),
+          ],
+          allocations: [
+            { paymentId: 'p1', caseId: 'a', amountCents: 6_000 },
+            { paymentId: 'p2', caseId: 'a', amountCents: 4_000 },
+            { paymentId: 'p1', caseId: 'c', amountCents: 1_000 },
+            { paymentId: 'p2', caseId: 'c', amountCents: 3_000 },
+          ],
+        })
+        const { movements } = await service.clinicAccount(SUR.id)
+        expect(pagoDe(movements, 'p1')).toMatchObject({
+          allocations: [
+            { caseId: 'c', amount: '10.00', reopens: false },
+            { caseId: 'a', amount: '60.00', reopens: true },
+          ],
+        })
+      })
+
+      it('el pago anulado y el que no repartió nada no traen asignaciones; el cargo y el ajuste, null', async () => {
+        const service = makeService({
+          cases,
+          adjustments: [makeAdjustment({ id: 'aj', amountCents: 500, caseId: 'b' })],
+          payments: [
+            makePayment({
+              id: 'anulado',
+              amountCents: 10_000,
+              voided: { at: at('2026-10-03'), byName: 'Admin', reason: 'Duplicado' },
+            }),
+            makePayment({ id: 'anticipo', amountCents: 5_000 }),
+          ],
+          allocations: [{ paymentId: 'anulado', caseId: 'a', amountCents: 10_000 }],
+        })
+        const { movements } = await service.clinicAccount(SUR.id)
+        expect(pagoDe(movements, 'anulado')).toMatchObject({ allocations: [] })
+        expect(pagoDe(movements, 'anticipo')).toMatchObject({ allocations: [] })
+        expect(pagoDe(movements, 'aj')).toMatchObject({ allocations: null })
+        expect(pagoDe(movements, 'b')).toMatchObject({ allocations: null })
+      })
     })
 
     it('el mismo día, el movimiento registrado después va primero', async () => {

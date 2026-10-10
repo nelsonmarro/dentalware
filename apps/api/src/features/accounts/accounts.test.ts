@@ -492,6 +492,39 @@ describe('/api/cuentas', () => {
       ])
     })
 
+    it('el movimiento del pago dice a qué trabajos se aplicó y cuáles reabre; anulado, ninguno (UX5-03)', async () => {
+      const uno = await deliverCase()
+      const dos = await deliverCase()
+      // 60.00: 45.00 cierran `uno` y 15.00 dejan a `dos` debiendo 30.00. Un segundo pago de
+      // 10.00 a `dos` no sale en este movimiento.
+      const p = await register(
+        pago({
+          asignaciones: [
+            { trabajoId: dos.id, monto: '15.00' },
+            { trabajoId: uno.id, monto: '45.00' },
+          ],
+        }),
+      )
+      await register(
+        pago({ monto: '10.00', asignaciones: [{ trabajoId: dos.id, monto: '10.00' }] }),
+      )
+      type Applied = { allocations: unknown }
+      const movimiento = async () =>
+        (await detail()).movements.find((m) => m.id === p.id) as unknown as Applied
+      // `uno` se entregó antes que `dos`: va primero aunque llegó segundo en el reparto.
+      expect((await movimiento()).allocations).toEqual([
+        { caseId: uno.id, code: uno.code, amount: '45.00', reopens: true },
+        { caseId: dos.id, code: dos.code, amount: '15.00', reopens: false },
+      ])
+
+      const anulado = await post(`/api/cuentas/pagos/${p.id}/anular`, admin, {
+        motivo: 'Duplicado',
+      })
+      expect(anulado.status).toBe(200)
+      expect((await movimiento()).allocations).toEqual([])
+      expect((await caseOf(uno.id)).status).toBe('entregado')
+    })
+
     /** Un pago de 60.00 con 45.00 en un trabajo (le quedan 15.00 a favor) y otros dos
      * trabajos entregados de 45.00 sin pagar. */
     async function creditAndTwoCases() {
@@ -802,6 +835,10 @@ describe('/api/cuentas', () => {
       expect(after).toMatchObject({ balance: '-5.00', credit: '5.00', openCases: [] })
       expect(after.movements.find((m) => m.id === p)).toMatchObject({ remaining: '5.00' })
       expectBalanced(after)
+      // UX5-03: el movimiento del ajuste dice lo que devolvió al saldo a favor.
+      expect(after.movements.find((m) => m.kind === 'ajuste')).toMatchObject({
+        reason: 'Descuento tardío · $ 5.00 vuelven al saldo a favor',
+      })
       const [asignada] = await ctx.db
         .select()
         .from(ctx.schema.paymentAllocations)
