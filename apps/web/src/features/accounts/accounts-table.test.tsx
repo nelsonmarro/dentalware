@@ -14,17 +14,32 @@ const ROWS: AccountRow[] = [
     id: 'c1',
     name: 'Clínica Sur',
     balance: '1250.00',
+    credit: '0.00',
     aging: { ...zero, '0_30': '200.00', '90_mas': '1050.00' },
     oldestDays: 95,
+    openCasesCount: 3,
+    openCasesTotal: '1250.00',
   },
   {
     id: 'c2',
     name: 'Dental Norte',
     balance: '300.00',
+    credit: '0.00',
     aging: { ...zero, '31_60': '300.00' },
     oldestDays: 1,
+    openCasesCount: 1,
+    openCasesTotal: '300.00',
   },
-  { id: 'c3', name: 'Odonto Centro', balance: '-12.34', aging: zero, oldestDays: null },
+  {
+    id: 'c3',
+    name: 'Odonto Centro',
+    balance: '-12.34',
+    credit: '12.34',
+    aging: zero,
+    oldestDays: null,
+    openCasesCount: 0,
+    openCasesTotal: '0.00',
+  },
 ]
 
 const rowOf = (name: string) => screen.getByRole('link', { name }).closest('tr')!
@@ -105,7 +120,16 @@ describe('AccountsTable — escritorio', () => {
     // Dos saldos a favor: como texto «-12.34» iría antes que «-100.00».
     const rows = [
       ...ROWS,
-      { id: 'c4', name: 'Labo Este', balance: '-100.00', aging: zero, oldestDays: null },
+      {
+        id: 'c4',
+        name: 'Labo Este',
+        balance: '-100.00',
+        credit: '100.00',
+        aging: zero,
+        oldestDays: null,
+        openCasesCount: 0,
+        openCasesTotal: '0.00',
+      },
     ]
     renderWithRouter(<AccountsTable rows={rows} todas={false} />)
     await user.click(await screen.findByRole('button', { name: 'Ordenar por Saldo' }))
@@ -195,6 +219,27 @@ describe('AccountsTable — móvil', () => {
     const card = await screen.findByRole('link', { name: /Odonto Centro/ })
     expect(card).toHaveTextContent('A favor $ 12.34')
     expect(card).toHaveTextContent('Nada pendiente')
+  })
+
+  // Final review M-3: la tarjeta decía «A favor $ 125.00 · Nada pendiente» y, al entrar, la
+  // cabecera «1 trabajo por cobrar ($ 75.00), cubierto por el saldo a favor» (UX5-01).
+  it('con trabajos por cobrar que cubre el saldo a favor, lo dice como la cabecera de la cuenta', async () => {
+    setMatchMedia(false)
+    const sur: AccountRow = {
+      id: 'c5',
+      name: 'Clínica Sur UX',
+      balance: '-125.00',
+      credit: '200.00',
+      aging: zero,
+      oldestDays: null,
+      openCasesCount: 1,
+      openCasesTotal: '75.00',
+    }
+    renderWithRouter(<AccountsTable rows={[sur]} todas={false} />)
+    const card = await screen.findByRole('link', { name: /Clínica Sur UX/ })
+    expect(card).toHaveTextContent('A favor $ 125.00')
+    expect(card).toHaveTextContent('1 trabajo por cobrar ($ 75.00), cubierto por el saldo a favor')
+    expect(card).not.toHaveTextContent('Nada pendiente')
   })
 
   it('un solo «Ordenar» con cada orden escrito en palabras (UX5-09)', async () => {

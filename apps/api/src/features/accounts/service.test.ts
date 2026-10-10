@@ -861,18 +861,54 @@ describe('features/accounts/service', () => {
           id: NORTE.id,
           name: 'Clínica Norte',
           balance: '200.00',
+          credit: '0.00',
           aging: { ...ZERO, '90_mas': '200.00' },
           oldestDays: 127,
+          openCasesCount: 1,
+          openCasesTotal: '200.00',
         },
         {
           id: SUR.id,
           name: 'Clínica Sur',
           balance: '50.00',
+          credit: '0.00',
           aging: { ...ZERO, '31_60': '50.00' },
           oldestDays: 35,
+          openCasesCount: 1,
+          openCasesTotal: '50.00',
         },
         // Inactiva, pero con movimientos y saldo 0: se ve.
-        { id: VIEJA.id, name: 'Clínica Vieja', balance: '0.00', aging: ZERO, oldestDays: null },
+        {
+          id: VIEJA.id,
+          name: 'Clínica Vieja',
+          balance: '0.00',
+          credit: '0.00',
+          aging: ZERO,
+          oldestDays: null,
+          openCasesCount: 0,
+          openCasesTotal: '0.00',
+        },
+      ])
+    })
+
+    // Final review M-3: la lista decía «Nada pendiente» con un trabajo por cobrar que cubre el
+    // saldo a favor. Trae lo que `accountHeadline` necesita para leer el saldo como la cabecera.
+    it('cada clínica trae su saldo a favor y sus trabajos por cobrar, aunque el saldo a favor los cubra', async () => {
+      const service = makeService({
+        cases: [makeCase({ id: 'x', totalCents: 7_500 })],
+        payments: [makePayment({ id: 'p', amountCents: 20_000 })],
+      })
+      expect(await service.list({ todas: false })).toEqual([
+        {
+          id: SUR.id,
+          name: 'Clínica Sur',
+          balance: '-125.00',
+          credit: '200.00',
+          aging: ZERO,
+          oldestDays: null,
+          openCasesCount: 1,
+          openCasesTotal: '75.00',
+        },
       ])
     })
 
@@ -888,8 +924,11 @@ describe('features/accounts/service', () => {
         id: OESTE.id,
         name: 'Clínica Oeste',
         balance: '0.00',
+        credit: '0.00',
         aging: ZERO,
         oldestDays: null,
+        openCasesCount: 0,
+        openCasesTotal: '0.00',
       })
     })
   })

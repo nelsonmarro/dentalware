@@ -65,9 +65,16 @@ export type AccountSummary = {
   id: string
   name: string
   balance: string
+  /** Saldo a favor (como el de la cuenta, `balanceBreakdown`). */
+  credit: string
   aging: Record<AgingBucket, string>
   /** Días de la partida pendiente más antigua; `null` si no debe nada. */
   oldestDays: number | null
+  /** Trabajos «Por cobrar» y su Σ (`breakdown.openCases`): con `credit`, la lista lee el saldo
+   * con `accountHeadline`, como la cabecera de la cuenta, y no dice «Nada pendiente» si el
+   * saldo a favor cubre trabajos que siguen por cobrar (final review M-3). */
+  openCasesCount: number
+  openCasesTotal: string
 }
 
 /** Un trabajo «Por cobrar»: entregado y con pendiente. */
@@ -771,8 +778,11 @@ export function createAccountsService(deps: {
           id: clinic.id,
           name: clinic.name,
           balance: fromSignedCents(s.balanceCents),
+          credit: fromSignedCents(s.creditCents),
           aging: s.aging,
           oldestDays: s.oldestDays,
+          openCasesCount: s.open.length,
+          openCasesTotal: s.breakdown.openCases,
         }))
     },
 

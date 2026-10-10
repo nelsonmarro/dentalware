@@ -189,7 +189,16 @@ describe('/api/cuentas', () => {
     expect(await (await get('/api/cuentas', admin)).json()).toEqual({ clinics: [] })
     expect(await (await get('/api/cuentas?todas=1', admin)).json()).toEqual({
       clinics: [
-        { id: clinicId, name: 'Clínica Sur', balance: '0.00', aging: ZERO, oldestDays: null },
+        {
+          id: clinicId,
+          name: 'Clínica Sur',
+          balance: '0.00',
+          credit: '0.00',
+          aging: ZERO,
+          oldestDays: null,
+          openCasesCount: 0,
+          openCasesTotal: '0.00',
+        },
       ],
     })
 
@@ -243,8 +252,11 @@ describe('/api/cuentas', () => {
           id: clinicId,
           name: 'Clínica Sur',
           balance: '45.00',
+          credit: '0.00',
           aging: { ...ZERO, '0_30': '45.00' },
           oldestDays: 0,
+          openCasesCount: 1,
+          openCasesTotal: '45.00',
         },
       ],
     })
@@ -297,6 +309,27 @@ describe('/api/cuentas', () => {
       expect(r.status).toBe(201)
       return ((await r.json()) as { pago: Pago }).pago
     }
+
+    // Final review M-3: la lista trae el saldo a favor y los trabajos por cobrar, para no decir
+    // «Nada pendiente» cuando el saldo a favor cubre un trabajo que sigue por cobrar.
+    it('la lista de «Cuentas» trae el saldo a favor y los trabajos por cobrar que cubre', async () => {
+      await register(pago({ monto: '200.00' }))
+      await deliverCase()
+      expect(await (await get('/api/cuentas', recepcion)).json()).toEqual({
+        clinics: [
+          {
+            id: clinicId,
+            name: 'Clínica Sur',
+            balance: '-155.00',
+            credit: '200.00',
+            aging: ZERO,
+            oldestDays: null,
+            openCasesCount: 1,
+            openCasesTotal: '45.00',
+          },
+        ],
+      })
+    })
 
     it('permisos: registrar y aplicar saldo a favor admin y recepción; anular, solo admin', async () => {
       expect((await post('/api/cuentas/pagos', '', pago())).status).toBe(401)
