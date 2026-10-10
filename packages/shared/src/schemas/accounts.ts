@@ -115,7 +115,7 @@ export type AdjustmentInput = z.infer<typeof adjustmentInputSchema>
 
 /** El estado de cuenta llega hasta hoy (I-2): con una fecha final futura, la antigüedad y los
  * días de «Por cobrar» saldrían proyectados. Lo comprueban el servicio (con su reloj, 422 en
- * `hasta`) y el formulario del periodo. */
+ * `hasta`) y el formulario del periodo (`statementRangeFormSchema`). */
 export const STATEMENT_AFTER_TODAY_MESSAGE = 'La fecha final no puede ser posterior a hoy'
 
 /** `GET /api/cuentas/:clinicaId/estado` (CTA-5): rango de fechas de negocio, `desde ≤ hasta`. */

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { adjustmentFormSchema, applyCreditFormSchema, paymentFormSchema } from './account-forms.ts'
+import {
+  adjustmentFormSchema,
+  applyCreditFormSchema,
+  paymentFormSchema,
+  statementRangeFormSchema,
+} from './account-forms.ts'
 
 const clinicaId = '11111111-1111-4111-8111-111111111111'
 const trabajoA = '22222222-2222-4222-8222-222222222222'
@@ -227,5 +232,36 @@ describe('adjustmentFormSchema (formulario «Registrar ajuste», CTA-3)', () => 
         { message: 'Escribe el motivo', path: ['motivo'] },
       ],
     )
+  })
+})
+
+describe('statementRangeFormSchema (periodo del estado de cuenta, CTA-5, UX5-19)', () => {
+  const schema = statementRangeFormSchema('2026-10-10')
+
+  it('acepta un periodo que termina ayer o hoy', () => {
+    expect(schema.safeParse({ desde: '2026-10-01', hasta: '2026-10-09' }).data).toEqual({
+      desde: '2026-10-01',
+      hasta: '2026-10-09',
+    })
+    expect(schema.safeParse({ desde: '2026-10-01', hasta: '2026-10-10' }).data).toEqual({
+      desde: '2026-10-01',
+      hasta: '2026-10-10',
+    })
+  })
+
+  it('no deja terminar el periodo mañana: lo dice bajo «Hasta»', () => {
+    expect(issues(schema.safeParse({ desde: '2026-10-01', hasta: '2026-10-11' }))).toEqual([
+      { message: 'La fecha final no puede ser posterior a hoy', path: ['hasta'] },
+    ])
+  })
+
+  it('la fecha final no puede ser anterior a la inicial', () => {
+    expect(issues(schema.safeParse({ desde: '2026-10-09', hasta: '2026-10-08' }))).toEqual([
+      { message: 'La fecha final no puede ser anterior a la inicial', path: ['hasta'] },
+    ])
+  })
+
+  it('un día de inicio y fin de hoy es un periodo válido', () => {
+    expect(schema.safeParse({ desde: '2026-10-10', hasta: '2026-10-10' }).success).toBe(true)
   })
 })
