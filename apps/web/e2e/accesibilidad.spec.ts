@@ -839,6 +839,50 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     },
   )
 
+  // CTA-2/CTA-3 (#83, #84): los desplegables de los diálogos de cobro, que el barrido de arriba
+  // no abre: el método de «Registrar pago» (`Select`) y el trabajo de «Registrar ajuste»
+  // (`Combobox` con buscador). Las opciones son lo que se toca con guantes.
+  test(
+    'cuenta de una clínica: desplegables de método de pago y de trabajo del ajuste',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCompleteCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+      for (const accion of ['aceptar', 'finalizar']) {
+        await runCaseAction(page, created.id, accion)
+      }
+      const courier = await createCourier(page)
+      await shipAndDeliver(page, created.id, courier.id)
+
+      await page.goto(`/cuentas/${clinic.id}`)
+      await expect(page.getByRole('heading', { level: 1, name: clinic.name })).toBeVisible()
+
+      await page.getByRole('button', { name: 'Registrar pago' }).click()
+      const pago = page.getByRole('dialog', { name: 'Registrar pago' })
+      await pago.getByRole('combobox', { name: 'Método' }).click()
+      const metodos = page.getByRole('listbox')
+      await expect(metodos.getByRole('option', { name: 'Transferencia' })).toBeVisible()
+      await expectTouchTargets(metodos, '[role=option]')
+      await page.keyboard.press('Escape')
+      await expect(metodos).toBeHidden()
+      await pago.getByRole('button', { name: 'Volver' }).click()
+      await expect(pago).toBeHidden()
+
+      await page.getByRole('button', { name: 'Registrar ajuste' }).click()
+      const ajuste = page.getByRole('dialog', { name: 'Registrar ajuste' })
+      await ajuste.getByRole('combobox', { name: 'Trabajo' }).click()
+      const trabajos = page.getByRole('dialog', { name: 'Elegir trabajo' })
+      await expect(trabajos.getByRole('option', { name: new RegExp(created.code) })).toBeVisible()
+      await expectTouchTargets(trabajos, '[role=option]')
+      await expectTouchTargets(trabajos, 'input')
+    },
+  )
+
   // CTA-5 (#86): el estado de cuenta imprimible, con sus controles de periodo e «Imprimir».
   test('estado de cuenta: periodo, imprimir y tablas', { tag: '@extendida' }, async ({ page }) => {
     const { clinic } = await createClinicWithDoctor(page)
