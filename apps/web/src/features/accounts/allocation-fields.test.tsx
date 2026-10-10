@@ -49,12 +49,18 @@ describe('AllocationFields (reparto entre trabajos por cobrar)', () => {
 
     it('un monto parcial: «Quedará debiendo $ X» con lo que falta', () => {
       renderFields(['', '49.50', '', ''])
-      expect(within(row('26-00103')).getByText('Quedará debiendo $ 190.50')).toBeInTheDocument()
+      expect(
+        screen.getByRole('textbox', { name: 'Monto para 26-00103' }),
+      ).toHaveAccessibleDescription('Quedará debiendo $ 190.50')
+      // El monto, en monoespaciada.
+      expect(within(row('26-00103')).getByText('$ 190.50')).toHaveClass('font-mono')
     })
 
     it('más de lo que debe: «Supera lo que debe en $ X»', () => {
       renderFields(['', '', '80', ''])
-      expect(within(row('26-00104')).getByText('Supera lo que debe en $ 30.00')).toBeInTheDocument()
+      expect(
+        screen.getByRole('textbox', { name: 'Monto para 26-00104' }),
+      ).toHaveAccessibleDescription('Supera lo que debe en $ 30.00')
     })
 
     it('sin monto o en cero no añade nada: la fila ya dice lo que debe', () => {

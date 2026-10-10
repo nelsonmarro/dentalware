@@ -49,17 +49,17 @@ export type AdjustableCase = {
  * Lo que un descuento ligado a un trabajo devolverá al saldo a favor, dicho antes de confirmar
  * (UX5-15). Cobrado: todo lo que se le descuente vuelve, sin monto porque la web no tiene su
  * pendiente ni lo pagado. Por cobrar: el monto exacto con `discountReleaseCents` de shared, si el
- * descuento pasa de lo que debe. `null` si no devuelve nada (recargo, sin trabajo, o un descuento
+ * descuento pasa de lo que debe, aparte del texto para la monoespaciada. `null` si no devuelve nada (recargo, sin trabajo, o un descuento
  * que la API rechazará por dejar el neto bajo 0).
  */
 function discountNotice(
   c: AdjustableCase | undefined,
   signo: string | undefined,
   monto: string,
-): string | null {
+): { amount?: string; text: string } | null {
   if (!c || signo !== 'descuento') return null
   if (c.outstanding === null || c.allocated === null) {
-    return 'Este trabajo ya está cobrado: lo que le descuentes vuelve al saldo a favor.'
+    return { text: 'Este trabajo ya está cobrado: lo que le descuentes vuelve al saldo a favor.' }
   }
   const cents = parseMoneyInput(monto)
   if (!cents) return null
@@ -68,7 +68,10 @@ function discountNotice(
     cents,
   )
   return released
-    ? `${formatMoney(fromCents(released))} de lo ya pagado por este trabajo vuelven al saldo a favor.`
+    ? {
+        amount: formatMoney(fromCents(released)),
+        text: 'de lo ya pagado por este trabajo vuelven al saldo a favor.',
+      }
     : null
 }
 
@@ -161,6 +164,23 @@ export function AdjustmentDialog({
       title="Registrar ajuste"
       context={{ label: clinic.name }}
       description="Un descuento baja lo que debe la clínica y un recargo lo sube. Con trabajo, cambia lo que se debe por ese trabajo."
+      // El aviso del descuento va en el pie fijo, junto al botón que confirma: se ve antes de
+      // confirmar aunque el cuerpo no quepa. Siempre montado (`aria-live`), para que el lector
+      // de pantalla lo anuncie al aparecer; vacío, `empty:hidden` no deja hueco.
+      summary={
+        <div aria-live="polite" className="empty:hidden">
+          {notice && (
+            <p className="flex gap-2 rounded-lg border border-wax-amber/60 bg-wax-amber/10 px-3 py-2 text-sm text-foreground">
+              <Info aria-hidden className="mt-0.5 size-4 shrink-0 text-wax-amber-ink" />
+              <span>
+                {notice.amount && <span className="font-mono">{notice.amount}</span>}
+                {notice.amount && ' '}
+                {notice.text}
+              </span>
+            </p>
+          )}
+        </div>
+      }
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -253,15 +273,6 @@ export function AdjustmentDialog({
                 />
                 <FieldDescription>Solo trabajos entregados de esta clínica.</FieldDescription>
                 {fieldState.error && <FieldError errors={[fieldState.error]} />}
-                {/* Siempre montado, para que el lector de pantalla anuncie el aviso al aparecer. */}
-                <div aria-live="polite">
-                  {notice && (
-                    <p className="flex gap-2 rounded-lg border border-wax-amber/60 bg-wax-amber/10 px-3 py-2 text-sm text-foreground">
-                      <Info aria-hidden className="mt-0.5 size-4 shrink-0 text-wax-amber-ink" />
-                      {notice}
-                    </p>
-                  )}
-                </div>
               </Field>
             )}
           />

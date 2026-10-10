@@ -96,7 +96,11 @@ describe('AdjustmentDialog («Registrar ajuste», CTA-3)', () => {
     it('un descuento sobre un trabajo cobrado lo avisa', async () => {
       const { user } = renderDialog()
       await choose(user, 'Descuento o nota de crédito', '26-00002')
-      expect(screen.getByText(COBRADO)).toBeInTheDocument()
+      // En el pie fijo, junto a «Registrar ajuste»: se ve antes de confirmar aunque el cuerpo
+      // no quepa (a 360 px el trabajo queda al borde del cuerpo).
+      expect(
+        screen.getByText(COBRADO).closest('[data-slot="form-dialog-footer"]'),
+      ).toContainElement(screen.getByRole('button', { name: 'Registrar ajuste' }))
     })
 
     it('un recargo sobre un trabajo cobrado no avisa nada', async () => {
@@ -110,9 +114,14 @@ describe('AdjustmentDialog («Registrar ajuste», CTA-3)', () => {
       const { user } = renderDialog()
       await choose(user, 'Descuento o nota de crédito', '26-00001')
       await user.type(screen.getByLabelText('Monto'), '70')
-      expect(
-        screen.getByText('$ 20.00 de lo ya pagado por este trabajo vuelven al saldo a favor.'),
-      ).toBeInTheDocument()
+      const notice = screen.getByText(
+        /de lo ya pagado por este trabajo vuelven al saldo a favor\.$/,
+      )
+      expect(notice).toHaveTextContent(
+        /^\$ 20\.00 de lo ya pagado por este trabajo vuelven al saldo a favor\.$/,
+      )
+      // El monto, en monoespaciada.
+      expect(within(notice).getByText('$ 20.00')).toHaveClass('font-mono')
     })
 
     it('un descuento que no pasa de lo que debe, o sin trabajo, no avisa nada', async () => {

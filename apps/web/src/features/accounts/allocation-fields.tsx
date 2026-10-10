@@ -21,19 +21,21 @@ export type AllocationCase = {
   days: number
 }
 
-/** Texto de la consecuencia de una fila (UX5-15); `null` sin monto: la fila ya dice lo que
- * debe y «Sigue debiendo $ X» lo repetiría. `Record` exhaustivo: un caso nuevo no compila. */
+/** Texto de la consecuencia de una fila (UX5-15), con el monto aparte para la monoespaciada;
+ * `null` sin monto: la fila ya dice lo que debe y «Sigue debiendo $ X» lo repetiría. `Record`
+ * exhaustivo: un caso nuevo no compila. */
+type OutcomeText = { text: string; amount?: string } | null
 const OUTCOME_TEXT: {
-  [K in AllocationOutcome['kind']]: (o: Extract<AllocationOutcome, { kind: K }>) => string | null
+  [K in AllocationOutcome['kind']]: (o: Extract<AllocationOutcome, { kind: K }>) => OutcomeText
 } = {
   sin_monto: () => null,
-  cobrado: () => 'Queda cobrado',
-  debiendo: (o) => `Quedará debiendo ${formatMoney(fromCents(o.leftCents))}`,
-  excede: (o) => `Supera lo que debe en ${formatMoney(fromCents(o.overCents))}`,
+  cobrado: () => ({ text: 'Queda cobrado' }),
+  debiendo: (o) => ({ text: 'Quedará debiendo', amount: formatMoney(fromCents(o.leftCents)) }),
+  excede: (o) => ({ text: 'Supera lo que debe en', amount: formatMoney(fromCents(o.overCents)) }),
 }
 
-function outcomeText(o: AllocationOutcome): string | null {
-  return (OUTCOME_TEXT[o.kind] as (o: AllocationOutcome) => string | null)(o)
+function outcomeText(o: AllocationOutcome): OutcomeText {
+  return (OUTCOME_TEXT[o.kind] as (o: AllocationOutcome) => OutcomeText)(o)
 }
 
 /**
@@ -92,7 +94,9 @@ export function AllocationFields({
                 inputMode="decimal"
                 autoComplete="off"
                 placeholder="0.00"
-                className="h-11 w-28 shrink-0 text-right font-mono tabular-nums"
+                // Al enfocarla con el teclado, la lista se desplaza hasta dejar a la vista también
+                // la consecuencia de debajo y el anillo de foco (`scroll-margin`).
+                className="h-11 w-28 shrink-0 scroll-mt-3 scroll-mb-10 text-right font-mono tabular-nums"
               />
             </div>
             {error ? (
@@ -113,7 +117,13 @@ export function AllocationFields({
                   {outcome.kind === 'cobrado' && (
                     <CircleCheck aria-hidden className="size-3.5 shrink-0 text-ok-green" />
                   )}
-                  {text}
+                  {text.text}
+                  {text.amount && (
+                    <>
+                      {' '}
+                      <span className="font-mono">{text.amount}</span>
+                    </>
+                  )}
                 </p>
               )
             )}
