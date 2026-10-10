@@ -616,6 +616,7 @@ export function createCaseSettlement(db: Db | Tx): CaseSettlementWriter {
       const rows = await db
         .select({
           id: cases.id,
+          code: cases.code,
           clinicId: cases.clinicId,
           status: cases.status,
           total: cases.total,
@@ -628,6 +629,7 @@ export function createCaseSettlement(db: Db | Tx): CaseSettlementWriter {
         .for('no key update')
       return rows.map((r) => ({
         id: r.id,
+        code: r.code,
         clinicId: r.clinicId,
         status: r.status,
         totalCents: toCents(r.total),

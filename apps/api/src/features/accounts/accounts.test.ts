@@ -110,7 +110,7 @@ describe('/api/cuentas', () => {
       items: [{ productId, quantity: 1, teeth: [11, 12] }],
     })
     expect(created.status).toBe(201)
-    return ((await created.json()) as { case: { id: string; total: string } }).case
+    return ((await created.json()) as { case: { id: string; code: string; total: string } }).case
   }
 
   /** Crea un trabajo por la API y lo lleva a `entregado` con las acciones existentes. */
@@ -463,6 +463,33 @@ describe('/api/cuentas', () => {
         type: 'payment_voided',
         toValue: '15.00',
       })
+    })
+
+    it('registrar un pago y aplicar saldo a favor dicen qué trabajos cerraron (UX5-04)', async () => {
+      const uno = await deliverCase()
+      const dos = await deliverCase()
+      // 60.00: 45.00 cierran `uno` y 15.00 dejan a `dos` debiendo 30.00.
+      const r = await post('/api/cuentas/pagos', recepcion, {
+        ...pago({
+          asignaciones: [
+            { trabajoId: dos.id, monto: '15.00' },
+            { trabajoId: uno.id, monto: '45.00' },
+          ],
+        }),
+      })
+      expect(r.status).toBe(201)
+      const { pago: p } = (await r.json()) as { pago: Pago & { settled: unknown } }
+      expect(p.settled).toEqual([{ id: uno.id, code: uno.code }])
+
+      // Un anticipo de 30.00 queda a favor y, aplicado a `dos`, lo cierra.
+      const anticipo = await register(pago({ monto: '30.00' }))
+      const aplicado = await post(`/api/cuentas/pagos/${anticipo.id}/asignaciones`, recepcion, {
+        asignaciones: [{ trabajoId: dos.id, monto: '30.00' }],
+      })
+      expect(aplicado.status).toBe(201)
+      expect(((await aplicado.json()) as { pago: { settled: unknown } }).pago.settled).toEqual([
+        { id: dos.id, code: dos.code },
+      ])
     })
 
     /** Un pago de 60.00 con 45.00 en un trabajo (le quedan 15.00 a favor) y otros dos

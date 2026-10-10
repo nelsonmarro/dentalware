@@ -19,11 +19,6 @@ const api = vi.hoisted(() => ({
 vi.mock('./api', () => api)
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 
-const open = [
-  { id: 't1', code: '26-00001', deliveredAt: '2026-09-01T15:00:00.000Z', outstanding: '50.00' },
-  { id: 't2', code: '26-00002', deliveredAt: '2026-09-02T15:00:00.000Z', outstanding: '30.00' },
-]
-
 function setup<T>(hook: () => T) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -65,22 +60,45 @@ beforeEach(() => {
 })
 
 describe('useRegisterPayment («Registrar pago», CTA-2)', () => {
-  it('invalida cuentas y trabajos y dice cuántos trabajos quedaron cobrados y lo que queda a favor', async () => {
-    api.registerPayment.mockResolvedValue({ id: 'p1', credit: '20.00' })
-    const { client, result } = setup(() => useRegisterPayment('k1', open))
+  it('invalida cuentas y trabajos y nombra los trabajos que cerró la API y lo que queda a favor', async () => {
+    api.registerPayment.mockResolvedValue({
+      id: 'p1',
+      credit: '20.00',
+      settled: [
+        { id: 't1', code: '26-00001' },
+        { id: 't2', code: '26-00002' },
+      ],
+    })
+    const { client, result } = setup(() => useRegisterPayment('k1'))
     result.current.mutate(pagoInput)
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(api.registerPayment).toHaveBeenCalledWith(pagoInput)
     expectInvalidated(client)
     expect(toast.success).toHaveBeenCalledWith(
-      'Pago registrado: 2 trabajos cobrados y $ 20.00 a favor',
+      'Pago registrado: cobrados 26-00001 y 26-00002 · $ 20.00 a favor',
     )
   })
 
-  it('un pago que no cierra ningún trabajo lo dice sin contarlos', async () => {
-    api.registerPayment.mockResolvedValue({ id: 'p1', credit: '0.00' })
-    const { result } = setup(() => useRegisterPayment('k1', open))
+  // El reparto cubre lo que debían los dos al abrir el diálogo, pero entre medio un recargo
+  // dejó a `t2` debiendo: la API solo cerró `t1`, y el aviso no cuenta con el «Por cobrar» viejo.
+  it('nombra solo lo que dice la API, aunque el reparto cubriera más', async () => {
+    api.registerPayment.mockResolvedValue({
+      id: 'p1',
+      credit: '20.00',
+      settled: [{ id: 't1', code: '26-00001' }],
+    })
+    const { result } = setup(() => useRegisterPayment('k1'))
+    result.current.mutate(pagoInput)
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(toast.success).toHaveBeenCalledWith(
+      'Pago registrado: cobrado 26-00001 · $ 20.00 a favor',
+    )
+  })
+
+  it('un pago que no cierra ningún trabajo no nombra ninguno', async () => {
+    api.registerPayment.mockResolvedValue({ id: 'p1', credit: '0.00', settled: [] })
+    const { result } = setup(() => useRegisterPayment('k1'))
     result.current.mutate({
       ...pagoInput,
       monto: '10.00',
@@ -91,9 +109,9 @@ describe('useRegisterPayment («Registrar pago», CTA-2)', () => {
   })
 
   it('lleva la clave de mutación de su clínica', () => {
-    const { client } = setup(() => useRegisterPayment('k1', open))
+    const { client } = setup(() => useRegisterPayment('k1'))
     api.registerPayment.mockReturnValue(new Promise(() => {}))
-    const { result } = renderHook(() => useRegisterPayment('k1', open), {
+    const { result } = renderHook(() => useRegisterPayment('k1'), {
       wrapper: ({ children }) => (
         <QueryClientProvider client={client}>{children}</QueryClientProvider>
       ),
@@ -110,7 +128,7 @@ describe('useRegisterPayment («Registrar pago», CTA-2)', () => {
         { path: 'fecha', message: 'La fecha no puede ser posterior a hoy' },
       ]),
     )
-    const { result } = setup(() => useRegisterPayment('k1', open))
+    const { result } = setup(() => useRegisterPayment('k1'))
     result.current.mutate(pagoInput)
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(toast.error).not.toHaveBeenCalled()
@@ -118,9 +136,13 @@ describe('useRegisterPayment («Registrar pago», CTA-2)', () => {
 })
 
 describe('useApplyCredit («Aplicar saldo a favor», CTA-2)', () => {
-  it('invalida y dice cuántos trabajos quedaron cobrados', async () => {
-    api.applyCredit.mockResolvedValue({ id: 'p1', credit: '0.00' })
-    const { client, result } = setup(() => useApplyCredit('k1', open))
+  it('invalida y nombra el trabajo que cerró la API', async () => {
+    api.applyCredit.mockResolvedValue({
+      id: 'p1',
+      credit: '0.00',
+      settled: [{ id: 't2', code: '26-00002' }],
+    })
+    const { client, result } = setup(() => useApplyCredit('k1'))
     result.current.mutate({
       paymentId: 'p1',
       input: { asignaciones: [{ trabajoId: 't2', monto: '30' }] },
@@ -130,7 +152,7 @@ describe('useApplyCredit («Aplicar saldo a favor», CTA-2)', () => {
       asignaciones: [{ trabajoId: 't2', monto: '30' }],
     })
     expectInvalidated(client)
-    expect(toast.success).toHaveBeenCalledWith('Saldo a favor aplicado: 1 trabajo cobrado')
+    expect(toast.success).toHaveBeenCalledWith('Saldo a favor aplicado: cobrado 26-00002')
   })
 
   // Convención §5: ante un 409 (otra persona anuló el pago) se espera la invalidación y después
@@ -139,7 +161,7 @@ describe('useApplyCredit («Aplicar saldo a favor», CTA-2)', () => {
     api.applyCredit.mockRejectedValue(
       new ApiError('El pago está anulado: no tiene saldo a favor', 409),
     )
-    const { client, result } = setup(() => useApplyCredit('k1', open))
+    const { client, result } = setup(() => useApplyCredit('k1'))
     let invalidatedWhenToasted = false
     vi.mocked(toast.error).mockImplementation(() => {
       invalidatedWhenToasted =

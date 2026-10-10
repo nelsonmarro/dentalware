@@ -249,6 +249,7 @@ export function fakeAccounts(seed: Seed = {}) {
         .filter((c) => caseIds.includes(c.id))
         .map((c) => ({
           id: c.id,
+          code: c.code,
           clinicId: c.clinicId,
           status: c.status,
           totalCents: c.totalCents,

@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  applyIssues,
-  formFieldForIssue,
-  orderOpenCases,
-  settledCount,
-  suggestedRows,
-} from './allocation'
+import { applyIssues, formFieldForIssue, orderOpenCases, suggestedRows } from './allocation'
 
 const open = [
   { id: 'b', code: '26-00002', deliveredAt: '2026-09-01T15:00:00.000Z', outstanding: '30.00' },
@@ -30,18 +24,6 @@ describe('suggestedRows', () => {
 
   it('sin monto, todas las filas vacías', () => {
     expect(suggestedRows(orderOpenCases(open), null).map((r) => r.monto)).toEqual(['', '', ''])
-  })
-})
-
-describe('settledCount', () => {
-  it('cuenta los trabajos cuyo pendiente queda cubierto con lo asignado', () => {
-    expect(
-      settledCount(open, [
-        { trabajoId: 'a', monto: '50' },
-        { trabajoId: 'b', monto: '29.99' },
-        { trabajoId: 'c', monto: '20.00' },
-      ]),
-    ).toBe(2)
   })
 })
 

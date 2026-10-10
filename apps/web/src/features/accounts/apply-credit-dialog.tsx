@@ -51,7 +51,7 @@ export function ApplyCreditDialog({
   }
   const availableCents = toCents(payment.remaining)
   const schema = useMemo(() => applyCreditFormSchema(availableCents), [availableCents])
-  const apply = useApplyCredit(clinic.id, ordered)
+  const apply = useApplyCredit(clinic.id)
   const { busy, queued } = useAccountBusy(clinic.id)
 
   type FormValues = z.input<typeof schema>

@@ -103,7 +103,10 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
   })
 
   it('cada monto se edita y el pago viaja sin las filas vacías', async () => {
-    vi.mocked(registerPayment).mockResolvedValue({ credit: '70.00' } as never)
+    vi.mocked(registerPayment).mockResolvedValue({
+      credit: '70.00',
+      settled: [{ id: T2, code: '26-00002' }],
+    } as never)
     const { user, onOpenChange } = renderDialog()
     await user.type(screen.getByLabelText('Monto'), '100')
     await user.clear(rowInput('26-00001'))
@@ -125,7 +128,7 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
     })
     await vi.waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     expect(toast.success).toHaveBeenCalledWith(
-      'Pago registrado: 1 trabajo cobrado y $ 70.00 a favor',
+      'Pago registrado: cobrado 26-00002 · $ 70.00 a favor',
     )
   })
 
@@ -217,7 +220,7 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
     }
 
     it('un trabajo que desaparece no corre las filas: el monto va al trabajo rotulado', async () => {
-      vi.mocked(registerPayment).mockResolvedValue({ credit: '0.00' } as never)
+      vi.mocked(registerPayment).mockResolvedValue({ credit: '0.00', settled: [] } as never)
       const utils = renderDialog()
       // Otra persona cobró el 26-00001: ya no está por cobrar.
       rerenderWith(
@@ -247,7 +250,7 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
     })
 
     it('un trabajo que aparece no deja una fila sin trabajo ni el botón muerto', async () => {
-      vi.mocked(registerPayment).mockResolvedValue({ credit: '0.00' } as never)
+      vi.mocked(registerPayment).mockResolvedValue({ credit: '0.00', settled: [] } as never)
       const utils = renderDialog()
       rerenderWith(utils, [
         ...OPEN,

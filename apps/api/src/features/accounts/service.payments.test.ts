@@ -103,6 +103,7 @@ describe('features/accounts/service: pagos (CTA-2)', () => {
         createdAt: expect.any(Date),
         by: 'Recepción',
         voided: null,
+        settled: [{ id: 'a', code: '26-a' }],
       })
       expect(statusOf(fake, 'a')).toBe('cobrado')
       expect(fake.paidAt.get('a')).toEqual(NOW)
@@ -245,6 +246,74 @@ describe('features/accounts/service: pagos (CTA-2)', () => {
       expect(fake.locked).toEqual([['b', 'a']])
     })
 
+    describe('dice qué trabajos cerró (UX5-04)', () => {
+      // `d` se entregó antes que `a`: `settled` va de la entrega más antigua a la más nueva y, a
+      // igualdad, por código (el orden del reparto sugerido), no en el del reparto que llega.
+      const withD = () =>
+        build({
+          cases: [
+            ...CASES,
+            makeCase({ id: 'd', totalCents: 3_000, deliveredAt: at('2026-08-20') }),
+          ],
+        })
+
+      it('trae los trabajos que pasaron a cobrado, no los que siguen debiendo', async () => {
+        const fake = withD()
+        const p = await fake.service.registerPayment(
+          pago({
+            monto: '150.00',
+            asignaciones: [
+              { trabajoId: 'a', monto: '100.00' },
+              { trabajoId: 'b', monto: '20.00' },
+              { trabajoId: 'd', monto: '30.00' },
+            ],
+          }),
+          recepcion,
+        )
+        expect(p.settled).toEqual([
+          { id: 'd', code: '26-d' },
+          { id: 'a', code: '26-a' },
+        ])
+      })
+
+      it('un recargo confirmado antes del pago deja el trabajo debiendo y no lo cuenta', async () => {
+        // El diálogo sugirió 50.00 para `b` (su pendiente al abrirse); entre medio, admin le
+        // registró un recargo de 10.00: queda debiendo 10.00 y sigue entregado.
+        const fake = build({
+          adjustments: [
+            {
+              id: 'aj',
+              clinicId: SUR.id,
+              caseId: 'b',
+              amountCents: 1_000,
+              reason: 'Recargo',
+              date: '2026-10-05',
+              createdAt: at('2026-10-05'),
+              createdByName: 'Admin',
+            },
+          ],
+        })
+        const p = await fake.service.registerPayment(
+          pago({
+            monto: '150.00',
+            asignaciones: [
+              { trabajoId: 'a', monto: '100.00' },
+              { trabajoId: 'b', monto: '50.00' },
+            ],
+          }),
+          recepcion,
+        )
+        expect(statusOf(fake, 'b')).toBe('entregado')
+        expect(p.settled).toEqual([{ id: 'a', code: '26-a' }])
+      })
+
+      it('un anticipo sin reparto no cierra nada', async () => {
+        const fake = build()
+        const p = await fake.service.registerPayment(pago({ monto: '25.00' }), recepcion)
+        expect(p.settled).toEqual([])
+      })
+    })
+
     describe('validaciones de la decisión 8: 422 con su campo y sin escribir nada', () => {
       it.each([
         [
@@ -353,6 +422,7 @@ describe('features/accounts/service: pagos (CTA-2)', () => {
         recepcion,
       )
       expect(p).toMatchObject({ id: 'pg', amount: '80.00', allocated: '70.00', credit: '10.00' })
+      expect(p.settled).toEqual([{ id: 'b', code: '26-b' }])
       expect(fake.allocations).toContainEqual(
         expect.objectContaining({ paymentId: 'pg', caseId: 'b', amountCents: 5_000 }),
       )

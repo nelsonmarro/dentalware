@@ -66,7 +66,7 @@ export function PaymentDialog({
     setWasOpen(open)
     if (open) setOrdered(orderOpenCases(openCases))
   }
-  const pay = useRegisterPayment(clinic.id, ordered)
+  const pay = useRegisterPayment(clinic.id)
   const { busy, queued } = useAccountBusy(clinic.id)
   const today = toIsoDate(new Date())
 

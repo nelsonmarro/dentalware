@@ -158,8 +158,9 @@ test.describe('Cuentas', () => {
         await pago.getByLabel('Referencia').fill('TRX-E2E')
         await pago.getByRole('button', { name: 'Registrar pago' }).click()
         await expect(pago).toBeHidden()
+        // El aviso nombra el trabajo que cerró la API (UX5-04).
         await expect(toasts(rp)).toContainText(
-          'Pago registrado: 1 trabajo cobrado y $ 5.00 a favor',
+          `Pago registrado: cobrado ${oldest.code} · $ 5.00 a favor`,
         )
 
         const rpSummary = rp.getByRole('region', { name: 'Saldo' })
@@ -178,6 +179,7 @@ test.describe('Cuentas', () => {
         await aplicar.getByRole('button', { name: 'Aplicar saldo a favor' }).click()
         await expect(aplicar).toBeHidden()
         await expect(toasts(rp)).toContainText('Saldo a favor aplicado')
+        await expect(toasts(rp)).not.toContainText('Saldo a favor aplicado: cobrado')
         await expect(rpSummary).toContainText('$ 120.00')
         await expect(rpSummary).not.toContainText('Saldo a favor')
         await expect(rp.getByText('Le quedan $ 5.00 a favor')).toHaveCount(0)

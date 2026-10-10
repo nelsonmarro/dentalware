@@ -1,11 +1,4 @@
-import {
-  caseOutstandingCents,
-  fromCents,
-  isSettled,
-  parseMoneyInput,
-  suggestAllocation,
-  toSignedCents,
-} from '@dentalware/shared'
+import { fromCents, suggestAllocation, toSignedCents } from '@dentalware/shared'
 
 /** Lo que el reparto necesita de un trabajo «Por cobrar». */
 type OpenCaseRef = { id: string; code: string; deliveredAt: string; outstanding: string }
@@ -43,20 +36,6 @@ export function suggestedRows(
     const cents = suggestion.find((s) => s.caseId === c.id)?.amountCents
     return { trabajoId: c.id, monto: cents ? fromCents(cents) : '' }
   })
-}
-
-/** Cuántos trabajos quedan cubiertos con el reparto (`isSettled` de shared sobre su pendiente),
- * para el aviso «2 trabajos cobrados». */
-export function settledCount(
-  open: readonly OpenCaseRef[],
-  allocations: readonly AllocationRow[],
-): number {
-  return allocations.filter((a) => {
-    const c = open.find((x) => x.id === a.trabajoId)
-    if (!c) return false
-    const cents = parseMoneyInput(a.monto) ?? 0
-    return isSettled(caseOutstandingCents(toSignedCents(c.outstanding), 0, cents))
-  }).length
 }
 
 /**

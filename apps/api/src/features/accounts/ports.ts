@@ -152,6 +152,8 @@ export interface AccountsRepository {
 /** Un trabajo bloqueado para cobrarlo, con lo que hace falta para su cargo (decisión 4). */
 export type SettlementCase = {
   id: string
+  /** Código `AA-NNNNN`, para decir qué trabajos cerró un pago (UX5-04). */
+  code: string
   clinicId: string
   status: CaseStatus
   totalCents: number

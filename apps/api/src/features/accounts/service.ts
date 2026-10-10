@@ -151,6 +151,14 @@ export type PaymentView = {
   voided: { at: Date; by: string; reason: string } | null
 }
 
+/** Un trabajo que una operación pasó de `entregado` a `cobrado` (UX5-04). */
+export type SettledCase = { id: string; code: string }
+
+/** Registrar un pago y aplicar saldo a favor devuelven además `settled`: los trabajos que esa
+ * misma transacción cerró según `isSettled`, de la entrega más antigua a la más nueva y, a
+ * igualdad, por código (el orden del reparto sugerido). El aviso de la web los nombra. */
+export type SettlingPaymentView = PaymentView & { settled: SettledCase[] }
+
 /** Un ajuste (CTA-3) tal como lo devuelve registrarlo. `amount` con signo. */
 export type AdjustmentView = {
   id: string
@@ -433,18 +441,32 @@ export function createAccountsService(deps: {
   /**
    * Reevalúa `isSettled` (decisión 5) en los trabajos bloqueados tras asignar o anular:
    * `entregado` cubierto pasa a `cobrado` con `paid_at`; `cobrado` que deja de estarlo vuelve a
-   * `entregado`. `CaseSettlement.setPaid` escribe el `status_changed`.
+   * `entregado`. `CaseSettlement.setPaid` escribe el `status_changed`. Devuelve los que pasó a
+   * `cobrado`, en el orden de `SettlingPaymentView.settled`.
    */
-  async function settle(r: UowRepos, locked: readonly SettlementCase[], actorId: string) {
+  async function settle(
+    r: UowRepos,
+    locked: readonly SettlementCase[],
+    actorId: string,
+  ): Promise<SettledCase[]> {
     const outstanding = await outstandingOf(r, locked)
+    const closed: SettlementCase[] = []
     for (const c of locked) {
       const settled = isSettled(outstanding.get(c.id) ?? 0)
       if (settled && c.status === 'entregado') {
         await r.cases.setPaid(c.id, deps.clock.now(), actorId)
+        closed.push(c)
       } else if (!settled && c.status === 'cobrado') {
         await r.cases.setPaid(c.id, null, actorId)
       }
     }
+    return closed
+      .sort(
+        (a, b) =>
+          (a.deliveredAt?.getTime() ?? 0) - (b.deliveredAt?.getTime() ?? 0) ||
+          a.code.localeCompare(b.code),
+      )
+      .map((c) => ({ id: c.id, code: c.code }))
   }
 
   /** Crea las asignaciones del pago y escribe `payment_applied` en cada trabajo. */
@@ -719,7 +741,7 @@ export function createAccountsService(deps: {
      * asignaciones, escribe `payment_applied` en cada trabajo y cierra los cubiertos. Lo que no
      * reparte queda a favor de la clínica (decisión 3).
      */
-    async registerPayment(input: PaymentInput, ctx: RequestContext): Promise<PaymentView> {
+    async registerPayment(input: PaymentInput, ctx: RequestContext): Promise<SettlingPaymentView> {
       assertRole(ACCOUNTS_ROLES, ctx)
       assertNotFuture(input.fecha)
       return deps.uow.run(async (r) => {
@@ -746,8 +768,8 @@ export function createAccountsService(deps: {
           createdBy: ctx.userId,
         })
         await allocate(r, { id, ...payment }, allocations, ctx.userId)
-        await settle(r, locked, ctx.userId)
-        return viewOf(r, id)
+        const settled = await settle(r, locked, ctx.userId)
+        return { ...(await viewOf(r, id)), settled }
       })
     },
 
@@ -760,7 +782,7 @@ export function createAccountsService(deps: {
       paymentId: string,
       input: ApplyCreditInput,
       ctx: RequestContext,
-    ): Promise<PaymentView> {
+    ): Promise<SettlingPaymentView> {
       assertRole(ACCOUNTS_ROLES, ctx)
       return deps.uow.run(async (r) => {
         const payment = await r.accounts.lockPayment(paymentId)
@@ -778,8 +800,8 @@ export function createAccountsService(deps: {
           { cents: left, message: `Supera el saldo a favor de este pago (${fromCents(left)})` },
         )
         await allocate(r, payment, allocations, ctx.userId)
-        await settle(r, locked, ctx.userId)
-        return viewOf(r, paymentId)
+        const settled = await settle(r, locked, ctx.userId)
+        return { ...(await viewOf(r, paymentId)), settled }
       })
     },
 
