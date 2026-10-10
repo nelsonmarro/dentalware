@@ -28,6 +28,7 @@ import { AllocationFields } from './allocation-fields'
 import { AllocationSummary } from './allocation-summary'
 import { applyIssues, orderOpenCases, suggestedRows } from './allocation'
 import type { ClinicAccount } from './api'
+import { DateField } from './date-field'
 import { useAccountBusy } from './use-account-busy'
 import { useRegisterPayment } from './use-register-payment'
 
@@ -95,6 +96,7 @@ export function PaymentDialog({
 
   const monto = useWatch({ control, name: 'monto' })
   const rows = useWatch({ control, name: 'asignaciones' })
+  const fecha = useWatch({ control, name: 'fecha' })
   const totals = allocationTotals(
     parseMoneyInput(monto),
     (rows ?? []).map((r) => r.monto),
@@ -203,18 +205,14 @@ export function PaymentDialog({
                 </Field>
               )}
             />
-            <Field data-invalid={!!errors.fecha}>
-              <FieldLabel htmlFor="pago-fecha">Fecha</FieldLabel>
-              <Input
-                {...register('fecha')}
-                id="pago-fecha"
-                type="date"
-                max={today}
-                className="h-11"
-                aria-invalid={!!errors.fecha}
-              />
-              {errors.fecha && <FieldError errors={[errors.fecha]} />}
-            </Field>
+            <DateField
+              id="pago-fecha"
+              label="Fecha"
+              value={fecha}
+              max={today}
+              error={errors.fecha}
+              registration={register('fecha')}
+            />
             <Field data-invalid={!!errors.referencia}>
               <FieldLabel htmlFor="pago-referencia">Referencia</FieldLabel>
               <Input

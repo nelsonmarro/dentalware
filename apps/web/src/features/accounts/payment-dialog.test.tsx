@@ -81,6 +81,16 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
     expect(within(dialog).getByRole('button', { name: 'Registrar pago' })).toBeInTheDocument()
   })
 
+  // UX5-08: con Chrome en inglés el campo se ve mm/dd/aaaa; debajo, la fecha escrita.
+  it('bajo «Fecha» dice la fecha escrita en español, como descripción del campo', async () => {
+    const { user } = renderDialog()
+    const fecha = screen.getByLabelText('Fecha')
+    await user.clear(fecha)
+    await user.type(fecha, '2026-06-01')
+    expect(fecha).toHaveAccessibleDescription('Lunes, 1 de junio de 2026')
+    expect(fecha).not.toHaveAttribute('lang')
+  })
+
   it('al escribir el monto reparte de la entrega más antigua a la más nueva y dice lo que queda', async () => {
     const { user } = renderDialog()
     // Los trabajos van en el orden del reparto: primero el más antiguo.

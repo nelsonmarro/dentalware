@@ -25,6 +25,7 @@ import { QueuedNotice } from '@/features/cases/queued-notice'
 import { ApiError, toastApiError } from '@/lib/api-error'
 import { formatMoney } from '@/lib/format-money'
 import { applyIssues } from './allocation'
+import { DateField } from './date-field'
 import { useAccountBusy } from './use-account-busy'
 import { useRegisterAdjustment } from './use-register-adjustment'
 
@@ -117,7 +118,10 @@ export function AdjustmentDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al abrir
   }, [open])
 
-  const [signo, monto, trabajoId] = useWatch({ control, name: ['signo', 'monto', 'trabajoId'] })
+  const [signo, monto, trabajoId, fecha] = useWatch({
+    control,
+    name: ['signo', 'monto', 'trabajoId', 'fecha'],
+  })
   const notice = discountNotice(
     cases.find((c) => c.id === trabajoId),
     signo,
@@ -240,18 +244,14 @@ export function AdjustmentDialog({
               />
               {errors.monto && <FieldError errors={[errors.monto]} />}
             </Field>
-            <Field data-invalid={!!errors.fecha}>
-              <FieldLabel htmlFor="ajuste-fecha">Fecha</FieldLabel>
-              <Input
-                {...register('fecha')}
-                id="ajuste-fecha"
-                type="date"
-                max={today}
-                className="h-11"
-                aria-invalid={!!errors.fecha}
-              />
-              {errors.fecha && <FieldError errors={[errors.fecha]} />}
-            </Field>
+            <DateField
+              id="ajuste-fecha"
+              label="Fecha"
+              value={fecha}
+              max={today}
+              error={errors.fecha}
+              registration={register('fecha')}
+            />
           </div>
           <Controller
             name="trabajoId"

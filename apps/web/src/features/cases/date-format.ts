@@ -1,8 +1,29 @@
+import { isoDate } from '@dentalware/shared'
+
 /** Formatea una fecha ISO (`AAAA-MM-DD`) a `dd/mm/aaaa`; `null` → `—`. */
 export function formatDate(date: string | null): string {
   if (!date) return '—'
   const [year, month, day] = date.split('-')
   return `${day}/${month}/${year}`
+}
+
+const LONG_DATE = new Intl.DateTimeFormat('es-EC', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+
+/** Una fecha de negocio (`AAAA-MM-DD`) escrita en español, «Lunes, 1 de junio de 2026» (UX5-08):
+ * va bajo los campos de fecha, que Chrome pinta como dd/mm o mm/dd según el idioma de su
+ * interfaz. Se formatea en UTC porque la fecha no tiene hora: así el día no se corre con la zona.
+ * Sin una fecha completa y real (el campo a medio escribir), `null`. */
+export function formatLongDate(date: string | undefined): string | null {
+  if (!date || !isoDate.safeParse(date).success) return null
+  const [year, month, day] = date.split('-').map(Number) as [number, number, number]
+  const text = LONG_DATE.format(new Date(Date.UTC(year, month - 1, day)))
+  return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
 /** Fecha de calendario **local** (`dd/mm/aaaa`) de un timestamp UTC (`createdAt` de un evento).

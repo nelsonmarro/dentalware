@@ -48,6 +48,15 @@ describe('AdjustmentDialog («Registrar ajuste», CTA-3)', () => {
     expect(within(dialog).getByRole('button', { name: 'Volver' })).toBeInTheDocument()
   })
 
+  // UX5-08: el «Saldo inicial» del 1 de junio se veía «06/01/2026» con Chrome en inglés.
+  it('bajo «Fecha» dice la fecha escrita en español, como descripción del campo', async () => {
+    const { user } = renderDialog()
+    const fecha = screen.getByLabelText('Fecha')
+    await user.clear(fecha)
+    await user.type(fecha, '2026-06-01')
+    expect(fecha).toHaveAccessibleDescription('Lunes, 1 de junio de 2026')
+  })
+
   it('pide elegir el tipo, el monto y el motivo', async () => {
     const { user } = renderDialog()
     await user.click(screen.getByRole('button', { name: 'Registrar ajuste' }))

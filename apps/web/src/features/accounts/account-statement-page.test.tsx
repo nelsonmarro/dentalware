@@ -84,6 +84,20 @@ describe('AccountStatementPage (/cuentas/$clinicaId/estado, CTA-5)', () => {
     expect(onRangeChange).toHaveBeenCalledWith({ desde: '2026-08-01', hasta: '2026-09-30' })
   })
 
+  // UX5-08: el `lang` del campo no cambia cómo lo pinta Chrome; la fecha escrita, sí se lee.
+  it('bajo «Desde» y «Hasta» va la fecha escrita en español, y cambia con el campo', async () => {
+    const { user } = renderPage()
+    const desde = await screen.findByLabelText('Desde')
+    const hasta = screen.getByLabelText('Hasta')
+    expect(desde).toHaveAccessibleDescription('Martes, 1 de septiembre de 2026')
+    expect(hasta).toHaveAccessibleDescription('Miércoles, 30 de septiembre de 2026')
+    expect(desde).not.toHaveAttribute('lang')
+    expect(hasta).not.toHaveAttribute('lang')
+    await user.clear(desde)
+    await user.type(desde, '2026-08-15')
+    expect(desde).toHaveAccessibleDescription('Sábado, 15 de agosto de 2026')
+  })
+
   it('una fecha final anterior a la inicial se avisa bajo el campo y no se pide', async () => {
     const { user, onRangeChange } = renderPage()
     const hasta = await screen.findByLabelText('Hasta')
