@@ -9,11 +9,13 @@ export function agingTab(oldestDays: number | null): AgingTab {
 }
 
 /** Color de la pestaña. Solo acompaña: lo dice el texto «Más antiguo: N días» (nunca solo
- * color). `Record` exhaustivo: un cubo nuevo no compila sin decidir su color. */
+ * color). Los cubos contiguos se separan también por luminosidad (UX5-10): «Más de 90 días» es
+ * un vino casi negro, no un segundo rojo. `Record` exhaustivo: un cubo nuevo no compila sin
+ * decidir su color. */
 export const AGING_TAB_COLOR: Record<AgingTab, string> = {
   al_dia: 'var(--border)',
   '0_30': 'var(--muted-foreground)',
   '31_60': 'var(--wax-amber)',
   '61_90': 'var(--articulating-red)',
-  '90_mas': 'var(--destructive)',
+  '90_mas': 'var(--overdue-wine)',
 }

@@ -49,6 +49,7 @@
   --color-foreground: var(--foreground);
   --color-background: var(--background);
   --color-articulating-red: var(--articulating-red);
+  --color-overdue-wine: var(--overdue-wine);
   --color-wax-amber: var(--wax-amber);
   --color-wax-amber-ink: var(--wax-amber-ink);
   --color-ok-green: var(--ok-green);
@@ -96,6 +97,11 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   --articulating-red: #d6453d;
+  /* UX5-10: «Más de 90 días» en la antigüedad de las cuentas. Un vino casi negro, separado del
+     rojo de 61–90 por luminosidad y no solo por tono (ΔE ≥ 20 y ≥ 3:1 entre ellos, probado en
+     `theme-tokens.test.ts`), para que la regleta no muestre dos rojos iguales. Siempre va con
+     su rótulo. */
+  --overdue-wine: #58131e;
   --wax-amber: #d99a16;
   /* I-3 (ronda de fixes 1, T12): `--wax-amber` es un acento (borde/fondo), no un color de
      texto — como texto sobre su propio fondo al 10 % (`bg-[color:var(--wax-amber)]/10`,

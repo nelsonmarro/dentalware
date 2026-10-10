@@ -62,6 +62,7 @@ Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabaj
   - Las opciones de `Select` (`SelectItem`) miden 36 px con puntero fino y 44 px con el dedo (`pointer-coarse:min-h-11`); las del `Combobox`, siempre 44 px.
   - Chips con texto, nunca solo color; código y montos en monoespaciada.
   - `--wax-amber` es acento; el texto sobre ámbar usa `--wax-amber-ink`. El contraste se prueba en `theme-tokens.test.ts`.
+  - Antigüedad de las cuentas (`AGING_TAB_COLOR`, `Record` exhaustivo): gris, `--wax-amber`, `--articulating-red` y `--overdue-wine` (vino casi negro) para «Más de 90 días». Los cubos contiguos se separan también por luminosidad: ΔE ≥ 20 entre ellos (`deltaE76`, `lib/delta-e.ts`) y ≥ 3:1 entre 61–90 y «Más de 90», probados en `theme-tokens.test.ts`; siempre con su rótulo (UX5-10).
   - Sin modo oscuro en el MVP: nada aplica `.dark` (ni `prefers-color-scheme`); el bloque `.dark` de `index.css` queda en reserva y su contraste no se garantiza hasta que se diseñe y pruebe (UX3-15).
 - **Responsive**: una sola UI; tabla en ≥ `lg` y tarjetas en móvil, con una sola variante montada; sin scroll horizontal a 1280, 390 y 360 px.
 - **Accesibilidad**: un `h1` por página, labels o `aria-label`, `aria-pressed` en toggles, foco visible, teclado en diálogos y selects, contraste AA, `alt` e `inputmode`.
