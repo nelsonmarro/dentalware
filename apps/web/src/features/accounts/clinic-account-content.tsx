@@ -16,7 +16,7 @@ import { ApplyCreditDialog } from './apply-credit-dialog'
 import { BalanceBreakdown } from './balance-breakdown'
 import { MovementsTable } from './movements-table'
 import { OpenCasesTable } from './open-cases-table'
-import type { PaymentRef } from './payment-context'
+import { creditPayment, type PaymentRef } from './payment-context'
 import { PaymentDialog } from './payment-dialog'
 import { useAccountBusy } from './use-account-busy'
 import { useClinicAccount } from './use-clinic-account'
@@ -69,6 +69,9 @@ export function ClinicAccountContent({ clinicId, role }: { clinicId: string; rol
     setPayment(p)
     setDialog(kind)
   }
+  // «Aplicar saldo a favor» en la cabecera (UX5-01): con algo por cobrar, el pago vigente más
+  // antiguo con algo a favor. Sigue siendo manual (ADR 35).
+  const applicable = data.openCases.length > 0 ? creditPayment(data.movements) : null
 
   return (
     <div className="flex flex-col gap-6">
@@ -82,12 +85,32 @@ export function ClinicAccountContent({ clinicId, role }: { clinicId: string; rol
         title={data.clinic.name}
         description="Lo que debe, desde cuándo y cada pago, cargo y ajuste."
         action={
-          <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
-            <Button asChild variant="outline" className="h-11">
-              <Link to="/cuentas/$clinicaId/estado" params={{ clinicaId: clinicId }}>
-                <FileText aria-hidden /> Estado de cuenta
-              </Link>
+          // DOM en orden de importancia, que es el del foco (UX5-17): en móvil, el primario a
+          // ancho completo y los secundarios de dos en dos; en escritorio, en fila.
+          <div
+            role="group"
+            aria-label="Acciones de la cuenta"
+            className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end xl:flex-nowrap [&>:last-child:nth-child(even)]:col-span-2"
+          >
+            <Button
+              type="button"
+              className="col-span-2 h-11"
+              disabled={busy}
+              onClick={() => setDialog('pago')}
+            >
+              Registrar pago
             </Button>
+            {applicable && (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11"
+                disabled={busy}
+                onClick={() => openFor('aplicar')(applicable)}
+              >
+                Aplicar saldo a favor
+              </Button>
+            )}
             {canAdmin && (
               <Button
                 type="button"
@@ -99,13 +122,10 @@ export function ClinicAccountContent({ clinicId, role }: { clinicId: string; rol
                 Registrar ajuste
               </Button>
             )}
-            <Button
-              type="button"
-              className="h-11"
-              disabled={busy}
-              onClick={() => setDialog('pago')}
-            >
-              Registrar pago
+            <Button asChild variant="outline" className="h-11">
+              <Link to="/cuentas/$clinicaId/estado" params={{ clinicaId: clinicId }}>
+                <FileText aria-hidden /> Estado de cuenta
+              </Link>
             </Button>
           </div>
         }
@@ -113,7 +133,9 @@ export function ClinicAccountContent({ clinicId, role }: { clinicId: string; rol
       {queued && <QueuedNotice className="-mt-4" />}
       <AccountSummary
         balance={data.balance}
-        credit={data.credit}
+        credit={data.breakdown.credit}
+        openCasesTotal={data.breakdown.openCases}
+        openCasesCount={data.openCases.length}
         aging={data.aging}
         oldestDays={data.oldestDays}
       />

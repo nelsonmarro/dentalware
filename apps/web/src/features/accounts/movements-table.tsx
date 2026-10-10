@@ -19,24 +19,11 @@ import { cn } from '@/lib/utils'
 import type { ClinicAccount } from './api'
 import { AppliedCases } from './applied-cases'
 import { signedAmountText } from './balance-text'
-import { paymentContext, type PaymentRef } from './payment-context'
+import { livePayment, paymentContext, type PaymentRef } from './payment-context'
 
 type Movement = ClinicAccount['movements'][number]
 
 const FEATURES: GridFeature[] = [pagination()]
-
-/** El pago de un movimiento, si lo es y está vigente: lo que necesitan sus acciones. */
-function livePayment(m: Movement): PaymentRef | null {
-  if (m.kind !== 'pago' || m.voided || !m.method) return null
-  return {
-    id: m.id,
-    date: m.date,
-    amount: m.amount,
-    method: m.method,
-    remaining: m.remaining ?? '0.00',
-    allocations: m.allocations ?? [],
-  }
-}
 
 /** Lo que dice cada movimiento debajo de su tipo: el trabajo, el método y la referencia, el
  * motivo, quién lo registró, lo que le queda a favor a un pago y, si se anuló, quién y por qué. */

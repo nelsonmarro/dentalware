@@ -172,7 +172,9 @@ test.describe('Cuentas', () => {
 
         const rpSummary = rp.getByRole('region', { name: 'Saldo' })
         await expect(rpSummary).toContainText('$ 120.00')
-        await expect(rpSummary).toContainText('Saldo a favor $ 5.00')
+        // Una sola lectura del saldo (UX5-01): el saldo ya descuenta lo que queda a favor.
+        await expect(rpSummary).toContainText('Ya descuenta $ 5.00 a favor sin aplicar')
+        await expect(rpSummary).not.toContainText('Saldo a favor')
         // El saldo a favor se descuenta de lo más antiguo: el saldo inicial.
         await expect(agingBucket(rpSummary, '31–60 días')).toContainText('$ 95.00')
         await expect(rp.getByRole('tab', { name: 'Por cobrar (1)' })).toBeVisible()
@@ -180,7 +182,8 @@ test.describe('Cuentas', () => {
 
         await rp.getByRole('tab', { name: /^Movimientos/ }).click()
         await expect(rp.getByText('Le quedan $ 5.00 a favor')).toBeVisible()
-        await rp.getByRole('button', { name: /^Aplicar saldo a favor de \$ 5\.00/ }).click()
+        // La cabecera ofrece aplicarlo (UX5-01), con el pago vigente más antiguo con algo a favor.
+        await rp.getByRole('button', { name: 'Aplicar saldo a favor', exact: true }).click()
         const aplicar = rp.getByRole('dialog', { name: 'Aplicar saldo a favor' })
         await expect(aplicar.getByLabel(`Monto para ${newest.code}`)).toHaveValue('5.00')
         await aplicar.getByRole('button', { name: 'Aplicar saldo a favor' }).click()
@@ -188,7 +191,10 @@ test.describe('Cuentas', () => {
         await expect(toasts(rp)).toContainText('Saldo a favor aplicado')
         await expect(toasts(rp)).not.toContainText('Saldo a favor aplicado: cobrado')
         await expect(rpSummary).toContainText('$ 120.00')
-        await expect(rpSummary).not.toContainText('Saldo a favor')
+        await expect(rpSummary).not.toContainText('a favor')
+        await expect(
+          rp.getByRole('button', { name: 'Aplicar saldo a favor', exact: true }),
+        ).toHaveCount(0)
         await expect(rp.getByText('Le quedan $ 5.00 a favor')).toHaveCount(0)
         // El pago dice a qué trabajos se aplicó, con enlace a cada ficha (UX5-03).
         const pagoFila = rp.getByText(/^Aplicado a /).filter({ visible: true })
