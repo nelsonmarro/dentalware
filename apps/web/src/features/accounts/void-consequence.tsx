@@ -8,6 +8,7 @@ import { listParts } from './list-parts'
  * aplicado a 26-00101 ($ 50.00) y 26-00107 ($ 30.00).» y, de esos, los que hoy están cobrados y
  * dejarían de estarlo (`reopens`, la misma regla `isSettled` que aplica la anulación): «Vuelve a
  * «Entregado»: 26-00101.». Sin asignaciones vigentes: «No estaba aplicado a ningún trabajo.».
+ * Ningún código se parte por el guion, ni cada trabajo con su monto; la lista, sí.
  */
 export function VoidConsequence({ cases }: { cases: readonly AppliedCase[] }) {
   if (cases.length === 0) {
@@ -37,7 +38,7 @@ export function VoidConsequence({ cases }: { cases: readonly AppliedCase[] }) {
             typeof part === 'string' ? (
               <Fragment key={`sep-${i}`}>{part}</Fragment>
             ) : (
-              <span key={part.caseId} className="font-mono">
+              <span key={part.caseId} className="font-mono whitespace-nowrap">
                 {part.code}
               </span>
             ),

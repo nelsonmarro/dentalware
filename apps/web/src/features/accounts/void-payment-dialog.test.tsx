@@ -68,6 +68,19 @@ describe('VoidPaymentDialog («Anular pago», CTA-2)', () => {
     expect(within(dialog).getAllByText('26-00101')[0]).toHaveClass('font-mono')
   })
 
+  it('ningún código se parte por el guion, ni con su monto ni en «Vuelven a «Entregado»»', () => {
+    renderDialog()
+    const dialog = screen.getByRole('dialog', { name: 'Anular pago' })
+    const quita = within(dialog).getByText(/^Se quita lo aplicado a/)
+    const reabre = within(dialog).getByText(/a «Entregado»:/)
+    // A 360 px, «26-»/«00102» se partía en la línea de los que reabren (T8).
+    for (const code of ['26-00101', '26-00102']) {
+      expect(within(reabre).getByText(code)).toHaveClass('whitespace-nowrap')
+    }
+    // Cada trabajo con su monto va en un solo bloque que no se parte.
+    expect(within(quita).getByText('26-00107').parentElement).toHaveClass('whitespace-nowrap')
+  })
+
   it('con uno solo que reabre, en singular; sin ninguno que reabra, no lo dice', () => {
     const { unmount } = renderDialog({ allocations: [PAYMENT.allocations[0]!] })
     expect(screen.getByRole('dialog')).toHaveTextContent('Vuelve a «Entregado»: 26-00101.')
