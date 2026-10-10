@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  allocationTotals,
   applyIssues,
   formFieldForIssue,
   orderOpenCases,
@@ -31,23 +30,6 @@ describe('suggestedRows', () => {
 
   it('sin monto, todas las filas vacías', () => {
     expect(suggestedRows(orderOpenCases(open), null).map((r) => r.monto)).toEqual(['', '', ''])
-  })
-})
-
-describe('allocationTotals', () => {
-  it('suma lo asignado y dice lo que queda, sin contar filas vacías ni inválidas', () => {
-    expect(allocationTotals(10000, ['20', '', '40,5', 'abc'])).toEqual({
-      allocatedCents: 6050,
-      leftCents: 3950,
-    })
-  })
-
-  it('lo que queda es negativo si se asigna de más', () => {
-    expect(allocationTotals(1000, ['20'])).toEqual({ allocatedCents: 2000, leftCents: -1000 })
-  })
-
-  it('sin monto del pago no hay resto que decir', () => {
-    expect(allocationTotals(null, ['20'])).toEqual({ allocatedCents: 2000, leftCents: null })
   })
 })
 

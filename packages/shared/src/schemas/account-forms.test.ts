@@ -169,7 +169,7 @@ describe('applyCreditFormSchema (formulario «Aplicar saldo a favor», CTA-2)', 
       issues(schema.safeParse({ asignaciones: [{ trabajoId: trabajoA, monto: '50.01' }] })),
     ).toEqual([
       {
-        message: 'Lo asignado no puede superar lo que queda a favor ($50.00)',
+        message: 'Lo asignado no puede superar lo que queda a favor ($ 50.00)',
         path: ['asignaciones'],
       },
     ])

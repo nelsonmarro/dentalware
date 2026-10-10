@@ -8,6 +8,7 @@ import {
   AGING_BUCKET_LABEL,
   AGING_BUCKETS,
   agingBucketForDays,
+  allocationTotals,
   agingBuckets,
   BILLED_STATUSES,
   caseChargeCents,
@@ -481,5 +482,24 @@ describe('accountStatement (CTA-5: saldo corrido y cuadre del estado de cuenta)'
     expect(s.balances).toEqual([])
     expect(s.totals).toEqual({ cargo: 0, ajuste: 0, pago: 0 })
     expect(s.closingCents).toBe(7_700)
+  })
+})
+
+// M2 de la revisión final del PR 2: una sola suma del reparto para el «Asignado $X» en vivo
+// y para la validación de los formularios.
+describe('allocationTotals (suma de un reparto escrito)', () => {
+  it('suma lo asignado y dice lo que queda, sin contar filas vacías ni inválidas', () => {
+    expect(allocationTotals(10000, ['20', '', '40,5', 'abc'])).toEqual({
+      allocatedCents: 6050,
+      leftCents: 3950,
+    })
+  })
+
+  it('lo que queda es negativo si se asigna de más', () => {
+    expect(allocationTotals(1000, ['20'])).toEqual({ allocatedCents: 2000, leftCents: -1000 })
+  })
+
+  it('sin monto del pago no hay resto que decir', () => {
+    expect(allocationTotals(null, ['20'])).toEqual({ allocatedCents: 2000, leftCents: null })
   })
 })

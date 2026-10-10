@@ -1,5 +1,5 @@
 import type { CaseStatus } from './case-status.ts'
-import { percentOfCents } from './money.ts'
+import { parseMoneyInput, percentOfCents } from './money.ts'
 
 /**
  * Reglas puras de cuentas y cobro (Iteración 5, CTA-1/2/3/5). Todo en centavos (`money.ts`):
@@ -118,6 +118,21 @@ export function suggestAllocation(
     left -= take
   }
   return result
+}
+
+/** Lo repartido de un monto mientras se escribe el reparto (CTA-2): Σ de las filas con un monto
+ * válido (`parseMoneyInput`: los vacíos o inválidos no cuentan) y lo que queda de `amountCents`
+ * (negativo si se asigna de más; `null` sin monto). Una sola suma para el «Asignado $X» de la
+ * web y para la validación de los formularios (`account-forms.ts`). */
+export function allocationTotals(
+  amountCents: number | null,
+  montos: readonly string[],
+): { allocatedCents: number; leftCents: number | null } {
+  const allocatedCents = montos.reduce((sum, m) => sum + (parseMoneyInput(m) ?? 0), 0)
+  return {
+    allocatedCents,
+    leftCents: amountCents === null ? null : amountCents - allocatedCents,
+  }
 }
 
 /**

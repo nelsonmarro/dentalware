@@ -1,3 +1,4 @@
+import { QueryClientProvider } from '@tanstack/react-query'
 import { screen, within } from '@testing-library/react'
 import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -191,6 +192,82 @@ describe('PaymentDialog («Registrar pago», CTA-2)', () => {
     await chooseMethod(user, 'Efectivo')
     await user.click(screen.getByRole('button', { name: 'Registrar pago' }))
     await vi.waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+
+  // I-1 de la revisión final del PR 2: «Por cobrar» se vuelve a pedir con el diálogo abierto
+  // (foco en la ventana, otra recepcionista cobra un trabajo). Las filas no se mueven: cada monto
+  // viaja con el trabajo de la fila donde se escribió.
+  describe('si «Por cobrar» cambia con el diálogo abierto', () => {
+    const NEW = '44444444-4444-4444-8444-444444444444'
+    function rerenderWith(
+      utils: ReturnType<typeof renderDialog>,
+      openCases: OpenCase[],
+      open = true,
+    ) {
+      utils.rerender(
+        <QueryClientProvider client={utils.client}>
+          <PaymentDialog
+            clinic={{ id: K1, name: 'Clínica Sur' }}
+            openCases={openCases}
+            open={open}
+            onOpenChange={utils.onOpenChange}
+          />
+        </QueryClientProvider>,
+      )
+    }
+
+    it('un trabajo que desaparece no corre las filas: el monto va al trabajo rotulado', async () => {
+      vi.mocked(registerPayment).mockResolvedValue({ credit: '0.00' } as never)
+      const utils = renderDialog()
+      // Otra persona cobró el 26-00001: ya no está por cobrar.
+      rerenderWith(
+        utils,
+        OPEN.filter((c) => c.id !== T1),
+      )
+      await utils.user.type(screen.getByLabelText('Monto'), '20')
+      await utils.user.clear(rowInput('26-00001'))
+      await utils.user.clear(rowInput('26-00002'))
+      await utils.user.type(rowInput('26-00002'), '20')
+      await chooseMethod(utils.user, 'Efectivo')
+      await utils.user.click(screen.getByRole('button', { name: 'Registrar pago' }))
+
+      await vi.waitFor(() => expect(registerPayment).toHaveBeenCalled())
+      expect(vi.mocked(registerPayment).mock.calls[0]?.[0].asignaciones).toEqual([
+        { trabajoId: T2, monto: '20' },
+      ])
+    })
+
+    it('al volver a abrirlo, el reparto trae los trabajos «Por cobrar» de ese momento', () => {
+      const utils = renderDialog()
+      const remaining = OPEN.filter((c) => c.id !== T1)
+      rerenderWith(utils, remaining, false)
+      rerenderWith(utils, remaining, true)
+      expect(screen.queryByRole('textbox', { name: 'Monto para 26-00001' })).not.toBeInTheDocument()
+      expect(rowInput('26-00002')).toBeInTheDocument()
+    })
+
+    it('un trabajo que aparece no deja una fila sin trabajo ni el botón muerto', async () => {
+      vi.mocked(registerPayment).mockResolvedValue({ credit: '0.00' } as never)
+      const utils = renderDialog()
+      rerenderWith(utils, [
+        ...OPEN,
+        openCase({
+          id: NEW,
+          code: '26-00003',
+          deliveredAt: '2026-08-01T15:00:00.000Z' as unknown as OpenCase['deliveredAt'],
+          outstanding: '15.00',
+        }),
+      ])
+      await utils.user.type(screen.getByLabelText('Monto'), '60')
+      await chooseMethod(utils.user, 'Efectivo')
+      await utils.user.click(screen.getByRole('button', { name: 'Registrar pago' }))
+
+      await vi.waitFor(() => expect(registerPayment).toHaveBeenCalled())
+      expect(vi.mocked(registerPayment).mock.calls[0]?.[0].asignaciones).toEqual([
+        { trabajoId: T1, monto: '50.00' },
+        { trabajoId: T2, monto: '10.00' },
+      ])
+    })
   })
 
   it('sin trabajos por cobrar, dice que todo el pago queda a favor', () => {

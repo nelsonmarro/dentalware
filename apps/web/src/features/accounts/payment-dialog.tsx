@@ -1,4 +1,5 @@
 import {
+  allocationTotals,
   parseMoneyInput,
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHODS,
@@ -7,7 +8,7 @@ import {
   type PaymentInput,
 } from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { Controller, useForm, useWatch, type Path } from 'react-hook-form'
 import type { z } from 'zod'
 import { FormDialog } from '@/components/form-dialog'
@@ -24,7 +25,7 @@ import {
 import { QueuedNotice } from '@/features/cases/queued-notice'
 import { ApiError, toastApiError } from '@/lib/api-error'
 import { AllocationFields } from './allocation-fields'
-import { allocationTotals, applyIssues, orderOpenCases, suggestedRows } from './allocation'
+import { applyIssues, orderOpenCases, suggestedRows } from './allocation'
 import type { ClinicAccount } from './api'
 import { useAccountBusy } from './use-account-busy'
 import { useRegisterPayment } from './use-register-payment'
@@ -54,7 +55,17 @@ export function PaymentDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const ordered = useMemo(() => orderOpenCases(openCases), [openCases])
+  // Los trabajos del reparto se congelan al abrir (I-1 de la revisión final del PR 2): «Por
+  // cobrar» puede volver a pedirse con el diálogo abierto, y las filas del formulario
+  // (`asignaciones[i].trabajoId`) y sus rótulos tienen que seguir siendo los mismos trabajos.
+  // Se toman al abrir, ajustando el estado durante el render (como `TeethDialog`), así que el
+  // efecto de abajo ya los ve.
+  const [ordered, setOrdered] = useState(() => orderOpenCases(openCases))
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setOrdered(orderOpenCases(openCases))
+  }
   const pay = useRegisterPayment(clinic.id, ordered)
   const { busy, queued } = useAccountBusy(clinic.id)
   const today = toIsoDate(new Date())
@@ -74,7 +85,8 @@ export function PaymentDialog({
       defaultValues: defaults(),
     })
 
-  // Cada vez que se abre, desde cero y con los trabajos «Por cobrar» de ahora.
+  // Cada vez que se abre, desde cero y con los trabajos «Por cobrar» de ahora, que ya no cambian
+  // hasta cerrarlo.
   useEffect(() => {
     if (open) reset(defaults())
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al abrir

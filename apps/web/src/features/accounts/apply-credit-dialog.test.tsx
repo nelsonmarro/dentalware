@@ -1,3 +1,4 @@
+import { QueryClientProvider } from '@tanstack/react-query'
 import { screen, within } from '@testing-library/react'
 import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -105,7 +106,7 @@ describe('ApplyCreditDialog («Aplicar saldo a favor» de un pago, CTA-2)', () =
     expect(screen.getByRole('status')).toHaveTextContent('Supera lo disponible en $ 1.00')
     await user.click(screen.getByRole('button', { name: 'Aplicar saldo a favor' }))
     expect(
-      await screen.findByText('Lo asignado no puede superar lo que queda a favor ($40.00)'),
+      await screen.findByText('Lo asignado no puede superar lo que queda a favor ($ 40.00)'),
     ).toBeInTheDocument()
     expect(applyCredit).not.toHaveBeenCalled()
   })
@@ -121,6 +122,32 @@ describe('ApplyCreditDialog («Aplicar saldo a favor» de un pago, CTA-2)', () =
     expect(await screen.findByText('El trabajo ya está cobrado')).toBeInTheDocument()
     expect(rowInput('26-00001')).toHaveAttribute('aria-invalid', 'true')
     expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  // I-1 de la revisión final del PR 2: con el diálogo abierto, «Por cobrar» se vuelve a pedir
+  // y cambia. Las filas no se mueven: el monto viaja con el trabajo de su fila.
+  it('si «Por cobrar» cambia con el diálogo abierto, cada monto va al trabajo rotulado', async () => {
+    vi.mocked(applyCredit).mockResolvedValue({ credit: '10.00' } as never)
+    const utils = renderDialog()
+    utils.rerender(
+      <QueryClientProvider client={utils.client}>
+        <ApplyCreditDialog
+          clinic={{ id: K1, name: 'Clínica Sur' }}
+          payment={PAYMENT}
+          openCases={OPEN.filter((c) => c.id !== T1)}
+          open
+          onOpenChange={utils.onOpenChange}
+        />
+      </QueryClientProvider>,
+    )
+    await utils.user.clear(rowInput('26-00001'))
+    await utils.user.type(rowInput('26-00002'), '30')
+    await utils.user.click(screen.getByRole('button', { name: 'Aplicar saldo a favor' }))
+
+    await vi.waitFor(() => expect(applyCredit).toHaveBeenCalled())
+    expect(applyCredit).toHaveBeenCalledWith('p1', {
+      asignaciones: [{ trabajoId: T2, monto: '30' }],
+    })
   })
 
   it('un 409 (el pago ya está anulado) cierra el diálogo', async () => {

@@ -45,19 +45,6 @@ export function suggestedRows(
   })
 }
 
-/** «Asignado $X · Queda a favor $Y» mientras se escribe: Σ de las filas con un monto válido y lo
- * que queda de `amountCents` (negativo si se asigna de más; `null` sin monto del pago). */
-export function allocationTotals(
-  amountCents: number | null,
-  rows: readonly string[],
-): { allocatedCents: number; leftCents: number | null } {
-  const allocatedCents = rows.reduce((sum, r) => sum + (parseMoneyInput(r) ?? 0), 0)
-  return {
-    allocatedCents,
-    leftCents: amountCents === null ? null : amountCents - allocatedCents,
-  }
-}
-
 /** Cuántos trabajos quedan cubiertos con el reparto (`isSettled` de shared sobre su pendiente),
  * para el aviso «2 trabajos cobrados». */
 export function settledCount(

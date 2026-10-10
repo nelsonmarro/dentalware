@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ADJUSTMENT_SIGNS, PAYMENT_METHODS } from '../accounts.ts'
+import { ADJUSTMENT_SIGNS, allocationTotals, PAYMENT_METHODS } from '../accounts.ts'
 import { fromCents, parseMoneyInput } from '../money.ts'
 import {
   MONTO_FORMAT,
@@ -40,9 +40,12 @@ type FilaReparto = z.output<typeof filaReparto>
 /** Las filas con monto, que son las que viajan a la API. */
 const filled = (rows: readonly FilaReparto[]) => rows.filter((r) => r.monto !== '')
 
-/** Σ de las filas con monto, en centavos. */
+/** Σ de las filas con monto, en centavos: la misma suma que el «Asignado $X» de la web. */
 const assignedCents = (rows: readonly FilaReparto[]) =>
-  filled(rows).reduce((sum, r) => sum + (parseMoneyInput(r.monto) ?? 0), 0)
+  allocationTotals(
+    null,
+    rows.map((r) => r.monto),
+  ).allocatedCents
 
 /** «Registrar pago»: el pago y su reparto, que puede quedarse corto (el resto queda a favor). */
 export const paymentFormSchema = z
@@ -87,7 +90,7 @@ export function applyCreditFormSchema(availableCents: number) {
         ctx.addIssue({
           code: 'custom',
           path: ['asignaciones'],
-          message: `Lo asignado no puede superar lo que queda a favor ($${fromCents(availableCents)})`,
+          message: `Lo asignado no puede superar lo que queda a favor ($ ${fromCents(availableCents)})`,
         })
       }
     })

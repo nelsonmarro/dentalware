@@ -1,6 +1,11 @@
-import { applyCreditFormSchema, toCents, type ApplyCreditInput } from '@dentalware/shared'
+import {
+  allocationTotals,
+  applyCreditFormSchema,
+  toCents,
+  type ApplyCreditInput,
+} from '@dentalware/shared'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm, useWatch, type Path } from 'react-hook-form'
 import type { z } from 'zod'
 import { FormDialog } from '@/components/form-dialog'
@@ -9,7 +14,7 @@ import { QueuedNotice } from '@/features/cases/queued-notice'
 import { ApiError, toastApiError } from '@/lib/api-error'
 import { formatMoney } from '@/lib/format-money'
 import { AllocationFields } from './allocation-fields'
-import { allocationTotals, applyIssues, orderOpenCases, suggestedRows } from './allocation'
+import { applyIssues, orderOpenCases, suggestedRows } from './allocation'
 import type { ClinicAccount } from './api'
 import { paymentContext, type PaymentRef } from './payment-context'
 import { useAccountBusy } from './use-account-busy'
@@ -34,14 +39,25 @@ export function ApplyCreditDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const ordered = useMemo(() => orderOpenCases(openCases), [openCases])
+  // Los trabajos del reparto se congelan al abrir (I-1 de la revisión final del PR 2): si «Por
+  // cobrar» se vuelve a pedir con el diálogo abierto, cada fila sigue siendo el mismo trabajo.
+  // Se toman al abrir, ajustando el estado durante el render (como `TeethDialog`), así que el
+  // efecto de abajo ya los ve.
+  const [ordered, setOrdered] = useState(() => orderOpenCases(openCases))
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setOrdered(orderOpenCases(openCases))
+  }
   const availableCents = toCents(payment.remaining)
   const schema = useMemo(() => applyCreditFormSchema(availableCents), [availableCents])
   const apply = useApplyCredit(clinic.id, ordered)
   const { busy, queued } = useAccountBusy(clinic.id)
 
   type FormValues = z.input<typeof schema>
-  const defaults = (): FormValues => ({ asignaciones: suggestedRows(ordered, availableCents) })
+  const defaults = (): FormValues => ({
+    asignaciones: suggestedRows(ordered, availableCents),
+  })
   const { register, handleSubmit, control, formState, setError, getValues, reset } = useForm<
     FormValues,
     unknown,
