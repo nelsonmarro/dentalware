@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: dentalware
       POSTGRES_DB: dentalware
     ports:
-      - '5433:5432'
+      - '127.0.0.1:5433:5432'
     # Puerto 5433 en el host: 5432 suele estar ocupado por otro Postgres local (ruling del controlador, 2026-09-03).
     volumes:
       - pgdata_dev:/var/lib/postgresql/data

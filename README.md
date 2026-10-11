@@ -42,7 +42,7 @@ Guía paso a paso del VPS de producción (nginx con certbot delante, subdominio 
 git clone <repo> /opt/dentalware && cd /opt/dentalware
 cp infra/.env.example infra/.env   # editar dominio, claves y admin
 docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env up -d --build
-docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env run --rm api node apps/api/dist/scripts/seed.js
+docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env run --rm api node dist/scripts/seed.js
 ```
 
 Caddy obtiene el certificado TLS automáticamente para `SITE_ADDRESS`. Backups: `infra/backup.sh` en cron diario.

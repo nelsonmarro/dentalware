@@ -282,11 +282,9 @@ sudo certbot renew --dry-run
 Una sola vez. Es idempotente: repetirlo no duplica nada.
 
 ```bash
-dw run --rm api node apps/api/dist/scripts/seed.js
+dw run --rm api node dist/scripts/seed.js
 # «Admin creado: …» y «Catálogos iniciales listos»
 ```
-
-> Cuando se mergee el PR 2 de la Iteración 7 (imagen de la API más liviana, #23), el comando pasa a ser `dw run --rm api node dist/scripts/seed.js`.
 
 ## Paso 10 — Comprobar que todo funciona
 
