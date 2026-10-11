@@ -44,16 +44,23 @@ describe('CaseWhatsapp', () => {
     },
   )
 
-  it.each(['tecnico', 'mensajero'] as const)('%s no ve nada', async (role) => {
-    const { container: a } = renderWithRouter(
-      <CaseWhatsapp case={caseOf('+593991234567')} role={role} labName={null} />,
+  // El centinela «listo» se pinta junto al componente: cuando aparece, el router ya montó y
+  // lo que falte es que `CaseWhatsapp` no pintó nada (sin esperas fijas).
+  it.each([
+    ['tecnico', '+593991234567'],
+    ['tecnico', null],
+    ['mensajero', '+593991234567'],
+    ['mensajero', null],
+  ] as const)('%s no ve nada (WhatsApp: %s)', async (role, whatsapp) => {
+    renderWithRouter(
+      <>
+        <span>listo</span>
+        <CaseWhatsapp case={caseOf(whatsapp)} role={role} labName={null} />
+      </>,
     )
-    await new Promise((r) => setTimeout(r, 20)) // deja montar el router antes de afirmar vacío
-    expect(a.querySelector('a, p')).toBeNull()
-    const { container: b } = renderWithRouter(
-      <CaseWhatsapp case={caseOf(null)} role={role} labName={null} />,
-    )
-    expect(b.querySelector('a, p')).toBeNull()
+    await screen.findByText('listo')
+    expect(screen.queryByRole('link')).toBeNull()
+    expect(screen.queryByText(/no tiene WhatsApp/)).toBeNull()
   })
 
   it('recepción sin WhatsApp lee cómo añadirlo, sin enlace', async () => {
