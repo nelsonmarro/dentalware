@@ -35,3 +35,6 @@ export const ACCOUNTS_ROLES: readonly UserRole[] = ['admin', 'recepcion']
 /** Quién registra ajustes (también el saldo inicial) y anula pagos (Iteración 5, CTA-3): solo el
  * administrador. Registrar pagos y aplicar saldo a favor sigue a `ACCOUNTS_ROLES`. */
 export const ACCOUNT_ADMIN_ROLES: readonly UserRole[] = ['admin']
+
+/** Quién avisa a la clínica por WhatsApp desde la ficha (AVI-4): quien la atiende. */
+export const CASE_NOTIFY_ROLES: readonly UserRole[] = ['admin', 'recepcion']

@@ -36,6 +36,8 @@ Spec: `docs/superpowers/specs/2026-09-01-dentalware-mvp-design.md`.
 
 ## Despliegue (VPS con Docker)
 
+Guía paso a paso del VPS de producción (nginx con certbot delante, subdominio `dentalware.naphsoft.dev`): [`docs/operacion/despliegue.md`](docs/operacion/despliegue.md). Lo de abajo es el resumen para un VPS sin otro servidor web.
+
 ```bash
 git clone <repo> /opt/dentalware && cd /opt/dentalware
 cp infra/.env.example infra/.env   # editar dominio, claves y admin

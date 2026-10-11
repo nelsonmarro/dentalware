@@ -59,7 +59,7 @@ export function toasts(page: Page): Locator {
  * `contact`: dirección y teléfono, para las pantallas que los enlazan (mapa, `tel:`). */
 export async function createClinicWithDoctor(
   page: Page,
-  contact: { address?: string; phone?: string } = {},
+  contact: { address?: string; phone?: string; whatsapp?: string } = {},
 ) {
   const suffix = uniqueSuffix()
 

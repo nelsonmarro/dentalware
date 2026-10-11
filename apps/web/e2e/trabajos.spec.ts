@@ -3,6 +3,7 @@ import {
   createClinicWithDoctor,
   createCourier,
   createProduct,
+  createStaff,
   FOTO_PATH,
   login,
   loginAsAdmin,
@@ -214,6 +215,61 @@ test.describe('Trabajos', () => {
       await expect(page.locator('tbody').getByRole('link')).toHaveCount(2)
       const primerCodigo = page.locator('tbody').getByRole('link').first()
       await expect(primerCodigo).toHaveText(created.code)
+    },
+  )
+
+  // AVI-4: recepción abre WhatsApp con el aviso listo (el enlace; no se envía nada) y sin precios.
+  test(
+    'recepción avisa por WhatsApp desde la ficha (AVI-4)',
+    { tag: '@clave' },
+    async ({ page, browser }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page, { whatsapp: '+593991234567' })
+      const product = await createProduct(page)
+      const created = await createCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+        teeth: [21],
+      })
+      const recepcion = await createStaff(page, 'recepcion')
+
+      const context = await browser.newContext()
+      try {
+        const rPage = await context.newPage()
+        await login(rPage, recepcion)
+        await rPage.goto(`/trabajos/${created.id}`)
+        const link = rPage.getByRole('link', { name: /^Avisar por WhatsApp a / })
+        await expect(link).toBeVisible()
+        const href = (await link.getAttribute('href')) ?? ''
+        expect(href.startsWith('https://wa.me/593991234567?text=')).toBe(true)
+        const text = decodeURIComponent(href.split('?text=')[1] ?? '')
+        expect(text).toContain(created.code)
+        expect(text).not.toContain('$')
+      } finally {
+        await context.close()
+      }
+    },
+  )
+
+  test(
+    'sin WhatsApp, el admin lo añade desde la ficha (AVI-4)',
+    { tag: '@clave' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+        teeth: [21],
+      })
+      await page.goto(`/trabajos/${created.id}`)
+      await expect(page.getByText(`${clinic.name} no tiene WhatsApp registrado.`)).toBeVisible()
+      await page.getByRole('link', { name: 'Añadirlo' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Editar clínica' })
+      await expect(dialog).toBeVisible()
+      await expect(dialog.getByLabel('Nombre')).toHaveValue(clinic.name)
+      await expect(page).not.toHaveURL(/editar=/)
     },
   )
 

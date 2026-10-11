@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mapPlace, mapUrl, telUrl } from './map-link'
+import { mapPlace, mapUrl, telUrl, whatsappUrl } from './map-link'
 
 describe('mapUrl', () => {
   it('abre la búsqueda de Google Maps con la dirección codificada', () => {
@@ -57,5 +57,17 @@ describe('telUrl', () => {
 
   it('conserva el prefijo y los guiones', () => {
     expect(telUrl(' +593 2 255-1234 ')).toBe('tel:+5932255-1234')
+  })
+})
+
+describe('whatsappUrl', () => {
+  it('wa.me con el número sin «+» y el texto codificado (AVI-4)', () => {
+    expect(whatsappUrl('+593991234567', 'Hola, ¿cómo están? 26-00087 #3')).toBe(
+      'https://wa.me/593991234567?text=Hola%2C%20%C2%BFc%C3%B3mo%20est%C3%A1n%3F%2026-00087%20%233',
+    )
+  })
+
+  it('un número guardado sin «+» se usa tal cual', () => {
+    expect(whatsappUrl('593991234567', 'x')).toBe('https://wa.me/593991234567?text=x')
   })
 })

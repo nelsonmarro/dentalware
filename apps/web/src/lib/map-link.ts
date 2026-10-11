@@ -25,3 +25,8 @@ export function mapUrl(address: string, city: string | null = null): string {
 export function telUrl(phone: string): string {
   return `tel:${phone.replace(/\s+/g, '')}`
 }
+
+/** Enlace `wa.me` (AVI-4): el número en E.164 sin `+` y el texto codificado. No envía nada. */
+export function whatsappUrl(e164: string, text: string): string {
+  return `https://wa.me/${e164.replace(/^\+/, '')}?text=${encodeURIComponent(text)}`
+}

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ACCOUNT_ADMIN_ROLES,
   ACCOUNTS_ROLES,
+  CASE_NOTIFY_ROLES,
   hasRole,
   hidesPrices,
   SETTINGS_ROLES,
@@ -58,5 +59,9 @@ describe('constantes de rol de navegación y configuración (Tarea 9, #101)', ()
   // Iteración 5 (decisión 7): ajustes y anular pagos son solo del administrador.
   it('ajustes y anulación de pagos son solo de admin', () => {
     expect(sorted(ACCOUNT_ADMIN_ROLES)).toEqual(['admin'])
+  })
+
+  it('CASE_NOTIFY_ROLES: admin y recepción avisan a la clínica (AVI-4)', () => {
+    expect(CASE_NOTIFY_ROLES).toEqual(['admin', 'recepcion'])
   })
 })

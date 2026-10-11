@@ -10,6 +10,7 @@ import { CaseAccountLine } from '@/features/accounts/case-account-line'
 import { formatMoney } from '@/lib/format-money'
 import type { CaseDetail, CaseEvent } from './api'
 import { formatDate, formatTimestampDate } from './date-format'
+import { CaseWhatsapp } from './case-whatsapp'
 import { STATUS_COLOR, StatusChip } from './status-chip'
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
@@ -32,6 +33,7 @@ export function CaseHeader({
   role,
   events = [],
   remakes = [],
+  labName = null,
 }: {
   case: CaseDetail
   missing: string[]
@@ -44,6 +46,8 @@ export function CaseHeader({
    * «Repeticiones»): solo código e id, para avisar «Repetido: …» sin bajar al final de «Detalle»
    * (UX4-25). El detalle (estado, fecha, motivo) sigue en el bloque. */
   remakes?: { id: string; code: string }[]
+  /** Nombre del laboratorio para el aviso por WhatsApp (AVI-4); `null` mientras no carga. */
+  labName?: string | null
 }) {
   const hidePrices = hidesPrices(role)
   const canEdit = canWriteCases(role) && isEditableStatus(c.status)
@@ -73,6 +77,7 @@ export function CaseHeader({
             <p className="text-sm text-muted-foreground">
               {c.clinic?.name ?? '—'} · {c.doctor?.name ?? '—'}
             </p>
+            <CaseWhatsapp case={c} role={role} labName={labName} />
             {/* I-2: CIC-4 exige que la repetición quede enlazada en la ficha del hijo, no solo
              * en `parentCaseId` (sin código ni enlace, invisible para quien la ve). */}
             {c.parentCaseId && c.parentCase && (

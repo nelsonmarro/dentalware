@@ -59,7 +59,7 @@ packages/shared (máquina de estados, dinero, FDI, readiness, schemas zod)
 - **Identidad**: `authClient` confinado en `features/auth/`; el resto usa `getSession`/`signIn`/`signOut`/`useSession`. `getSessionStatus()` distingue `ok`, `anonymous` e `invalid-role`; un rol desconocido nunca cuenta como rol. Sin red, `getAppSession()` (el `beforeLoad` de `_app`) deja pasar con la última sesión válida conocida: la API sigue exigiendo sesión en cada petición (UX4-26).
 - **Estado**: el servidor es la fuente de verdad, la URL guarda vista, filtros y página, y no hay store global.
 - **Componentes transversales**: `FormDialog` y `ConfirmDialog` (con `useReturnFocus`), `DataGrid` (`docs/data-grid.md`), `Combobox`, `LoadError`, `OfflineNotice` y `ClinicContact` (con `lib/map-link.ts`). Una sola UI responsive.
-- **PWA**: shell cacheado con `autoUpdate`, sin escritura offline; cámara vía `<input capture>`.
+- **PWA**: shell cacheado con `autoUpdate`, sin escritura offline; cámara vía `<input capture>`. El manifiesto (`id`, `scope`, `start_url` en `/`, `display: standalone`) y `INCLUDE_ASSETS` viven en `src/pwa-manifest.ts`, que `vite.config.ts` importa y `pwa-manifest.test.ts` protege. El icono `maskable` es una entrada propia (`purpose: 'maskable'`, logo en la zona segura del 80 %), nunca `any maskable`. Los iconos y el `favicon.ico` (ICO real de 16, 32 y 48 px) se regeneran desde `public/icon.svg` con `pnpm --filter @dentalware/web icons` (`scripts/gen-icons.mjs`, sharp).
 
 ## 4. Fronteras verificadas por `pnpm lint`
 
