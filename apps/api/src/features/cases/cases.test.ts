@@ -541,6 +541,37 @@ describe('/api/trabajos', () => {
     expect(await put.json()).toMatchObject({ message: 'El trabajo no existe' })
   })
 
+  // AVI-4: la ficha trae el WhatsApp de la clínica para el aviso. No es dinero: lo ve cualquier rol.
+  describe('WhatsApp de la clínica en la ficha (AVI-4)', () => {
+    const whatsappDe = async (cookie: string, path: string) => {
+      const res = await app.request(path, req(cookie, 'GET'))
+      expect(res.status).toBe(200)
+      return ((await res.json()) as { case: { clinic: { whatsapp: string | null } } }).case.clinic
+        .whatsapp
+    }
+
+    it('lo trae por id y por código, a admin y a técnico', async () => {
+      await ctx.db
+        .update(ctx.schema.clinics)
+        .set({ whatsapp: '+593991234567' })
+        .where(eq(ctx.schema.clinics.id, clinicId))
+      const id = await createOne(recepcion, { dueDate: '2026-12-01' })
+      const code = (
+        (await (await app.request(`/api/trabajos/${id}`, req(admin, 'GET'))).json()) as {
+          case: { code: string }
+        }
+      ).case.code
+      expect(await whatsappDe(admin, `/api/trabajos/${id}`)).toBe('+593991234567')
+      expect(await whatsappDe(tecnico, `/api/trabajos/${id}`)).toBe('+593991234567')
+      expect(await whatsappDe(admin, `/api/trabajos/codigo/${code}`)).toBe('+593991234567')
+    })
+
+    it('es null si la clínica no tiene WhatsApp', async () => {
+      const id = await createOne(recepcion, { dueDate: '2026-12-01' })
+      expect(await whatsappDe(admin, `/api/trabajos/${id}`)).toBeNull()
+    })
+  })
+
   describe('POST /api/trabajos/:id/acciones', () => {
     // Una sola fase por test (no una por llamada a `crearTrabajoCompleto`): `stages` no
     // tiene unicidad por `name`, así que dos filas "Diseño" con `sort: 0` en el mismo test
@@ -1113,6 +1144,7 @@ describe('/api/trabajos', () => {
           // UX4-21: el mapa busca la dirección en su ciudad.
           city: 'Quito',
           phone: '02 255 1234',
+          whatsapp: null,
         })
         expect(enviado.total).toBeNull()
 

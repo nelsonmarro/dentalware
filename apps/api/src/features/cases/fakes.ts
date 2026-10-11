@@ -94,6 +94,7 @@ export function caseDetailFixture(over: Partial<CaseDetail> = {}): CaseDetail {
       address: 'Av. Amazonas N34-12',
       city: 'Quito',
       phone: '02 255 1234',
+      whatsapp: '+593991234567',
     },
     doctor: { id: DOCTOR_ID, name: 'Dr. Pérez' },
     technician: null,

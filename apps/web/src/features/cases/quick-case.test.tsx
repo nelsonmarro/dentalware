@@ -773,7 +773,14 @@ describe('QuickCase', () => {
       fetchCaseByCode.mockResolvedValue({
         case: caso({
           status: 'enviado',
-          clinic: { id: 'clinica-1', name: 'Clínica Uno', address: null, city: null, phone: null },
+          clinic: {
+            id: 'clinica-1',
+            name: 'Clínica Uno',
+            address: null,
+            city: null,
+            phone: null,
+            whatsapp: null,
+          },
           pendingDelivery: pendiente('entrega', mario.id),
         }),
         missing: [],

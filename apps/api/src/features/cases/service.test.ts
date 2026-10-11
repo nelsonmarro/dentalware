@@ -1795,6 +1795,7 @@ describe('entrega pendiente en el detalle', () => {
       address: 'Av. Amazonas N34-12',
       city: 'Quito',
       phone: '02 255 1234',
+      whatsapp: '+593991234567',
     })
   })
 
