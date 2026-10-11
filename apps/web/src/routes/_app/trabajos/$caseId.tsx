@@ -14,6 +14,7 @@ import { ProductionPanel } from '@/features/cases/production-panel'
 import { RemakesList } from '@/features/cases/remakes-list'
 import { useAttachments } from '@/features/cases/use-attachments'
 import { useAddComment, useCase, useCaseRemakes, useEvents } from '@/features/cases/use-cases'
+import { useLabSettings } from '@/features/config/use-lab-settings'
 import { useStages } from '@/features/stages/use-stages'
 import { isNotFoundError } from '@/lib/api-error'
 
@@ -28,6 +29,7 @@ function CasePage() {
   const q = useCase(caseId)
   const events = useEvents(caseId)
   const remakes = useCaseRemakes(caseId)
+  const lab = useLabSettings()
   const attachments = useAttachments(caseId)
   const addComment = useAddComment(caseId)
   // `true` (incluir inactivos): `StageControl` (en `ProductionPanel`) necesita resolver el nombre de la fase
@@ -65,6 +67,7 @@ function CasePage() {
         role={user.role}
         events={events.data ?? []}
         remakes={remakes.data ?? []}
+        labName={lab.data?.name ?? null}
       />
       <ProductionPanel
         case={q.data.case}

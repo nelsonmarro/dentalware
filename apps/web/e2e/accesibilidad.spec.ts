@@ -190,7 +190,7 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
   })
 
   test('ficha de un trabajo: pestañas', { tag: '@extendida' }, async ({ page }) => {
-    const { clinic, doctor } = await createClinicWithDoctor(page)
+    const { clinic, doctor } = await createClinicWithDoctor(page, { whatsapp: '+593991234567' })
     const product = await createProduct(page)
     const created = await createCase(page, {
       clinicId: clinic.id,
@@ -206,6 +206,8 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await expect(page.getByRole('tab', { name: 'Detalle' })).toBeVisible()
     // UX3-05: el panel «Producción» (técnico y acciones) va sobre las pestañas y entra en la medida.
     await expect(page.getByRole('region', { name: 'Producción' })).toBeVisible()
+    // AVI-4: «Avisar por WhatsApp» entra en la medida (44 px).
+    await expect(page.getByRole('link', { name: /^Avisar por WhatsApp/ })).toBeVisible()
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
 

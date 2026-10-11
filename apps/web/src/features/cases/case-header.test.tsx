@@ -67,6 +67,37 @@ function baseCase(overrides: Partial<CaseDetail> = {}): CaseDetail {
 }
 
 describe('CaseHeader', () => {
+  // AVI-4: el aviso por WhatsApp cuelga de la cabecera, bajo «clínica · doctor».
+  it('recepción ve «Avisar por WhatsApp» si la clínica tiene número; sin nombre del laboratorio también', async () => {
+    renderWithRouter(
+      <CaseHeader
+        case={baseCase({
+          clinic: { id: 'clinica-1', name: 'Clínica Uno', whatsapp: '+593990000000' },
+        } as Partial<CaseDetail>)}
+        missing={[]}
+        role="recepcion"
+      />,
+    )
+    const link = await screen.findByRole('link', { name: /Avisar por WhatsApp a Clínica Uno/ })
+    expect(link.getAttribute('href')).toContain('https://wa.me/593990000000?text=')
+    expect(decodeURIComponent(link.getAttribute('href') ?? '')).toContain('del laboratorio')
+  })
+
+  it('con el nombre del laboratorio, el aviso lo nombra', async () => {
+    renderWithRouter(
+      <CaseHeader
+        case={baseCase({
+          clinic: { id: 'clinica-1', name: 'Clínica Uno', whatsapp: '+593990000000' },
+        } as Partial<CaseDetail>)}
+        missing={[]}
+        role="admin"
+        labName="Arte Dental"
+      />,
+    )
+    const link = await screen.findByRole('link', { name: /Avisar por WhatsApp/ })
+    expect(decodeURIComponent(link.getAttribute('href') ?? '')).toContain('Arte Dental')
+  })
+
   it('admin en un trabajo "nuevo" ve el total y el enlace Editar', async () => {
     renderWithRouter(<CaseHeader case={baseCase()} missing={[]} role="admin" />)
     expect(await screen.findByText('$ 90.00')).toBeInTheDocument()
