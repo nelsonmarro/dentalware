@@ -31,8 +31,26 @@ trap cleanup EXIT
   echo "ADMIN_NAME=Prueba"
 } >"$tmp/.env"
 
+# API de mentira con la cabecera de caché que pone la real en los adjuntos.
+cat >"$tmp/api.conf" <<'CONF'
+server {
+  listen 3000;
+  location / {
+    add_header Cache-Control "private, max-age=86400";
+    return 200 "ok";
+  }
+}
+CONF
+
 cat >"$tmp/override.yml" <<YML
 services:
+  fake-api:
+    image: nginx:alpine
+    volumes:
+      - ${tmp}/api.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      default:
+        aliases: [api]
   caddy:
     ports: !override
       - '127.0.0.1:${port}:80'
@@ -48,9 +66,10 @@ fail() {
   failures=$((failures + 1))
 }
 
-# header_of <ruta> <cabecera>: valor de la cabecera de la respuesta (vacío si no está).
+# header_of <ruta> <cabecera>: valor de cada aparición de la cabecera, una por línea
+# (vacío si no está). Una cabecera duplicada da dos líneas y no pasa las comprobaciones.
 header_of() {
-  curl -sI "${base}$1" | tr -d '\r' | awk -v h="$2" 'tolower($1) == tolower(h) ":" { sub(/^[^:]*: */, ""); print; exit }'
+  curl -sI "${base}$1" | tr -d '\r' | awk -v h="$2" 'tolower($1) == tolower(h) ":" { sub(/^[^:]*: */, ""); print }'
 }
 
 status_of() {
@@ -67,13 +86,15 @@ expect_header() {
 
 expect_present() {
   local path="$1" name="$2"
-  if [ -z "$(header_of "$path" "$name")" ]; then
-    fail "${path}: falta la cabecera ${name}"
+  local count
+  count="$(header_of "$path" "$name" | grep -c . || true)"
+  if [ "$count" != "1" ]; then
+    fail "${path}: la cabecera ${name} debe aparecer exactamente una vez (apareció ${count})"
   fi
 }
 
 echo "Construyendo y levantando Caddy (puede tardar unos minutos)..."
-compose up -d --build --no-deps caddy
+compose up -d --build --no-deps caddy fake-api
 
 for _ in $(seq 1 60); do
   [ "$(status_of /)" = "200" ] && break
@@ -94,6 +115,13 @@ else
   [ "$(status_of "$asset")" = "200" ] || fail "${asset}: no responde 200"
   expect_header "$asset" Cache-Control "public, max-age=31536000, immutable"
 fi
+
+# Caddy no toca la caché de /api: llega la de la API, una sola vez.
+[ "$(status_of /api/adjuntos/x)" = "200" ] || fail "/api/adjuntos/x: no llegó a la API"
+expect_header /api/adjuntos/x Cache-Control "private, max-age=86400"
+
+# Un asset que no existe es 404, no el index.html con caché inmutable.
+[ "$(status_of /assets/no-existe-123.js)" = "404" ] || fail "/assets/no-existe-123.js: debe responder 404"
 
 # Cabeceras de seguridad.
 expect_present / Strict-Transport-Security

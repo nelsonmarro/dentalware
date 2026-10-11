@@ -10,23 +10,25 @@ header {
 	-Server
 }
 
+# /api/* lo cachea la API (adjuntos: private, max-age): Caddy no le añade Cache-Control.
 handle /api/* {
 	reverse_proxy api:3000
 }
 
-handle {
+# Los assets llevan hash en el nombre: inmutables. Solo se sirven archivos que existen;
+# sin try_files, uno viejo da 404 y no el index.html cacheado un año como si fuera JS.
+handle /assets/* {
+	header Cache-Control "public, max-age=31536000, immutable"
 	root * /srv
-	try_files {path} /index.html
 	file_server
 }
 
 # El shell, el service worker y el manifiesto nunca se cachean: no-cache por defecto (#19).
-# El matcher por ruta no servía: se evalúa con la ruta pedida (/login), no con la que
-# reescribe try_files (/index.html). Los assets llevan hash en el nombre: inmutables.
-header Cache-Control "no-cache"
-# `defer` aplica la cabecera al escribir la respuesta, después de la de arriba; sin él,
-# la primera directiva gana y los assets quedarían en no-cache.
-header /assets/* {
-	Cache-Control "public, max-age=31536000, immutable"
-	defer
+# Un matcher de ruta no servía: se evalúa con la ruta pedida (/login), no con la que
+# reescribe try_files (/index.html).
+handle {
+	header Cache-Control "no-cache"
+	root * /srv
+	try_files {path} /index.html
+	file_server
 }
