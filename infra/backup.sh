@@ -3,7 +3,10 @@
 # Uso (cron en el VPS): 0 3 * * * /opt/dentalware/infra/backup.sh >> /var/log/dentalware-backup.log 2>&1
 set -euo pipefail
 cd "$(dirname "$0")"
-set -a; source ./.env; set +a
+set -a
+# shellcheck source=/dev/null
+source ./.env
+set +a
 DEST=${BACKUP_DIR:-/opt/dentalware-backups}
 STAMP=$(date +%F_%H%M)
 mkdir -p "$DEST"

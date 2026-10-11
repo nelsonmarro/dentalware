@@ -19,6 +19,16 @@ env:
   PW_ARGS: ${{ github.event_name == 'pull_request' && '--project=escritorio --project=android --grep "@esencial|@clave"' || '' }}
 
 jobs:
+  # Infraestructura: scripts de infra/ con shellcheck y Caddy real (cabeceras de caché, healthcheck).
+  infra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: shellcheck
+        run: find infra -name '*.sh' -print0 | xargs -0 shellcheck
+      - run: bash infra/tests/caddy-headers.sh
+
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 20
