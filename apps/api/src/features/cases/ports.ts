@@ -21,8 +21,8 @@ export type CaseDetail = typeof cases.$inferSelect & {
   // `clinic`/`doctor` van con `optional: false` en `relations.ts` (FK NOT NULL en
   // `cases`): Drizzle Relations v2 los tipa como presentes, no `| null` (ver
   // docs/architecture.md §3). `technician`/`stage` sí son opcionales de verdad.
-  // Dirección y teléfono (UX4-07): la ficha corta del mensajero lleva a la clínica (mapa y
-  // llamada). No son dinero: los ve cualquier rol, igual que en «Entregas».
+  // Dirección, teléfono (UX4-07) y WhatsApp (AVI-4): la ficha corta del mensajero lleva a la clínica (mapa,
+  // llamada o WhatsApp). No son dinero: los ve cualquier rol, igual que en «Entregas».
   clinic: Named & {
     address: string | null
     city: string | null
