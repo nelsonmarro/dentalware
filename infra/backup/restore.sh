@@ -16,13 +16,14 @@
 #
 # Por omisión, el snapshot es `latest`. Respeta COMPOSE_PROJECT_NAME y COMPOSE_FILE.
 # Un uso no válido (una ruta vacía, opciones que no se combinan) sale con 2 sin tocar nada.
+# Con un respaldo o una restauración en curso sale con 75 sin tocar nada (--con-config solo lee).
 set -Eeuo pipefail
 
 # shellcheck source-path=SCRIPTDIR source=lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 usage() {
-  sed -n '4,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  sed -n '4,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
   exit 2
 }
 
@@ -75,7 +76,8 @@ cleanup() {
   rm -rf "$work"
 }
 trap cleanup EXIT
-trap 'log "ERROR: la restauración falló (línea $LINENO)." >&2' ERR
+# Con `set -E` el trap salta también en las sustituciones de comandos: se avisa solo una vez.
+trap '[ "$BASH_SUBSHELL" -gt 0 ] || log "ERROR: la restauración falló (línea $LINENO)." >&2' ERR
 
 # restic_restore [--include <patrón>...]: restaura el snapshot elegido en $work.
 restic_restore() {
@@ -108,13 +110,19 @@ if [ "$config_only" = 1 ]; then
 fi
 
 require_vars POSTGRES_USER POSTGRES_DB BACKUP_LOCAL_DIR
+# El mismo bloqueo que backup.sh: nunca se restaura mientras se respalda, ni al revés.
+secure_local_dir
+take_lock "Restauración omitida"
 docker volume inspect "$UPLOADS_VOLUME" >/dev/null 2>&1 ||
   die "no existe el volumen de adjuntos ${UPLOADS_VOLUME}: levanta antes los servicios (docker compose up -d)"
 
 # --- Solo archivos -------------------------------------------------------------------------
 if [ "$files_only" = 1 ]; then
   restic_restore --include "/data/uploads/${files_pattern}"
-  restored="$(find "$work/data/uploads" -type f 2>/dev/null | wc -l)"
+  restored=0
+  if [ -d "$work/data/uploads" ]; then
+    restored="$(find "$work/data/uploads" -type f | wc -l)"
+  fi
   [ "$restored" -gt 0 ] || die "ningún adjunto del snapshot ${snapshot} casa con «${files_pattern}»"
   copy_to_uploads "$work/data/uploads"
   log "Restaurados ${restored} archivo(s) en ${UPLOADS_VOLUME}. La base de datos no se tocó."

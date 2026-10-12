@@ -4,8 +4,9 @@
 # 7 diarios / 4 semanales / 12 mensuales. El dump del día queda además en $BACKUP_LOCAL_DIR/db.
 #
 # Uso: infra/backup/backup.sh (sin argumentos; lo programa systemd).
-# Sale con 0 si respaldó, 75 si ya había un respaldo en curso y otro código si falló. Con
-# BACKUP_HEALTHCHECK_URL avisa el inicio, el éxito y el fallo (con las últimas líneas del log).
+# Sale con 0 si respaldó, 75 si ya había un respaldo o una restauración en curso y otro código
+# si falló. Con BACKUP_HEALTHCHECK_URL avisa el inicio, el éxito y el fallo (con las últimas
+# líneas del log).
 set -Eeuo pipefail
 
 # shellcheck source-path=SCRIPTDIR source=lib.sh
@@ -14,7 +15,7 @@ set -Eeuo pipefail
 load_config
 require_vars POSTGRES_USER POSTGRES_DB RESTIC_REPOSITORY RESTIC_PASSWORD_FILE BACKUP_LOCAL_DIR
 
-mkdir -p "$BACKUP_LOCAL_DIR/db"
+secure_local_dir
 
 # El log va a stdout (journald) y a un archivo temporal, del que sale el resumen de un fallo.
 log_file="$(mktemp)"
@@ -26,15 +27,13 @@ cleanup() {
 trap cleanup EXIT
 exec > >(tee -a "$log_file") 2>&1
 
-# Un solo respaldo a la vez: el segundo sale con 75 (EX_TEMPFAIL) sin tocar nada.
-exec 9>"$BACKUP_LOCAL_DIR/.lock"
-if ! flock -n 9; then
-  log "Respaldo omitido: ya hay un respaldo en curso."
-  exit 75
-fi
+take_lock "Respaldo omitido"
 
 on_error() {
   local code=$? line="$1"
+  # Con `set -E`, el trap también salta dentro de una sustitución de comandos: ahí solo se sale,
+  # y avisa una sola vez el script, cuando la sustitución le devuelve el error.
+  [ "$BASH_SUBSHELL" -eq 0 ] || exit "$code"
   trap - ERR
   log "ERROR: el respaldo falló (línea ${line}, código ${code})."
   hc_ping fail "$(tail -n 20 "$log_file")"
@@ -57,6 +56,12 @@ fi
 dump="$BACKUP_LOCAL_DIR/db/dentalware-$(date +%F).dump"
 log "Volcando la base de datos ${POSTGRES_DB}..."
 compose exec -T postgres pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc >"$dump.partial"
+# Un dump vacío o ilegible no sustituye al bueno ni entra en el respaldo.
+if [ ! -s "$dump.partial" ]; then
+  log "ERROR: el dump salió vacío."
+  false
+fi
+compose exec -T postgres pg_restore -l <"$dump.partial" >/dev/null
 mv "$dump.partial" "$dump"
 log "Dump listo: $(basename "$dump") ($(du -h "$dump" | cut -f1))."
 

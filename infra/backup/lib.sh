@@ -8,6 +8,10 @@
 # Nunca se muestra un secreto: ni `set -x`, ni `echo` de contraseñas o URLs de aviso. Las
 # variables de restic llegan al contenedor con `-e VAR` sin valor (heredadas del entorno).
 
+# Todo lo que crean los scripts (dumps en claro, copias, carpetas de trabajo) es solo de quien
+# respalda (root en el VPS): en el servidor corren otros servicios.
+umask 077
+
 BACKUP_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(dirname "$BACKUP_SCRIPTS_DIR")"
 
@@ -67,6 +71,23 @@ require_vars() {
   done
   [ "${#missing[@]}" -eq 0 ] ||
     die "faltan variables en ${ENV_FILE:-el entorno (no hay .env)}: ${missing[*]}"
+}
+
+# secure_local_dir: crea $BACKUP_LOCAL_DIR/db y deja la carpeta y db/ solo para su dueño (700),
+# también si ya existían con otros permisos.
+secure_local_dir() {
+  mkdir -p "$BACKUP_LOCAL_DIR/db"
+  chmod 700 "$BACKUP_LOCAL_DIR" "$BACKUP_LOCAL_DIR/db"
+}
+
+# take_lock <qué se omite>: un solo respaldo o restauración a la vez (el mismo bloqueo para los
+# dos). Si ya hay uno en curso, lo dice y sale con 75 (EX_TEMPFAIL) sin tocar nada.
+take_lock() {
+  exec 9>"$BACKUP_LOCAL_DIR/.lock"
+  if ! flock -n 9; then
+    log "${1}: ya hay un respaldo o una restauración en curso."
+    exit 75
+  fi
 }
 
 compose() {

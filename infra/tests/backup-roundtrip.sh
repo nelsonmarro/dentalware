@@ -21,6 +21,13 @@ outputs="$tmp/salidas.log"
 hc_pid=""
 failures=0
 
+# Entorno hostil: lo que exporte quien corre la prueba (aquí, a propósito, otro proyecto y otro
+# repositorio) nunca debe llegar a los scripts. Si llegara, respaldarían o restaurarían otra cosa.
+no_tocar="$(dirname "$repo")/dw-no-tocar-$$"
+export COMPOSE_PROJECT_NAME=dw-no-tocar COMPOSE_FILE=/no-existe/docker-compose.yml
+export RESTIC_REPOSITORY="$no_tocar" RESTIC_PASSWORD_FILE=/no-existe/restic-password
+export BACKUP_LOCAL_DIR="$no_tocar"
+
 # shellcheck source-path=SCRIPTDIR source=../backup/restic.env
 . "$root/infra/backup/restic.env"
 
@@ -32,8 +39,8 @@ compose() {
 cleanup() {
   [ -n "$hc_pid" ] && kill "$hc_pid" 2>/dev/null || true
   compose down -v --remove-orphans >/dev/null 2>&1 || true
-  docker volume rm "${project}-otro_uploads" >/dev/null 2>&1 || true
-  rm -rf "$tmp" "$repo"
+  docker volume rm "${project}-otro_uploads" dw-no-tocar_uploads >/dev/null 2>&1 || true
+  rm -rf "$tmp" "$repo" "$no_tocar"
 }
 trap cleanup EXIT
 
@@ -78,8 +85,11 @@ services:
     image: ${image}
     pull_policy: never
     build: !reset null
+    restart: 'no'
     ports:
       - '127.0.0.1:${port}:3000'
+  postgres:
+    restart: 'no'
 YML
 
 env_value() {
@@ -88,12 +98,21 @@ env_value() {
 admin_email="$(env_value ADMIN_EMAIL)"
 admin_password="$(env_value ADMIN_PASSWORD)"
 
-# Corre un script de respaldo con el `.env` de la prueba; su salida queda también en $outputs
-# para comprobar al final que nunca muestra un secreto.
+# run_script <.env> [VAR=valor...] <script> [args...]: corre un script de respaldo con el `.env`
+# de la prueba y sin nada del entorno de quien la corre (las VAR=valor se inyectan a propósito).
+# Su salida queda también en $outputs para comprobar al final que nunca muestra un secreto.
 run_script() {
-  local env_file="$1"
+  local env_file="$1" assigns=()
   shift
-  DENTALWARE_ENV_FILE="$env_file" "$@" 2>&1 | tee -a "$outputs"
+  while [[ "${1:-}" =~ ^[A-Z_]+= ]]; do
+    assigns+=("$1")
+    shift
+  done
+  env -u COMPOSE_PROJECT_NAME -u COMPOSE_FILE -u RESTIC_REPOSITORY -u RESTIC_PASSWORD_FILE \
+    -u POSTGRES_USER -u POSTGRES_DB -u BACKUP_LOCAL_DIR -u BACKUP_HEALTHCHECK_URL \
+    -u RESTIC_IMAGE -u HELPER_IMAGE -u KEEP_DAILY -u KEEP_WEEKLY -u KEEP_MONTHLY \
+    -u LOCAL_KEEP_DAYS DENTALWARE_ENV_FILE="$env_file" "${assigns[@]}" "$@" 2>&1 |
+    tee -a "$outputs"
 }
 
 # show <log>: el log de un script, sangrado, para leerlo en la salida de CI.
@@ -221,6 +240,11 @@ grep -qE 'snapshot [0-9a-f]{8}' "$tmp/backup1.log" || fail "el log no da el id d
   fail "no quedó el dump del día en BACKUP_LOCAL_DIR/db"
 [ ! -e "$tmp/local/db/dentalware-viejo.dump" ] || fail "el dump de hace 5 días debía borrarse"
 [ -e "$tmp/local/db/dentalware-ayer.dump" ] || fail "el dump de ayer debía quedarse"
+# El dump es la BD entera sin cifrar: solo lo lee quien respalda (root en el VPS).
+[ "$(stat -c %a "$tmp/local/db/dentalware-$(date +%F).dump")" = "600" ] ||
+  fail "el dump del día debe quedar con permisos 600"
+[ "$(stat -c %a "$tmp/local") $(stat -c %a "$tmp/local/db")" = "700 700" ] ||
+  fail "BACKUP_LOCAL_DIR y su db/ deben quedar con permisos 700"
 test_restic ls latest --json | jq -r 'select(.path) | .path' >"$tmp/ls.txt"
 grep -qx '/backup/config/.env' "$tmp/ls.txt" || fail "el respaldo no incluye el .env"
 grep -q "^/data/uploads/${storage_path}$" "$tmp/ls.txt" || fail "el respaldo no incluye la foto"
@@ -238,6 +262,10 @@ if ! run_script "$tmp/.env" "$root/infra/backup/restore.sh" --snapshot latest >"
   abort "restore.sh falló"
 fi
 show "$tmp/restore.log"
+safety_dump="$(find "$tmp/local/db" -name 'antes-de-restaurar-*.dump' | head -n 1)"
+if [ -z "$safety_dump" ] || [ "$(stat -c %a "$safety_dump")" != "600" ]; then
+  fail "la copia antes de restaurar debe existir con permisos 600"
+fi
 [ "$(counts)" = "$counts_before" ] ||
   fail "conteos tras restaurar: $(counts) (esperado ${counts_before})"
 [ "$(volume_sha "$storage_path")" = "$sha_before" ] || fail "la foto restaurada no es la misma"
@@ -277,6 +305,8 @@ if run_script "$tmp/.env" "$root/infra/backup/restore.sh" --snapshot latest \
   --solo-archivos 'no-existe/nada.jpg' >"$tmp/restore-nada.log"; then
   fail "--solo-archivos con una ruta que no está en el respaldo debe fallar"
 fi
+grep -q 'casa con «no-existe/nada.jpg»' "$tmp/restore-nada.log" ||
+  fail "--solo-archivos sin coincidencias debe decir que ningún adjunto casa con la ruta"
 
 # Una ruta vacía es un error de uso (sale con 2): nunca restaura todo ni toca la BD.
 for args in "--solo-archivos|" "--solo-archivos|/" "--solo-archivos|/data/uploads/" "--con-config|"; do
@@ -292,8 +322,8 @@ done
 
 # --- Configuración tras la pérdida total (sin .env) ----------------------------------------
 echo "Recuperando la configuración sin .env..."
-if ! RESTIC_REPOSITORY="$repo" RESTIC_PASSWORD_FILE="$tmp/restic-password" \
-  run_script "$tmp/no-existe.env" "$root/infra/backup/restore.sh" --snapshot latest \
+if ! run_script "$tmp/no-existe.env" RESTIC_REPOSITORY="$repo" \
+  RESTIC_PASSWORD_FILE="$tmp/restic-password" "$root/infra/backup/restore.sh" --snapshot latest \
   --con-config "$tmp/revisar" >"$tmp/restore-config.log"; then
   cat "$tmp/restore-config.log" >&2
   fail "restore.sh --con-config falló"
@@ -314,13 +344,27 @@ wait "$p1" || rc1=$?
 wait "$p2" || rc2=$?
 codes="$(printf '%s\n' "$rc1" "$rc2" | sort -n | tr '\n' ' ')"
 [ "$codes" = "0 75 " ] || fail "dos respaldos a la vez deben salir 0 y 75 (salieron ${rc1} y ${rc2})"
-cat "$tmp/par1.log" "$tmp/par2.log" | grep -q 'ya hay un respaldo en curso' ||
-  fail "el respaldo bloqueado debe decir «ya hay un respaldo en curso»"
+cat "$tmp/par1.log" "$tmp/par2.log" | grep -q 'ya hay un respaldo o una restauración en curso' ||
+  fail "el respaldo bloqueado debe decir «ya hay un respaldo o una restauración en curso»"
+
+# --- Restauración durante un respaldo ------------------------------------------------------
+echo "Restaurar con un respaldo en curso..."
+counts_locked="$(counts)"
+exec 8>"$tmp/local/.lock"
+flock -n 8 || abort "la prueba no pudo tomar el bloqueo de los respaldos"
+rc=0
+run_script "$tmp/.env" "$root/infra/backup/restore.sh" --snapshot latest 8>&- \
+  >"$tmp/restore-bloqueado.log" || rc=$?
+exec 8>&-
+[ "$rc" = "75" ] || fail "restaurar con un respaldo en curso debe salir con 75 (salió ${rc})"
+grep -q 'en curso' "$tmp/restore-bloqueado.log" ||
+  fail "la restauración bloqueada debe decir que hay un respaldo en curso"
+[ "$(counts)" = "$counts_locked" ] || fail "la restauración bloqueada tocó la BD"
 
 # --- El entorno manda sobre el .env (COMPOSE_PROJECT_NAME) --------------------------------
 echo "Proyecto de compose desde el entorno..."
-if COMPOSE_PROJECT_NAME="${project}-otro" run_script "$tmp/.env" "$root/infra/backup/backup.sh" \
-  >"$tmp/backup-otro.log"; then
+if run_script "$tmp/.env" COMPOSE_PROJECT_NAME="${project}-otro" \
+  "$root/infra/backup/backup.sh" >"$tmp/backup-otro.log"; then
   fail "con un proyecto sin volumen de adjuntos, backup.sh debe fallar"
 fi
 grep -q "no existe el volumen de adjuntos ${project}-otro_uploads" "$tmp/backup-otro.log" ||
@@ -379,10 +423,30 @@ fi
 grep -q '^POST /ping/abc/start ' "$tmp/hc.log" || fail "el respaldo fallido no avisó el inicio"
 grep -q '^POST /ping/abc/fail .*no_existe' "$tmp/hc.log" ||
   fail "no llegó /fail con las últimas líneas del log"
+[ "$(grep -c '/fail' "$tmp/hc.log")" = "1" ] || fail "un fallo de pg_dump debe avisar /fail una sola vez"
+
+# Un fallo dentro de una sustitución de comandos (restic con otra contraseña) avisa una sola vez.
+openssl rand -hex 32 >"$tmp/otra-password"
+chmod 600 "$tmp/otra-password"
+sed "s|^RESTIC_PASSWORD_FILE=.*|RESTIC_PASSWORD_FILE=${tmp}/otra-password|" "$tmp/hc.env" \
+  >"$tmp/hc-restic.env"
+: >"$tmp/hc.log"
+if run_script "$tmp/hc-restic.env" "$root/infra/backup/backup.sh" >"$tmp/backup-restic.log"; then
+  fail "con otra contraseña de restic, backup.sh debe salir con error"
+fi
+[ "$(grep -c '/fail' "$tmp/hc.log")" = "1" ] ||
+  fail "un fallo de restic debe avisar /fail una sola vez (llegaron $(grep -c '/fail' "$tmp/hc.log"))"
 
 # --- Retención fijada -----------------------------------------------------------------------
 [ "$KEEP_DAILY $KEEP_WEEKLY $KEEP_MONTHLY $LOCAL_KEEP_DAYS" = "7 4 12 3" ] ||
   fail "la retención debe ser 7 diarias, 4 semanales, 12 mensuales y 3 días de dumps locales"
+
+# --- El entorno de quien corre la prueba no llegó a los scripts ----------------------------
+[ ! -e "$no_tocar" ] || fail "un script usó RESTIC_REPOSITORY o BACKUP_LOCAL_DIR del entorno"
+if [ -n "$(docker ps -aq --filter label=com.docker.compose.project=dw-no-tocar)" ] ||
+  docker volume inspect dw-no-tocar_uploads >/dev/null 2>&1; then
+  fail "un script usó COMPOSE_PROJECT_NAME del entorno"
+fi
 
 # --- Ningún secreto en los logs -------------------------------------------------------------
 for key in POSTGRES_PASSWORD BETTER_AUTH_SECRET ADMIN_PASSWORD; do
