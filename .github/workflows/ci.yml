@@ -26,9 +26,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: shellcheck
-        run: find infra -name '*.sh' -print0 | xargs -0 shellcheck
+        run: find infra -name '*.sh' -print0 | xargs -0 shellcheck -x
       - run: bash infra/tests/caddy-headers.sh
       - run: bash infra/tests/api-image.sh
+
+  # Respaldos (#111, PEM-3): respalda con restic, simula el desastre (`down -v`) y restaura de
+  # punta a punta, sin red externa (repositorio de restic en una carpeta temporal).
+  respaldo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash infra/tests/backup-roundtrip.sh
 
   quality:
     runs-on: ubuntu-latest
