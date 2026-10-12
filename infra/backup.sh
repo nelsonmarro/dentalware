@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# PROVISIONAL: lo sustituye infra/backup/backup.sh (restic). Se mantiene mientras el paso 12 de
+# docs/operacion/despliegue.md lo programe en el VPS; se borra al pasar a los respaldos definitivos.
 # Backup diario: dump de Postgres + tar de uploads, retención 14 días.
 # Uso (cron en el VPS): 0 3 * * * /opt/dentalware/infra/backup.sh >> /var/log/dentalware-backup.log 2>&1
 set -euo pipefail

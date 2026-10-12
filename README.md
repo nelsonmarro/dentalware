@@ -45,14 +45,15 @@ docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env u
 docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env run --rm api node dist/scripts/seed.js
 ```
 
-Caddy obtiene el certificado TLS automáticamente para `SITE_ADDRESS`. Backups: `infra/backup.sh` en cron diario.
+Caddy obtiene el certificado TLS automáticamente para `SITE_ADDRESS`. Respaldos: `infra/backup/backup.sh` (restic, repositorio cifrado en el servidor; variables `RESTIC_*` y `BACKUP_*` de `infra/.env.example`), una vez al día.
 Actualizar: `git pull && docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env up -d --build`.
 
 ### Restaurar
 
 ```bash
-docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env exec -T postgres pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists < db_<fecha>.dump
-docker run --rm -v dentalware_uploads:/data -v "$PWD":/backup alpine tar xzf /backup/uploads_<fecha>.tgz -C /data
+sudo infra/backup/restore.sh --snapshot latest                     # BD y fotos del último respaldo
+sudo infra/backup/restore.sh --solo-archivos '<caseId>/<id>.jpg'   # un adjunto borrado, sin tocar la BD
+sudo infra/backup/restore.sh --con-config /tmp/config-respaldada   # la configuración, para revisarla
 ```
 
-Procedimiento verificado el 2026-09-04 contra el contenedor de desarrollo (`dentalware-postgres`): dump con `pg_dump -Fc`, `pg_restore --clean --if-exists` sobre una base nueva y verificación con `\dt`.
+El job `respaldo` de CI (`infra/tests/backup-roundtrip.sh`) respalda, borra todo y restaura en cada PR.

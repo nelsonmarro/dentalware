@@ -109,7 +109,7 @@ Saldo de clínica = Σ cargos de los trabajos entregados y cobrados + Σ ajustes
 - **Auditoría**: queda en `case_events`.
 - **Datos del paciente**: los mínimos.
 - **Secretos**: solo en `config.ts`.
-- **Respaldos**: `infra/backup.sh`.
+- **Respaldos**: `infra/backup/backup.sh` (restic en contenedor, repositorio cifrado local en el VPS) y `infra/backup/restore.sh`, probados de punta a punta en el job `respaldo` de CI (`infra/tests/backup-roundtrip.sh`).
 
 ## 7. Despliegue y CI
 
