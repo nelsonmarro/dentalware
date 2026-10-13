@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Respaldo del laboratorio (#111): dump de Postgres, fotos y configuración en un repositorio de
 # restic cifrado (en el VPS, la carpeta local /var/backups/dentalware/restic), con retención
-# 7 diarios / 4 semanales / 12 mensuales. El dump del día queda además en $BACKUP_LOCAL_DIR/db.
+# todo lo de 3 días + 7 diarios / 4 semanales / 12 mensuales. El dump del día queda además en
+# $BACKUP_LOCAL_DIR/db.
 #
 # Uso: infra/backup/backup.sh (sin argumentos; lo programa systemd).
 # Sale con 0 si respaldó, 75 si ya había un respaldo o una restauración en curso y otro código
@@ -80,8 +81,8 @@ fi
 result="snapshot ${snapshot_id:0:8}, $(numfmt --to=iec-i --suffix=B "${data_added:-0}") añadidos"
 log "Snapshot creado: ${result}."
 
-log "Aplicando la retención (${KEEP_DAILY} diarios, ${KEEP_WEEKLY} semanales, ${KEEP_MONTHLY} mensuales)..."
-restic_run -- forget --quiet --tag diario --host "$COMPOSE_PROJECT_NAME" \
+log "Aplicando la retención (todo lo de ${KEEP_WITHIN}, ${KEEP_DAILY} diarios, ${KEEP_WEEKLY} semanales, ${KEEP_MONTHLY} mensuales)..."
+restic_run -- forget --quiet --tag diario --host "$COMPOSE_PROJECT_NAME" --keep-within "$KEEP_WITHIN" \
   --keep-daily "$KEEP_DAILY" --keep-weekly "$KEEP_WEEKLY" --keep-monthly "$KEEP_MONTHLY" --prune
 find "$BACKUP_LOCAL_DIR/db" -type f -name '*.dump' -mtime +"$LOCAL_KEEP_DAYS" -delete
 

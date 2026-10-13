@@ -33,8 +33,7 @@ Todo va a un **repositorio de restic local**, `/var/backups/dentalware/restic`, 
 
 ## Retención
 
-- **Snapshots:** 7 diarios, 4 semanales y 12 mensuales. Los aplica `backup.sh` al terminar cada respaldo (`restic forget --prune`). Mientras no haya 7 días de respaldos, restic conserva además el más antiguo.
-- **Uno por día:** de cada día queda solo el último snapshot. Un respaldo lanzado a mano sustituye al de esa madrugada. Antes de una actualización está bien; antes de restaurar, no (`recuperacion.md`, «Antes de empezar»).
+- **Snapshots:** se conserva **todo lo de los últimos 3 días**, contados desde el snapshot más reciente. Así, un respaldo lanzado a mano (antes de una actualización o de una restauración) nunca borra el de las 03:00 del mismo día. Lo anterior pasa a la regla 7/4/12: el último de cada uno de los 7 días más recientes con respaldos, de cada una de las 4 últimas semanas y de cada uno de los 12 últimos meses. restic conserva un snapshot si lo pide cualquiera de las reglas, y mientras no haya 7 días de respaldos, también el más antiguo. Lo aplica `backup.sh` al terminar cada respaldo (`restic forget --keep-within 3d --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune`, valores en `infra/backup/restic.env`).
 - **Dumps locales:** los de más de 3 días en `db/` se borran en el respaldo siguiente. Eso incluye las copias `antes-de-restaurar-*` que deja una restauración: si quieres guardar una, muévela fuera de `db/`.
 
 ## Avisos

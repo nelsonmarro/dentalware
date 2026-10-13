@@ -12,7 +12,6 @@ Antes de empezar:
 
 - **Anota la hora.** Al terminar, apunta cuánto tardaste en el [registro](#registro-de-recuperaciones).
 - **Nunca `dw down -v`** ni `docker volume prune`: borran la BD y las fotos.
-- **No lances un respaldo a mano antes de restaurar.** restic guarda un solo snapshot por día, el último: un respaldo ahora borraría el de esta madrugada, que quizá es el que necesitas. `restore.sh` ya guarda una copia de la BD actual antes de sustituirla.
 - Trabaja en `/opt/dentalware`, con los atajos `dw` (paso 6.3 de `despliegue.md`) y `dwrestic` (paso 12.5).
 - Los scripts de restauración se ejecutan con `sudo`. Toman el mismo bloqueo que el respaldo, la verificación y el simulacro. Si uno está en curso, salen con código 75 sin tocar nada: «ya hay otro trabajo de respaldo en curso». Espera a que termine (`systemctl status dentalware-backup`) y repite.
 
@@ -49,16 +48,15 @@ Si no sale nada, restaura normalmente. Si sale algo, restaura sobre una BD **vac
 
 ```bash
 dw stop api                                      # 1. nadie escribe en la BD
-dw exec -T postgres pg_dump -U dentalware -d dentalware -Fc |
-  sudo sh -c 'umask 077; cat > /var/backups/dentalware/db/antes-de-borrar-$(date +%F-%H%M%S).dump'
-sudo ls -l /var/backups/dentalware/db/           # 2. la copia de la BD actual, por si acaso
-dw rm -sf postgres                               # 3. borra la BD actual
+sudo systemctl start dentalware-backup.service   # 2. respaldo de la BD actual, por si acaso
+journalctl -u dentalware-backup -n 3             #    «Respaldo correcto: snapshot …»: anota el id
+dw rm -sf postgres                               # 3. borra la BD actual (ya respaldada)
 docker volume rm dentalware_pgdata
 sudo infra/backup/restore.sh --snapshot <id>     # 4. Postgres vacío + el snapshot; la API arranca
 dw up -d                                         # 5. el resto de servicios
 ```
 
-La copia del paso 2 se hace con `pg_dump` y no con un respaldo, para no borrar el snapshot del día (ver «Antes de empezar»). Se deshace como la copia `antes-de-restaurar-*` ([abajo](#caso-1--la-bd-a-una-fecha)). En el paso 4, la API arranca con el código actual y migra la BD restaurada, que tiene el esquema del snapshot. No vuelvas atrás el código: el esquema viejo lo sube la propia API.
+El respaldo del paso 2 no borra ningún snapshot anterior: lo de los últimos 3 días se conserva entero (`respaldos.md`, «Retención»). Para deshacer, restaura ese snapshot igual que en el paso 4. En el paso 4, la API arranca con el código actual y migra la BD restaurada, que tiene el esquema del snapshot. No vuelvas atrás el código: el esquema viejo lo sube la propia API.
 
 ## Caso 1 — La BD a una fecha
 
@@ -72,7 +70,7 @@ Para una BD corrupta o un error humano: un trabajo, un pago o una clínica borra
    dwrestic snapshots
    ```
 
-   Cada respaldo diario sale con su ID, su fecha, el host `dentalware` y la etiqueta `diario`. Queda uno por día, el último de ese día: 7 diarios, y después uno por semana y uno por mes. Elige el último **anterior** al problema. Por ejemplo, si el borrado fue hoy a las 11:00, el de esta madrugada.
+   Cada respaldo diario sale con su ID, su fecha, el host `dentalware` y la etiqueta `diario`. De los últimos 3 días están todos, también los lanzados a mano; de antes, uno por día durante 7 días con respaldos, y después uno por semana y uno por mes. Elige el último **anterior** al problema. Por ejemplo, si el borrado fue hoy a las 11:00, el de esta madrugada.
 3. Comprueba que no hubo [migraciones después del snapshot](#si-hubo-migraciones-después-del-snapshot). Si las hubo, sigue ese orden en vez del paso 4.
 4. Restaura:
 
@@ -84,7 +82,7 @@ Para una BD corrupta o un error humano: un trabajo, un pago o una clínica borra
 
 5. Pasa la [lista de verificación](#lista-de-verificación-final). Después, avisa al equipo de qué se perdió: todo lo registrado desde la hora del snapshot.
 
-**Deshacer.** Para volver a la BD de antes de restaurar, sustitúyela por la copia `antes-de-restaurar-*` (o `antes-de-borrar-*`), con el mismo comando que usa `restore.sh`:
+**Deshacer.** Para volver a la BD de antes de restaurar, sustitúyela por la copia `antes-de-restaurar-*`, con el mismo comando que usa `restore.sh`:
 
 ```bash
 sudo ls -lt /var/backups/dentalware/db/
@@ -229,7 +227,7 @@ Al terminar cualquiera de los tres casos:
 - [ ] **Fotos:** abre la ficha de dos o tres trabajos con fotos: las miniaturas se ven y la foto abre.
 - [ ] **Cuentas:** el saldo de una clínica que conozcas cuadra.
 - [ ] **Login:** recepción, un técnico y el mensajero entran con sus contraseñas.
-- [ ] **El respaldo siguiente en verde:** `sudo systemctl start dentalware-backup.service` y `journalctl -u dentalware-backup -n 5` dice «Respaldo correcto». Sustituye al snapshot de hoy: lánzalo solo cuando la lista de arriba esté bien. Si quieres más seguridad, lanza también el simulacro: `sudo systemctl start dentalware-restore-drill.service` → «Simulacro correcto».
+- [ ] **El respaldo siguiente en verde:** `sudo systemctl start dentalware-backup.service` y `journalctl -u dentalware-backup -n 5` dice «Respaldo correcto». Si quieres más seguridad, lanza también el simulacro: `sudo systemctl start dentalware-restore-drill.service` → «Simulacro correcto».
 - [ ] El equipo sabe qué se perdió (lo hecho después del snapshot) y lo vuelve a registrar.
 
 ## Si una restauración se interrumpe

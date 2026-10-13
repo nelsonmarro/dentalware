@@ -119,7 +119,7 @@ run_script() {
   env -u COMPOSE_PROJECT_NAME -u COMPOSE_FILE -u RESTIC_REPOSITORY -u RESTIC_PASSWORD_FILE \
     -u POSTGRES_USER -u POSTGRES_DB -u BACKUP_LOCAL_DIR -u BACKUP_HEALTHCHECK_URL \
     -u BACKUP_CHECK_HEALTHCHECK_URL -u BACKUP_DRILL_HEALTHCHECK_URL -u DRILL_SAMPLE \
-    -u RESTIC_IMAGE -u HELPER_IMAGE -u KEEP_DAILY -u KEEP_WEEKLY -u KEEP_MONTHLY \
+    -u RESTIC_IMAGE -u HELPER_IMAGE -u KEEP_WITHIN -u KEEP_DAILY -u KEEP_WEEKLY -u KEEP_MONTHLY \
     -u LOCAL_KEEP_DAYS DENTALWARE_ENV_FILE="$env_file" "${assigns[@]}" "$@" 2>&1 |
     tee -a "$outputs"
 }
@@ -142,6 +142,23 @@ test_restic() {
 
 snapshot_count() {
   test_restic snapshots --json | jq 'length'
+}
+
+# old_snapshot <"AAAA-MM-DD HH:MM:SS" (UTC)>: un snapshot con fecha pasada, del mismo grupo que
+# los de backup.sh (host, etiqueta y rutas), para probar la retención sobre días anteriores.
+old_snapshot() {
+  mkdir -p "$tmp/backup-viejo"
+  RESTIC_REPOSITORY=/repo RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
+    RESTIC_CACHE_DIR=/tmp/restic-cache docker run --rm --user "$(id -u):$(id -g)" \
+    -e RESTIC_REPOSITORY -e RESTIC_PASSWORD_FILE -e RESTIC_CACHE_DIR \
+    -v "$repo:/repo" -v "$tmp/restic-password:/run/secrets/restic-password:ro" \
+    -v "${project}_uploads:/data/uploads:ro" -v "$tmp/backup-viejo:/backup:ro" \
+    "$RESTIC_IMAGE" backup --quiet --tag diario --host "$project" --time "$1" /data/uploads /backup
+}
+
+# snapshot_times: la hora (UTC, «AAAA-MM-DD HH:MM») de cada snapshot, ordenadas.
+snapshot_times() {
+  test_restic snapshots --json | jq -r '.[].time' | cut -c1-16 | tr T ' ' | sort
 }
 
 psql_value() {
@@ -531,6 +548,13 @@ hc_pid=$!
 for _ in $(seq 1 50); do [ -s "$tmp/hc.port" ] && break; sleep 0.1; done
 hc_url="http://127.0.0.1:$(cat "$tmp/hc.port")/ping/abc"
 
+# Retención sobre días anteriores: dos snapshots el mismo día de hace 20 días y uno de hace 30.
+old_day="$(date -u -d '20 days ago' +%F)"
+oldest_day="$(date -u -d '30 days ago' +%F)"
+old_snapshot "${old_day} 01:00:00" >/dev/null || abort "no se pudo crear el snapshot viejo de las 01:00"
+old_snapshot "${old_day} 02:00:00" >/dev/null || abort "no se pudo crear el snapshot viejo de las 02:00"
+old_snapshot "${oldest_day} 03:00:00" >/dev/null || abort "no se pudo crear el snapshot de hace 30 días"
+
 sed "s|^BACKUP_HEALTHCHECK_URL=.*|BACKUP_HEALTHCHECK_URL=${hc_url}|" "$tmp/.env" >"$tmp/hc.env"
 : >"$tmp/hc.log"
 run_script "$tmp/hc.env" "$root/infra/backup/backup.sh" >"$tmp/backup-hc.log" ||
@@ -539,10 +563,20 @@ grep -q '^POST /ping/abc/start ' "$tmp/hc.log" || fail "no llegó el aviso de in
 grep -qE '^POST /ping/abc snapshot [0-9a-f]{8}' "$tmp/hc.log" ||
   fail "no llegó el aviso de éxito con el snapshot"
 if grep -q '/fail' "$tmp/hc.log"; then fail "un respaldo correcto no debe avisar /fail"; fi
-# Van tres respaldos correctos hoy. `restic forget` deja el último del día y, mientras no haya
-# 7 días con respaldos, también el más antiguo («oldest daily snapshot», restic ≥ 0.17): 2.
-[ "$(snapshot_count)" = "2" ] ||
-  fail "tras tres respaldos del mismo día, la retención debe dejar 2 snapshots (hay $(snapshot_count))"
+# Van tres respaldos correctos hoy. Lo de los últimos KEEP_WITHIN (3 días) se conserva entero: un
+# respaldo a mano durante el día nunca borra el de las 03:00.
+snapshot_times >"$tmp/snapshots.txt"
+today_count="$(grep -c "^$(date -u +%F) " "$tmp/snapshots.txt" || true)"
+[ "$today_count" = "3" ] ||
+  fail "tras tres respaldos del mismo día deben quedar los 3 snapshots de hoy (quedan ${today_count})"
+# Antes de esa ventana manda 7/4/12: del día de hace 20 días queda solo el último, así que
+# `restic forget` corre. El de hace 30 días se queda (último de su día y de su semana).
+! grep -qx "${old_day} 01:00" "$tmp/snapshots.txt" ||
+  fail "la retención debe borrar el snapshot de las 01:00 de hace 20 días (no es el último del día)"
+grep -qx "${old_day} 02:00" "$tmp/snapshots.txt" ||
+  fail "la retención debe conservar el último snapshot de hace 20 días"
+grep -qx "${oldest_day} 03:00" "$tmp/snapshots.txt" ||
+  fail "la retención debe conservar el snapshot de hace 30 días"
 
 sed 's|^POSTGRES_DB=.*|POSTGRES_DB=no_existe|' "$tmp/hc.env" >"$tmp/hc-fail.env"
 : >"$tmp/hc.log"
@@ -618,8 +652,8 @@ grep -q "${other_path}.*mide 1 bytes" "$tmp/drill-incompleto.log" ||
 [ -z "$(drill_leftovers)" ] || fail "el simulacro fallido dejó restos: $(drill_leftovers | tr '\n' ' ')"
 
 # --- Retención fijada -----------------------------------------------------------------------
-[ "$KEEP_DAILY $KEEP_WEEKLY $KEEP_MONTHLY $LOCAL_KEEP_DAYS" = "7 4 12 3" ] ||
-  fail "la retención debe ser 7 diarias, 4 semanales, 12 mensuales y 3 días de dumps locales"
+[ "$KEEP_WITHIN $KEEP_DAILY $KEEP_WEEKLY $KEEP_MONTHLY $LOCAL_KEEP_DAYS" = "3d 7 4 12 3" ] ||
+  fail "la retención debe ser todo lo de 3 días, 7 diarias, 4 semanales, 12 mensuales y 3 días de dumps locales"
 grep -qx 'DRILL_SAMPLE_SIZE=5' "$root/infra/backup/drill.sh" ||
   fail "el simulacro debe comprobar 5 adjuntos al azar (DRILL_SAMPLE_SIZE=5)"
 
