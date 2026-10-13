@@ -419,7 +419,7 @@ Solo AVI-4, reducida al enlace `wa.me`, sigue en el MVP (Iteración 7).
   - El informe de importación distingue histórico de trabajos nuevos.
 
 **PEM-3.** Como administrador, quiero que las fotos y documentos del laboratorio queden respaldados fuera del servidor para no perderlos si el VPS falla.
-- Versión mínima aceptable: respaldo diario de la BD y del volumen de adjuntos con `infra/backup.sh`, copiado fuera del VPS; restauración probada una vez. El driver S3 (#48) queda Post-MVP; el código ya está desacoplado (#103).
+- Versión mínima aceptable: respaldo diario de la BD y del volumen de adjuntos con `infra/backup/` (restic); restauración probada una vez. Por decisión de Nelson (2026-10-10, ADR 36), el repositorio queda en el VPS y fuera de él solo están los backups semanales de Hostinger y la copia manual al PC (riesgo aceptado en `docs/operacion/respaldos.md`). El driver S3 (#48) queda Post-MVP; el código ya está desacoplado (#103).
 - Criterios:
   - Un adjunto subido hoy existe en el respaldo al día siguiente.
   - Restaurar un respaldo en un entorno limpio devuelve las fotos accesibles desde las fichas.

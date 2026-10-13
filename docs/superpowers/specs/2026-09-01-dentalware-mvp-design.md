@@ -41,7 +41,7 @@ dentalware/
                 máquina de estados del trabajo, días hábiles, formato de código
   infra/
     docker-compose.yml   caddy (TLS + estáticos de web) · api · postgres
-    Caddyfile · backup.sh · .env.example
+    Caddyfile · backup/ (restic) · .env.example
   docs/
     superpowers/specs/ · superpowers/plans/ · caputras_ejemplo/ · PDFs
 ```

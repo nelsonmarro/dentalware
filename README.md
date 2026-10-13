@@ -45,7 +45,7 @@ docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env u
 docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env run --rm api node dist/scripts/seed.js
 ```
 
-Caddy obtiene el certificado TLS automáticamente para `SITE_ADDRESS`. Respaldos: `infra/backup/backup.sh` (restic, repositorio cifrado en el servidor; variables `RESTIC_*` y `BACKUP_*` de `infra/.env.example`), una vez al día.
+Caddy obtiene el certificado TLS automáticamente para `SITE_ADDRESS`. Respaldos: `infra/backup/` (restic, repositorio cifrado en el servidor; variables `RESTIC_*` y `BACKUP_*` de `infra/.env.example`), programados con `sudo infra/backup/install.sh --init`: respaldo diario, verificación semanal y simulacro mensual.
 Actualizar: `git pull && docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env up -d --build`.
 
 ### Restaurar
@@ -57,3 +57,5 @@ sudo infra/backup/restore.sh --con-config /tmp/config-respaldada   # la configur
 ```
 
 El job `respaldo` de CI (`infra/tests/backup-roundtrip.sh`) respalda, borra todo y restaura en cada PR.
+
+Qué se respalda, cuándo y cómo vigilarlo: [`docs/operacion/respaldos.md`](docs/operacion/respaldos.md). Recuperar la BD a una fecha, fotos borradas o el VPS entero: [`docs/operacion/recuperacion.md`](docs/operacion/recuperacion.md).

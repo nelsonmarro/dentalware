@@ -2,7 +2,7 @@
 
 Guía paso a paso para poner en marcha Dentalware completo (web, API y base de datos) en el VPS `srv1278438.hstgr.cloud` (82.25.95.39, Arch Linux). Escrita el 2026-10-10 a partir del estado real del VPS.
 
-> **Antes de cargar datos reales** (trabajos, pagos, fotos de pacientes) tienen que estar listos los respaldos definitivos fuera del VPS y haberse probado una recuperación: PR 2 de la Iteración 7, #111. Con esta guía puedes desplegar y dejar configurado el laboratorio ya; los respaldos provisionales del paso 12 cubren mientras tanto.
+> **Antes de cargar datos reales** (trabajos, pagos, fotos de pacientes), los respaldos tienen que estar funcionando y el simulacro de recuperación, pasado: paso 12. Qué se respalda y cómo, en [`respaldos.md`](respaldos.md); cómo recuperar, en [`recuperacion.md`](recuperacion.md).
 
 ## Cómo queda montado
 
@@ -139,6 +139,17 @@ BETTER_AUTH_SECRET=<el segundo>
 ADMIN_EMAIL=<tu correo de admin>
 ADMIN_PASSWORD=<el tercero>
 ADMIN_NAME=Nelson
+
+# Los archivos de docker compose (relativos a infra/). Los usan los scripts de respaldo.
+COMPOSE_FILE=docker-compose.yml:docker-compose.vps.yml
+
+# Respaldos (paso 12): tal cual vienen de .env.example.
+RESTIC_REPOSITORY=/var/backups/dentalware/restic
+RESTIC_PASSWORD_FILE=/etc/dentalware/restic-password
+BACKUP_LOCAL_DIR=/var/backups/dentalware
+BACKUP_HEALTHCHECK_URL=
+BACKUP_CHECK_HEALTHCHECK_URL=
+BACKUP_DRILL_HEALTHCHECK_URL=
 ```
 
 - Sin espacios alrededor del `=`, ni comillas.
@@ -312,46 +323,62 @@ Entra como admin y completa **Configuración**, en este orden:
 
 ## Paso 12 — Respaldos
 
-**Provisionales** (desde hoy hasta que se mergee el PR 2): copia diaria en el VPS y copia semanal a tu PC.
+Un respaldo diario cifrado con restic, en el propio VPS: la BD, las fotos y la configuración. Además, una verificación semanal y un simulacro de recuperación cada mes, programados con timers de systemd. Qué hace cada uno, la retención y cómo vigilarlos están en [`respaldos.md`](respaldos.md).
+
+**12.1.** La contraseña de restic. Cifra los respaldos: **sin ella no se pueden leer**.
 
 ```bash
-sudo mkdir -p /opt/dentalware-backups
-echo 'BACKUP_DIR=/opt/dentalware-backups' >> /opt/dentalware/infra/.env
-
-sudo tee /etc/systemd/system/dentalware-backup.service > /dev/null <<'EOF'
-[Unit]
-Description=Respaldo diario de Dentalware (provisional)
-Requires=docker.service
-After=docker.service
-[Service]
-Type=oneshot
-ExecStart=/opt/dentalware/infra/backup.sh
-EOF
-sudo tee /etc/systemd/system/dentalware-backup.timer > /dev/null <<'EOF'
-[Unit]
-Description=Respaldo diario de Dentalware a las 03:00
-[Timer]
-OnCalendar=*-*-* 03:00:00 America/Guayaquil
-Persistent=true
-[Install]
-WantedBy=timers.target
-EOF
-sudo systemctl daemon-reload
-sudo systemctl enable --now dentalware-backup.timer
-sudo systemctl start dentalware-backup.service     # el primero, ahora
-journalctl -u dentalware-backup -n 5               # «backup ok: db_… uploads_…»
-ls -lh /opt/dentalware-backups
+sudo install -d -m 700 /etc/dentalware
+sudo sh -c 'umask 077; openssl rand -hex 32 > /etc/dentalware/restic-password'
+sudo cat /etc/dentalware/restic-password      # cópiala ya a tu gestor de contraseñas
 ```
 
-Una vez por semana, **desde tu PC**, trae la copia fuera del VPS:
+**12.2.** Comprueba que `infra/.env` tiene las variables de los respaldos del paso 5 (`COMPOSE_FILE`, `RESTIC_*` y `BACKUP_*`):
 
 ```bash
-rsync -av --delete nelson@82.25.95.39:/opt/dentalware-backups/ ~/respaldos-dentalware/
+grep -E '^(COMPOSE_FILE|RESTIC_|BACKUP_)' /opt/dentalware/infra/.env
 ```
 
-Esas copias no están cifradas y llevan datos de pacientes: guárdalas en un disco cifrado.
+**12.3.** Ensayo, sin cambiar nada: dice qué haría y si falta algo.
 
-**Definitivos:** cuando se mergee el PR 2 de la Iteración 7 llegan restic con cifrado y Backblaze B2, avisos si fallan, el simulacro mensual y la guía de recuperación. Entonces se sustituyen los provisionales siguiendo `docs/operacion/respaldos.md`. Hasta haber pasado ese simulacro, nada de datos reales.
+```bash
+cd /opt/dentalware
+sudo infra/backup/install.sh --init --dry-run
+```
+
+**12.4.** La instalación. `--init` crea el repositorio de restic; solo hace falta la primera vez. El script copia las unidades a `/etc/systemd/system`, activa los tres timers y los muestra al final.
+
+```bash
+sudo infra/backup/install.sh --init
+# … dentalware-backup.timer, dentalware-backup-check.timer y dentalware-restore-drill.timer, con su próxima hora
+```
+
+**12.5.** Un atajo para consultar el repositorio con la misma versión de restic que los scripts:
+
+```bash
+cat >> ~/.bashrc <<'EOB'
+dwrestic() { sudo bash -c '. /opt/dentalware/infra/backup/lib.sh && load_config && restic_run -- "$@"' dwrestic "$@"; }
+EOB
+source ~/.bashrc
+```
+
+**12.6.** El primer respaldo y el primer simulacro, ahora. El simulacro necesita al menos un trabajo con una foto: el de prueba del paso 10 vale, porque cancelar un trabajo no lo borra.
+
+```bash
+sudo systemctl start dentalware-backup.service
+journalctl -u dentalware-backup -n 5               # «Respaldo correcto: snapshot …»
+dwrestic snapshots                                 # un snapshot, host dentalware, etiqueta diario
+sudo systemctl start dentalware-restore-drill.service
+journalctl -u dentalware-restore-drill -n 15       # «Simulacro correcto: …»
+```
+
+Si algo falla, el log dice qué. Corrígelo y repite el paso. Con los dos en verde, ya puedes cargar datos reales.
+
+**12.7.** Opcional: la copia del repositorio a tu PC, una vez por semana. Ver «Copia en tu PC» en [`respaldos.md`](respaldos.md).
+
+Si algún día hay que recuperar algo (una BD estropeada, fotos borradas o el VPS entero), sigue [`recuperacion.md`](recuperacion.md).
+
+> **Si ya tenías los respaldos provisionales** de una versión anterior de esta guía (copias en `/opt/dentalware-backups`): haz este paso justo después del `git pull` que los quita. `install.sh` sustituye `dentalware-backup.service` y `.timer`. Quita la línea `BACKUP_DIR=` de `infra/.env`. Cuando el primer respaldo nuevo salga «Respaldo correcto», borra las copias viejas, que no estaban cifradas: `sudo rm -rf /opt/dentalware-backups` en el VPS y `rm ~/respaldos-dentalware/db_*.dump ~/respaldos-dentalware/uploads_*.tgz` en tu PC.
 
 ## Paso 13 — Instalar la app en los celulares
 
@@ -375,6 +402,8 @@ Haz una captura de cada uno para cerrar el issue.
 ```bash
 cd /opt/dentalware
 sudo systemctl start dentalware-backup.service      # respaldo antes de tocar nada
+journalctl -u dentalware-backup -n 3                # «Respaldo correcto: snapshot …»: anota el id
+git status --short                                  # vacío: nada cambiado a mano en el repo
 git pull
 # Si el Caddyfile del repo cambió, regenera el del VPS (paso 6.2):
 git diff --stat HEAD@{1} -- infra/Caddyfile
@@ -382,6 +411,9 @@ git diff --stat HEAD@{1} -- infra/Caddyfile
 dw up -d --build
 dw ps                                               # healthy
 dw logs api --tail 20
+# Los respaldos: copia de nuevo las unidades si cambiaron y deja los timers activos.
+sudo infra/backup/install.sh
+systemctl list-timers --all 'dentalware-*'         # los tres timers, con su próxima hora
 ```
 
 - Las migraciones de la base de datos se aplican solas al arrancar la API.
@@ -396,7 +428,7 @@ git checkout <commit-anterior>
 dw up -d --build
 ```
 
-Si la versión nueva ya migró la base de datos, volver atrás el código no basta: restaura el respaldo de antes de actualizar.
+Si la versión nueva ya migró la base de datos, volver atrás el código no basta: restaura el respaldo de antes de actualizar (el snapshot que anotaste) siguiendo [`recuperacion.md`](recuperacion.md), caso 1, que explica en qué orden hacerlo cuando hay migraciones de por medio.
 
 ## Mantenimiento y problemas frecuentes
 
@@ -414,6 +446,8 @@ Si la versión nueva ya migró la base de datos, volver atrás el código no bas
 | 413 al subir una foto | falta `client_max_body_size 30m` en el sitio de nginx (paso 8.1) |
 | «Demasiados intentos» en el login para todos | falta `trusted_proxies` en `Caddyfile.vps` (paso 6.2) |
 | El QR de la orden apunta a otro sitio | `PUBLIC_URL` mal puesto: corrígelo y `dw up -d --build` |
+| Estado de los respaldos | `systemctl list-timers --all 'dentalware-*'`, `systemctl list-units --failed 'dentalware-*'`, `journalctl -u dentalware-backup -n 20` ([`respaldos.md`](respaldos.md)) |
+| Recuperar la BD, fotos o el VPS | [`recuperacion.md`](recuperacion.md) |
 
 ## Lista final
 
@@ -423,6 +457,8 @@ Si la versión nueva ya migró la base de datos, volver atrás el código no bas
 - [ ] `dw ps`: los tres contenedores sanos.
 - [ ] HTTPS válido y renovación automática del certificado.
 - [ ] Admin creado y laboratorio configurado.
-- [ ] Respaldo provisional diario funcionando y copiado a tu PC.
+- [ ] Contraseña de restic en `/etc/dentalware/restic-password` (600) y copiada al gestor de contraseñas.
+- [ ] `systemctl list-timers --all 'dentalware-*'`: los tres timers (respaldo diario, verificación semanal y simulacro mensual) activos.
+- [ ] Primer respaldo «Respaldo correcto» y `dwrestic snapshots` con un snapshot.
 - [ ] App instalada y probada en un Android y un iPhone.
-- [ ] **Antes de datos reales:** respaldos definitivos (PR 2) y simulacro de recuperación pasado.
+- [ ] **Antes de datos reales:** simulacro de recuperación pasado («Simulacro correcto», paso 12.6). Opcional: primera copia del repositorio en tu PC.
