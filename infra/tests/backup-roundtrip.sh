@@ -161,6 +161,15 @@ snapshot_times() {
   test_restic snapshots --json | jq -r '.[].time' | cut -c1-16 | tr T ' ' | sort
 }
 
+# snapshots_since <epoch>: cuántos snapshots hay de ese momento en adelante.
+snapshots_since() {
+  local n=0 t
+  while IFS= read -r t; do
+    [ "$(date -d "$t" +%s)" -lt "$1" ] || n=$((n + 1))
+  done < <(test_restic snapshots --json | jq -r '.[].time')
+  echo "$n"
+}
+
 psql_value() {
   compose exec -T postgres psql -U dw -d dw -tAc "$1"
 }
@@ -264,6 +273,9 @@ touch -d '5 days ago' "$tmp/local/db/dentalware-viejo.dump"
 touch -d '1 day ago' "$tmp/local/db/dentalware-ayer.dump"
 
 # --- Respaldo ------------------------------------------------------------------------------
+# Los snapshots de esta corrida son los posteriores a este momento (no «los de hoy» por fecha UTC,
+# que fallaría si la prueba cruzara la medianoche UTC).
+run_start="$(date +%s)"
 echo "Respaldando..."
 if ! run_script "$tmp/.env" "$root/infra/backup/backup.sh" >"$tmp/backup1.log"; then
   cat "$tmp/backup1.log" >&2
@@ -566,9 +578,9 @@ if grep -q '/fail' "$tmp/hc.log"; then fail "un respaldo correcto no debe avisar
 # Van tres respaldos correctos hoy. Lo de los últimos KEEP_WITHIN (3 días) se conserva entero: un
 # respaldo a mano durante el día nunca borra el de las 03:00.
 snapshot_times >"$tmp/snapshots.txt"
-today_count="$(grep -c "^$(date -u +%F) " "$tmp/snapshots.txt" || true)"
-[ "$today_count" = "3" ] ||
-  fail "tras tres respaldos del mismo día deben quedar los 3 snapshots de hoy (quedan ${today_count})"
+run_count="$(snapshots_since "$run_start")"
+[ "$run_count" = "3" ] ||
+  fail "tras tres respaldos del mismo día deben quedar los 3 snapshots de hoy (quedan ${run_count})"
 # Antes de esa ventana manda 7/4/12: del día de hace 20 días queda solo el último, así que
 # `restic forget` corre. El de hace 30 días se queda (último de su día y de su semana).
 ! grep -qx "${old_day} 01:00" "$tmp/snapshots.txt" ||
