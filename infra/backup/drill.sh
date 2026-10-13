@@ -10,7 +10,9 @@
 #   4. Comprueba que 5 adjuntos al azar del dump están en los archivos restaurados con el tamaño
 #      que dice la BD.
 # A producción solo la lee (docker compose exec postgres psql). Todo lo temporal (contenedor
-# dw-drill-pg-*, red dw-drill-net-* y la carpeta con el dump y las fotos) se borra al terminar.
+# dw-drill-pg-*, red dw-drill-net-*, volumen dw-drill-data-* con los datos de Postgres y la
+# carpeta con el dump y las fotos) se borra al terminar; lo que dejara un simulacro anterior
+# interrumpido (SIGKILL, corte de luz) lo barre el siguiente al empezar.
 #
 # Uso: infra/backup/drill.sh (sin argumentos; lo programa systemd el día 1 de cada mes).
 # DRILL_SAMPLE="<storage_path> ..." sustituye la muestra al azar (para probar el simulacro).
@@ -34,9 +36,13 @@ JOB_LOG=""
 work=""
 pg_name="dw-drill-pg-$$"
 net_name="dw-drill-net-$$"
+# Los datos del Postgres temporal (la BD restaurada, en claro) van en volúmenes con nombre: la
+# imagen declara VOLUME para ellos, y uno anónimo sobreviviría a `docker rm -f`.
+data_volumes=()
 cleanup() {
-  docker rm -f "$pg_name" >/dev/null 2>&1 || true
+  docker rm -fv "$pg_name" >/dev/null 2>&1 || true
   docker network rm "$net_name" >/dev/null 2>&1 || true
+  [ "${#data_volumes[@]}" -eq 0 ] || docker volume rm "${data_volumes[@]}" >/dev/null 2>&1 || true
   [ -z "$work" ] || rm -rf "$work"
   rm -f "$JOB_LOG"
 }
@@ -49,7 +55,21 @@ job_log_start
 take_lock "Simulacro omitido"
 trap 'on_job_error "el simulacro" $LINENO' ERR
 
+# Con el lock tomado no corre ningún otro simulacro: todo dw-drill-* que exista es de uno
+# interrumpido, y lleva una copia en claro de la BD.
+sweep_old_drills() {
+  local old
+  old="$(docker ps -aq --filter name=^dw-drill-pg-)"
+  [ -z "$old" ] || xargs docker rm -fv <<<"$old" >/dev/null
+  old="$(docker network ls -q --filter name=^dw-drill-net-)"
+  [ -z "$old" ] || xargs docker network rm <<<"$old" >/dev/null
+  old="$(docker volume ls -q --filter name=^dw-drill-data-)"
+  [ -z "$old" ] || xargs docker volume rm <<<"$old" >/dev/null
+  find "$BACKUP_LOCAL_DIR" -mindepth 1 -maxdepth 1 -name 'simulacro.*' -exec rm -rf {} +
+}
+
 log "Simulacro de recuperación de ${COMPOSE_PROJECT_NAME}: inicio."
+sweep_old_drills
 use_healthcheck BACKUP_DRILL_HEALTHCHECK_URL
 hc_ping start
 
@@ -82,12 +102,19 @@ fi
 pg_image="$(docker inspect -f '{{.Config.Image}}' "$pg_container")"
 log "Levantando un Postgres temporal (${pg_image}) sin puertos en el host..."
 docker network create --internal "$net_name" >/dev/null
+volume_paths="$(docker image inspect -f '{{range $path, $_ := .Config.Volumes}}{{println $path}}{{end}}' "$pg_image")"
+volume_args=()
+while IFS= read -r path; do
+  [ -n "$path" ] || continue
+  data_volumes+=("dw-drill-data-$$-${#data_volumes[@]}")
+  volume_args+=(-v "${data_volumes[-1]}:${path}")
+done <<<"$volume_paths"
 # Contraseña de un solo uso: va por el entorno de `docker run`, nunca en la línea de órdenes, y
 # sustituye a la de producción que cargó load_config.
 POSTGRES_PASSWORD="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')" \
   docker run -d --rm --name "$pg_name" --network "$net_name" \
   -e POSTGRES_PASSWORD -e POSTGRES_USER="$POSTGRES_USER" -e POSTGRES_DB="$POSTGRES_DB" -e TZ=UTC \
-  "$pg_image" >/dev/null
+  "${volume_args[@]}" "$pg_image" >/dev/null
 # Por TCP dentro del contenedor: durante su arranque inicial solo escucha en el socket, y ahí
 # pg_isready ya respondería antes de que esté listo.
 ready=0
@@ -122,9 +149,12 @@ drill_psql() {
     docker exec -i "$pg_name" psql -X -q -v ON_ERROR_STOP=1 -tA "$@" -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 }
 
+# prod_psql <sql> [-v nombre=valor...]: consulta (solo lectura) la BD de producción.
 prod_psql() {
-  printf '%s\n' "$1" |
-    compose exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+  local sql="$1"
+  shift
+  printf '%s\n' "$sql" |
+    compose exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -tA "$@" -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 }
 
 # --- 3. Conteos frente a producción ----------------------------------------------------------
@@ -132,7 +162,7 @@ problems=0
 declare -A restored_count
 for table in "${DRILL_TABLES[@]}"; do
   restored="$(drill_psql "select count(*) from ${table}")"
-  before="$(prod_psql "select count(*) from ${table} where created_at <= '${dump_time}'::timestamptz")"
+  before="$(prod_psql "select count(*) from ${table} where created_at <= :'t'::timestamptz" -v "t=${dump_time}")"
   now="$(prod_psql "select count(*) from ${table}")"
   restored_count[$table]="$restored"
   if [ "$restored" -eq 0 ]; then

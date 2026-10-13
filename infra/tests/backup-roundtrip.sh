@@ -45,6 +45,9 @@ cleanup() {
   [ -n "$hc_pid" ] && kill "$hc_pid" 2>/dev/null || true
   compose down -v --remove-orphans >/dev/null 2>&1 || true
   docker volume rm "${project}-otro_uploads" dw-no-tocar_uploads >/dev/null 2>&1 || true
+  docker rm -f dw-drill-pg-999999 >/dev/null 2>&1 || true
+  docker network rm dw-drill-net-999999 >/dev/null 2>&1 || true
+  docker volume rm dw-drill-data-999999 >/dev/null 2>&1 || true
   rm -rf "$tmp" "$repo" "$repo_vacio" "$no_tocar"
 }
 trap cleanup EXIT
@@ -362,8 +365,9 @@ wait "$p1" || rc1=$?
 wait "$p2" || rc2=$?
 codes="$(printf '%s\n' "$rc1" "$rc2" | sort -n | tr '\n' ' ')"
 [ "$codes" = "0 75 " ] || fail "dos respaldos a la vez deben salir 0 y 75 (salieron ${rc1} y ${rc2})"
-cat "$tmp/par1.log" "$tmp/par2.log" | grep -q 'ya hay un respaldo o una restauración en curso' ||
-  fail "el respaldo bloqueado debe decir «ya hay un respaldo o una restauración en curso»"
+lock_message='ya hay otro trabajo de respaldo en curso (respaldo, restauración, verificación o simulacro)'
+cat "$tmp/par1.log" "$tmp/par2.log" | grep -qF "$lock_message" ||
+  fail "el respaldo bloqueado debe decir «${lock_message}»"
 
 # --- Restauración durante un respaldo ------------------------------------------------------
 echo "Restaurar con un respaldo en curso..."
@@ -375,8 +379,8 @@ run_script "$tmp/.env" "$root/infra/backup/restore.sh" --snapshot latest 8>&- \
   >"$tmp/restore-bloqueado.log" || rc=$?
 exec 8>&-
 [ "$rc" = "75" ] || fail "restaurar con un respaldo en curso debe salir con 75 (salió ${rc})"
-grep -q 'en curso' "$tmp/restore-bloqueado.log" ||
-  fail "la restauración bloqueada debe decir que hay un respaldo en curso"
+grep -qF "$lock_message" "$tmp/restore-bloqueado.log" ||
+  fail "la restauración bloqueada debe decir «${lock_message}»"
 [ "$(counts)" = "$counts_locked" ] || fail "la restauración bloqueada tocó la BD"
 
 # --- Verificación semanal (check.sh) ------------------------------------------------------
@@ -406,6 +410,15 @@ rm -rf "$tmp/repo-roto"
 # --- Simulacro mensual (drill.sh) ---------------------------------------------------------
 # Lo creado después del snapshot no está en él: el simulacro lo tiene en cuenta y pasa.
 echo "Simulacro de recuperación..."
+# Volúmenes sin contenedor de antes del simulacro: uno nuevo sería el PGDATA (anónimo) del Postgres
+# temporal, una copia en claro de la BD.
+docker volume ls -q --filter dangling=true | sort >"$tmp/volumenes-antes.txt"
+# Restos de un simulacro matado (SIGKILL) a medias: el siguiente los barre.
+docker network create --internal dw-drill-net-999999 >/dev/null
+docker volume create dw-drill-data-999999 >/dev/null
+docker run -d --name dw-drill-pg-999999 --network dw-drill-net-999999 \
+  -v dw-drill-data-999999:/data "$HELPER_IMAGE" sleep 600 >/dev/null
+mkdir -p "$tmp/local/simulacro.viejo"
 create_clinic "tras-respaldo-$suffix" >/dev/null
 counts_prod="$(counts)"
 if ! run_script "$tmp/.env" "$root/infra/backup/drill.sh" >"$tmp/drill.log"; then
@@ -424,8 +437,16 @@ grep -qE 'adjuntos comprobados: [1-5]\b' "$tmp/drill.log" ||
 drill_leftovers() {
   docker ps -aq --filter name=dw-drill
   docker network ls -q --filter name=dw-drill
+  docker volume ls -q --filter name=dw-drill
+  docker volume ls -q --filter dangling=true | sort | comm -13 "$tmp/volumenes-antes.txt" -
   find "$tmp/local" -mindepth 1 -maxdepth 1 -name 'simulacro.*'
 }
+old_leftovers="$(docker ps -aq --filter name=dw-drill-pg-999999
+  docker network ls -q --filter name=dw-drill-net-999999
+  docker volume ls -q --filter name=dw-drill-data-999999
+  find "$tmp/local" -maxdepth 1 -name simulacro.viejo)"
+[ -z "$old_leftovers" ] ||
+  fail "el simulacro no barrió los restos de uno interrumpido: $(tr '\n' ' ' <<<"$old_leftovers")"
 [ -z "$(drill_leftovers)" ] || fail "el simulacro dejó restos: $(drill_leftovers | tr '\n' ' ')"
 
 # Con una muestra que apunta a un adjunto que no está, el simulacro falla y lo nombra.
@@ -465,7 +486,7 @@ for script in check.sh drill.sh; do
   rc=0
   run_script "$tmp/.env" "$root/infra/backup/$script" 8>&- >"$tmp/bloqueado.log" || rc=$?
   [ "$rc" = "75" ] || fail "${script} con un respaldo en curso debe salir con 75 (salió ${rc})"
-  grep -q 'en curso' "$tmp/bloqueado.log" || fail "${script} bloqueado debe decir que hay algo en curso"
+  grep -qF "$lock_message" "$tmp/bloqueado.log" || fail "${script} bloqueado debe decir «${lock_message}»"
 done
 exec 8>&-
 
@@ -578,6 +599,9 @@ fi
 echo "Simulacro con adjuntos que faltan en el respaldo..."
 other_path="$(psql_value "select storage_path from attachments where storage_path <> '${storage_path}' limit 1")"
 [ -n "$other_path" ] || abort "no hay una segunda foto para la prueba"
+attachments_total="$(psql_value "select count(*) from attachments")"
+[ "$attachments_total" -le 5 ] ||
+  abort "hay ${attachments_total} adjuntos: la muestra al azar del simulacro (5) no los abarcaría todos"
 docker run --rm -v "${project}_uploads:/data" "$HELPER_IMAGE" \
   sh -c "rm '/data/${storage_path}' && printf x >'/data/${other_path}'"
 run_script "$tmp/.env" "$root/infra/backup/backup.sh" >"$tmp/backup-incompleto.log" ||
@@ -587,6 +611,8 @@ if run_script "$tmp/.env" "$root/infra/backup/drill.sh" >"$tmp/drill-incompleto.
 fi
 grep -q "falta.*${storage_path}" "$tmp/drill-incompleto.log" ||
   fail "drill.sh debe decir qué adjunto falta: $(tail -n 8 "$tmp/drill-incompleto.log")"
+grep -q "Adjuntos comprobados: ${attachments_total}\." "$tmp/drill-incompleto.log" ||
+  fail "el simulacro debe comprobar los ${attachments_total} adjuntos (muestra de 5)"
 grep -q "${other_path}.*mide 1 bytes" "$tmp/drill-incompleto.log" ||
   fail "drill.sh debe decir qué adjunto no mide lo que dice la BD: $(tail -n 8 "$tmp/drill-incompleto.log")"
 [ -z "$(drill_leftovers)" ] || fail "el simulacro fallido dejó restos: $(drill_leftovers | tr '\n' ' ')"
@@ -594,6 +620,8 @@ grep -q "${other_path}.*mide 1 bytes" "$tmp/drill-incompleto.log" ||
 # --- Retención fijada -----------------------------------------------------------------------
 [ "$KEEP_DAILY $KEEP_WEEKLY $KEEP_MONTHLY $LOCAL_KEEP_DAYS" = "7 4 12 3" ] ||
   fail "la retención debe ser 7 diarias, 4 semanales, 12 mensuales y 3 días de dumps locales"
+grep -qx 'DRILL_SAMPLE_SIZE=5' "$root/infra/backup/drill.sh" ||
+  fail "el simulacro debe comprobar 5 adjuntos al azar (DRILL_SAMPLE_SIZE=5)"
 
 # --- El entorno de quien corre la prueba no llegó a los scripts ----------------------------
 [ ! -e "$no_tocar" ] || fail "un script usó RESTIC_REPOSITORY o BACKUP_LOCAL_DIR del entorno"

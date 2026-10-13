@@ -86,7 +86,7 @@ secure_local_dir() {
 take_lock() {
   exec 9>"$BACKUP_LOCAL_DIR/.lock"
   if ! flock -n 9; then
-    log "${1}: ya hay un respaldo o una restauración en curso."
+    log "${1}: ya hay otro trabajo de respaldo en curso (respaldo, restauración, verificación o simulacro)."
     exit 75
   fi
 }
