@@ -446,6 +446,8 @@ dw up -d --build
 2. Los pasos 3 y 4 del caso 1 de [`recuperacion.md`](recuperacion.md), con `--snapshot <id anotado>`. Paran la API, guardan la BD actual con `pg_dump`, la borran, restauran el snapshot sobre una BD vacía y arrancan la API vieja. Termina con `dw up -d`, que pone también la web vieja.
 3. `dw ps` y la lista de verificación de `recuperacion.md`.
 
+En los dos casos, el repo queda en un commit suelto (*detached HEAD*), y el `git pull` de la próxima actualización fallaría. Cuando la versión nueva esté corregida en `main`, vuelve con `git checkout main` y sigue «Actualizar a una versión nueva».
+
 ## Mantenimiento y problemas frecuentes
 
 | Qué | Cómo |

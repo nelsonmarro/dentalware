@@ -580,7 +580,7 @@ if grep -q '/fail' "$tmp/hc.log"; then fail "un respaldo correcto no debe avisar
 snapshot_times >"$tmp/snapshots.txt"
 run_count="$(snapshots_since "$run_start")"
 [ "$run_count" = "3" ] ||
-  fail "tras tres respaldos del mismo día deben quedar los 3 snapshots de hoy (quedan ${run_count})"
+  fail "tras tres respaldos del mismo día deben quedar los 3 snapshots de la corrida (quedan ${run_count})"
 # Antes de esa ventana manda 7/4/12: del día de hace 20 días queda solo el último, así que
 # `restic forget` corre. El de hace 30 días se queda (último de su día y de su semana).
 ! grep -qx "${old_day} 01:00" "$tmp/snapshots.txt" ||

@@ -61,7 +61,11 @@ Para una BD corrupta o un error humano: un trabajo, un pago o una clínica borra
    dw exec -T postgres pg_dump -U dentalware -d dentalware -Fc |
      sudo sh -c 'umask 077; cat > /var/backups/dentalware/db/antes-de-borrar-$(date +%F-%H%M%S).dump'
    sudo ls -l /var/backups/dentalware/db/          # la copia, con su tamaño
+   sudo cat /var/backups/dentalware/db/antes-de-borrar-<fecha>.dump |
+     dw exec -T postgres pg_restore -l >/dev/null && echo "copia válida"
    ```
+
+   **Si `pg_dump` dio un error, la copia pesa 0 o no sale «copia válida», no sigas:** el paso 4 borra la BD y no tiene vuelta. Con la BD corrupta puede que `pg_dump` no llegue a terminar; en ese caso, la única copia es el snapshot, y antes de borrar nada conviene apartar el volumen entero, si hay espacio en disco: `dw stop postgres` y `sudo cp -a /var/lib/docker/volumes/dentalware_pgdata /var/backups/dentalware/pgdata-antes-de-borrar`.
 
 4. Borra la BD y restaura el snapshot sobre una vacía. `restore.sh` levanta un Postgres nuevo, carga el dump, copia las fotos y arranca la API, que migra lo que haga falta:
 
