@@ -33,7 +33,7 @@ Todo va a un **repositorio de restic local**, `/var/backups/dentalware/restic`, 
 
 ## Retención
 
-- **Snapshots:** se conserva **todo lo de los últimos 3 días**, contados desde el snapshot más reciente. Así, un respaldo lanzado a mano (antes de una actualización o de una restauración) nunca borra el de las 03:00 del mismo día. Lo anterior pasa a la regla 7/4/12: el último de cada uno de los 7 días más recientes con respaldos, de cada una de las 4 últimas semanas y de cada uno de los 12 últimos meses. restic conserva un snapshot si lo pide cualquiera de las reglas, y mientras no haya 7 días de respaldos, también el más antiguo. Lo aplica `backup.sh` al terminar cada respaldo (`restic forget --keep-within 3d --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune`, valores en `infra/backup/restic.env`).
+- **Snapshots:** se conserva **todo lo de los últimos 3 días**, contados desde el snapshot más reciente. Un respaldo lanzado a mano nunca borra los de los 3 días anteriores a él (así, nunca el de las 03:00 del mismo día), pero sí adelanta ese corte, igual que el respaldo de la noche siguiente: un snapshot de hace algo más de 3 días que no fue el último de su día desaparece con él. Por eso, antes de restaurar se anota el id del snapshot y la BD actual se guarda con `pg_dump`, no con un respaldo (`recuperacion.md`, caso 1). Lo anterior pasa a la regla 7/4/12: el último de cada uno de los 7 días más recientes con respaldos, de cada una de las 4 últimas semanas y de cada uno de los 12 últimos meses. restic conserva un snapshot si lo pide cualquiera de las reglas, y mientras no haya 7 días de respaldos, también el más antiguo. Lo aplica `backup.sh` al terminar cada respaldo (`restic forget --keep-within 3d --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune`, valores en `infra/backup/restic.env`).
 - **Dumps locales:** los de más de 3 días en `db/` se borran en el respaldo siguiente. Eso incluye las copias `antes-de-restaurar-*` que deja una restauración: si quieres guardar una, muévela fuera de `db/`.
 
 ## Avisos
@@ -74,7 +74,7 @@ Si `journalctl` no muestra nada y avisa de que no tienes permiso para leer el di
 |---|---|---|
 | `ExecMainStatus=75` y «ya hay otro trabajo de respaldo en curso» | se omitió porque otro trabajo ocupaba el bloqueo | nada, si es raro; si no, lánzalo a mano |
 | `ERROR: …` con `Result=exit-code` | falló; las líneas de antes dicen por qué | corrige la causa y lánzalo a mano |
-| «el respaldo no tiene filas en cases» en el simulacro | la BD respaldada no tiene trabajos (por ejemplo, recién instalada) | crea un trabajo de prueba con foto, respalda y repite |
+| «el respaldo no tiene filas en cases» (o en `clinics` o `attachments`) en el simulacro | a la BD respaldada le faltan trabajos, clínicas o adjuntos (por ejemplo, recién instalada) | crea una clínica y un trabajo de prueba con una foto, respalda y repite |
 
 Para lanzar un trabajo a mano, con el mismo entorno que el timer, y ver cómo va:
 

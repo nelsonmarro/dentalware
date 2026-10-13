@@ -5,13 +5,14 @@ Qué hacer cuando se pierden datos: la base de datos (BD) se estropea o se borra
 | Qué pasó | Caso | Se pierde, como mucho | Tiempo objetivo |
 |---|---|---|---|
 | La BD está corrupta, o se borró o cambió algo por error | [1](#caso-1--la-bd-a-una-fecha) | lo hecho desde el respaldo elegido (24 h con el último) | 4 h |
-| Faltan fotos o adjuntos en el disco, pero la BD está bien | [2](#caso-2--archivos-borrados) | nada | 1 h |
+| Faltan fotos o adjuntos en el disco, pero la BD está bien | [2](#caso-2--archivos-borrados) | las fotos subidas después del último respaldo (24 h) | 1 h |
 | El VPS ya no existe o no arranca | [3](#caso-3--pérdida-total-del-vps) | hasta 7 días (riesgo aceptado, ver `respaldos.md`) | el día |
 
 Antes de empezar:
 
 - **Anota la hora.** Al terminar, apunta cuánto tardaste en el [registro](#registro-de-recuperaciones).
 - **Nunca `dw down -v`** ni `docker volume prune`: borran la BD y las fotos.
+- **No corras las pruebas de `infra/tests/` en el VPS**: el simulacro borra al empezar todo contenedor, red y volumen `dw-drill-*` del Docker del host, y las pruebas usan esos nombres (`respaldos.md`).
 - Trabaja en `/opt/dentalware`, con los atajos `dw` (paso 6.3 de `despliegue.md`) y `dwrestic` (paso 12.5).
 - Los scripts de restauración se ejecutan con `sudo`. Toman el mismo bloqueo que el respaldo, la verificación y el simulacro. Si uno está en curso, salen con código 75 sin tocar nada: «ya hay otro trabajo de respaldo en curso». Espera a que termine (`systemctl status dentalware-backup`) y repite.
 
@@ -29,69 +30,65 @@ Antes de empezar:
 
 - Las fotos subidas después del snapshot se quedan en el disco, sin trabajo que las use. No molestan.
 - La copia `antes-de-restaurar-*` se borra con los dumps locales, a los 3 días o poco más. Si la quieres guardar, muévela fuera de `db/`.
+- En el caso 1 y al volver atrás una versión, se usa siempre sobre una BD vacía ([por qué](#por-qué-se-restaura-sobre-una-bd-vacía)).
 
 Otros dos modos, que no tocan la BD:
 
 - `--solo-archivos <ruta>` devuelve solo los adjuntos que casan con `<ruta>` (caso 2).
 - `--con-config <carpeta>` deja la configuración respaldada en una carpeta nueva, para revisarla (caso 3).
 
-### Si hubo migraciones después del snapshot
+### Por qué se restaura sobre una BD vacía
 
-`restore.sh` restaura **encima** de la BD actual. Borra y vuelve a crear lo que está en el dump, pero deja lo que no está en él. Así, si después del snapshot llegó una versión con una migración nueva, la tabla nueva sobrevive a la restauración, y la API, al arrancar, intenta crearla otra vez y no arranca. Para saber si es tu caso, busca migraciones posteriores a la fecha del snapshot:
-
-```bash
-cd /opt/dentalware
-git log --oneline --since='<fecha del snapshot, AAAA-MM-DD>' -- apps/api/drizzle/
-```
-
-Si no sale nada, restaura normalmente. Si sale algo, restaura sobre una BD **vacía**, en este orden:
-
-```bash
-dw stop api                                      # 1. nadie escribe en la BD
-sudo systemctl start dentalware-backup.service   # 2. respaldo de la BD actual, por si acaso
-journalctl -u dentalware-backup -n 3             #    «Respaldo correcto: snapshot …»: anota el id
-dw rm -sf postgres                               # 3. borra la BD actual (ya respaldada)
-docker volume rm dentalware_pgdata
-sudo infra/backup/restore.sh --snapshot <id>     # 4. Postgres vacío + el snapshot; la API arranca
-dw up -d                                         # 5. el resto de servicios
-```
-
-El respaldo del paso 2 no borra ningún snapshot anterior: lo de los últimos 3 días se conserva entero (`respaldos.md`, «Retención»). Para deshacer, restaura ese snapshot igual que en el paso 4. En el paso 4, la API arranca con el código actual y migra la BD restaurada, que tiene el esquema del snapshot. No vuelvas atrás el código: el esquema viejo lo sube la propia API.
+`restore.sh` restaura **encima** de la BD que encuentra: borra y vuelve a crear lo que está en el dump, pero deja lo que no está en él. Si entre el snapshot y hoy se desplegó una versión con una migración nueva, su tabla sobrevive a la restauración. La API, al arrancar, intenta crearla otra vez y no arranca: `restore.sh` falla esperando a que la API esté sana, y `dw logs api` dice `already exists`. Saber de antemano si hubo una migración no es fiable, porque cuenta cuándo se desplegó y no cuándo se commiteó. Por eso, el caso 1 **siempre** borra antes la BD: sobre una BD vacía, la API arranca con el código actual y sube ella misma el esquema del snapshot.
 
 ## Caso 1 — La BD a una fecha
 
-Para una BD corrupta o un error humano: un trabajo, un pago o una clínica borrados o cambiados por error.
+Para una BD corrupta o un error humano: un trabajo, un pago o una clínica borrados o cambiados por error. Así se restauran solo los datos; para volver además a una versión anterior del programa, sigue «Volver atrás» en [`despliegue.md`](despliegue.md), que usa estos mismos pasos.
 
 1. Avisa al equipo de que no trabaje en Dentalware hasta que termines: lo que hagan se perderá.
-2. Elige el snapshot. Las horas salen en UTC (en Ecuador, 5 horas menos):
+2. Elige el snapshot y **anota su id**. Las horas salen en UTC (en Ecuador, 5 horas menos):
 
    ```bash
    cd /opt/dentalware
    dwrestic snapshots
    ```
 
-   Cada respaldo diario sale con su ID, su fecha, el host `dentalware` y la etiqueta `diario`. De los últimos 3 días están todos, también los lanzados a mano; de antes, uno por día durante 7 días con respaldos, y después uno por semana y uno por mes. Elige el último **anterior** al problema. Por ejemplo, si el borrado fue hoy a las 11:00, el de esta madrugada.
-3. Comprueba que no hubo [migraciones después del snapshot](#si-hubo-migraciones-después-del-snapshot). Si las hubo, sigue ese orden en vez del paso 4.
-4. Restaura:
+   Cada respaldo sale con su ID, su fecha, el host `dentalware` y la etiqueta `diario`. De los últimos 3 días están todos, también los lanzados a mano; de antes, el último de cada día durante 7 días con respaldos, y después uno por semana y uno por mes. Elige el último **anterior** al problema. Por ejemplo, si el borrado fue hoy a las 11:00, el de esta madrugada.
+3. Para la API y guarda la BD actual, para poder deshacer. Es un `pg_dump` y no un respaldo: un respaldo aplica la retención, y podría borrar un snapshot de hace 3 días que no fuera el último de su día, quizá el que vas a restaurar.
 
    ```bash
-   sudo infra/backup/restore.sh --snapshot <id>
-   # … «Restauración completa desde el snapshot <id>.»
-   dw ps                                            # api y postgres (healthy)
+   dw stop api
+   dw exec -T postgres pg_dump -U dentalware -d dentalware -Fc |
+     sudo sh -c 'umask 077; cat > /var/backups/dentalware/db/antes-de-borrar-$(date +%F-%H%M%S).dump'
+   sudo ls -l /var/backups/dentalware/db/          # la copia, con su tamaño
    ```
 
+4. Borra la BD y restaura el snapshot sobre una vacía. `restore.sh` levanta un Postgres nuevo, carga el dump, copia las fotos y arranca la API, que migra lo que haga falta:
+
+   ```bash
+   dw rm -sf postgres
+   docker volume rm dentalware_pgdata
+   sudo infra/backup/restore.sh --snapshot <id>
+   # … «Restauración completa desde el snapshot <id>.»
+   dw up -d
+   dw ps                                            # los tres (healthy)
+   ```
+
+   Aquí la copia `antes-de-restaurar-*` que deja `restore.sh` es la de la BD vacía: la buena es la `antes-de-borrar-*` del paso 3.
 5. Pasa la [lista de verificación](#lista-de-verificación-final). Después, avisa al equipo de qué se perdió: todo lo registrado desde la hora del snapshot.
 
-**Deshacer.** Para volver a la BD de antes de restaurar, sustitúyela por la copia `antes-de-restaurar-*`, con el mismo comando que usa `restore.sh`:
+**Deshacer.** Para volver a la BD de antes de restaurar, sustitúyela por la copia `antes-de-borrar-*`, con el mismo comando que usa `restore.sh`:
 
 ```bash
 sudo ls -lt /var/backups/dentalware/db/
 dw stop api
-sudo cat /var/backups/dentalware/db/antes-de-restaurar-<fecha>.dump |
+sudo cat /var/backups/dentalware/db/antes-de-borrar-<fecha>.dump |
   dw exec -T postgres pg_restore --clean --if-exists --no-owner --single-transaction \
     --exit-on-error -U dentalware -d dentalware
 dw up -d
 ```
+
+Las copias de `db/` se borran a los 3 días o poco más: si quieres guardar una, muévela fuera de `db/`.
 
 ## Caso 2 — Archivos borrados
 
@@ -132,14 +129,18 @@ Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `
 
 1. En hPanel › VPS › Administrar › Backups & Monitoring › Snapshots & Backups, elige la copia y pulsa «Restore». El VPS queda bloqueado mientras dura, de 10 minutos a unas horas, y no se puede cancelar. Si el VPS ya no existe, pide a soporte de Hostinger que restaure esa copia en el VPS nuevo.
 2. Entra por SSH y comprueba que todo arrancó: `dw ps` (los tres sanos), `systemctl list-timers 'dentalware-*'` y `https://dentalware.naphsoft.dev`.
-3. Si la copia del PC es **más nueva** que el backup de Hostinger, pon encima su último snapshot: aparta el repositorio viejo con `sudo mv /var/backups/dentalware/restic /var/backups/dentalware/restic.hostinger`, sigue los pasos 5, 10 y 11 de la ruta B y borra el repositorio apartado cuando hayas pasado la [lista de verificación](#lista-de-verificación-final).
+3. Si la copia del PC es **más nueva** que el backup de Hostinger, pon encima su último snapshot. La pila ya está arrancada, así que no se usa `dw create`:
+   1. Pon el código al día, porque la BD de la copia del PC puede ser de una versión posterior a la del disco de Hostinger: `cd /opt/dentalware && git pull && dw up -d --build`, y después `sudo infra/backup/install.sh`.
+   2. Aparta el repositorio viejo con `sudo mv /var/backups/dentalware/restic /var/backups/dentalware/restic.hostinger` y trae el del PC con el paso 5 de la ruta B.
+   3. Restaura su último snapshot con los pasos 2 a 4 del [caso 1](#caso-1--la-bd-a-una-fecha), sobre una BD vacía.
+   4. Cuando hayas pasado la [lista de verificación](#lista-de-verificación-final), borra el repositorio apartado: `sudo rm -rf /var/backups/dentalware/restic.hostinger`.
 4. Pasa la lista de verificación.
 
 ### Ruta B: VPS nuevo con la copia del PC
 
 1. **VPS nuevo.** Créalo en hPanel (o reinstala el sistema del que no arranca) y anota la IP. Entra como `nelson`, con `sudo`.
 2. **DNS ya.** En Porkbun, cambia el registro A de `dentalware` (y el AAAA, si lo tenías) a la IP nueva (paso 1 de `despliegue.md`). Hazlo ahora: la propagación tarda, y el certificado del paso 12 la necesita.
-3. **Sistema.** Firewall (paso 2) y Docker (paso 3). nginx con certbot, como en el VPS de antes: allí ya estaban por naphsoft, y su configuración no está en este respaldo.
+3. **Sistema.** Firewall (paso 2) y Docker (paso 3), y con Docker, `rsync` y `git`: `sudo pacman -Syu --needed rsync git` (en Arch, nunca `-S` sin `-yu`). nginx con certbot, como en el VPS de antes: allí ya estaban por naphsoft, y su configuración no está en este respaldo.
 4. **Repo.** Clónalo en `/opt/dentalware` (paso 4).
 5. **Repositorio de restic.** Súbelo desde tu PC a tu carpeta del VPS y, ya en él, muévelo a su sitio, solo para root:
 
@@ -188,7 +189,7 @@ Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `
    dwrestic snapshots
    ```
 
-10. **Construye sin arrancar.** Así la API no crea un esquema vacío antes de restaurar ([por qué](#si-hubo-migraciones-después-del-snapshot)):
+10. **Construye sin arrancar.** Así la API no crea un esquema vacío antes de restaurar ([por qué](#por-qué-se-restaura-sobre-una-bd-vacía)):
 
     ```bash
     dw create --build
@@ -250,16 +251,33 @@ Para no depender de la sesión SSH en una restauración larga, ábrela dentro de
 
 ## Si el VPS estuvo comprometido
 
-Si alguien entró en el VPS, el repositorio de restic local, los scripts, el `.env` y los timers pueden estar manipulados. Un snapshot reciente también: el intruso pudo respaldar datos alterados.
+Si alguien entró en el VPS, el repositorio de restic local, los scripts, el `.env` y los timers pueden estar manipulados. Un snapshot reciente también: el intruso pudo respaldar datos alterados. La contraseña de restic va aparte del resto de secretos: para restaurar hace falta **la vieja**, y solo después se cambia.
 
-1. **No restaures desde el repositorio del VPS.** Hazlo desde la copia de tu PC hecha antes del incidente, o desde un backup de Hostinger anterior (ruta A o B del caso 3). Usa un VPS reinstalado, no el comprometido.
-2. **Rota todos los secretos** antes de arrancar:
-   - `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET` y `ADMIN_PASSWORD` en el `infra/.env`, con `openssl rand` como en el paso 5 de `despliegue.md`. En el VPS nuevo, la BD se crea con la contraseña nueva, y al cambiar `BETTER_AUTH_SECRET` se cierran todas las sesiones.
-   - Las contraseñas de cada usuario: Configuración › Usuarios › editar › «Nueva contraseña».
-   - La contraseña de restic. Crea un repositorio **nuevo** en el VPS nuevo, con otra contraseña y `sudo infra/backup/install.sh --init`, y guarda la copia del PC con la que restauraste aparte, sin mezclarla.
-   - Las claves SSH que tuviera el VPS, la contraseña de `sudo` de `nelson` y el token de la API de Hostinger.
-3. **Revisa** el `.env` y la configuración recuperada línea a línea antes de usarlos.
-4. **Avisa:** hay datos de pacientes (LOPDP).
+1. **Restaura desde fuera del VPS comprometido.** Sigue la ruta B en un VPS reinstalado, con la copia de tu PC hecha **antes** del incidente. Si solo tienes un backup de Hostinger anterior al incidente:
+   1. restáuralo (ruta A, paso 1);
+   2. trae su repositorio a tu PC («Copia en tu PC» en `respaldos.md`);
+   3. reinstala el VPS y sigue la ruta B con esa copia.
+2. **Pasos 1 a 7 de la ruta B, con la contraseña de restic vieja** (la de esa copia, de tu gestor): sin ella el repositorio no se lee.
+3. **En el paso 8, rota los secretos del `.env` recuperado** antes de colocarlo, y revísalo línea a línea:
+   - `POSTGRES_PASSWORD` y `BETTER_AUTH_SECRET`, con `openssl rand` como en el paso 5 de `despliegue.md`. En el paso 11, `restore.sh` crea la BD nueva con la contraseña nueva (el dump no lleva contraseñas de Postgres). El `BETTER_AUTH_SECRET` nuevo cierra todas las sesiones.
+   - `ADMIN_PASSWORD` solo se usa al crear el admin: en una BD restaurada no cambia nada. La contraseña del admin se cambia en la app (punto 5).
+   - Guarda el `.env` nuevo en tu gestor.
+4. **Pasos 9 a 12 de la ruta B, y en el 13, un repositorio de restic nuevo** con contraseña nueva, en vez de seguir con el restaurado:
+
+   ```bash
+   sudo mv /var/backups/dentalware/restic /var/backups/dentalware/restic.anterior
+   sudo sh -c 'umask 077; openssl rand -hex 32 > /etc/dentalware/restic-password'
+   sudo cat /etc/dentalware/restic-password        # guárdala en tu gestor como la nueva
+   sudo infra/backup/install.sh --init --dry-run    # «Haría: restic init …»
+   sudo infra/backup/install.sh --init
+   sudo systemctl start dentalware-backup.service
+   journalctl -u dentalware-backup -n 5             # «Respaldo correcto: snapshot …»
+   ```
+
+   Con el repositorio apartado, `install.sh --init` no encuentra su `config` y crea uno nuevo; si siguiera ahí, intentaría leerlo con la contraseña nueva y fallaría. Cuando el primer respaldo nuevo esté en verde, borra el apartado (`sudo rm -rf /var/backups/dentalware/restic.anterior`). La copia buena sigue en tu PC, con la contraseña vieja: guarda las dos en el gestor, cada una con su etiqueta.
+5. **En la app:** cambia la contraseña de cada usuario, el admin incluido, en Configuración › Usuarios › editar › «Nueva contraseña».
+6. **Fuera de la app:** cambia las claves SSH que tuviera el VPS, la contraseña de `sudo` de `nelson` y el token de la API de Hostinger.
+7. **Avisa:** hay datos de pacientes (LOPDP).
 
 ## Registro de recuperaciones
 

@@ -420,15 +420,31 @@ systemctl list-timers --all 'dentalware-*'         # los tres timers, con su pr�
 - Si cambias `PUBLIC_URL`, hace falta `--build`, porque va dentro de la web.
 - En los celulares, la app se actualiza sola al cerrarla y volver a abrirla.
 
-**Volver atrás** si algo sale mal:
+**Volver atrás** si algo sale mal. Primero, mira si la versión nueva traía migraciones de la base de datos:
 
 ```bash
 git log --oneline -5
+git diff --stat <commit-anterior> HEAD -- apps/api/drizzle/   # vacío: no tocó la BD
+```
+
+**Sin migraciones**, basta con el código:
+
+```bash
 git checkout <commit-anterior>
 dw up -d --build
 ```
 
-Si la versión nueva ya migró la base de datos, volver atrás el código no basta: restaura el respaldo de antes de actualizar (el snapshot que anotaste) siguiendo [`recuperacion.md`](recuperacion.md), caso 1, que explica en qué orden hacerlo cuando hay migraciones de por medio.
+**Con migraciones**, la BD ya tiene el esquema nuevo y el código viejo no lo entiende: hay que volver también los datos, al snapshot que anotaste antes de actualizar. Se pierde lo registrado desde entonces. En este orden:
+
+1. El código viejo, construido sin arrancar nada:
+
+   ```bash
+   git checkout <commit-anterior>
+   dw build
+   ```
+
+2. Los pasos 3 y 4 del caso 1 de [`recuperacion.md`](recuperacion.md), con `--snapshot <id anotado>`. Paran la API, guardan la BD actual con `pg_dump`, la borran, restauran el snapshot sobre una BD vacía y arrancan la API vieja. Termina con `dw up -d`, que pone también la web vieja.
+3. `dw ps` y la lista de verificación de `recuperacion.md`.
 
 ## Mantenimiento y problemas frecuentes
 
