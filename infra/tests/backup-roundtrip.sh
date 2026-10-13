@@ -5,7 +5,9 @@
 # restaura con infra/backup/restore.sh y comprueba que todo vuelve: conteos, la foto byte a
 # byte y servida por la API. Prueba además la restauración de un solo archivo, la de la
 # configuración sin `.env` (pérdida total), el bloqueo ante dos respaldos a la vez, la
-# retención de los dumps locales y los avisos opcionales (inicio, éxito y fallo).
+# retención de los dumps locales y los avisos opcionales (inicio, éxito y fallo). Cubre también
+# la verificación semanal (check.sh) y el simulacro mensual (drill.sh) contra este proyecto
+# compose como «producción».
 # Sin red externa: el repositorio de restic es una carpeta temporal y los avisos llegan a un
 # servidor HTTP local.
 set -euo pipefail
@@ -17,6 +19,7 @@ port="${BACKUP_TEST_PORT:-13100}"
 base="http://127.0.0.1:${port}"
 tmp="$(mktemp -d)"
 repo="$(mktemp -d "${TMPDIR:-/tmp}/dw-restic-XXXXXX")"
+repo_vacio="$(mktemp -d "${TMPDIR:-/tmp}/dw-restic-vacio-XXXXXX")"
 outputs="$tmp/salidas.log"
 hc_pid=""
 failures=0
@@ -27,6 +30,8 @@ no_tocar="$(dirname "$repo")/dw-no-tocar-$$"
 export COMPOSE_PROJECT_NAME=dw-no-tocar COMPOSE_FILE=/no-existe/docker-compose.yml
 export RESTIC_REPOSITORY="$no_tocar" RESTIC_PASSWORD_FILE=/no-existe/restic-password
 export BACKUP_LOCAL_DIR="$no_tocar"
+export BACKUP_CHECK_HEALTHCHECK_URL=http://127.0.0.1:9/no-tocar
+export BACKUP_DRILL_HEALTHCHECK_URL=http://127.0.0.1:9/no-tocar DRILL_SAMPLE=no-tocar/nada.jpg
 
 # shellcheck source-path=SCRIPTDIR source=../backup/restic.env
 . "$root/infra/backup/restic.env"
@@ -40,7 +45,7 @@ cleanup() {
   [ -n "$hc_pid" ] && kill "$hc_pid" 2>/dev/null || true
   compose down -v --remove-orphans >/dev/null 2>&1 || true
   docker volume rm "${project}-otro_uploads" dw-no-tocar_uploads >/dev/null 2>&1 || true
-  rm -rf "$tmp" "$repo" "$no_tocar"
+  rm -rf "$tmp" "$repo" "$repo_vacio" "$no_tocar"
 }
 trap cleanup EXIT
 
@@ -110,6 +115,7 @@ run_script() {
   done
   env -u COMPOSE_PROJECT_NAME -u COMPOSE_FILE -u RESTIC_REPOSITORY -u RESTIC_PASSWORD_FILE \
     -u POSTGRES_USER -u POSTGRES_DB -u BACKUP_LOCAL_DIR -u BACKUP_HEALTHCHECK_URL \
+    -u BACKUP_CHECK_HEALTHCHECK_URL -u BACKUP_DRILL_HEALTHCHECK_URL -u DRILL_SAMPLE \
     -u RESTIC_IMAGE -u HELPER_IMAGE -u KEEP_DAILY -u KEEP_WEEKLY -u KEEP_MONTHLY \
     -u LOCAL_KEEP_DAYS DENTALWARE_ENV_FILE="$env_file" "${assigns[@]}" "$@" 2>&1 |
     tee -a "$outputs"
@@ -120,12 +126,14 @@ show() {
   sed 's/^/    | /' "$1"
 }
 
-# restic directo (sin lib.sh): la prueba mira el repositorio por su cuenta.
+# restic directo (sin lib.sh): la prueba mira el repositorio ($TEST_REPO, por omisión $repo)
+# por su cuenta.
 test_restic() {
+  local test_repo="${TEST_REPO:-$repo}"
   RESTIC_REPOSITORY=/repo RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
     RESTIC_CACHE_DIR=/tmp/restic-cache docker run --rm --user "$(id -u):$(id -g)" \
     -e RESTIC_REPOSITORY -e RESTIC_PASSWORD_FILE -e RESTIC_CACHE_DIR \
-    -v "$repo:/repo" -v "$tmp/restic-password:/run/secrets/restic-password:ro" \
+    -v "$test_repo:/repo" -v "$tmp/restic-password:/run/secrets/restic-password:ro" \
     "$RESTIC_IMAGE" "$@"
 }
 
@@ -189,6 +197,16 @@ compose run --rm --no-deps api node dist/scripts/seed.js >/dev/null 2>&1 || abor
 
 echo "Iniciando el repositorio de restic..."
 test_restic init >/dev/null || abort "restic init falló"
+
+# Un respaldo de la BD recién creada, aún sin trabajos, en otro repositorio: el simulacro sobre él
+# debe fallar (un respaldo sin datos no prueba nada).
+echo "Respaldando la BD vacía en otro repositorio..."
+TEST_REPO="$repo_vacio" test_restic init >/dev/null || abort "restic init del repositorio vacío falló"
+sed "s|^RESTIC_REPOSITORY=.*|RESTIC_REPOSITORY=${repo_vacio}|" "$tmp/.env" >"$tmp/vacio.env"
+if ! run_script "$tmp/vacio.env" "$root/infra/backup/backup.sh" >"$tmp/backup-vacio.log"; then
+  cat "$tmp/backup-vacio.log" >&2
+  abort "backup.sh de la BD vacía falló"
+fi
 
 echo "Creando datos por la API..."
 login
@@ -361,6 +379,96 @@ grep -q 'en curso' "$tmp/restore-bloqueado.log" ||
   fail "la restauración bloqueada debe decir que hay un respaldo en curso"
 [ "$(counts)" = "$counts_locked" ] || fail "la restauración bloqueada tocó la BD"
 
+# --- Verificación semanal (check.sh) ------------------------------------------------------
+echo "Verificación del repositorio..."
+if ! run_script "$tmp/.env" "$root/infra/backup/check.sh" >"$tmp/check.log"; then
+  cat "$tmp/check.log" >&2
+  fail "check.sh falló con el repositorio sano"
+fi
+show "$tmp/check.log"
+grep -q 'read-data-subset=5%' "$tmp/check.log" || fail "check.sh debe leer el 5 % de los datos"
+grep -q 'sin avisos' "$tmp/check.log" ||
+  fail "con BACKUP_CHECK_HEALTHCHECK_URL vacía, check.sh debe decir que no avisa"
+
+# Un repositorio al que le falta un paquete de datos no pasa la verificación.
+cp -a "$repo" "$tmp/repo-roto"
+pack="$(find "$tmp/repo-roto/data" -type f | head -n 1)"
+[ -n "$pack" ] || abort "el repositorio no tiene paquetes de datos"
+rm -f "$pack"
+sed "s|^RESTIC_REPOSITORY=.*|RESTIC_REPOSITORY=${tmp}/repo-roto|" "$tmp/.env" >"$tmp/roto.env"
+if run_script "$tmp/roto.env" "$root/infra/backup/check.sh" >"$tmp/check-roto.log"; then
+  fail "check.sh debe fallar con un repositorio al que le falta un paquete"
+fi
+grep -q 'ERROR: la verificación falló' "$tmp/check-roto.log" ||
+  fail "check.sh debe decir que la verificación falló: $(tail -n 5 "$tmp/check-roto.log")"
+rm -rf "$tmp/repo-roto"
+
+# --- Simulacro mensual (drill.sh) ---------------------------------------------------------
+# Lo creado después del snapshot no está en él: el simulacro lo tiene en cuenta y pasa.
+echo "Simulacro de recuperación..."
+create_clinic "tras-respaldo-$suffix" >/dev/null
+counts_prod="$(counts)"
+if ! run_script "$tmp/.env" "$root/infra/backup/drill.sh" >"$tmp/drill.log"; then
+  cat "$tmp/drill.log" >&2
+  fail "drill.sh falló con el respaldo sano"
+fi
+show "$tmp/drill.log"
+grep -q 'Simulacro correcto' "$tmp/drill.log" || fail "drill.sh debe terminar con «Simulacro correcto»"
+grep -q 'sin avisos' "$tmp/drill.log" ||
+  fail "con BACKUP_DRILL_HEALTHCHECK_URL vacía, drill.sh debe decir que no avisa"
+grep -qE 'adjuntos comprobados: [1-5]\b' "$tmp/drill.log" ||
+  fail "drill.sh debe decir cuántos adjuntos comprobó"
+[ "$(counts)" = "$counts_prod" ] || fail "el simulacro tocó la BD de producción (conteos $(counts))"
+
+# drill_leftovers: contenedores, redes o carpetas de trabajo que el simulacro dejó.
+drill_leftovers() {
+  docker ps -aq --filter name=dw-drill
+  docker network ls -q --filter name=dw-drill
+  find "$tmp/local" -mindepth 1 -maxdepth 1 -name 'simulacro.*'
+}
+[ -z "$(drill_leftovers)" ] || fail "el simulacro dejó restos: $(drill_leftovers | tr '\n' ' ')"
+
+# Con una muestra que apunta a un adjunto que no está, el simulacro falla y lo nombra.
+if run_script "$tmp/.env" DRILL_SAMPLE="no-existe/nada.jpg" "$root/infra/backup/drill.sh" \
+  >"$tmp/drill-falta.log"; then
+  fail "drill.sh debe fallar si un adjunto de la muestra no está en lo restaurado"
+fi
+grep -q 'no-existe/nada.jpg' "$tmp/drill-falta.log" ||
+  fail "drill.sh debe nombrar el adjunto que falta: $(tail -n 5 "$tmp/drill-falta.log")"
+[ -z "$(drill_leftovers)" ] || fail "el simulacro fallido dejó restos: $(drill_leftovers | tr '\n' ' ')"
+# La misma muestra con un adjunto que sí está pasa.
+run_script "$tmp/.env" DRILL_SAMPLE="$storage_path" "$root/infra/backup/drill.sh" \
+  >"$tmp/drill-muestra.log" || fail "drill.sh con DRILL_SAMPLE=${storage_path} debe pasar"
+
+# Si producción tiene filas de antes del snapshot que no están en él, el respaldo está incompleto.
+psql_value "insert into clinics (name, created_at) values ('Clínica antigua ${suffix}', '2000-01-01')" \
+  >/dev/null
+if run_script "$tmp/.env" "$root/infra/backup/drill.sh" >"$tmp/drill-menos.log"; then
+  fail "drill.sh debe fallar si el respaldo tiene menos clínicas que producción antes del snapshot"
+fi
+grep -q 'clinics' "$tmp/drill-menos.log" ||
+  fail "drill.sh debe nombrar la tabla con menos filas: $(tail -n 5 "$tmp/drill-menos.log")"
+psql_value "delete from clinics where name = 'Clínica antigua ${suffix}'" >/dev/null
+
+# Un respaldo sin trabajos no sirve de simulacro.
+if run_script "$tmp/vacio.env" "$root/infra/backup/drill.sh" >"$tmp/drill-vacio.log"; then
+  fail "drill.sh debe fallar con un respaldo sin trabajos"
+fi
+grep -q 'no tiene filas en cases' "$tmp/drill-vacio.log" ||
+  fail "drill.sh debe decir que el respaldo no tiene trabajos: $(tail -n 5 "$tmp/drill-vacio.log")"
+[ -z "$(drill_leftovers)" ] || fail "el simulacro fallido dejó restos: $(drill_leftovers | tr '\n' ' ')"
+
+# Con un respaldo o una restauración en curso, ni la verificación ni el simulacro corren.
+exec 8>"$tmp/local/.lock"
+flock -n 8 || abort "la prueba no pudo tomar el bloqueo de los respaldos"
+for script in check.sh drill.sh; do
+  rc=0
+  run_script "$tmp/.env" "$root/infra/backup/$script" 8>&- >"$tmp/bloqueado.log" || rc=$?
+  [ "$rc" = "75" ] || fail "${script} con un respaldo en curso debe salir con 75 (salió ${rc})"
+  grep -q 'en curso' "$tmp/bloqueado.log" || fail "${script} bloqueado debe decir que hay algo en curso"
+done
+exec 8>&-
+
 # --- El entorno manda sobre el .env (COMPOSE_PROJECT_NAME) --------------------------------
 echo "Proyecto de compose desde el entorno..."
 if run_script "$tmp/.env" COMPOSE_PROJECT_NAME="${project}-otro" \
@@ -436,6 +544,52 @@ if run_script "$tmp/hc-restic.env" "$root/infra/backup/backup.sh" >"$tmp/backup-
 fi
 [ "$(grep -c '/fail' "$tmp/hc.log")" = "1" ] ||
   fail "un fallo de restic debe avisar /fail una sola vez (llegaron $(grep -c '/fail' "$tmp/hc.log"))"
+
+# La verificación y el simulacro avisan a su propia URL, nunca a la del respaldo.
+hc_base="${hc_url%/ping/abc}"
+{
+  cat "$tmp/hc.env"
+  echo "BACKUP_CHECK_HEALTHCHECK_URL=${hc_base}/ping/check"
+  echo "BACKUP_DRILL_HEALTHCHECK_URL=${hc_base}/ping/drill"
+} >"$tmp/hc-jobs.env"
+: >"$tmp/hc.log"
+run_script "$tmp/hc-jobs.env" "$root/infra/backup/check.sh" >"$tmp/check-hc.log" ||
+  fail "check.sh con avisos falló"
+grep -q '^POST /ping/check/start ' "$tmp/hc.log" || fail "check.sh no avisó el inicio en su URL"
+grep -q '^POST /ping/check ' "$tmp/hc.log" || fail "check.sh no avisó el éxito en su URL"
+run_script "$tmp/hc-jobs.env" "$root/infra/backup/drill.sh" >"$tmp/drill-hc.log" ||
+  fail "drill.sh con avisos falló"
+grep -q '^POST /ping/drill/start ' "$tmp/hc.log" || fail "drill.sh no avisó el inicio en su URL"
+grep -qE '^POST /ping/drill .*trabajos' "$tmp/hc.log" || fail "drill.sh no avisó el éxito con los conteos"
+if grep -qE '/ping/abc|/fail' "$tmp/hc.log"; then
+  fail "check.sh y drill.sh correctos no deben avisar a la URL del respaldo ni /fail: $(cat "$tmp/hc.log")"
+fi
+: >"$tmp/hc.log"
+if run_script "$tmp/hc-jobs.env" DRILL_SAMPLE="no-existe/nada.jpg" "$root/infra/backup/drill.sh" \
+  >"$tmp/drill-hc-fail.log"; then
+  fail "drill.sh con un adjunto que falta debe fallar"
+fi
+[ "$(grep -c '^POST /ping/drill/fail .*no-existe/nada.jpg' "$tmp/hc.log")" = "1" ] ||
+  fail "un simulacro fallido debe avisar /fail una sola vez, con el adjunto que falta: $(cat "$tmp/hc.log")"
+
+# --- Un respaldo al que le faltan adjuntos ---------------------------------------------------
+# Se borra una foto del volumen y otra cambia de tamaño; el respaldo siguiente queda incompleto
+# y el simulacro (con su muestra al azar, que aquí abarca todos los adjuntos) lo detecta.
+echo "Simulacro con adjuntos que faltan en el respaldo..."
+other_path="$(psql_value "select storage_path from attachments where storage_path <> '${storage_path}' limit 1")"
+[ -n "$other_path" ] || abort "no hay una segunda foto para la prueba"
+docker run --rm -v "${project}_uploads:/data" "$HELPER_IMAGE" \
+  sh -c "rm '/data/${storage_path}' && printf x >'/data/${other_path}'"
+run_script "$tmp/.env" "$root/infra/backup/backup.sh" >"$tmp/backup-incompleto.log" ||
+  fail "el respaldo con adjuntos que faltan falló"
+if run_script "$tmp/.env" "$root/infra/backup/drill.sh" >"$tmp/drill-incompleto.log"; then
+  fail "drill.sh debe fallar si faltan adjuntos en el respaldo"
+fi
+grep -q "falta.*${storage_path}" "$tmp/drill-incompleto.log" ||
+  fail "drill.sh debe decir qué adjunto falta: $(tail -n 8 "$tmp/drill-incompleto.log")"
+grep -q "${other_path}.*mide 1 bytes" "$tmp/drill-incompleto.log" ||
+  fail "drill.sh debe decir qué adjunto no mide lo que dice la BD: $(tail -n 8 "$tmp/drill-incompleto.log")"
+[ -z "$(drill_leftovers)" ] || fail "el simulacro fallido dejó restos: $(drill_leftovers | tr '\n' ' ')"
 
 # --- Retención fijada -----------------------------------------------------------------------
 [ "$KEEP_DAILY $KEEP_WEEKLY $KEEP_MONTHLY $LOCAL_KEEP_DAYS" = "7 4 12 3" ] ||

@@ -1,0 +1,11 @@
+# Los domingos a las 05:00 de Ecuador, lejos del respaldo de las 03:00. Persistent: si el VPS
+# estaba apagado a esa hora, corre al arrancar.
+[Unit]
+Description=Dentalware: verificación de los respaldos los domingos a las 05:00 (America/Guayaquil)
+
+[Timer]
+OnCalendar=Sun *-*-* 05:00:00 America/Guayaquil
+Persistent=true
+
+[Install]
+WantedBy=timers.target

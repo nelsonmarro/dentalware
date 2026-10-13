@@ -1,5 +1,6 @@
 # shellcheck shell=bash
-# Funciones comunes de los respaldos (#111): las cargan backup.sh y restore.sh con `source`.
+# Funciones comunes de los respaldos (#111): las cargan backup.sh, restore.sh, check.sh,
+# drill.sh e install.sh con `source`.
 #
 # Configuración: infra/.env (o el archivo de DENTALWARE_ENV_FILE) y restic.env. Lo que ya está
 # en el entorno manda sobre los dos, como en docker compose; así se respetan COMPOSE_FILE y
@@ -57,7 +58,6 @@ load_config() {
   load_env_file "$BACKUP_SCRIPTS_DIR/restic.env"
   export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-dentalware}"
   export COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
-  BACKUP_HEALTHCHECK_URL="${BACKUP_HEALTHCHECK_URL:-}"
   # Volumen de adjuntos de docker compose: <proyecto>_uploads (en producción, dentalware_uploads).
   export UPLOADS_VOLUME="${COMPOSE_PROJECT_NAME}_uploads"
   cd "$INFRA_DIR" || die "no se puede entrar en ${INFRA_DIR}"
@@ -80,8 +80,9 @@ secure_local_dir() {
   chmod 700 "$BACKUP_LOCAL_DIR" "$BACKUP_LOCAL_DIR/db"
 }
 
-# take_lock <qué se omite>: un solo respaldo o restauración a la vez (el mismo bloqueo para los
-# dos). Si ya hay uno en curso, lo dice y sale con 75 (EX_TEMPFAIL) sin tocar nada.
+# take_lock <qué se omite>: un solo respaldo, restauración, verificación o simulacro a la vez (el
+# mismo bloqueo para todos). Si ya hay uno en curso, lo dice y sale con 75 (EX_TEMPFAIL) sin
+# tocar nada.
 take_lock() {
   exec 9>"$BACKUP_LOCAL_DIR/.lock"
   if ! flock -n 9; then
@@ -116,10 +117,39 @@ restic_run() {
     "${docker_args[@]}" "$RESTIC_IMAGE" "$@"
 }
 
-# hc_ping start|ok|fail [texto]: aviso opcional (healthchecks.io u otro). Sin
-# BACKUP_HEALTHCHECK_URL no hace nada. Un aviso que no llega no hace fallar el respaldo.
+# job_log_start: la salida del script va a stdout (journald) y a un archivo temporal
+# ($JOB_LOG), del que sale el resumen de un fallo para el aviso /fail. Quien lo llama borra
+# $JOB_LOG al salir.
+job_log_start() {
+  JOB_LOG="$(mktemp)"
+  exec > >(tee -a "$JOB_LOG") 2>&1
+}
+
+# on_job_error <qué> <línea>: trap de ERR de los trabajos programados (`set -E`). Dice qué falló
+# y avisa /fail con las últimas líneas del log. Con `set -E`, el trap también salta dentro de una
+# sustitución de comandos: ahí solo se sale, y avisa una sola vez el script, cuando la
+# sustitución le devuelve el error.
+on_job_error() {
+  local code=$? what="$1" line="$2"
+  [ "$BASH_SUBSHELL" -eq 0 ] || exit "$code"
+  trap - ERR
+  log "ERROR: ${what} falló (línea ${line}, código ${code})."
+  hc_ping fail "$(tail -n 20 "$JOB_LOG")"
+  exit "$code"
+}
+
+# use_healthcheck <VAR>: los avisos de este script (hc_ping) van a la URL de la variable <VAR>
+# (cada trabajo tiene la suya). Vacía, lo dice en el log y no avisa a nadie (decisión 10).
+use_healthcheck() {
+  HEALTHCHECK_URL="${!1:-}"
+  [ -n "$HEALTHCHECK_URL" ] || log "${1} vacía: sin avisos (el resultado queda solo en este log)."
+}
+
+# hc_ping start|ok|fail [texto]: aviso opcional (healthchecks.io u otro) a la URL que eligió
+# use_healthcheck. Sin URL no hace nada. Un aviso que no llega no hace fallar el trabajo.
 hc_ping() {
-  local kind="$1" body="${2:-}" url="${BACKUP_HEALTHCHECK_URL%/}"
+  local kind="$1" body="${2:-}" url="${HEALTHCHECK_URL:-}"
+  url="${url%/}"
   [ -n "$url" ] || return 0
   case "$kind" in
     start) url="$url/start" ;;

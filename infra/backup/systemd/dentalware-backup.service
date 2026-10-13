@@ -1,0 +1,16 @@
+# Respaldo diario de Dentalware (#111). Lo instala infra/backup/install.sh, que sustituye
+# @DENTALWARE_DIR@ por la ruta del repo. Log: journalctl -u dentalware-backup
+[Unit]
+Description=Dentalware: respaldo diario (Postgres, fotos y configuración con restic)
+Documentation=file:@DENTALWARE_DIR@/docs/operacion/respaldos.md
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=@DENTALWARE_DIR@/infra
+ExecStart=@DENTALWARE_DIR@/infra/backup/backup.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=2h

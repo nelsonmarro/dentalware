@@ -17,34 +17,20 @@ require_vars POSTGRES_USER POSTGRES_DB RESTIC_REPOSITORY RESTIC_PASSWORD_FILE BA
 
 secure_local_dir
 
-# El log va a stdout (journald) y a un archivo temporal, del que sale el resumen de un fallo.
-log_file="$(mktemp)"
+JOB_LOG=""
 dump=""
 cleanup() {
-  rm -f "$log_file"
+  rm -f "$JOB_LOG"
   [ -z "$dump" ] || rm -f "$dump.partial"
 }
 trap cleanup EXIT
-exec > >(tee -a "$log_file") 2>&1
+job_log_start
 
 take_lock "Respaldo omitido"
-
-on_error() {
-  local code=$? line="$1"
-  # Con `set -E`, el trap también salta dentro de una sustitución de comandos: ahí solo se sale,
-  # y avisa una sola vez el script, cuando la sustitución le devuelve el error.
-  [ "$BASH_SUBSHELL" -eq 0 ] || exit "$code"
-  trap - ERR
-  log "ERROR: el respaldo falló (línea ${line}, código ${code})."
-  hc_ping fail "$(tail -n 20 "$log_file")"
-  exit "$code"
-}
-trap 'on_error $LINENO' ERR
+trap 'on_job_error "el respaldo" $LINENO' ERR
 
 log "Respaldo de ${COMPOSE_PROJECT_NAME}: inicio."
-if [ -z "$BACKUP_HEALTHCHECK_URL" ]; then
-  log "BACKUP_HEALTHCHECK_URL vacía: sin avisos (el resultado queda solo en este log)."
-fi
+use_healthcheck BACKUP_HEALTHCHECK_URL
 hc_ping start
 
 # Sin el volumen de adjuntos, docker crearía uno vacío y el respaldo saldría «correcto».

@@ -37,6 +37,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+      # Unidades de systemd (systemd-analyze) e install.sh --dry-run: rápido y sin Docker.
+      - run: bash infra/tests/backup-units.sh
       - run: bash infra/tests/backup-roundtrip.sh
 
   quality:

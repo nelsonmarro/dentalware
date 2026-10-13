@@ -1,0 +1,12 @@
+# Todos los días a las 03:00 de Ecuador (con hasta 10 min al azar). Persistent: si el VPS estaba
+# apagado a esa hora, corre al arrancar.
+[Unit]
+Description=Dentalware: respaldo diario a las 03:00 (America/Guayaquil)
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 America/Guayaquil
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
