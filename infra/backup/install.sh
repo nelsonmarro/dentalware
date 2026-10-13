@@ -57,6 +57,19 @@ run() {
   fi
 }
 
+# cannot_check <ruta>: sin root, verdadero si alguna carpeta de la ruta no deja mirar dentro (en
+# el VPS, /var/backups/dentalware y /etc/dentalware son solo de root). Así --dry-run no confunde
+# «sin permiso» con «no existe».
+cannot_check() {
+  local dir
+  [ "$(id -u)" != "0" ] || return 1
+  dir="$(dirname "$1")"
+  while [ ! -e "$dir" ] && [ "$dir" != "/" ]; do dir="$(dirname "$dir")"; done
+  [ ! -x "$dir" ] || [ ! -r "$dir" ]
+}
+
+NO_ROOT_CHECK="no se puede comprobar sin root; ejecútalo con sudo"
+
 # --- 1. Configuración ----------------------------------------------------------------------
 load_config
 [ -n "$ENV_FILE" ] ||
@@ -64,12 +77,16 @@ load_config
 require_vars POSTGRES_USER POSTGRES_DB RESTIC_REPOSITORY RESTIC_PASSWORD_FILE BACKUP_LOCAL_DIR
 [[ "$RESTIC_REPOSITORY" == /* ]] ||
   die "RESTIC_REPOSITORY debe ser una carpeta local con ruta absoluta (p. ej. /var/backups/dentalware/restic)"
-[ -f "$RESTIC_PASSWORD_FILE" ] ||
-  die "no existe el archivo de RESTIC_PASSWORD_FILE: créalo con openssl rand -hex 32 y chmod 600"
-perms="$(stat -c %a "$RESTIC_PASSWORD_FILE")"
-[ "$perms" = "600" ] || [ "$perms" = "400" ] ||
-  die "la contraseña de restic (RESTIC_PASSWORD_FILE) debe tener permisos 600 y tiene ${perms}: chmod 600"
-[ -s "$RESTIC_PASSWORD_FILE" ] || die "el archivo de RESTIC_PASSWORD_FILE está vacío"
+if [ ! -f "$RESTIC_PASSWORD_FILE" ] && cannot_check "$RESTIC_PASSWORD_FILE"; then
+  log "Aviso: RESTIC_PASSWORD_FILE: ${NO_ROOT_CHECK}."
+else
+  [ -f "$RESTIC_PASSWORD_FILE" ] ||
+    die "no existe el archivo de RESTIC_PASSWORD_FILE: créalo con openssl rand -hex 32 y chmod 600"
+  perms="$(stat -c %a "$RESTIC_PASSWORD_FILE")"
+  [ "$perms" = "600" ] || [ "$perms" = "400" ] ||
+    die "la contraseña de restic (RESTIC_PASSWORD_FILE) debe tener permisos 600 y tiene ${perms}: chmod 600"
+  [ -s "$RESTIC_PASSWORD_FILE" ] || die "el archivo de RESTIC_PASSWORD_FILE está vacío"
+fi
 if [ "$dry_run" = 0 ]; then
   command -v docker >/dev/null || die "falta Docker: restic corre en un contenedor"
 fi
@@ -85,7 +102,9 @@ run mkdir -p "$BACKUP_LOCAL_DIR"
 run chmod 700 "$BACKUP_LOCAL_DIR"
 
 # --- 3. Repositorio de restic --------------------------------------------------------------
-if [ -f "$RESTIC_REPOSITORY/config" ]; then
+if [ ! -f "$RESTIC_REPOSITORY/config" ] && cannot_check "$RESTIC_REPOSITORY/config"; then
+  log "Haría: restic snapshots, o restic init con --init si no existe (${RESTIC_REPOSITORY}: ${NO_ROOT_CHECK})"
+elif [ -f "$RESTIC_REPOSITORY/config" ]; then
   if [ "$dry_run" = 1 ]; then
     log "Haría: restic snapshots (comprobar el acceso al repositorio ${RESTIC_REPOSITORY})"
   else

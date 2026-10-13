@@ -13,6 +13,7 @@ tmp="$(mktemp -d)"
 failures=0
 
 cleanup() {
+  chmod -R u+rwx "$tmp" 2>/dev/null || true
   rm -rf "$tmp"
 }
 trap cleanup EXIT
@@ -203,6 +204,34 @@ rc=0
 ENV_OVERRIDE="$tmp/no-existe.env" run_install --dry-run || rc=$?
 [ "$rc" != "0" ] || fail "sin .env, install.sh debe fallar"
 grep -qF '.env' "$tmp/install.log" || fail "sin .env, install.sh debe decir que falta"
+
+# Sin root, --dry-run no puede mirar dentro de carpetas solo de root (en el VPS,
+# /var/backups/dentalware y /etc/dentalware con 700): lo dice y sigue, sin dar por hecho que
+# falta el repositorio o la contraseña.
+if [ "$(id -u)" != "0" ]; then
+  mkdir -p "$tmp/cerrado/restic" "$tmp/etc-cerrado"
+  : >"$tmp/cerrado/restic/config"
+  cp -p "$tmp/etc/restic-password" "$tmp/etc-cerrado/restic-password"
+  chmod 000 "$tmp/cerrado" "$tmp/etc-cerrado"
+  write_env "$tmp/cerrado/restic"
+  rc=0
+  run_install --dry-run || rc=$?
+  [ "$rc" = "0" ] || fail "--dry-run sin root con el repositorio en una carpeta cerrada debe salir con 0 (salió ${rc}): $(cat "$tmp/install.log")"
+  grep -qF 'no se puede comprobar sin root; ejecútalo con sudo' "$tmp/install.log" ||
+    fail "--dry-run sin root debe decir que no se puede comprobar el repositorio sin root"
+  if grep -q 'no existe el repositorio' "$tmp/install.log"; then
+    fail "--dry-run sin root no debe decir que no existe el repositorio"
+  fi
+  write_env
+  sed -i "s|^RESTIC_PASSWORD_FILE=.*|RESTIC_PASSWORD_FILE=$tmp/etc-cerrado/restic-password|" "$tmp/.env"
+  rc=0
+  run_install --dry-run || rc=$?
+  [ "$rc" = "0" ] || fail "--dry-run sin root con la contraseña en una carpeta cerrada debe salir con 0 (salió ${rc}): $(cat "$tmp/install.log")"
+  grep -qF 'no se puede comprobar sin root; ejecútalo con sudo' "$tmp/install.log" ||
+    fail "--dry-run sin root debe decir que no se puede comprobar la contraseña sin root"
+  no_secret "sin root"
+  chmod 700 "$tmp/cerrado" "$tmp/etc-cerrado"
+fi
 
 # Opción desconocida: error de uso (2).
 rc=0
