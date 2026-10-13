@@ -69,9 +69,10 @@ sweep_old_drills() {
 }
 
 log "Simulacro de recuperación de ${COMPOSE_PROJECT_NAME}: inicio."
-sweep_old_drills
 use_healthcheck BACKUP_DRILL_HEALTHCHECK_URL
 hc_ping start
+# Después de /start: si docker falla en el barrido, el aviso de fallo sale igual.
+sweep_old_drills
 
 # --- 1. Restaurar el último snapshot ----------------------------------------------------------
 snapshot_json="$(restic_run -- snapshots latest --json)"
