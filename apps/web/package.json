@@ -12,7 +12,8 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
-    "e2e:pr": "playwright test --project=escritorio --project=android --grep \"@esencial|@clave\""
+    "e2e:pr": "E2E_PR=1 playwright test --project=escritorio --project=android --project=iphone --grep \"@esencial|@clave\"",
+    "e2e:iphone": "bash scripts/e2e-iphone.sh"
   },
   "dependencies": {
     "@dentalware/shared": "workspace:*",

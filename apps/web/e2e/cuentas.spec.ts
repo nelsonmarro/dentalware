@@ -373,10 +373,15 @@ test.describe('Cuentas', () => {
           const errors = trackConsoleErrors(other)
           await login(other, user)
           await expect(other.getByRole('link', { name: 'Cuentas' })).toHaveCount(0)
-          await other.goto('/cuentas')
-          await expect(other).toHaveURL('/')
-          await other.goto(`/cuentas/${clinic.id}`)
-          await expect(other).toHaveURL('/')
+          // Cada URL en una página nueva (#133): en WebKit, un `page.goto` justo después de una
+          // navegación del SPA (aquí, la redirección a «/» del `beforeLoad`) se da por
+          // «interrumpido por otra navegación» porque el aviso de esa navegación llega tarde.
+          for (const url of ['/cuentas', `/cuentas/${clinic.id}`]) {
+            const tab = await context.newPage()
+            await tab.goto(url)
+            await expect(tab).toHaveURL('/')
+            await tab.close()
+          }
           const res = await other.request.get('/api/cuentas')
           expect(res.status()).toBe(403)
           expect(errors).toEqual([])

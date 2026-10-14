@@ -95,7 +95,11 @@ export function AllocationFields({
                 autoComplete="off"
                 placeholder="0.00"
                 // Al enfocarla con el teclado, la lista se desplaza hasta dejar a la vista también
-                // la consecuencia de debajo y el anillo de foco (`scroll-margin`).
+                // la consecuencia de debajo y el anillo de foco (`scroll-margin`). Safari no aplica
+                // ese margen al enfocar y deja el campo recortado por el borde de la lista (#133):
+                // el campo se pide entero con `scrollIntoView`, que sí lo respeta; en Chrome ya
+                // está a la vista y no se mueve nada.
+                onFocus={(e) => e.currentTarget.scrollIntoView?.({ block: 'nearest' })}
                 className="h-11 w-28 shrink-0 scroll-mt-3 scroll-mb-10 text-right font-mono tabular-nums"
               />
             </div>

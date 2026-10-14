@@ -1,4 +1,9 @@
-@import 'tailwindcss';
+/* Solo `src/` se escanea en busca de clases (#133): por omisión Tailwind 4 escanea todo lo no
+ * ignorado por git bajo `apps/web`, y un archivo escrito durante un E2E (un `--output` de
+ * Playwright fuera de `test-results/`) regeneraba este CSS, Vite lo recargaba en caliente y
+ * WebKit fallaba a mitad del test con «Importing a module script failed». `index.html` no lleva
+ * clases. */
+@import 'tailwindcss' source('../src');
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/instrument-sans';

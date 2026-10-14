@@ -4,7 +4,10 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? 'github' : 'list',
+  // En CI, además de las anotaciones de GitHub, el informe HTML (con las trazas del reintento),
+  // que el job sube como artefacto si algo falla; sin él, un fallo solo en CI no se puede
+  // depurar (#133).
+  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: { baseURL: 'http://localhost:5173', trace: 'on-first-retry' },
   webServer: [
     {
@@ -34,6 +37,14 @@ export default defineConfig({
   projects: [
     { name: 'escritorio', use: { ...devices['Desktop Chrome'] } },
     { name: 'android', use: { ...devices['Pixel 7'] } },
-    { name: 'iphone', use: { ...devices['iPhone 14'] } },
+    // iphone (WebKit) en el PR corre solo los `@esencial` (#133): `E2E_PR=1` (`e2e:pr` y el
+    // job del PR) le pone su propio `grep`, que se suma al `--grep` de la línea de comandos. En
+    // el push a `main` (sin `E2E_PR`) corre todo. En local, WebKit necesita las librerías de
+    // Ubuntu: `pnpm e2e:iphone` lo corre en la imagen oficial de Playwright (scripts/e2e-iphone.sh).
+    {
+      name: 'iphone',
+      use: { ...devices['iPhone 14'] },
+      ...(process.env.E2E_PR ? { grep: /@esencial/ } : {}),
+    },
   ],
 })
