@@ -17,6 +17,20 @@ describe('AppShell', () => {
     expect(await screen.findByRole('navigation', { name: 'Principal móvil' })).toBeInTheDocument()
   })
 
+  // UX7-03: con `viewport-fit=cover` los márgenes de la muesca los pone la página.
+  it('cabecera, contenido y barra inferior respetan las zonas seguras', async () => {
+    renderWithQueryAndRouter(<AppShell user={USER}>contenido</AppShell>)
+    const header = await screen.findByRole('banner')
+    for (const side of ['left', 'right', 'top'])
+      expect(header.className).toContain(`env(safe-area-inset-${side})`)
+    const main = screen.getByRole('main')
+    for (const side of ['left', 'right'])
+      expect(main.className).toContain(`env(safe-area-inset-${side})`)
+    const nav = screen.getByTestId('bottom-nav')
+    for (const side of ['left', 'right', 'bottom'])
+      expect(nav.className).toContain(`env(safe-area-inset-${side})`)
+  })
+
   it('el botón de cerrar sesión de la barra lateral muestra el texto, no solo el icono', async () => {
     renderWithQueryAndRouter(<AppShell user={USER}>contenido</AppShell>)
     const sidebar = (await screen.findByRole('navigation', { name: 'Principal' })).closest('aside')

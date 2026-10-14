@@ -76,15 +76,16 @@ export function AppShell({
       <div className="flex min-w-0 flex-1 flex-col">
         {/* UX4-11: arriba y en el flujo, para no tapar la barra inferior móvil. */}
         <OfflineNotice />
-        {/* Header móvil */}
-        <header className="flex items-center justify-between border-b border-border px-4 py-3 lg:hidden print:hidden">
+        {/* Header móvil. UX7-03: con `viewport-fit=cover` los márgenes de la muesca los pone la
+            página (horizontal y barra de estado). */}
+        <header className="flex items-center justify-between border-b border-border pt-[calc(0.75rem+env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] pb-3 pl-[max(1rem,env(safe-area-inset-left))] lg:hidden print:hidden">
           <span className="font-semibold">Dentalware</span>
           <Button variant="ghost" size="icon" onClick={logout} aria-label="Cerrar sesión">
             <LogOut className="size-4" />
           </Button>
         </header>
 
-        <main className="flex-1 p-4 pb-24 lg:p-8 lg:pb-8 print:p-0">
+        <main className="flex-1 py-4 pr-[max(1rem,env(safe-area-inset-right))] pb-24 pl-[max(1rem,env(safe-area-inset-left))] lg:p-8 lg:pb-8 print:p-0">
           <div className="mx-auto w-full max-w-[1200px] print:max-w-none">{children}</div>
         </main>
 
@@ -95,7 +96,7 @@ export function AppShell({
             documento entero (o un test) las vería igual si compartieran nombre. */}
         <nav
           aria-label="Principal móvil"
-          className="fixed inset-x-0 bottom-0 flex justify-around border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden print:hidden"
+          className="fixed inset-x-0 bottom-0 flex justify-around border-t border-border bg-card pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] lg:hidden print:hidden"
           data-testid="bottom-nav"
         >
           {items.map((i) => (
