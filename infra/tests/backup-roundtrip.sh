@@ -45,7 +45,7 @@ compose() {
 }
 
 cleanup() {
-  [ -n "$hc_pid" ] && kill "$hc_pid" 2>/dev/null || true
+  if [ -n "$hc_pid" ]; then kill "$hc_pid" 2>/dev/null || true; fi
   compose down -v --remove-orphans >/dev/null 2>&1 || true
   docker volume rm "${project}-otro_uploads" dw-no-tocar_uploads >/dev/null 2>&1 || true
   docker rm -f dw-drill-pg-999999 >/dev/null 2>&1 || true
