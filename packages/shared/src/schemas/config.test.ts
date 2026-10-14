@@ -149,6 +149,28 @@ describe('schemas de configuración', () => {
     }
   })
 
+  it('clinic quita el 0 tras el +593 del WhatsApp (+593 099 123 4567)', () => {
+    const r = clinicSchema.safeParse({ name: 'X', whatsapp: '+593 099 123 4567' })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.whatsapp).toBe('+593991234567')
+  })
+
+  it.each(['', '  ', null, undefined])('clinic da null con whatsapp %j', (whatsapp) => {
+    const r = clinicSchema.safeParse({ name: 'X', whatsapp })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.whatsapp).toBeNull()
+  })
+
+  it('clinic rechaza un WhatsApp de solo separadores', () => {
+    const r = clinicSchema.safeParse({ name: 'X', whatsapp: '---' })
+    expect(r.success).toBe(false)
+    if (!r.success) {
+      expect(r.error.issues[0]?.message).toBe(
+        'Escribe el WhatsApp como 099 123 4567 o +593 99 123 4567',
+      )
+    }
+  })
+
   it('labSettings normaliza codePrefix vacío a null (sin la rama muerta anterior)', () => {
     const r = labSettingsSchema.safeParse({ name: 'Arte Dental', codePrefix: '' })
     expect(r.success).toBe(true)

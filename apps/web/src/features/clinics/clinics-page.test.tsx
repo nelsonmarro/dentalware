@@ -175,7 +175,7 @@ describe('ClinicsPage ?editar (AVI-4)', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Editar clínica' })
     expect(screen.getByLabelText('Nombre')).toHaveValue('Clínica Vieja')
     expect(dialog).toHaveAccessibleDescription(
-      'Clínica inactiva: actívala para que vuelva a salir en las listas.',
+      'Clínica Vieja Clínica inactiva: actívala para que vuelva a salir en las listas.',
     )
     expect(onHandled).toHaveBeenCalledTimes(1)
   })

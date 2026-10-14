@@ -24,6 +24,7 @@ export function CaseWhatsapp({
 }) {
   const linkRef = useRef<HTMLAnchorElement>(null)
   // React solo respeta `autoFocus` en controles de formulario: un `<a>` se enfoca a mano.
+  // `c.clinic?.whatsapp` es dependencia a propósito: la ficha monta con la caché vieja sin número y solo su cambio relanza el foco.
   useEffect(() => {
     if (focus) linkRef.current?.focus()
   }, [focus, c.clinic?.whatsapp])

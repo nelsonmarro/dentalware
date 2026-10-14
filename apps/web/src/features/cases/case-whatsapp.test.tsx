@@ -1,5 +1,7 @@
 import { caseWhatsappText } from '@dentalware/shared'
 import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { describe, expect, it } from 'vitest'
 import { whatsappUrl } from '@/lib/map-link'
 import { renderWithRouter } from '@/test/router'
@@ -96,5 +98,24 @@ describe('CaseWhatsapp', () => {
     renderWithRouter(<CaseWhatsapp case={caseOf('+593991234567')} role="admin" labName={null} />)
     const other = await screen.findByRole('link', { name: /Avisar por WhatsApp/ })
     expect(document.activeElement).not.toBe(other)
+  })
+
+  it('con focus, el enlace recibe el foco cuando el número aparece después del montaje', async () => {
+    function Harness() {
+      const [whatsapp, setWhatsapp] = useState<string | null>(null)
+      return (
+        <>
+          <button type="button" onClick={() => setWhatsapp('+593991234567')}>
+            llega el número
+          </button>
+          <CaseWhatsapp case={caseOf(whatsapp)} role="admin" labName={null} focus />
+        </>
+      )
+    }
+    renderWithRouter(<Harness />)
+    await screen.findByText('Sin WhatsApp registrado.')
+    await userEvent.click(screen.getByRole('button', { name: 'llega el número' }))
+    const link = await screen.findByRole('link', { name: /Avisar por WhatsApp/ })
+    expect(document.activeElement).toBe(link)
   })
 })

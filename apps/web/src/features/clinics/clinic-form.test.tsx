@@ -59,13 +59,18 @@ describe('ClinicForm', () => {
   it('una clínica inactiva lo dice en la descripción del diálogo', () => {
     setup({ clinic: { ...clinic, active: false } })
     expect(screen.getByRole('dialog')).toHaveAccessibleDescription(
-      'Clínica inactiva: actívala para que vuelva a salir en las listas.',
+      'Clínica Sur Clínica inactiva: actívala para que vuelva a salir en las listas.',
     )
   })
 
-  it('una clínica activa no lleva descripción', () => {
+  it('al editar, la descripción del diálogo dice qué clínica se edita', () => {
     setup()
-    expect(screen.getByRole('dialog')).not.toHaveAccessibleDescription()
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription('Clínica Sur')
+  })
+
+  it('en «Nueva clínica» el diálogo no lleva descripción', () => {
+    setup({ clinic: undefined })
+    expect(screen.getByRole('dialog', { name: 'Nueva clínica' })).not.toHaveAccessibleDescription()
   })
 
   it('envía el WhatsApp normalizado', async () => {

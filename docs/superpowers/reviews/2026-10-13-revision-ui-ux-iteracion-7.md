@@ -138,12 +138,14 @@ Ola de fixes de #129 en la rama `fix/revision-ui-ux-it7`. Todos los hallazgos se
 | UX7-01 (vuelta), UX7-05, deuda de `validateSearch` | 634ed72 | `parseClinicsSearch` con `safeRedirect`; al guardar o cancelar vuelve a la ficha; clínica inactiva (nota) o inexistente (toast); E2E `@clave` del viaje; test de «no se reabre». |
 | Ronda de fixes de la Tarea 3 | 9424532 | La búsqueda de clínica fallida no deja petición viva; `invalidateQueries(['trabajos'])` y la ficha limpia `foco` con `!q.isFetching`; `volver` sin `?` ni `#`; el selector de foco excluye ocultos. |
 | UX7-03, 10, 11 y deuda de iconos | 86594d2 | `safe-area` en cabecera, `main` y barra inferior; `apple-touch-icon` opaco; `theme_color` `#F4F6F5`; tests de firma, medidas y esquinas. |
+| I-1, M-1, M-2, M-5 y deuda de la Tarea 1 | (SHA al commit) | Ronda de fixes de la revisión final: `normalizeWhatsapp` quita el 0 tras +593 («+593 099 123 4567»); el foco de `CaseWhatsapp` lleva su dependencia comentada y probada; el diálogo de edición de clínica nombra la clínica (`context`); la API prueba la normalización y el 422 del WhatsApp. |
 
 ### Deuda de tests cerrada
 
 - `parseClinicsSearch`: `editar` válido, ausente y basura, y `volver` por `safeRedirect`.
 - «No se reabre»: volver a renderizar Clínicas con el mismo `editar` no reabre el diálogo.
 - Iconos: firma PNG, 180×180 del `apple-touch-icon`, `maskable` opaco en las esquinas y `any` no, y el apple opaco.
+- `clinicSchema`: `whatsapp` `''`, `'  '`, `null` y `undefined` dan `null`, y `'---'` se rechaza con el mensaje del campo.
 - `clinic-form`: ayuda ligada con `aria-describedby`, sin placeholder y número en formato local aceptado.
 
 ### Descartados
@@ -155,16 +157,13 @@ Ola de fixes de #129 en la rama `fix/revision-ui-ux-it7`. Todos los hallazgos se
 
 Minor diferidos, anotados en el ledger de la ola; ninguno bloquea:
 
-- Tarea 1: sin test de `''` y `'  '` a `null` tras reordenar `transform`/`refine`, ni de `'---'` rechazado (`config.test.ts`).
-- Tarea 1: cubrir `null` y `undefined` en el test de `whatsapp` de `config.test.ts`.
 - Tarea 2: `case-header.test` no prueba que `CaseHeader` pase `focusWhatsapp`.
 - Tarea 2: el efecto que limpia `foco` en `$caseId.tsx` no tiene test de ruta (lo cubre en parte el E2E del viaje).
-- Tarea 2: dependencia `c.clinic?.whatsapp` innecesaria en el efecto de foco de `case-whatsapp.tsx`.
 - Tarea 3: carrera entre la búsqueda de la clínica y «Nueva clínica» (comprobar `editing === null` antes de abrir).
 - Tarea 3: el test «sin campos no falla» no protege nada y falta el caso de `initialFocusId` inexistente.
-- Tarea 3: `clinics-search.ts` sin RED separado (la mutación de `safeRedirect` lo compensa).
 - Tarea 3: `navigate({ href })` hace push; valorar `replace: true` más adelante.
-- Tarea 3: con el mismo id inexistente repetido y el mismo objeto de error, no hay segundo toast (raro).
+- El efecto que consume `foco` vive en `routes/_app/trabajos/$caseId.tsx` sin test de ruta; podría pasar a un hook `features/cases/use-consume-focus-search.ts` con test (M-4).
+- «Cancelar» en el diálogo abierto desde la ficha vuelve a la ficha con el foco en `body`; valorar un `foco` que enfoque el `h1` o «Añadir WhatsApp» (M-6).
 - Tarea 4: el test de la meta `theme-color` está en el `describe` de Apple y no en el del manifiesto; su regex depende del orden de atributos; los tests de `safe-area` miran subcadenas de `className`.
 
 ### Pendiente para Nelson en teléfonos reales (Tarea 9)
@@ -172,6 +171,7 @@ Minor diferidos, anotados en el ledger de la ola; ninguno bloquea:
 - Ida y vuelta en la PWA de iPhone (UX7-01).
 - Orientación horizontal con muesca (UX7-03).
 - Icono en iPhone (UX7-10).
+- `FormDialog` hace `scrollIntoView` al enfocar un campo: comprobar en Safari de iOS, abriendo un diálogo desde una lista desplazada, que no mueve la página de fondo (M-3 de la revisión final).
 - Barra de estado en Android (UX7-11).
 
 ### Capturas «después»

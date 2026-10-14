@@ -82,6 +82,7 @@ export function ClinicForm({
       onOpenChange={onOpenChange}
       title={clinic ? 'Editar clínica' : 'Nueva clínica'}
       initialFocusId={focusField ? `clinic-${focusField}` : undefined}
+      context={clinic ? { label: clinic.name } : undefined}
       description={
         clinic && !clinic.active
           ? 'Clínica inactiva: actívala para que vuelva a salir en las listas.'
