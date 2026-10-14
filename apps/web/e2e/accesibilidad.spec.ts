@@ -211,6 +211,28 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
     await expectTouchTargets(page, TOUCH_CONTROLS)
   })
 
+  // UX7-04: la ficha de una clínica sin WhatsApp trae «Añadir WhatsApp» para el admin, que
+  // también debe medir 44 px.
+  test(
+    'ficha de un trabajo sin WhatsApp: «Añadir WhatsApp»',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      const created = await createCase(page, {
+        clinicId: clinic.id,
+        doctorId: doctor.id,
+        productId: product.id,
+      })
+
+      await page.goto(`/trabajos/${created.id}`)
+      await expect(page.getByRole('heading', { name: created.code, level: 1 })).toBeVisible()
+      await expect(page.getByText('Sin WhatsApp registrado.')).toBeVisible()
+      await expect(page.getByRole('link', { name: 'Añadir WhatsApp' })).toBeVisible()
+      await expectTouchTargets(page, TOUCH_CONTROLS)
+    },
+  )
+
   // M-6 (ola de fixes del PR 1, lote B): un trabajo `nuevo` (el único caso que cubría el test
   // de arriba) no monta la fase del panel «Producción» (`StageControl`) ni el `<select>` de técnico
   // (`TechnicianSelect`, de solo lectura mientras no hay sesión de trabajo en curso) ni sus
