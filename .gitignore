@@ -16,6 +16,10 @@ apps/web/dev-dist/
 !.env.example
 !.env.test
 
+# configuración local del VPS (docs/operacion/despliegue.md, paso 6)
+infra/Caddyfile.vps
+infra/docker-compose.vps.yml
+
 # data
 infra/data/
 uploads/
