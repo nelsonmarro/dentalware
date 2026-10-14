@@ -17,12 +17,15 @@ export function ClinicForm({
   clinic,
   onSubmit,
   pending,
+  focusField,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   clinic: Clinic | null
   onSubmit: (v: ClinicInput) => void
   pending: boolean
+  /** Campo que recibe el foco al abrir (`?campo=whatsapp` desde la ficha, UX7-01). */
+  focusField?: 'whatsapp' | null
 }) {
   const form = useForm<ClinicFormValues, unknown, ClinicInput>({
     resolver: zodResolver(clinicSchema),
@@ -43,32 +46,47 @@ export function ClinicForm({
     label: string,
     props: React.ComponentProps<typeof Input> = {},
     description?: string,
-  ) => (
-    <Controller
-      name={name}
-      control={form.control}
-      render={({ field, fieldState }) => (
-        <Field data-invalid={fieldState.invalid}>
-          <FieldLabel htmlFor={`clinic-${name}`}>{label}</FieldLabel>
-          <Input
-            {...field}
-            {...props}
-            id={`clinic-${name}`}
-            value={(field.value ?? '') as string | number}
-            className="h-11"
-            aria-invalid={fieldState.invalid}
-          />
-          {description && <FieldDescription>{description}</FieldDescription>}
-          {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-        </Field>
-      )}
-    />
-  )
+  ) => {
+    const descId = `clinic-${name}-desc`
+    const errId = `clinic-${name}-error`
+    return (
+      <Controller
+        name={name}
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor={`clinic-${name}`}>{label}</FieldLabel>
+            <Input
+              {...field}
+              {...props}
+              id={`clinic-${name}`}
+              value={(field.value ?? '') as string | number}
+              className="h-11"
+              aria-invalid={fieldState.invalid}
+              aria-describedby={
+                [description ? descId : null, fieldState.invalid ? errId : null]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+            />
+            {description && <FieldDescription id={descId}>{description}</FieldDescription>}
+            {fieldState.invalid && <FieldError id={errId} errors={[fieldState.error]} />}
+          </Field>
+        )}
+      />
+    )
+  }
   return (
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
       title={clinic ? 'Editar clínica' : 'Nueva clínica'}
+      initialFocusId={focusField ? `clinic-${focusField}` : undefined}
+      description={
+        clinic && !clinic.active
+          ? 'Clínica inactiva: actívala para que vuelva a salir en las listas.'
+          : undefined
+      }
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -90,8 +108,8 @@ export function ClinicForm({
           {text(
             'whatsapp',
             'WhatsApp',
-            { type: 'tel', placeholder: '+593991234567' },
-            'Formato internacional; se usa para los avisos.',
+            { type: 'tel', inputMode: 'tel' },
+            'Ej.: 099 123 4567 o +593 99 123 4567. Se usa para los avisos.',
           )}
           {text('email', 'Correo', { type: 'email' })}
           {text('paymentTermsDays', 'Días de crédito', {
