@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Prueba de punta a punta de los respaldos (#111, PEM-3 #93): levanta Postgres y la API con un
 # proyecto compose propio, crea datos por la API (con una foto), respalda con
-# infra/backup/backup.sh, simula el desastre (`down -v`: se pierden la BD y los adjuntos),
-# restaura con infra/backup/restore.sh y comprueba que todo vuelve: conteos, la foto byte a
-# byte y servida por la API. Prueba además la restauración de un solo archivo, la de la
+# infra/backup/backup.sh, simula el desastre (`down -v`: se pierden la BD y los adjuntos) y
+# reconstruye sin arrancar (`create`, como la ruta B de recuperacion.md), restaura con
+# infra/backup/restore.sh y comprueba que todo vuelve: conteos, la foto byte a byte y servida
+# por la API. Una restauración que falla deja la API como estaba: parada si lo estaba (sobre la
+# BD vacía no migra nada) y en marcha si corría. Prueba además la restauración de un solo archivo, la de la
 # configuración sin `.env` (pérdida total), el bloqueo ante dos respaldos a la vez, la
 # retención de los dumps locales y los avisos opcionales (inicio, éxito y fallo). Cubre también
 # la verificación semanal (check.sh) y el simulacro mensual (drill.sh) contra este proyecto
@@ -20,6 +22,7 @@ base="http://127.0.0.1:${port}"
 tmp="$(mktemp -d)"
 repo="$(mktemp -d "${TMPDIR:-/tmp}/dw-restic-XXXXXX")"
 repo_vacio="$(mktemp -d "${TMPDIR:-/tmp}/dw-restic-vacio-XXXXXX")"
+repo_dump_roto="$(mktemp -d "${TMPDIR:-/tmp}/dw-restic-dump-roto-XXXXXX")"
 outputs="$tmp/salidas.log"
 hc_pid=""
 failures=0
@@ -48,7 +51,7 @@ cleanup() {
   docker rm -f dw-drill-pg-999999 >/dev/null 2>&1 || true
   docker network rm dw-drill-net-999999 >/dev/null 2>&1 || true
   docker volume rm dw-drill-data-999999 >/dev/null 2>&1 || true
-  rm -rf "$tmp" "$repo" "$repo_vacio" "$no_tocar"
+  rm -rf "$tmp" "$repo" "$repo_vacio" "$repo_dump_roto" "$no_tocar"
 }
 trap cleanup EXIT
 
@@ -301,10 +304,51 @@ grep -q "^/data/uploads/${storage_path}$" "$tmp/ls.txt" || fail "el respaldo no 
 grep -qE '^/backup/db/dentalware-[0-9-]+\.dump$' "$tmp/ls.txt" || fail "el respaldo no incluye el dump"
 
 # --- Desastre y restauración ----------------------------------------------------------------
-echo "Desastre: se borran la BD y los adjuntos..."
+# Como la ruta B de recuperacion.md: todo se pierde y se reconstruye sin arrancar (`create`),
+# para que la API no cree un esquema vacío antes de restaurar.
+echo "Desastre: se borran la BD y los adjuntos, y se reconstruye sin arrancar..."
 compose down -v >/dev/null 2>&1
-compose up -d --wait --wait-timeout 180 api >/dev/null 2>&1 || abort "la API no volvió a levantar tras el desastre"
+compose create postgres api >/dev/null 2>&1 || abort "compose create falló tras el desastre"
+[ -z "$(compose ps --status running -q)" ] || abort "tras compose create no debe correr ningún servicio"
 [ -z "$(volume_sha "$storage_path")" ] || abort "el volumen de adjuntos no quedó vacío"
+
+# api_running: el id del contenedor de la API si está en marcha (vacío si no).
+api_running() {
+  compose ps --status running -q api
+}
+
+# Un snapshot cuyo «dump» no lo es, en otro repositorio: restore.sh falla en pg_restore, después
+# de parar la API.
+mkdir -p "$tmp/dump-roto/backup/db" "$tmp/dump-roto/uploads/x"
+printf 'no es un dump\n' >"$tmp/dump-roto/backup/db/dentalware-roto.dump"
+printf 'x' >"$tmp/dump-roto/uploads/x/foto.jpg"
+TEST_REPO="$repo_dump_roto" test_restic init >/dev/null || abort "restic init del repositorio roto falló"
+RESTIC_REPOSITORY=/repo RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
+  RESTIC_CACHE_DIR=/tmp/restic-cache docker run --rm --user "$(id -u):$(id -g)" \
+  -e RESTIC_REPOSITORY -e RESTIC_PASSWORD_FILE -e RESTIC_CACHE_DIR \
+  -v "$repo_dump_roto:/repo" -v "$tmp/restic-password:/run/secrets/restic-password:ro" \
+  -v "$tmp/dump-roto/uploads:/data/uploads:ro" -v "$tmp/dump-roto/backup:/backup:ro" \
+  "$RESTIC_IMAGE" backup --quiet --tag diario --host "$project" /data/uploads /backup >/dev/null ||
+  abort "no se pudo crear el snapshot con el dump roto"
+sed "s|^RESTIC_REPOSITORY=.*|RESTIC_REPOSITORY=${repo_dump_roto}|" "$tmp/.env" >"$tmp/dump-roto.env"
+
+# restore_broken <log>: restaura el snapshot del dump roto; debe fallar en pg_restore.
+restore_broken() {
+  if run_script "$tmp/dump-roto.env" "$root/infra/backup/restore.sh" >"$1"; then
+    fail "restore.sh con un dump que no es un dump debe fallar"
+  fi
+  grep -q 'Restaurando la base de datos' "$1" ||
+    abort "la restauración rota debía fallar en pg_restore, con la API ya parada: $(tail -n 5 "$1")"
+}
+
+echo "Restauración que falla, con la API parada..."
+restore_broken "$tmp/restore-roto-parada.log"
+show "$tmp/restore-roto-parada.log"
+[ -z "$(api_running)" ] ||
+  fail "una restauración que falla no debe arrancar la API si no estaba en marcha"
+tables="$(psql_value "select count(*) from information_schema.tables where table_schema = 'public'")"
+[ "$tables" = "0" ] ||
+  fail "tras la restauración que falla, la BD vacía debe seguir vacía, sin migrar (${tables} tablas)"
 
 echo "Restaurando el último snapshot..."
 if ! run_script "$tmp/.env" "$root/infra/backup/restore.sh" --snapshot latest >"$tmp/restore.log"; then
@@ -334,6 +378,19 @@ status="$(curl -s -o "$tmp/resp" -w '%{http_code}' -b "$jar" -H "Origin: ${base}
   -F "file=@${root}/apps/web/e2e/fixtures/foto.png;type=image/png" \
   "${base}/api/adjuntos/trabajo/${case_id}")"
 [ "$status" = "201" ] || fail "subir otra foto al trabajo restaurado respondió ${status}: $(cat "$tmp/resp")"
+
+echo "Restauración que falla, con la API en marcha..."
+counts_running="$(counts)"
+restore_broken "$tmp/restore-roto-marcha.log"
+[ -n "$(api_running)" ] || fail "una restauración que falla debe volver a arrancar la API si estaba en marcha"
+api_state=""
+for _ in $(seq 1 90); do
+  api_state="$(docker inspect -f '{{.State.Health.Status}}' "$(compose ps -q api)" 2>/dev/null || true)"
+  [ "$api_state" = "healthy" ] && break
+  sleep 2
+done
+[ "$api_state" = "healthy" ] || abort "la API no volvió a healthy tras la restauración que falla"
+[ "$(counts)" = "$counts_running" ] || fail "la restauración que falla tocó la BD (conteos $(counts))"
 
 # --- Solo archivos --------------------------------------------------------------------------
 echo "Restaurando un solo archivo borrado..."

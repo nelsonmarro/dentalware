@@ -4,8 +4,8 @@
 # Uso:
 #   infra/backup/restore.sh [--snapshot <id>|latest]
 #       Restaura todo: para la API, reemplaza la base de datos con el dump del snapshot
-#       (pg_restore --clean), copia las fotos al volumen de adjuntos y vuelve a arrancar la API.
-#       Antes guarda un dump de la base de datos actual en $BACKUP_LOCAL_DIR/db.
+#       (pg_restore --clean), copia las fotos al volumen de adjuntos y arranca la API. Antes
+#       guarda un dump de la BD actual en $BACKUP_LOCAL_DIR/db. Si falla, deja la API como estaba.
 #   infra/backup/restore.sh [--snapshot <id>|latest] --solo-archivos <ruta>
 #       Devuelve al volumen solo los adjuntos que casan con <ruta> (relativa a la carpeta de
 #       adjuntos, como `storage_path`; admite comodines de restic). No toca la base de datos.
@@ -67,9 +67,12 @@ require_vars RESTIC_REPOSITORY RESTIC_PASSWORD_FILE
 work_parent="${BACKUP_LOCAL_DIR:-${TMPDIR:-/tmp}}"
 mkdir -p "$work_parent"
 work="$(mktemp -d "$work_parent/restaurar.XXXXXX")"
-api_stopped=0
+# Tras un fallo, la API se vuelve a arrancar solo si estaba en marcha. En una recuperación sobre
+# una BD vacía (API parada), arrancarla le crearía el esquema actual y la restauración siguiente
+# fallaría con «already exists».
+restart_api_on_failure=0
 cleanup() {
-  if [ "$api_stopped" = 1 ]; then
+  if [ "$restart_api_on_failure" = 1 ]; then
     log "Volviendo a arrancar la API tras el fallo..."
     compose up -d --no-deps api >/dev/null 2>&1 || log "ERROR: no se pudo arrancar la API."
   fi
@@ -147,8 +150,12 @@ else
   log "Aviso: no se pudo copiar la base de datos actual; se sigue con la restauración."
 fi
 
-log "Parando la API..."
-api_stopped=1
+if [ -n "$(compose ps --status running -q api 2>/dev/null || true)" ]; then
+  log "Parando la API..."
+  restart_api_on_failure=1
+else
+  log "La API no está en marcha: si la restauración falla, se queda parada."
+fi
 compose stop api
 
 log "Restaurando la base de datos ${POSTGRES_DB} desde $(basename "${dumps[0]}")..."
@@ -160,5 +167,5 @@ copy_to_uploads "$work/data/uploads"
 
 log "Arrancando la API..."
 compose up -d --no-deps --wait --wait-timeout 180 api
-api_stopped=0
+restart_api_on_failure=0
 log "Restauración completa desde el snapshot ${snapshot}."
