@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { USER_ROLES } from '../roles.ts'
+import { normalizeWhatsapp } from '../whatsapp.ts'
 
 export const PRICING_UNITS = ['por_pieza', 'por_arcada', 'por_trabajo'] as const
 export type PricingUnit = (typeof PRICING_UNITS)[number]
@@ -50,10 +51,10 @@ const whatsappE164 = z
   .string()
   .trim()
   .nullish()
-  .refine((v) => !v || /^\+[1-9]\d{7,14}$/.test(v), {
-    error: 'El WhatsApp debe ir en formato internacional, ej. +593991234567',
+  .transform((v) => (v ? normalizeWhatsapp(v) : null))
+  .refine((v) => v === null || /^\+[1-9]\d{7,14}$/.test(v), {
+    error: 'Escribe el WhatsApp como 099 123 4567 o +593 99 123 4567',
   })
-  .transform((v) => (v ? v : null))
 const correoOpcional = z
   .string()
   .trim()

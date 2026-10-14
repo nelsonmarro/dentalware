@@ -29,7 +29,7 @@ describe('caseWhatsappText (AVI-4)', () => {
         status: 'terminado',
       }),
     ).toBe(
-      'Hola, le escribimos de Arte Dental. El trabajo 26-00087 (paciente Ana Ruiz) está terminado y listo para entregar.',
+      'Hola, les escribimos de Arte Dental. El trabajo 26-00087 (paciente Ana Ruiz) está terminado y listo para entregar.',
     )
   })
 
@@ -42,14 +42,14 @@ describe('caseWhatsappText (AVI-4)', () => {
         status: 'enviado',
       }),
     ).toBe(
-      'Hola, le escribimos del laboratorio. El trabajo 26-00087 (paciente Ana Ruiz) va en camino a su clínica.',
+      'Hola, les escribimos del laboratorio. El trabajo 26-00087 (paciente Ana Ruiz) va en camino a su clínica.',
     )
   })
 
   it('un nombre de laboratorio en blanco cuenta como sin datos', () => {
     expect(
       caseWhatsappText({ labName: '  ', code: '26-00001', patientRef: 'X', status: 'nuevo' }),
-    ).toMatch(/^Hola, le escribimos del laboratorio\./)
+    ).toMatch(/^Hola, les escribimos del laboratorio\./)
   })
 
   it('nunca lleva un importe', () => {

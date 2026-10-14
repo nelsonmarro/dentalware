@@ -26,5 +26,5 @@ export function caseWhatsappText(input: {
 }): string {
   const lab = input.labName?.trim()
   const from = lab ? `de ${lab}` : 'del laboratorio'
-  return `Hola, le escribimos ${from}. El trabajo ${input.code} (paciente ${input.patientRef}) ${CASE_WHATSAPP_STATUS_TEXT[input.status]}.`
+  return `Hola, les escribimos ${from}. El trabajo ${input.code} (paciente ${input.patientRef}) ${CASE_WHATSAPP_STATUS_TEXT[input.status]}.`
 }
