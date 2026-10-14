@@ -252,7 +252,7 @@ test.describe('Trabajos', () => {
   )
 
   test(
-    'sin WhatsApp, el admin lo añade desde la ficha (AVI-4)',
+    'sin WhatsApp, el admin lo añade desde la ficha y vuelve a ella (AVI-4)',
     { tag: '@clave' },
     async ({ page }) => {
       const { clinic, doctor } = await createClinicWithDoctor(page)
@@ -264,12 +264,25 @@ test.describe('Trabajos', () => {
         teeth: [21],
       })
       await page.goto(`/trabajos/${created.id}`)
-      await expect(page.getByText(`${clinic.name} no tiene WhatsApp registrado.`)).toBeVisible()
-      await page.getByRole('link', { name: 'Añadirlo' }).click()
+      await expect(page.getByText('Sin WhatsApp registrado.')).toBeVisible()
+      await page.getByRole('link', { name: 'Añadir WhatsApp' }).click()
       const dialog = page.getByRole('dialog', { name: 'Editar clínica' })
       await expect(dialog).toBeVisible()
       await expect(dialog.getByLabel('Nombre')).toHaveValue(clinic.name)
-      await expect(page).not.toHaveURL(/editar=/)
+      await expect(dialog.getByLabel('WhatsApp')).toBeFocused()
+      await dialog.getByLabel('WhatsApp').fill('099 123 4567')
+      await dialog.getByRole('button', { name: 'Guardar' }).click()
+      // Sin `foco` en la URL: la ficha ya lo consumió (enfocó el enlace y lo limpió).
+      await expect(page).toHaveURL(new RegExp(`/trabajos/${created.id}$`))
+      await expect(toasts(page).getByText(`WhatsApp de ${clinic.name} guardado`)).toBeVisible()
+      const link = page.getByRole('link', {
+        name: `Avisar por WhatsApp a ${clinic.name} (abre WhatsApp)`,
+      })
+      await expect(link).toBeVisible()
+      await expect(link).toBeFocused()
+      expect(
+        ((await link.getAttribute('href')) ?? '').startsWith('https://wa.me/593991234567?text='),
+      ).toBe(true)
     },
   )
 

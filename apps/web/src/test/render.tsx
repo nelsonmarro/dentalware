@@ -41,6 +41,7 @@ export function renderWithQueryAndRouter(ui: ReactElement) {
   return {
     user: userEvent.setup(),
     client,
+    router,
     ...render(<RouterProvider router={router} />),
   }
 }
