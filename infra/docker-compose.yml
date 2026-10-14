@@ -15,6 +15,12 @@ services:
       - '443:443'
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS}
+    healthcheck:
+      # API de administración de Caddy: solo escucha dentro del contenedor.
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:2019/config/ >/dev/null']
+      interval: 30s
+      timeout: 5s
+      retries: 3
     volumes:
       - caddy_data:/data
       - caddy_config:/config

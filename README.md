@@ -42,17 +42,21 @@ Guía paso a paso del VPS de producción (nginx con certbot delante, subdominio 
 git clone <repo> /opt/dentalware && cd /opt/dentalware
 cp infra/.env.example infra/.env   # editar dominio, claves y admin
 docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env up -d --build
-docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env run --rm api node apps/api/dist/scripts/seed.js
+docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env run --rm api node dist/scripts/seed.js
 ```
 
-Caddy obtiene el certificado TLS automáticamente para `SITE_ADDRESS`. Backups: `infra/backup.sh` en cron diario.
+Caddy obtiene el certificado TLS automáticamente para `SITE_ADDRESS`. Respaldos: `infra/backup/` (restic, repositorio cifrado en el servidor; variables `RESTIC_*` y `BACKUP_*` de `infra/.env.example`), programados con `sudo infra/backup/install.sh --init`: respaldo diario, verificación semanal y simulacro mensual.
 Actualizar: `git pull && docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env up -d --build`.
 
 ### Restaurar
 
+La BD y las fotos se restauran **siempre sobre una BD vacía**, nunca sobre la BD viva: sigue el caso 1 de [`docs/operacion/recuperacion.md`](docs/operacion/recuperacion.md), que antes guarda la BD actual, para la API y borra la BD. Los otros dos modos no tocan la BD:
+
 ```bash
-docker compose -p dentalware -f infra/docker-compose.yml --env-file infra/.env exec -T postgres pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists < db_<fecha>.dump
-docker run --rm -v dentalware_uploads:/data -v "$PWD":/backup alpine tar xzf /backup/uploads_<fecha>.tgz -C /data
+sudo infra/backup/restore.sh --solo-archivos '<caseId>/<id>.jpg'   # un adjunto borrado
+sudo infra/backup/restore.sh --con-config /tmp/config-respaldada   # la configuración, para revisarla
 ```
 
-Procedimiento verificado el 2026-09-04 contra el contenedor de desarrollo (`dentalware-postgres`): dump con `pg_dump -Fc`, `pg_restore --clean --if-exists` sobre una base nueva y verificación con `\dt`.
+El job `respaldo` de CI (`infra/tests/backup-roundtrip.sh`) respalda, borra todo y restaura en cada PR.
+
+Qué se respalda, cuándo y cómo vigilarlo: [`docs/operacion/respaldos.md`](docs/operacion/respaldos.md). Recuperar la BD a una fecha, fotos borradas o el VPS entero: [`docs/operacion/recuperacion.md`](docs/operacion/recuperacion.md).

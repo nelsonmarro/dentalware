@@ -1,0 +1,17 @@
+# Simulacro mensual de recuperación (#111, PEM-3): restaura el último snapshot en una carpeta
+# temporal y en un Postgres desechable y lo compara con producción, sin tocarla.
+# Lo instala infra/backup/install.sh. Log: journalctl -u dentalware-restore-drill
+[Unit]
+Description=Dentalware: simulacro mensual de recuperación de los respaldos
+Documentation=file:@DENTALWARE_DIR@/docs/operacion/respaldos.md
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=@DENTALWARE_DIR@/infra
+ExecStart=@DENTALWARE_DIR@/infra/backup/drill.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=3h

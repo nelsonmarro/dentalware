@@ -6,7 +6,7 @@
 - recepción avisa a la clínica por WhatsApp desde la ficha;
 - técnicos y mensajeros instalan la app en el celular;
 - el sistema corre en el VPS con TLS;
-- los datos y las fotos se respaldan cada noche fuera del VPS, cifrados, y la recuperación está escrita y probada.
+- los datos y las fotos se respaldan cada noche en el propio servidor, cifrados, y la recuperación está escrita y probada (sin plataformas externas: decisión 2).
 
 **Architecture:**
 - **AVI-4** no tiene backend nuevo. La ficha del trabajo trae además el `whatsapp` de la clínica, como ya trae su teléfono. El texto del aviso es una regla pura de `shared` (`caseWhatsappText`), sin precios por construcción (no recibe importes). La web arma el enlace `wa.me` (`whatsappUrl`, en `lib/map-link.ts`, junto a `telUrl`).
@@ -14,7 +14,7 @@
 - **Infraestructura:**
   - Caddy sin caché por defecto, salvo `/assets/*`, y con su propio healthcheck (#19).
   - Imagen de la API con solo lo que corre, vía `pnpm deploy` (#23).
-  - Respaldos con **restic** (en su contenedor oficial: el VPS solo necesita Docker) a **Backblaze B2**. Los dispara un timer de systemd versionado en `infra/backup/`, avisan a healthchecks.io y tienen restauración, simulacro mensual y un job de CI que hace el viaje completo respaldo → borrado → restauración (#111, PEM-3).
+  - Respaldos con **restic** (en su contenedor oficial: el VPS solo necesita Docker) en un **repositorio local del VPS** (`/var/backups/dentalware/restic`). Los dispara un timer de systemd versionado en `infra/backup/`, y tienen restauración, verificación semanal, simulacro mensual y un job de CI que hace el viaje completo respaldo → borrado → restauración (#111, PEM-3). Fuera del VPS quedan solo los backups semanales que Hostinger ya hace, y una copia manual opcional al PC de Nelson.
 
 **Tech Stack:** pnpm 11, Node 24, Hono + Drizzle + Postgres 17, React 19 + TanStack, `vite-plugin-pwa`, Caddy 2, Docker Compose, restic, systemd, Vitest, Playwright y GitHub Actions.
 
@@ -35,7 +35,11 @@ Ledger: `.superpowers/sdd/2026-10-10-iteracion-7-cierre-mvp/progress.md`.
 
 De las historias y de #111 (Nelson, 2026-10-03), que no se re-litigan:
 1. **AVI-4 es solo un enlace `wa.me`.** No hay backend, ni registro de avisos, ni envío automático. El botón abre WhatsApp con el texto listo y la persona decide si lo envía.
-2. **RPO 24 h, RTO 4 h.** Destino Backblaze B2, cifrado en el cliente y retención 7 diarias / 4 semanales / 12 mensuales. La copia local se guarda 3 días.
+2. **Respaldos solo en el servidor (Nelson, 2026-10-10; sustituye al destino Backblaze B2 de #111).** Para el MVP no se usa ninguna plataforma de respaldos externa:
+   - restic con repositorio **local** en el VPS, cifrado, con retención 7 diarias / 4 semanales / 12 mensuales; el dump del día se guarda además 3 días aparte;
+   - **RPO 24 h y RTO 4 h** ante errores humanos, BD corrupta o archivos borrados, porque el servidor sigue vivo;
+   - **ante la pérdida total del VPS**, lo que queda fuera son los backups semanales de Hostinger (sin coste extra, en otro nodo) y la copia manual opcional (`rsync` del repositorio de restic al PC de Nelson). Se pueden perder hasta 7 días: riesgo aceptado por Nelson y escrito en `docs/operacion/respaldos.md`;
+   - el driver S3 (#48) y un destino externo quedan en Post-MVP.
 3. **Antes de cargar datos reales**, los respaldos tienen que estar funcionando y el simulacro de recuperación, pasado (#111).
 
 Del plan:
@@ -45,31 +49,20 @@ Del plan:
    - el admin (`SETTINGS_ROLES`, que son quienes editan clínicas) ve el enlace «Añadirlo», a `/configuracion/clinicas?editar={clinicId}`, que abre ya el diálogo de esa clínica;
    - recepción lee «Pídele al administrador que lo añada en Configuración › Clínicas.».
 6. **El texto del aviso** (`caseWhatsappText`): «Hola, le escribimos de {laboratorio}. El trabajo {código} (paciente {paciente}) {qué le pasa}.». El laboratorio sale de `useLabSettings`; si no hay datos, dice «del laboratorio». «Qué le pasa» viene de `CASE_WHATSAPP_STATUS_TEXT`, un `Record<CaseStatus, string>` exhaustivo. No lleva doctor, precios ni notas.
-7. **Respaldos «a prueba de VPS comprometido»: Object Lock en vez de una clave sin borrado.** #111 pedía una clave de B2 sin `deleteFiles`, pero no funciona con restic:
-   - restic necesita borrar sus archivos de bloqueo en cada `backup`;
-   - `forget --prune` necesita borrar (documentación de restic, «Security considerations in append-only mode»).
-
-   Se hace así:
-   - restic usa el backend **S3** de B2 (`s3:https://s3.<región>.backblazeb2.com/<bucket>`);
-   - el bucket se crea con **versionado y Object Lock** (retención por omisión de 30 días) y una regla de ciclo de vida que purga las versiones ocultas a los 30 días;
-   - un borrado desde el VPS solo deja una marca de borrado, y la versión anterior sigue recuperable 30 días;
-   - la clave de la aplicación se limita a ese bucket.
-
-   Se anota como ADR 36. Si la documentación de B2 que se consulte en la Tarea 6 lo contradice, se para y se consulta a Nelson.
+7. **Sin Backblaze ni Object Lock** (decisión 2). ADR 36: restic con repositorio local en el VPS, en contenedor, y los backups semanales de Hostinger como única capa fuera del servidor.
 8. **restic corre en contenedor** (`restic/restic`, con la versión fijada en `infra/backup/restic.env`). El VPS no instala nada salvo Docker y systemd, que ya tiene. Los scripts son bash con `set -euo pipefail` y `shellcheck` limpio. Su prueba es de punta a punta: el job de CI `respaldo` (Tarea 6).
 9. **Secretos:**
    - viven solo en el `.env` de producción (`infra/.env`, gitignored) y en `/etc/dentalware/restic-password` (`chmod 600`);
-   - la contraseña de restic y las claves de B2 se guardan también en el gestor de contraseñas de Nelson;
+   - la contraseña de restic se guarda también en el gestor de contraseñas de Nelson (sin ella, una copia del repositorio no sirve);
    - los scripts nunca hacen `echo` de un secreto ni corren con `set -x`;
    - en CI, solo valores de prueba generados en el job.
-10. **Healthchecks.io** recibe `start`, éxito y `fail` (con las últimas líneas del log, sin secretos) en `BACKUP_HEALTHCHECK_URL`. Si la variable está vacía, el script no hace ping y lo dice en el log.
+10. **Avisos opcionales.** Sin plataformas externas, los scripts no avisan a nadie por omisión: el resultado queda en journald y `docs/operacion/respaldos.md` dice cómo mirarlo. Si en el futuro se define `BACKUP_HEALTHCHECK_URL` (healthchecks.io u otro), reciben `start`, éxito y `fail`; vacía, no hacen ping y lo dicen en el log.
 
 **Pendiente de Nelson** (no bloquea los PR 1 y 2; sí bloquea la Tarea 9):
 - dominio y DNS;
-- crear el bucket de B2 con Object Lock y su clave;
-- cuenta de healthchecks.io;
-- guardar los secretos en su gestor;
-- si se activan los snapshots de Hostinger como capa extra (#111);
+- guardar los secretos en su gestor (el `.env` y la contraseña de restic);
+- ejecutar con `sudo` lo que lo pida en el VPS (Docker, nginx, `install.sh`);
+- mantener los backups semanales de Hostinger, que ya están activos;
 - rotar el token de Hostinger;
 - probar en un Android y un iPhone reales (PEM-1, absorbe #25).
 
@@ -85,7 +78,7 @@ Del plan:
 - Commits con `Refs #N`.
 - Chrome DevTools a 1280×800, 390×844 y 360×740 en la UI.
 - Puertos 3000 y 5173 libres al terminar; nunca `pkill` ni `killall`. Los contenedores que arranque una prueba local se paran por nombre de proyecto (`docker compose -p <proyecto> down -v`).
-- Ninguna acción contra el VPS, B2, healthchecks.io ni el DNS fuera de la Tarea 9, y en ella solo con Nelson presente.
+- Ninguna acción contra el VPS ni el DNS fuera de la Tarea 9, y en ella solo con Nelson presente.
 - El tablero es el Project 2: mover cada issue al empezar, al abrir el PR y al mergear.
 
 ---
@@ -497,11 +490,9 @@ La prueba en teléfonos reales (Android «Instalar», iPhone «Añadir a pantall
 - Create: `infra/tests/backup-roundtrip.sh`.
 - Modify: `.github/workflows/ci.yml`: job `respaldo`, que corre `backup-roundtrip.sh`.
 - Modify: `infra/.env.example` (ya existe; valores de ejemplo, nunca reales). `infra/.env` existe en la máquina de Nelson y está en `.gitignore`: **no se lee ni se toca**; las pruebas generan el suyo en un directorio temporal. Variables nuevas:
-  - `RESTIC_REPOSITORY`;
+  - `RESTIC_REPOSITORY` (en el VPS, una ruta local: `/var/backups/dentalware/restic`; `lib.sh` la monta en el contenedor de restic);
   - `RESTIC_PASSWORD_FILE`;
-  - `AWS_ACCESS_KEY_ID`;
-  - `AWS_SECRET_ACCESS_KEY`;
-  - `BACKUP_HEALTHCHECK_URL`;
+  - `BACKUP_HEALTHCHECK_URL` (opcional, vacía por omisión: decisión 10);
   - `BACKUP_LOCAL_DIR`.
 
 **Produces** (los usan las Tareas 7 y 8):
@@ -526,11 +517,10 @@ La prueba en teléfonos reales (Android «Instalar», iPhone «Añadir a pantall
   `--solo-archivos` restaura únicamente los archivos que casan con la ruta, para un borrado accidental, y no toca la BD. `--con-config` deja `.env` y `Caddyfile` en ese directorio para revisarlos, sin sobrescribir los vigentes.
 - Las dos leen `COMPOSE_PROJECT_NAME`, que por omisión es `dentalware`, y `COMPOSE_FILE`. Así la prueba usa un proyecto propio.
 
-- [ ] **Paso 1: context7 (restic) y la documentación de B2.**
-  - restic: la versión vigente de la imagen; `backup` con varias rutas, `--tag` y `--host`; `forget --prune`; `restore --target` con `--include`; `snapshots --json`; `check --read-data-subset`; el backend `s3:` con B2 (las variables `AWS_*` y la región en la URL).
-  - B2: Object Lock y versionado por la API S3, qué hace un `DeleteObject` sin versión (una marca de borrado) y la regla de ciclo de vida.
+- [ ] **Paso 1: context7 (restic).**
+  - restic: la versión vigente de la imagen; `backup` con varias rutas, `--tag` y `--host`; `forget --prune`; `restore --target` con `--include`; `snapshots --json`; `check --read-data-subset`.
 
-  Si algo contradice la decisión 7, se para y se consulta. Anotar las fuentes en el reporte.
+  Anotar las fuentes en el reporte. El repositorio es siempre una ruta local (decisión 2): no hay backend remoto que probar.
 - [ ] **Paso 2: test (RED)** `infra/tests/backup-roundtrip.sh`, de punta a punta, sin red externa:
   1. Genera un `.env` temporal con secretos aleatorios, un `RESTIC_REPOSITORY` local (`/tmp/dw-restic-<rand>`, montado en el contenedor de restic por `lib.sh` cuando el repositorio es una ruta) y una contraseña de restic en un archivo `chmod 600`.
   2. Levanta `docker compose -p dw-backup-test` con Postgres y la API (imagen de la Tarea 5), espera a `healthy` y ejecuta `restic init`.
@@ -567,7 +557,7 @@ La prueba en teléfonos reales (Android «Instalar», iPhone «Añadir a pantall
   - `dentalware-backup.service` y `dentalware-backup.timer`;
   - `dentalware-backup-check.service` y `dentalware-backup-check.timer`;
   - `dentalware-restore-drill.service` y `dentalware-restore-drill.timer`.
-- Create: `infra/backup/check.sh`, que ejecuta `restic check --read-data-subset=5%` con ping a su propio check de healthchecks (`BACKUP_CHECK_HEALTHCHECK_URL`).
+- Create: `infra/backup/check.sh`, que ejecuta `restic check --read-data-subset=5%` con ping opcional a `BACKUP_CHECK_HEALTHCHECK_URL` (vacía por omisión, decisión 10).
 - Create: `infra/backup/drill.sh`, el simulacro mensual:
   1. restaura `latest` en un directorio temporal;
   2. levanta un Postgres temporal (`docker run --rm --name dw-drill-pg` en una red propia);
@@ -608,7 +598,7 @@ Los servicios son `Type=oneshot`, con `WorkingDirectory=@DENTALWARE_DIR@/infra` 
 ### Tarea 8: docs de operación — despliegue y recuperación (#111, PEM-3)
 
 **Files:**
-- Create: `docs/operacion/despliegue.md`. Cubre:
+- Modify: `docs/operacion/despliegue.md` (ya existe desde el PR 1, con nginx del VPS delante): su paso 12 pasa de los respaldos provisionales a `install.sh`, enlazando `respaldos.md` y `recuperacion.md`. Lo que ya cubre se mantiene:
   - requisitos del VPS (Docker, systemd y puertos 80/443);
   - DNS (registro A del dominio a la IP del VPS);
   - clonar en `/opt/dentalware`;
@@ -619,31 +609,32 @@ Los servicios son `Type=oneshot`, con `WorkingDirectory=@DENTALWARE_DIR@/infra` 
   - actualizar (`git pull && docker compose up -d --build`, recordando que `PUBLIC_URL` exige `--build`);
   - qué mirar si algo falla (`docker compose logs`, `journalctl`).
 - Create: `docs/operacion/recuperacion.md`. Cubre los tres casos de #111:
-  - **pérdida total del VPS**, en orden: VPS nuevo, Docker, clonar, recuperar del gestor de Nelson la contraseña de restic y las claves de B2, `restic restore --con-config`, revisar y colocar el `.env`, `up`, `restore.sh`, DNS, verificar con la lista de abajo y anotar el tiempo;
+  - **pérdida total del VPS**, en orden: VPS nuevo, Docker, clonar, traer el repositorio de restic (de la copia manual en el PC de Nelson) o restaurar el último backup semanal de Hostinger en el VPS nuevo, recuperar del gestor de Nelson la contraseña de restic, `restic restore --con-config`, revisar y colocar el `.env`, `up`, `restore.sh`, DNS, verificar con la lista de abajo y anotar el tiempo;
   - **BD corrupta o borrada a una fecha:** `restic snapshots`, elegir y `restore.sh --snapshot <id>`;
   - **archivos borrados:** `restore.sh --solo-archivos <ruta>`.
 
-  Con una lista de verificación final: trabajos, clínicas, fotos que abren en la ficha, login y el respaldo siguiente en verde. Y una sección «Si el VPS estuvo comprometido»: rotar todos los secretos y recuperar versiones previas del bucket (Object Lock, 30 días).
+  Con una lista de verificación final: trabajos, clínicas, fotos que abren en la ficha, login y el respaldo siguiente en verde. Y una sección «Si el VPS estuvo comprometido»: rotar todos los secretos y restaurar desde el backup semanal de Hostinger o la copia del PC, porque el repositorio local pudo quedar manipulado.
 - Create: `docs/operacion/respaldos.md`. Explica:
   - qué se respalda, cuándo y dónde;
   - la retención;
   - las alertas;
   - cómo ver el estado (`systemctl list-timers`, `journalctl`, `restic snapshots`);
   - dónde están los secretos (en el gestor de Nelson; el repositorio no los tiene);
-  - cómo crear el bucket de B2 con versionado, Object Lock a 30 días, ciclo de vida y una clave limitada a ese bucket.
+  - el riesgo aceptado (decisión 2): ante la pérdida total del VPS, la capa de fuera son los backups semanales de Hostinger (hasta 7 días de pérdida); cómo restaurarlos desde hPanel;
+  - la copia manual opcional al PC (`rsync -a --delete nelson@VPS:/var/backups/dentalware/restic/ …`), que sigue cifrada con la contraseña de restic.
 - Modify: `docs/architecture.md`:
   - §6, «Respaldos» → los tres docs;
   - §7: los jobs `infra` y `respaldo` de CI, el deploy y Caddy sin caché por defecto;
-  - ADR 36: restic a B2 con Object Lock (decisión 7) y restic en contenedor (decisión 8).
+  - ADR 36: respaldos solo en el servidor con restic en contenedor (decisiones 2, 7 y 8).
 - Modify: `docs/conventions.md` §8: los scripts de `infra/` con `shellcheck` y su prueba en `infra/tests/`.
 
 - [ ] **Paso 1:** escribir los tres documentos siguiendo los scripts reales de las Tareas 6 y 7. Todos los comandos deben existir; se copian de los scripts, no se inventan.
-- [ ] **Paso 2: ensayo en seco local del runbook de pérdida total.** Seguir `recuperacion.md` paso a paso en la máquina local, con un proyecto compose aparte y el repositorio de restic local (el «bucket» es un directorio). Cronometrarlo y corregir el documento donde falle. Anotar en el reporte el tiempo medido y los cambios.
+- [ ] **Paso 2: ensayo en seco local del runbook de pérdida total.** Seguir `recuperacion.md` paso a paso en la máquina local, con un proyecto compose aparte y un repositorio de restic local, como en producción. Cronometrarlo y corregir el documento donde falle. Anotar en el reporte el tiempo medido y los cambios.
 - [ ] **Paso 3:** commit `docs: despliegue, respaldos y recuperación del laboratorio` con `Refs #111 #93`.
 
 **Cierre del PR 2:**
 - revisión final de la rama (con foco en secretos: `git grep` de patrones de claves y GitGuardian en verde) y su ronda de fixes;
-- PR «Iteración 7 (2/2): Caddy, imagen de la API y respaldos fuera del VPS», con `Closes #19 #23` y `Refs #111 #93`, que se cierran en la Tarea 9, tras el simulacro real;
+- PR «Iteración 7 (2/2): Caddy, imagen de la API y respaldos en el servidor», con `Closes #19 #23` y `Refs #111 #93`, que se cierran en la Tarea 9, tras el simulacro real;
 - automerge con CI en verde y la rama borrada.
 
 ---
@@ -654,13 +645,8 @@ Todo lo de esta tarea ocurre fuera del repositorio y toca cuentas y servidores d
 
 - [ ] **Paso 1: Nelson decide.**
   - Dominio (`SITE_ADDRESS` y `PUBLIC_URL`).
-  - Si se activan los snapshots semanales de Hostinger (#111).
   - Si se rota el token de la API de Hostinger antes de usar el MCP.
-- [ ] **Paso 2: Nelson crea** (con `docs/operacion/respaldos.md` delante):
-  - el bucket privado de B2, en una región distinta a la del VPS, con versionado, Object Lock a 30 días y ciclo de vida;
-  - la clave de aplicación limitada a ese bucket;
-  - la cuenta de healthchecks.io, con tres checks (diario con 2 h de gracia, semanal y mensual);
-  - las entradas de su gestor de contraseñas: contraseña de restic, claves de B2 y `.env` de producción.
+- [ ] **Paso 2: Nelson guarda** en su gestor de contraseñas la contraseña de restic (se genera en el VPS con `openssl rand`) y el `.env` de producción, y comprueba en hPanel que los backups semanales de Hostinger siguen activos.
 - [ ] **Paso 3: despliegue.** Seguir `docs/operacion/despliegue.md` en el VPS, por SSH, con Nelson:
   - DNS;
   - `.env`;
@@ -670,11 +656,10 @@ Todo lo de esta tarea ocurre fuera del repositorio y toca cuentas y servidores d
   - Chrome DevTools contra el dominio a 1280, 390 y 360, con la consola limpia.
 - [ ] **Paso 4: respaldos.** Ejecutar `install.sh --init` y lanzar un primer `systemctl start dentalware-backup`. Comprobar:
   - el snapshot en `restic snapshots`;
-  - el ping verde en healthchecks;
-  - el archivo en el bucket.
+  - `journalctl -u dentalware-backup` con «respaldo ok».
 
   Al día siguiente, comprobar el respaldo automático de la noche y que un adjunto subido ayer está en él (criterio de PEM-3).
-- [ ] **Paso 5: simulacro real** (criterio de #111). Seguir `recuperacion.md` («pérdida total») en una máquina limpia (un VPS temporal o la máquina de Nelson), solo con el documento y los secretos del gestor:
+- [ ] **Paso 5: simulacro real** (criterio de #111). Seguir `recuperacion.md` («pérdida total») en una máquina limpia (la de Nelson), con una copia del repositorio de restic traída con `rsync`, solo con el documento y los secretos del gestor:
   - cronometrar;
   - verificar que trabajos, clínicas y fotos se ven en las fichas;
   - anotar el RTO medido (objetivo ≤ 4 h);

@@ -1,0 +1,16 @@
+# Verificación semanal del repositorio de restic (#111): restic check --read-data-subset=5%.
+# Lo instala infra/backup/install.sh. Log: journalctl -u dentalware-backup-check
+[Unit]
+Description=Dentalware: verificación semanal del repositorio de respaldos
+Documentation=file:@DENTALWARE_DIR@/docs/operacion/respaldos.md
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=@DENTALWARE_DIR@/infra
+ExecStart=@DENTALWARE_DIR@/infra/backup/check.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=2h
