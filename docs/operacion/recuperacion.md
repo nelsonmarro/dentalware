@@ -252,7 +252,7 @@ Al terminar cualquiera de los tres casos:
 Por un corte de luz, un `kill` o porque se cerró la sesión SSH. Se ve en que el log no termina en «Restauración completa».
 
 - **La BD** queda entera: o como estaba, o ya restaurada. `pg_restore` va en una sola transacción.
-- **La API** se queda como estaba al empezar: `restore.sh` solo la vuelve a arrancar si estaba en marcha. En el caso 1, en la ruta B y al volver atrás estaba parada y debe seguir así: **no hagas `dw up -d`**. Sobre la BD vacía, la API crearía el esquema actual y la restauración siguiente fallaría con `already exists`. Si ya la arrancaste, no pasa nada: el paso siguiente borra la BD otra vez.
+- **La API**: `restore.sh` solo la vuelve a arrancar si estaba en marcha, y solo si llega a terminar su limpieza (tras un corte de luz o un `kill -9`, nadie la arranca). En el caso 1, en la ruta B y al volver atrás estaba parada y debe seguir así: **no hagas `dw up -d`**. Sobre la BD vacía, la API crearía el esquema actual y la restauración siguiente fallaría con `already exists`. Si ya la arrancaste, no pasa nada: el paso siguiente borra la BD otra vez.
 - **Lo que queda en el disco:** la carpeta temporal `restaurar.*`, con el dump y las fotos **sin cifrar**. Si el script termina, la borra él; si lo cortan, no. Bórrala a mano:
 
   ```bash

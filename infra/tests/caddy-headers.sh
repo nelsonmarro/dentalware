@@ -157,7 +157,7 @@ else
   compose exec -T caddy caddy adapt --adapter caddyfile --config /tmp/Caddyfile.vps \
     >"$tmp/vps.json" 2>/dev/null || true
   jq -e '[.apps.http.servers[].trusted_proxies | select(.source == "static")
-    | .ranges | index("192.168.0.0/16")] | length > 0' "$tmp/vps.json" >/dev/null 2>&1 ||
+    | .ranges | index("192.168.0.0/16") != null] | any' "$tmp/vps.json" >/dev/null 2>&1 ||
     fail "el Caddyfile.vps no se fía de los proxies privados (trusted_proxies static private_ranges)"
 fi
 

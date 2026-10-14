@@ -351,12 +351,14 @@ tables="$(psql_value "select count(*) from information_schema.tables where table
   fail "tras la restauración que falla, la BD vacía debe seguir vacía, sin migrar (${tables} tablas)"
 
 echo "Restaurando el último snapshot..."
+touch "$tmp/restore-inicio"
 if ! run_script "$tmp/.env" "$root/infra/backup/restore.sh" --snapshot latest >"$tmp/restore.log"; then
   cat "$tmp/restore.log" >&2
   abort "restore.sh falló"
 fi
 show "$tmp/restore.log"
-safety_dump="$(find "$tmp/local/db" -name 'antes-de-restaurar-*.dump' | head -n 1)"
+# La restauración rota de antes dejó la suya: solo cuenta la escrita por esta restauración.
+safety_dump="$(find "$tmp/local/db" -name 'antes-de-restaurar-*.dump' -newer "$tmp/restore-inicio" | head -n 1)"
 if [ -z "$safety_dump" ] || [ "$(stat -c %a "$safety_dump")" != "600" ]; then
   fail "la copia antes de restaurar debe existir con permisos 600"
 fi
