@@ -34,6 +34,7 @@ export function CaseHeader({
   events = [],
   remakes = [],
   labName = null,
+  focusWhatsapp = false,
 }: {
   case: CaseDetail
   missing: string[]
@@ -48,6 +49,8 @@ export function CaseHeader({
   remakes?: { id: string; code: string }[]
   /** Nombre del laboratorio para el aviso por WhatsApp (AVI-4); `null` mientras no carga. */
   labName?: string | null
+  /** Enfoca «Avisar por WhatsApp» al montar (`?foco=whatsapp`, de vuelta de añadirlo). */
+  focusWhatsapp?: boolean
 }) {
   const hidePrices = hidesPrices(role)
   const canEdit = canWriteCases(role) && isEditableStatus(c.status)
@@ -68,7 +71,7 @@ export function CaseHeader({
     <Card className="border-l-4" style={{ borderLeftColor: STATUS_COLOR[c.status] }}>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex flex-col gap-1">
+          <div className="flex w-full flex-col gap-1 sm:w-auto">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-mono text-2xl font-semibold">{c.code}</h1>
               <StatusChip status={c.status} />
@@ -77,7 +80,7 @@ export function CaseHeader({
             <p className="text-sm text-muted-foreground">
               {c.clinic?.name ?? '—'} · {c.doctor?.name ?? '—'}
             </p>
-            <CaseWhatsapp case={c} role={role} labName={labName} />
+            <CaseWhatsapp case={c} role={role} labName={labName} focus={focusWhatsapp} />
             {/* I-2: CIC-4 exige que la repetición quede enlazada en la ficha del hijo, no solo
              * en `parentCaseId` (sin código ni enlace, invisible para quien la ve). */}
             {c.parentCaseId && c.parentCase && (
@@ -104,14 +107,14 @@ export function CaseHeader({
               </div>
             )}
           </div>
-          <div className="flex gap-2">
-            <Button asChild variant="outline" className="h-11">
+          <div className="flex w-full gap-2 sm:w-auto">
+            <Button asChild variant="outline" className="h-11 flex-1 sm:flex-none">
               <Link to="/trabajos/$caseId/imprimir" params={{ caseId: c.id }}>
                 <Printer /> Imprimir
               </Link>
             </Button>
             {canEdit && (
-              <Button asChild variant="outline" className="h-11">
+              <Button asChild variant="outline" className="h-11 flex-1 sm:flex-none">
                 <Link to="/trabajos/$caseId/editar" params={{ caseId: c.id }}>
                   <Pencil /> Editar
                 </Link>

@@ -3,7 +3,10 @@ import { useCallback } from 'react'
 import { z } from 'zod'
 import { ClinicsPage } from '@/features/clinics/clinics-page'
 
-const clinicsSearchSchema = z.object({ editar: z.string() }).partial().catch({})
+const clinicsSearchSchema = z
+  .object({ editar: z.string(), volver: z.string(), campo: z.string() })
+  .partial()
+  .catch({})
 
 export const Route = createFileRoute('/_app/configuracion/clinicas')({
   validateSearch: clinicsSearchSchema,
