@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import {
   createClinicWithDoctor,
   createCourier,
+  pickSelectOption,
   createProduct,
   createStaff,
   FOTO_PATH,
@@ -502,8 +503,7 @@ test.describe('Trabajos', () => {
       // ENT-2: enviar pide mensajero y fecha (hoy por omisión).
       await page.getByRole('button', { name: 'Marcar enviado' }).click()
       const envio = page.getByRole('dialog', { name: 'Marcar enviado' })
-      await envio.getByRole('combobox', { name: 'Mensajero' }).click()
-      await page.getByRole('option', { name: courier.name }).click()
+      await pickSelectOption(page, envio.getByRole('combobox', { name: 'Mensajero' }), courier.name)
       await expect(
         envio.getByText(new RegExp(`^El trabajo sale del laboratorio con ${courier.name} el `)),
       ).toBeVisible()
