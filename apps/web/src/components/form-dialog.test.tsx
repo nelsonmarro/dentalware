@@ -235,4 +235,17 @@ describe('FormDialog: foco inicial (UX7-02)', () => {
     const dialog = await screen.findByRole('dialog')
     await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true))
   })
+
+  it('no enfoca un input oculto (aria-hidden o tabindex -1) aunque sea el primero', async () => {
+    render(
+      <FormDialog open onOpenChange={() => {}} title="Foto" footer={<button>Guardar</button>}>
+        <input type="file" aria-label="Archivo" aria-hidden="true" tabIndex={-1} />
+        <button disabled>Tomar foto</button>
+        <p>Texto</p>
+      </FormDialog>,
+    )
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true))
+    expect(document.querySelector('input[type=file]')).not.toHaveFocus()
+  })
 })

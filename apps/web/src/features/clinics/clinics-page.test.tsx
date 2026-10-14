@@ -1,4 +1,5 @@
 import { screen, waitFor } from '@testing-library/react'
+import { focusManager } from '@tanstack/react-query'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setMatchMedia } from '@/test/match-media'
@@ -79,7 +80,7 @@ describe('ClinicsPage ?editar (AVI-4)', () => {
     )
   })
 
-  it('guardar una clínica descarta los trabajos cacheados: su ficha trae el contacto', async () => {
+  it('guardar una clínica invalida los trabajos cacheados: su ficha trae el contacto', async () => {
     setMatchMedia(true)
     vi.mocked(fetchClinics).mockResolvedValue(clinics)
     vi.mocked(updateClinic).mockResolvedValue(
@@ -90,7 +91,42 @@ describe('ClinicsPage ?editar (AVI-4)', () => {
     )
     client.setQueryData(['trabajos', 't1'], { id: 't1' })
     await user.click(await screen.findByRole('button', { name: 'Guardar' }))
-    await waitFor(() => expect(client.getQueryData(['trabajos', 't1'])).toBeUndefined())
+    await waitFor(() => expect(client.getQueryState(['trabajos', 't1'])?.isInvalidated).toBe(true))
+    expect(client.getQueryData(['trabajos', 't1'])).toEqual({ id: 't1' })
+  })
+
+  it('tras el 404 no queda petición viva: «Nueva clínica» abre sin foco de WhatsApp ni vuelta', async () => {
+    setMatchMedia(true)
+    vi.mocked(fetchClinics).mockResolvedValue(clinics)
+    vi.mocked(fetchClinic).mockRejectedValue(new ApiError('La clínica no existe', 404))
+    const { user, router } = renderWithQueryAndRouter(
+      <ClinicsPage
+        editId="zzz"
+        returnTo="/trabajos/t1"
+        focusField="whatsapp"
+        onEditHandled={() => {}}
+      />,
+    )
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Esa clínica ya no existe'))
+    await user.click(screen.getAllByRole('button', { name: /Nueva clínica/ })[0]!)
+    const name = await screen.findByLabelText('Nombre')
+    await waitFor(() => expect(name).toHaveFocus())
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(router.state.location.href).toBe('/')
+  })
+
+  it('tras el 404, recuperar el foco de la pestaña no repite el aviso', async () => {
+    setMatchMedia(true)
+    vi.mocked(fetchClinics).mockResolvedValue(clinics)
+    vi.mocked(fetchClinic).mockRejectedValue(new ApiError('La clínica no existe', 404))
+    renderWithQueryAndRouter(<ClinicsPage editId="zzz" onEditHandled={() => {}} />)
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    focusManager.setFocused(false)
+    focusManager.setFocused(true)
+    await new Promise((r) => setTimeout(r, 100))
+    expect(fetchClinic).toHaveBeenCalledTimes(1)
+    expect(toast.error).toHaveBeenCalledTimes(1)
   })
 
   it('cancelar vuelve a la ficha sin aviso ni foco', async () => {

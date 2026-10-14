@@ -17,7 +17,8 @@ export type ClinicsSearch = { editar?: string; volver?: string; campo?: 'whatsap
 
 export function parseClinicsSearch(input: unknown): ClinicsSearch {
   const { editar, volver, campo } = clinicsSearchSchema.parse(input)
-  const safe = safeRedirect(volver) ?? undefined
+  // Sin `?` ni `#`: a `volver` se le añade `?foco=whatsapp` y una consulta propia lo rompería.
+  const safe = volver && /[?#]/.test(volver) ? undefined : (safeRedirect(volver) ?? undefined)
   // Sin claves `undefined`: la URL queda limpia al navegar.
   return {
     ...(editar ? { editar } : {}),

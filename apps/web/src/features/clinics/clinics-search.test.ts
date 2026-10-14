@@ -13,6 +13,12 @@ describe('parseClinicsSearch (search de /configuracion/clinicas)', () => {
       expect(parseClinicsSearch({ editar: 'c1', volver })).toEqual({ editar: 'c1' })
     },
   )
+  it.each(['/trabajos/t1?x=1', '/trabajos/t1#a'])(
+    'descarta volver=%s (ya trae ? o #)',
+    (volver) => {
+      expect(parseClinicsSearch({ editar: 'c1', volver })).toEqual({ editar: 'c1' })
+    },
+  )
   it('descarta un campo desconocido y conserva lo demás', () => {
     expect(parseClinicsSearch({ editar: 'c1', campo: 'nombre' })).toEqual({ editar: 'c1' })
   })

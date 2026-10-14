@@ -23,10 +23,8 @@ export function useSaveClinic() {
       id ? updateClinic(id, input) : createClinic(input),
     onSuccess: (_c, { id, doneText }) => {
       void invalidate()
-      // La ficha de un trabajo trae el contacto de su clínica (WhatsApp). Se descarta lo cacheado
-      // (no solo se marca vieja): al volver de «Añadir WhatsApp» la ficha monta con datos que ya
-      // tienen el número, y `?foco=whatsapp` encuentra el enlace en vez de gastarse con los viejos.
-      qc.removeQueries({ queryKey: ['trabajos'] })
+      // La ficha de un trabajo trae el contacto de su clínica (WhatsApp).
+      void qc.invalidateQueries({ queryKey: ['trabajos'] })
       toast.success(doneText ?? (id ? 'Clínica actualizada' : 'Clínica creada'))
     },
     onError: toastApiError,

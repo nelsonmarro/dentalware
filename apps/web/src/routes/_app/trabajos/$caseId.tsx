@@ -40,13 +40,13 @@ function CasePage() {
   // actual del trabajo aunque se haya desactivado después de asignarla.
   const stages = useStages(true)
 
-  // `foco` se quita de la URL cuando ya hay datos: antes, el enlace aún no está montado y no
-  // recibiría el foco (`autoFocus` actúa al montar, en el mismo commit en que llegan los datos).
+  // `foco` se quita de la URL cuando ya hay datos frescos: antes, el enlace aún no está montado
+  // (o se monta con el contacto viejo de la clínica, tras invalidar) y no recibiría el foco.
   useEffect(() => {
-    if (foco && q.data) {
+    if (foco && q.data && !q.isFetching) {
       void navigate({ to: '/trabajos/$caseId', params: { caseId }, search: {}, replace: true })
     }
-  }, [foco, q.data, caseId, navigate])
+  }, [foco, q.data, q.isFetching, caseId, navigate])
 
   if (q.isPending) return <p className="text-sm text-muted-foreground">Cargando…</p>
   if (q.isError) {

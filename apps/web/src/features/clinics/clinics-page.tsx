@@ -61,12 +61,20 @@ export function ClinicsPage({
     setEditing(lookup.data)
     setLookupId(null)
   }
-  // Si no existe (404) o falla, se avisa una vez; no se abre nada.
+  // Si no existe (404) o falla: se deja de pedir y se limpia la petición (para que «Nueva
+  // clínica» no herede `returnTo` ni el foco), y el error pasa a un estado propio.
+  const [lookupFailure, setLookupFailure] = useState<unknown>(null)
+  if (lookupId !== null && lookup.isError) {
+    setLookupFailure(lookup.error)
+    setLookupId(null)
+    setRequest(null)
+  }
+  // Una identidad de error = un aviso (sin repetirlo al recuperar el foco o la red).
   useEffect(() => {
-    if (lookupId === null || !lookup.isError) return
-    if (isNotFoundError(lookup.error)) toast.error('Esa clínica ya no existe')
-    else toastApiError(lookup.error)
-  }, [lookupId, lookup.isError, lookup.error])
+    if (lookupFailure === null) return
+    if (isNotFoundError(lookupFailure)) toast.error('Esa clínica ya no existe')
+    else toastApiError(lookupFailure)
+  }, [lookupFailure])
 
   function leave(href: string | null) {
     setEditing(null)

@@ -9,8 +9,9 @@ import {
 import { cn } from '@/lib/utils'
 import { useReturnFocus } from './use-return-focus'
 
-const FIELD_SELECTOR =
-  'input:not([type=hidden]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [role=combobox]:not([disabled])'
+// Sin lo oculto (`aria-hidden`, `tabindex=-1`): el input de archivo `sr-only` no recibe el foco.
+const NOT_HIDDEN = ':not([disabled]):not([tabindex="-1"]):not([aria-hidden="true"])'
+const FIELD_SELECTOR = `input:not([type=hidden])${NOT_HIDDEN}, textarea${NOT_HIDDEN}, select${NOT_HIDDEN}, [role=combobox]${NOT_HIDDEN}`
 const TABBABLE_SELECTOR = `${FIELD_SELECTOR}, button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])`
 const TEXT_TYPES = new Set(['text', 'search', 'tel', 'url', 'password'])
 
