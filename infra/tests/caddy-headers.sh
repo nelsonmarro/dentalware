@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Prueba de punta a punta del Caddy de producción (#19): construye la imagen web, levanta solo
 # Caddy con SITE_ADDRESS=:80 (como detrás del nginx del VPS) en un puerto libre del host y
-# comprueba las cabeceras de caché y de seguridad, y que el contenedor llega a «healthy».
+# comprueba las cabeceras de caché y de seguridad, y que el contenedor llega a «healthy». Valida
+# además, con ese mismo Caddy, el Caddyfile.vps generado con el comando del paso 6.2 de
+# docs/operacion/despliegue.md (el del repo con `trusted_proxies` delante).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -136,6 +138,28 @@ for _ in $(seq 1 60); do
   sleep 2
 done
 [ "$health" = "healthy" ] || fail "el contenedor caddy no llegó a healthy (estado: ${health})"
+
+# El Caddyfile.vps del VPS, generado con el comando literal de despliegue.md (paso 6.2), en una
+# copia de /opt/dentalware: Caddy lo acepta y se fía de los proxies privados (el nginx de delante).
+vps_cmd="$(grep -m 1 -F "trusted_proxies static private_ranges" "$root/docs/operacion/despliegue.md" || true)"
+if [ -z "$vps_cmd" ]; then
+  fail "despliegue.md no tiene el comando que genera infra/Caddyfile.vps (paso 6.2)"
+else
+  mkdir -p "$tmp/vps/infra"
+  cp "$root/infra/Caddyfile" "$tmp/vps/infra/Caddyfile"
+  (cd "$tmp/vps" && bash -euo pipefail -c "$vps_cmd") || fail "el comando del paso 6.2 falló: ${vps_cmd}"
+  compose exec -T caddy sh -c 'cat >/tmp/Caddyfile.vps' <"$tmp/vps/infra/Caddyfile.vps"
+  if ! compose exec -T caddy caddy validate --adapter caddyfile --config /tmp/Caddyfile.vps \
+    >"$tmp/validate.log" 2>&1; then
+    fail "Caddy no acepta el Caddyfile.vps del paso 6.2: $(grep -m 1 -i error "$tmp/validate.log" ||
+      tail -n 1 "$tmp/validate.log")"
+  fi
+  compose exec -T caddy caddy adapt --adapter caddyfile --config /tmp/Caddyfile.vps \
+    >"$tmp/vps.json" 2>/dev/null || true
+  jq -e '[.apps.http.servers[].trusted_proxies | select(.source == "static")
+    | .ranges | index("192.168.0.0/16")] | length > 0' "$tmp/vps.json" >/dev/null 2>&1 ||
+    fail "el Caddyfile.vps no se fía de los proxies privados (trusted_proxies static private_ranges)"
+fi
 
 if [ "$failures" -gt 0 ]; then
   echo "${failures} comprobación(es) fallaron." >&2
