@@ -130,6 +130,42 @@ describe('/api/config/clinicas', () => {
     expect(row!.email).toBeNull()
   })
 
+  it('normaliza el WhatsApp escrito como se habla: 099 123 4567 se guarda +593991234567', async () => {
+    const created = await app.request(
+      '/api/config/clinicas',
+      req(admin, 'POST', { name: 'Clínica Centro', whatsapp: '099 123 4567' }),
+    )
+    expect(created.status).toBe(201)
+    const { clinic } = (await created.json()) as { clinic: { id: string; whatsapp: string } }
+    expect(clinic.whatsapp).toBe('+593991234567')
+    const det = (await (
+      await app.request(`/api/config/clinicas/${clinic.id}`, req(admin, 'GET'))
+    ).json()) as { clinic: { whatsapp: string } }
+    expect(det.clinic.whatsapp).toBe('+593991234567')
+  })
+
+  it('un PUT con un WhatsApp inválido responde 422 con el mensaje en whatsapp', async () => {
+    const { clinic } = (await (
+      await app.request('/api/config/clinicas', req(admin, 'POST', { name: 'Clínica Este' }))
+    ).json()) as { clinic: { id: string } }
+    const res = await app.request(
+      `/api/config/clinicas/${clinic.id}`,
+      req(admin, 'PUT', { name: 'Clínica Este', whatsapp: '12345' }),
+    )
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as {
+      message: string
+      issues: { path: string; message: string }[]
+    }
+    expect(body.message).toBe('Datos inválidos')
+    expect(body.issues).toContainEqual(
+      expect.objectContaining({
+        path: 'whatsapp',
+        message: 'Escribe el WhatsApp como 099 123 4567 o +593 99 123 4567',
+      }),
+    )
+  })
+
   it('detalle incluye sus doctores', async () => {
     const { clinic } = (await (
       await app.request('/api/config/clinicas', req(admin, 'POST', { name: 'Sonrisa' }))

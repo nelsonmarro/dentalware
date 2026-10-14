@@ -14,10 +14,19 @@ const png = (size) => sharp(src).resize(size, size).png().toBuffer()
 for (const [name, size] of [
   ['pwa-192x192.png', 192],
   ['pwa-512x512.png', 512],
-  ['apple-touch-icon.png', 180],
 ]) {
   await writeFile(path.join(out, name), await png(size))
 }
+
+// Apple pide un icono cuadrado y opaco (iOS pone su propia máscara y rellena de negro lo
+// transparente, UX7-10): el logo sobre el color de marca, sin esquinas redondeadas.
+await writeFile(
+  path.join(out, 'apple-touch-icon.png'),
+  await sharp({ create: { width: 180, height: 180, channels: 4, background: BRAND } })
+    .composite([{ input: await png(180), gravity: 'center' }])
+    .png()
+    .toBuffer(),
+)
 
 // Maskable: fondo a sangre y el logo dentro de la zona segura (80 % central).
 const inner = await sharp(src).resize(410, 410).png().toBuffer()

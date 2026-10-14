@@ -27,13 +27,19 @@ describe('schemas de configuración', () => {
         paymentTermsDays: 30,
       }).success,
     ).toBe(true)
-    const r = clinicSchema.safeParse({ name: 'X', whatsapp: '0991234567' })
+    const r = clinicSchema.safeParse({ name: 'X', whatsapp: '12345' })
     expect(r.success).toBe(false)
     if (!r.success)
       expect(r.error.issues[0]?.message).toBe(
-        'El WhatsApp debe ir en formato internacional, ej. +593991234567',
+        'Escribe el WhatsApp como 099 123 4567 o +593 99 123 4567',
       )
     expect(clinicSchema.safeParse({ name: 'X', paymentTermsDays: -1 }).success).toBe(false)
+  })
+
+  it('clinic normaliza el WhatsApp escrito como se habla (UX7-06)', () => {
+    const r = clinicSchema.safeParse({ name: 'X', whatsapp: '099 123 4567' })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.whatsapp).toBe('+593991234567')
   })
 
   it('doctor exige clínica (uuid) y nombre', () => {
@@ -140,6 +146,28 @@ describe('schemas de configuración', () => {
     if (r3.success) {
       expect(r3.data.whatsapp).toBe('+593991234567')
       expect(r3.data.email).toBe('clinica@sonrisa.com')
+    }
+  })
+
+  it('clinic quita el 0 tras el +593 del WhatsApp (+593 099 123 4567)', () => {
+    const r = clinicSchema.safeParse({ name: 'X', whatsapp: '+593 099 123 4567' })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.whatsapp).toBe('+593991234567')
+  })
+
+  it.each(['', '  ', null, undefined])('clinic da null con whatsapp %j', (whatsapp) => {
+    const r = clinicSchema.safeParse({ name: 'X', whatsapp })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.whatsapp).toBeNull()
+  })
+
+  it('clinic rechaza un WhatsApp de solo separadores', () => {
+    const r = clinicSchema.safeParse({ name: 'X', whatsapp: '---' })
+    expect(r.success).toBe(false)
+    if (!r.success) {
+      expect(r.error.issues[0]?.message).toBe(
+        'Escribe el WhatsApp como 099 123 4567 o +593 99 123 4567',
+      )
     }
   })
 

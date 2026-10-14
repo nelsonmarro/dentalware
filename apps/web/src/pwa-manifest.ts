@@ -12,7 +12,7 @@ export const manifest: Partial<ManifestOptions> = {
   short_name: 'Dentalware',
   description: 'Gestión del laboratorio dental',
   lang: 'es',
-  theme_color: '#0f766e',
+  theme_color: '#F4F6F5',
   background_color: '#F4F6F5',
   display: 'standalone',
   start_url: '/',

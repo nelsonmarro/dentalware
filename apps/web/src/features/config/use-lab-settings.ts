@@ -4,8 +4,9 @@ import { toastApiError } from '@/lib/api-error'
 import { queryKeys } from '@/lib/query-keys'
 import { fetchLabSettings, saveLabSettings } from './api'
 
-export function useLabSettings() {
-  return useQuery({ queryKey: queryKeys.labSettings, queryFn: fetchLabSettings })
+/** `enabled = false` para quien no usa los datos (la ficha solo los pide a quien avisa). */
+export function useLabSettings(enabled = true) {
+  return useQuery({ queryKey: queryKeys.labSettings, queryFn: fetchLabSettings, enabled })
 }
 
 export function useSaveLabSettings() {

@@ -8,8 +8,8 @@ import { createClinic, fetchClinic, fetchClinics, setClinicActive, updateClinic 
 export function useClinics(inactive: boolean) {
   return useQuery({ queryKey: queryKeys.clinics(inactive), queryFn: () => fetchClinics(inactive) })
 }
-export function useClinic(id: string) {
-  return useQuery({ queryKey: queryKeys.clinic(id), queryFn: () => fetchClinic(id) })
+export function useClinic(id: string, enabled = true) {
+  return useQuery({ queryKey: queryKeys.clinic(id), queryFn: () => fetchClinic(id), enabled })
 }
 function useInvalidateClinics() {
   const qc = useQueryClient()
@@ -17,12 +17,15 @@ function useInvalidateClinics() {
 }
 export function useSaveClinic() {
   const invalidate = useInvalidateClinics()
+  const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, input }: { id?: string; input: ClinicInput }) =>
+    mutationFn: ({ id, input }: { id?: string; input: ClinicInput; doneText?: string }) =>
       id ? updateClinic(id, input) : createClinic(input),
-    onSuccess: (_c, { id }) => {
+    onSuccess: (_c, { id, doneText }) => {
       void invalidate()
-      toast.success(id ? 'Clínica actualizada' : 'Clínica creada')
+      // La ficha de un trabajo trae el contacto de su clínica (WhatsApp).
+      void qc.invalidateQueries({ queryKey: ['trabajos'] })
+      toast.success(doneText ?? (id ? 'Clínica actualizada' : 'Clínica creada'))
     },
     onError: toastApiError,
   })

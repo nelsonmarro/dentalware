@@ -194,3 +194,58 @@ describe('FormDialog', () => {
     })
   })
 })
+
+describe('FormDialog: foco inicial (UX7-02)', () => {
+  it('enfoca el primer campo sin seleccionar su texto', async () => {
+    render(
+      <FormDialog open onOpenChange={() => {}} title="Editar" footer={<button>Guardar</button>}>
+        <input aria-label="Nombre" defaultValue="Clínica Sur" />
+      </FormDialog>,
+    )
+    const input = await screen.findByLabelText('Nombre')
+    await waitFor(() => expect(input).toHaveFocus())
+    const el = input as HTMLInputElement
+    expect(el.selectionStart).toBe('Clínica Sur'.length)
+    expect(el.selectionEnd).toBe('Clínica Sur'.length)
+  })
+
+  it('con initialFocusId enfoca ese campo', async () => {
+    render(
+      <FormDialog
+        open
+        onOpenChange={() => {}}
+        title="Editar"
+        initialFocusId="clinic-whatsapp"
+        footer={<button>Guardar</button>}
+      >
+        <input id="clinic-name" aria-label="Nombre" />
+        <input id="clinic-whatsapp" aria-label="WhatsApp" />
+      </FormDialog>,
+    )
+    const input = await screen.findByLabelText('WhatsApp')
+    await waitFor(() => expect(input).toHaveFocus())
+  })
+
+  it('sin campos no falla y el foco queda dentro del diálogo', async () => {
+    render(
+      <FormDialog open onOpenChange={() => {}} title="Editar" footer={<button>Guardar</button>}>
+        <p>Solo texto</p>
+      </FormDialog>,
+    )
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true))
+  })
+
+  it('no enfoca un input oculto (aria-hidden o tabindex -1) aunque sea el primero', async () => {
+    render(
+      <FormDialog open onOpenChange={() => {}} title="Foto" footer={<button>Guardar</button>}>
+        <input type="file" aria-label="Archivo" aria-hidden="true" tabIndex={-1} />
+        <button disabled>Tomar foto</button>
+        <p>Texto</p>
+      </FormDialog>,
+    )
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true))
+    expect(document.querySelector('input[type=file]')).not.toHaveFocus()
+  })
+})

@@ -9,6 +9,34 @@ import {
 import { cn } from '@/lib/utils'
 import { useReturnFocus } from './use-return-focus'
 
+// Sin lo oculto (`aria-hidden`, `tabindex=-1`): el input de archivo `sr-only` no recibe el foco.
+const NOT_HIDDEN = ':not([disabled]):not([tabindex="-1"]):not([aria-hidden="true"])'
+const FIELD_SELECTOR = `input:not([type=hidden])${NOT_HIDDEN}, textarea${NOT_HIDDEN}, select${NOT_HIDDEN}, [role=combobox]${NOT_HIDDEN}`
+const TABBABLE_SELECTOR = `${FIELD_SELECTOR}, button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])`
+const TEXT_TYPES = new Set(['text', 'search', 'tel', 'url', 'password'])
+
+/** El primer elemento enfocable del diálogo, solo si es un campo: si es un botón o un chip (el
+ * diálogo que no quiere abrir el teclado, como «No se pudo»), se deja el foco por omisión. */
+function firstTabbableField(root: HTMLElement) {
+  const first = root.querySelector<HTMLElement>(TABBABLE_SELECTOR)
+  return first?.matches(FIELD_SELECTOR) ? first : null
+}
+
+/** Enfoca sin seleccionar el texto (Radix hace `select()` del primer campo: una tecla borra el
+ * nombre de la clínica, UX7-02). Cursor al final en los campos de texto; `scrollIntoView` para
+ * que el campo quede a la vista dentro del cuerpo desplazable (y por encima del teclado). */
+function focusField(el: HTMLElement) {
+  el.focus({ preventScroll: true })
+  if (
+    (el instanceof HTMLInputElement && TEXT_TYPES.has(el.type)) ||
+    el instanceof HTMLTextAreaElement
+  ) {
+    const end = el.value.length
+    el.setSelectionRange(end, end)
+  }
+  el.scrollIntoView?.({ block: 'center' })
+}
+
 export function FormDialog({
   open,
   onOpenChange,
@@ -19,6 +47,7 @@ export function FormDialog({
   footer,
   summary,
   size = 'default',
+  initialFocusId,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -38,6 +67,8 @@ export function FormDialog({
    * 8 px de margen a cada lado (`max-w-[calc(100%-1rem)]`) y en escritorio `sm:max-w-4xl`.
    */
   size?: 'default' | 'wide'
+  /** Id del campo que recibe el foco al abrir; por omisión, el primero. */
+  initialFocusId?: string
 }) {
   const returnFocus = useReturnFocus(open)
 
@@ -46,6 +77,16 @@ export function FormDialog({
       <DialogContent
         // Al cerrar, el foco vuelve a quien lo abrió, o al `h1` (`useReturnFocus`).
         onCloseAutoFocus={returnFocus}
+        onOpenAutoFocus={(e) => {
+          const root = e.currentTarget as HTMLElement
+          const el =
+            (initialFocusId && root.querySelector<HTMLElement>(`#${CSS.escape(initialFocusId)}`)) ||
+            firstTabbableField(root)
+          if (el) {
+            e.preventDefault()
+            focusField(el)
+          }
+        }}
         // UX5-06: solo el cuerpo se desplaza. La cabecera y el pie (botones y `summary`) quedan
         // siempre a la vista, aunque el contenido no quepa (el reparto de cinco trabajos a
         // 1280×800). Columna flexible con alto máximo: el cuerpo encoge (`min-h-0`) y se desplaza.

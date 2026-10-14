@@ -314,6 +314,12 @@ describe('CaseHeader', () => {
     expect(link).toHaveAttribute('href', '/trabajos/caso-1/imprimir')
   })
 
+  it('en móvil, «Imprimir» reparte el ancho de la fila (flex-1)', async () => {
+    renderWithRouter(<CaseHeader case={baseCase()} missing={[]} role="admin" />)
+    const link = await screen.findByRole('link', { name: /Imprimir/ })
+    expect(link.className).toContain('flex-1')
+  })
+
   it('un trabajo que no es repetición no muestra el enlace', async () => {
     renderWithRouter(<CaseHeader case={baseCase()} missing={[]} role="admin" />)
     await screen.findByText('26-00001')
