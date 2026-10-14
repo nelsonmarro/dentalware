@@ -6,8 +6,10 @@ on:
   pull_request:
 
 # Niveles de pruebas (docs/conventions.md §7): el PR corre los unit completos y los E2E
-# `@esencial` + `@clave` en escritorio y android (solo Chromium); el push a main corre
-# todo, incluido `@extendida` e iphone (WebKit). Los dos jobs corren en paralelo.
+# `@esencial` + `@clave` en escritorio y android (Chromium) y solo los `@esencial` en iphone
+# (WebKit; `E2E_PR=1` activa el `grep` de ese proyecto, #133); el push a main corre todo,
+# incluido `@extendida`. Los navegadores son los mismos en los dos eventos para compartir la
+# caché. Los jobs corren en paralelo.
 # Un push nuevo a la misma rama de un PR cancela la corrida anterior; en main nunca se cancela.
 concurrency:
   group: ci-${{ github.ref }}
@@ -15,8 +17,9 @@ concurrency:
 
 env:
   HUSKY: 0
-  PW_BROWSERS: ${{ github.event_name == 'pull_request' && 'chromium' || 'chromium webkit' }}
-  PW_ARGS: ${{ github.event_name == 'pull_request' && '--project=escritorio --project=android --grep "@esencial|@clave"' || '' }}
+  PW_BROWSERS: chromium webkit
+  E2E_PR: ${{ github.event_name == 'pull_request' && '1' || '' }}
+  PW_ARGS: ${{ github.event_name == 'pull_request' && '--project=escritorio --project=android --project=iphone --grep "@esencial|@clave"' || '' }}
 
 jobs:
   # Infraestructura: scripts de infra/ con shellcheck y Caddy real (cabeceras de caché, healthcheck) e imagen de la API (tamaño, arranque).
@@ -121,8 +124,13 @@ jobs:
       # fija NODE_ENV=test para el webServer de la API, así que `loadConfig` lo carga solo
       - run: pnpm --filter @dentalware/shared build # la API importa @dentalware/shared desde dist/ al arrancar
       - run: pnpm --filter @dentalware/web exec playwright test ${{ env.PW_ARGS }}
+      # Informe HTML y trazas (`trace: on-first-retry`): sin ellos un fallo solo en CI no se
+      # puede depurar (#133). `playwright-report` solo existe con el reporter `html` del config.
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
-          path: apps/web/playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: warn

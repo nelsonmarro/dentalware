@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import {
   createClinicWithDoctor,
   createCourier,
+  pickSelectOption,
   createProduct,
   createStaff,
   FOTO_PATH,
@@ -502,8 +503,7 @@ test.describe('Trabajos', () => {
       // ENT-2: enviar pide mensajero y fecha (hoy por omisión).
       await page.getByRole('button', { name: 'Marcar enviado' }).click()
       const envio = page.getByRole('dialog', { name: 'Marcar enviado' })
-      await envio.getByRole('combobox', { name: 'Mensajero' }).click()
-      await page.getByRole('option', { name: courier.name }).click()
+      await pickSelectOption(page, envio.getByRole('combobox', { name: 'Mensajero' }), courier.name)
       await expect(
         envio.getByText(new RegExp(`^El trabajo sale del laboratorio con ${courier.name} el `)),
       ).toBeVisible()
@@ -731,15 +731,18 @@ test.describe('Trabajos', () => {
 
         // FIC-2/FIC-3 son historias del técnico: con su sesión real (no un rol simulado) abre la
         // ficha corta del QR y avanza la fase desde el puesto (hallazgo I-2 de la revisión final
-        // del PR 3). Primera fase del seed: "Recepción" → "Modelo".
-        await tecnicoPage.goto(`/t/${trabajo.code}`)
-        await expect(
-          tecnicoPage.getByRole('heading', { level: 1, name: trabajo.code }),
-        ).toBeVisible()
-        await tecnicoPage.getByRole('button', { name: 'Avanzar a Modelo' }).click()
-        await expect(toasts(tecnicoPage).getByText('Fase: Modelo')).toBeVisible()
-        await expect(tecnicoPage.getByText('Modelo', { exact: true })).toBeVisible()
+        // del PR 3). Primera fase del seed: "Recepción" → "Modelo". En una página nueva (#133):
+        // en WebKit, un `goto` justo después de la navegación del SPA a la ficha se da por
+        // «interrumpido por otra navegación» porque el aviso de esa navegación llega tarde.
+        const qrPage = await tecnicoContext.newPage()
+        const qrErrors = trackConsoleErrors(qrPage)
+        await qrPage.goto(`/t/${trabajo.code}`)
+        await expect(qrPage.getByRole('heading', { level: 1, name: trabajo.code })).toBeVisible()
+        await qrPage.getByRole('button', { name: 'Avanzar a Modelo' }).click()
+        await expect(toasts(qrPage).getByText('Fase: Modelo')).toBeVisible()
+        await expect(qrPage.getByText('Modelo', { exact: true })).toBeVisible()
         expect(tecnicoErrors).toEqual([])
+        expect(qrErrors).toEqual([])
       } finally {
         await tecnicoContext.close()
       }

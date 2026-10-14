@@ -228,11 +228,37 @@ export const TOUCH_SWITCHES = '[role=switch]'
  */
 export function trackConsoleErrors(page: Page): string[] {
   const errors: string[] = []
-  page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`))
+  page.on('pageerror', (error) => {
+    // WebKit reporta como excepción sin capturar el `fetch` que una navegación del test
+    // (`page.goto`) aborta en vuelo, con el texto de un fallo de CORS: «Fetch API cannot load
+    // …/api/auth/get-session due to access control checks» (#133). Es el mismo ruido que el
+    // «Failed to fetch» de Chromium de arriba, no un error de la app: se ignora solo ese texto.
+    if (/Fetch API cannot load \S+\/api\/\S+ due to access control checks/.test(error.message))
+      return
+    errors.push(`pageerror: ${error.message}`)
+  })
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(`console.error: ${message.text()}`)
   })
   return errors
+}
+
+/**
+ * Elige una opción de un `Select` de Radix (el de mensajero) por teclado: abre el disparador,
+ * enfoca la opción exacta y la confirma con Enter (el ítem de Radix selecciona con Enter o
+ * espacio). Con un clic sobre la opción, en una lista larga (la BD del CI acumula decenas de
+ * mensajeros) el puntero pasa por el botón de scroll del listbox, Radix lo autodesplaza y la
+ * opción se mueve bajo el cursor: Playwright reintentaba hasta agotar el tiempo (#133). El
+ * typeahead de Radix (escribir el nombre) tampoco sirve: con nombres casi iguales empareja por
+ * prefijo con otro.
+ */
+export async function pickSelectOption(page: Page, trigger: Locator, name: string) {
+  await trigger.click()
+  const option = page.getByRole('option', { name, exact: true })
+  await option.scrollIntoViewIfNeeded()
+  await option.press('Enter')
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  await expect(trigger).toHaveText(name)
 }
 
 /** Rol de un usuario efímero de E2E: nunca `admin` (los E2E no crean administradores). */

@@ -121,7 +121,7 @@ Saldo de clínica = Σ cargos de los trabajos entregados y cobrados + Σ ajustes
 - **Producción** (`docs/operacion/despliegue.md`): el nginx del VPS va delante, con 80/443 y el TLS de certbot; Caddy escucha solo en `127.0.0.1:8080` con `SITE_ADDRESS=:80`, mediante `infra/docker-compose.vps.yml` y `infra/Caddyfile.vps`, locales al VPS. Sin otro servidor web delante, Caddy saca el certificado solo con `SITE_ADDRESS` = dominio.
 - **Desarrollo**: Postgres en el puerto 5433, con la BD `dentalware_test`.
 - **`PUBLIC_URL`**: se incrusta en el bundle (QR de la orden), así que cambiarlo exige `--build`.
-- **CI**: `quality`, `e2e`, `infra` y `respaldo` en paralelo; los niveles de E2E por evento están en `docs/conventions.md` §7.
+- **CI**: `quality`, `e2e`, `infra` y `respaldo` en paralelo; los niveles de E2E por evento están en `docs/conventions.md` §7 (el PR corre también los `@esencial` en `iphone`, #133). Una ruleset del repo sobre `main` exige esos cuatro checks en verde para mergear y prohíbe borrarla y el `--force`; el auto-merge de GitHub está activado y espera a ellos (antes mergeaba al instante).
   - `infra`: `shellcheck` de todo `infra/**/*.sh`, las cabeceras de Caddy real (`infra/tests/caddy-headers.sh`) y la imagen de la API (`infra/tests/api-image.sh`: tamaño y arranque).
   - `respaldo`: las unidades de systemd e `install.sh --dry-run` (`infra/tests/backup-units.sh`) y el ciclo respaldo → desastre → restauración, la verificación y el simulacro (`infra/tests/backup-roundtrip.sh`), sin red externa.
 - **Deploy**: manual por SSH, con un respaldo antes: `git pull`, `docker compose … up -d --build` y `sudo infra/backup/install.sh` (pasos en «Actualizar a una versión nueva» de `docs/operacion/despliegue.md`).

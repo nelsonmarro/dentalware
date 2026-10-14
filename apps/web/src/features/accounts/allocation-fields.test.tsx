@@ -37,6 +37,28 @@ const row = (code: string) =>
   screen.getByRole('textbox', { name: `Monto para ${code}` }).closest('li') as HTMLElement
 
 describe('AllocationFields (reparto entre trabajos por cobrar)', () => {
+  // #133: en Safari, enfocar con el teclado (Tab o «Siguiente» del teclado del iPhone) un monto
+  // al fondo de la lista desplazable lo deja recortado por el borde de la lista, porque WebKit no
+  // aplica el `scroll-margin` al enfocar; el campo se lo pide él mismo a `scrollIntoView`, que sí lo
+  // respeta (jsdom no implementa `scrollIntoView`: se mide la llamada).
+  it('al enfocar un monto, se pide a la vista entera dentro de la lista (`scrollIntoView`)', () => {
+    const calls: unknown[] = []
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: function (this: HTMLElement, arg: unknown) {
+        calls.push([this.getAttribute('aria-label'), arg])
+      },
+    })
+    try {
+      renderFields(['', '', '', ''])
+      screen.getByRole('textbox', { name: 'Monto para 26-00105' }).focus()
+      expect(calls).toEqual([['Monto para 26-00105', { block: 'nearest' }]])
+    } finally {
+      // @ts-expect-error se quita el mock para no afectar a otros tests
+      delete HTMLElement.prototype.scrollIntoView
+    }
+  })
+
   // UX5-15: cada fila dice qué le pasará a su trabajo con el monto escrito.
   describe('consecuencia por fila', () => {
     it('el monto exacto de lo que debe: «Queda cobrado»', () => {

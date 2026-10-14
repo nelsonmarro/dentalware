@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test'
 import {
   createClinicWithDoctor,
   createCourier,
+  pickSelectOption,
   createProduct,
   createStaff,
   FOTO_PATH,
@@ -115,8 +116,7 @@ test.describe('Entregas (Iteración 4, #35)', () => {
 
       // 1. Programar la recogida con el mensajero, para hoy (la fecha por omisión).
       await page.getByRole('button', { name: 'Programar recogida' }).click()
-      await page.getByRole('combobox', { name: 'Mensajero' }).click()
-      await page.getByRole('option', { name: courier.name }).click()
+      await pickSelectOption(page, page.getByRole('combobox', { name: 'Mensajero' }), courier.name)
       await expect(page.getByLabel('Fecha de recogida')).toHaveValue(todayIso())
       await page.getByRole('button', { name: 'Guardar', exact: true }).click()
 
@@ -172,8 +172,11 @@ test.describe('Entregas (Iteración 4, #35)', () => {
         await expect(page.getByText('Terminado', { exact: true })).toBeVisible()
         await page.getByRole('button', { name: 'Marcar enviado' }).click()
         const envio = page.getByRole('dialog', { name: 'Marcar enviado' })
-        await envio.getByRole('combobox', { name: 'Mensajero' }).click()
-        await page.getByRole('option', { name: courier.name }).click()
+        await pickSelectOption(
+          page,
+          envio.getByRole('combobox', { name: 'Mensajero' }),
+          courier.name,
+        )
         await envio.getByRole('button', { name: 'Marcar enviado' }).click()
         await expect(page.getByText('Enviado', { exact: true })).toBeVisible()
 

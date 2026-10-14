@@ -83,16 +83,19 @@ Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabaj
 - **Web** con Testing Library (`renderWithProviders`, `renderWithRouter`, `setMatchMedia`): consultas por rol y etiqueta, `findBy*` para lo asíncrono y mocks solo de `api.ts`.
 - **Un test protege una constante con valores literales**, no derivando sus casos de esa misma constante.
 - **E2E** con Playwright:
-  - Proyectos `escritorio` y `android` en local; `iphone` solo en CI.
+  - Proyectos `escritorio` y `android` con el Chromium local; `iphone` (WebKit) en CI y, en local, con `pnpm --filter @dentalware/web e2e:iphone` (`scripts/e2e-iphone.sh`: la imagen oficial de Playwright de la misma versión, con los servidores del host arrancados antes en modo test), porque WebKit necesita librerías de Ubuntu que otras distros no traen (#133).
   - Datos únicos por ejecución (`uniqueSuffix`), selectores por rol o label, sin `waitForTimeout`.
   - Puertos 3000 y 5173 libres antes de correrlos.
   - Cada `browser.newContext()` extra (otro rol con su sesión) se cierra en `finally`. Leer un id de la URL tras guardar espera una URL que excluya `/nuevo` (`/\/trabajos\/(?!nuevo$)[^/]+$/`): la de antes de navegar también casa.
+  - Una opción de un `Select` de Radix (el mensajero) se elige con `pickSelectOption` (abre, enfoca la opción exacta y Enter), nunca con un clic sobre la opción ni escribiendo el nombre (el typeahead empareja por prefijo con nombres casi iguales): en una lista larga (la BD del CI acumula decenas de mensajeros) el puntero pasa por el botón de scroll del listbox, Radix lo autodesplaza y la opción se mueve bajo el cursor hasta agotar el tiempo (#133). Los `Combobox` (cmdk) sí se eligen con clic.
+  - `trackConsoleErrors` ignora un solo texto: el «Fetch API cannot load …/api/… due to access control checks» con que WebKit reporta como excepción el `fetch` que un `page.goto` del test aborta en vuelo (el «Failed to fetch» de Chromium del log del WebServer, #101); todo lo demás sigue contando.
+  - En WebKit (`iphone`), un `page.goto` lanzado justo después de una navegación del SPA (`pushState`/`replaceState`: un `Link`, la redirección de un `beforeLoad`) falla con «Navigation … is interrupted by another navigation» a la URL en la que ya estaba, porque el aviso de esa navegación llega después de arrancar el `goto` (#133). Un `goto` que sigue a una navegación del SPA va en una página nueva del mismo contexto (`context.newPage()`), nunca en la misma.
 - **Niveles de E2E**: cada test lleva exactamente una etiqueta, verificada por `e2e-tags.test.ts`. Ante la duda, `@clave`.
   - `@esencial`: sin esto el laboratorio no trabaja (sesión, crear trabajo, técnico sin precios ni configuración, crear clínica y producto).
   - `@clave`: uso diario cuyo fallo no lo detiene.
   - `@extendida`: barridos y recorridos largos.
 
-  El PR corre `@esencial` y `@clave` en escritorio y android (`pnpm e2e:pr`). El push a `main` corre todo, `iphone` incluido.
+  El PR corre `@esencial` y `@clave` en escritorio y android, y solo `@esencial` en iphone (`pnpm e2e:pr`, con `E2E_PR=1` que activa el `grep` del proyecto `iphone`): un flujo esencial roto en Safari detiene el PR sin alargarlo con todos los `@clave` en WebKit (#133). El push a `main` corre todo. El merge a `main` exige en verde los cuatro jobs (`quality`, `e2e`, `infra`, `respaldo`), por la ruleset del repo; el auto-merge de GitHub espera a ellos.
 - **Barrido táctil**: toda pantalla nueva entra en `accesibilidad.spec.ts`. Cada barrido espera a un elemento propio de su pantalla, y `expectTouchTargets` falla si no mide nada. Los inputs nativos ocultos (`aria-hidden`, `tabIndex=-1`) no cuentan como objetivo táctil. Lo que entra con animación (desplegable, diálogo) se mide al terminarla (`getAnimations()`): a mitad del `zoom-in-95`, 44 px miden ~42.
 - Los revisores no corren tests de BD ni E2E mientras haya un implementador activo.
 
