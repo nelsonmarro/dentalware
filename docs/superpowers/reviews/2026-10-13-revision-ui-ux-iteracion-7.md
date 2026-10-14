@@ -138,7 +138,7 @@ Ola de fixes de #129 en la rama `fix/revision-ui-ux-it7`. Todos los hallazgos se
 | UX7-01 (vuelta), UX7-05, deuda de `validateSearch` | 634ed72 | `parseClinicsSearch` con `safeRedirect`; al guardar o cancelar vuelve a la ficha; clínica inactiva (nota) o inexistente (toast); E2E `@clave` del viaje; test de «no se reabre». |
 | Ronda de fixes de la Tarea 3 | 9424532 | La búsqueda de clínica fallida no deja petición viva; `invalidateQueries(['trabajos'])` y la ficha limpia `foco` con `!q.isFetching`; `volver` sin `?` ni `#`; el selector de foco excluye ocultos. |
 | UX7-03, 10, 11 y deuda de iconos | 86594d2 | `safe-area` en cabecera, `main` y barra inferior; `apple-touch-icon` opaco; `theme_color` `#F4F6F5`; tests de firma, medidas y esquinas. |
-| I-1, M-1, M-2, M-5 y deuda de la Tarea 1 | (SHA al commit) | Ronda de fixes de la revisión final: `normalizeWhatsapp` quita el 0 tras +593 («+593 099 123 4567»); el foco de `CaseWhatsapp` lleva su dependencia comentada y probada; el diálogo de edición de clínica nombra la clínica (`context`); la API prueba la normalización y el 422 del WhatsApp. |
+| I-1, M-1, M-2, M-5 y deuda de la Tarea 1 | 7538a40 | Ronda de fixes de la revisión final: `normalizeWhatsapp` quita el 0 tras +593 («+593 099 123 4567»); el foco de `CaseWhatsapp` lleva su dependencia comentada y probada; el diálogo de edición de clínica nombra la clínica (`context`); la API prueba la normalización y el 422 del WhatsApp. |
 
 ### Deuda de tests cerrada
 
