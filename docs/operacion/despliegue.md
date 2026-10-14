@@ -158,7 +158,7 @@ BACKUP_DRILL_HEALTHCHECK_URL=
 
 ## Paso 6 — Ajuste local: Dentalware detrás de nginx
 
-Estos dos archivos viven solo en el VPS, al lado del `.env`. No están en el repositorio porque son propios de este servidor.
+Estos dos archivos viven solo en el VPS, al lado del `.env`. No están en el repositorio porque son propios de este servidor, y `.gitignore` los ignora: `git status` no los muestra.
 
 **6.1.** `infra/docker-compose.vps.yml`: Caddy solo en `127.0.0.1:8080`.
 
@@ -366,10 +366,10 @@ source ~/.bashrc
 
 ```bash
 sudo systemctl start dentalware-backup.service
-journalctl -u dentalware-backup -n 5               # «Respaldo correcto: snapshot …»
+journalctl -u dentalware-backup -n 20 | grep 'Respaldo correcto'   # «Respaldo correcto: snapshot …»
 dwrestic snapshots                                 # un snapshot, host dentalware, etiqueta diario
 sudo systemctl start dentalware-restore-drill.service
-journalctl -u dentalware-restore-drill -n 15       # «Simulacro correcto: …»
+journalctl -u dentalware-restore-drill -n 40 | grep 'Simulacro correcto'   # «Simulacro correcto: …»
 ```
 
 Si algo falla, el log dice qué. Corrígelo y repite el paso. Con los dos en verde, ya puedes cargar datos reales.
@@ -402,7 +402,7 @@ Haz una captura de cada uno para cerrar el issue.
 ```bash
 cd /opt/dentalware
 sudo systemctl start dentalware-backup.service      # respaldo antes de tocar nada
-journalctl -u dentalware-backup -n 3                # «Respaldo correcto: snapshot …»: anota el id
+journalctl -u dentalware-backup -n 20 | grep 'Respaldo correcto'   # la de ahora: anota el id del snapshot
 git status --short                                  # vacío: nada cambiado a mano en el repo
 git pull
 # Si el Caddyfile del repo cambió, regenera el del VPS (paso 6.2):
@@ -443,7 +443,7 @@ dw up -d --build
    dw build
    ```
 
-2. Los pasos 3 y 4 del caso 1 de [`recuperacion.md`](recuperacion.md), con `--snapshot <id anotado>`. Paran la API, guardan la BD actual con `pg_dump`, la borran, restauran el snapshot sobre una BD vacía y arrancan la API vieja. Termina con `dw up -d`, que pone también la web vieja.
+2. Los pasos 3 y 4 del caso 1 de [`recuperacion.md`](recuperacion.md), con `--snapshot <id anotado>`. Paran la API, guardan la BD actual con `pg_dump`, la borran, restauran el snapshot sobre una BD vacía y arrancan la API vieja. Termina con `dw up -d`, que pone también la web vieja. Si `restore.sh` falla, la API sigue parada: no hagas `dw up -d`; corrige lo que diga el log y repite el paso 4 desde `dw rm -sf postgres`.
 3. `dw ps` y la lista de verificación de `recuperacion.md`.
 
 En los dos casos, el repo queda en un commit suelto (*detached HEAD*), y el `git pull` de la próxima actualización fallaría. Cuando la versión nueva esté corregida en `main`, vuelve con `git checkout main` y sigue «Actualizar a una versión nueva».

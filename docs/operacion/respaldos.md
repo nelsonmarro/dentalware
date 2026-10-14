@@ -157,11 +157,11 @@ El driver S3 (#48) y un destino de respaldos externo quedan para después del MV
 
 ### Copia en tu PC
 
-El repositorio es solo de root, así que se copia en dos pasos: en el VPS, `sudo` lo copia a una carpeta tuya; desde el PC, `rsync` la trae. La copia **sigue cifrada** con la contraseña de restic. Hazlo una vez por semana, o antes de un cambio grande:
+El repositorio es solo de root, así que se copia en dos pasos: en el VPS, `sudo` lo copia a una carpeta tuya; desde el PC, `rsync` la trae. La copia **sigue cifrada** con la contraseña de restic. Hazlo una vez por semana, o antes de un cambio grande. La copia en el VPS toma el bloqueo de los respaldos (`flock` sobre `/var/backups/dentalware/.lock`): si a esa hora corre un respaldo, una verificación o un simulacro, espera a que termine, para no copiar el repositorio a medio escribir.
 
 ```bash
 # Desde tu PC. El primero pide la contraseña de sudo del VPS:
-ssh -t nelson@82.25.95.39 'sudo rsync -a --delete /var/backups/dentalware/restic/ ~/copia-restic/ && sudo chown -R nelson: ~/copia-restic'
+ssh -t nelson@82.25.95.39 'sudo flock /var/backups/dentalware/.lock rsync -a --delete /var/backups/dentalware/restic/ ~/copia-restic/ && sudo chown -R nelson: ~/copia-restic'
 mkdir -p ~/respaldos-dentalware
 rsync -a --delete nelson@82.25.95.39:copia-restic/ ~/respaldos-dentalware/restic/
 ```

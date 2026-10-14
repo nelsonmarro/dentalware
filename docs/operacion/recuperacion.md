@@ -23,7 +23,7 @@ Antes de empezar:
 1. Arranca Postgres si no estaba arrancado.
 2. Saca del repositorio de restic el dump y las fotos del snapshot, a una carpeta temporal `restaurar.*` dentro de `/var/backups/dentalware`.
 3. Guarda la BD actual en `/var/backups/dentalware/db/antes-de-restaurar-<fecha>.dump`, por si acaso.
-4. Para la API.
+4. Para la API. Si la restauración falla a partir de aquí, la vuelve a arrancar solo si estaba en marcha al empezar: en el caso 1, en la ruta B y al volver atrás estaba parada, y sigue parada.
 5. Sustituye la BD por la del snapshot, en una sola transacción: si falla, la BD queda como estaba.
 6. Copia las fotos al volumen de adjuntos y les pone el dueño de la API.
 7. Arranca la API. La API aplica sola las migraciones que falten.
@@ -79,6 +79,8 @@ Para una BD corrupta o un error humano: un trabajo, un pago o una clínica borra
    ```
 
    Aquí la copia `antes-de-restaurar-*` que deja `restore.sh` es la de la BD vacía: la buena es la `antes-de-borrar-*` del paso 3.
+
+   **Si `restore.sh` falla o se corta**, la API sigue parada: no hagas `dw up -d`. Sobre la BD vacía, la API crearía el esquema actual, y la restauración siguiente fallaría con `already exists`. Corrige lo que diga el log y repite este paso entero, desde `dw rm -sf postgres`. No repitas el paso 3: la copia buena sigue siendo la `antes-de-borrar-*`.
 5. Pasa la [lista de verificación](#lista-de-verificación-final). Después, avisa al equipo de qué se perdió: todo lo registrado desde la hora del snapshot.
 
 **Deshacer.** Para volver a la BD de antes de restaurar, sustitúyela por la copia `antes-de-borrar-*`, con el mismo comando que usa `restore.sh`:
@@ -150,13 +152,15 @@ Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `
 
    ```bash
    # En tu PC:
-   rsync -a ~/respaldos-dentalware/restic/ nelson@<IP nueva>:copia-restic/
+   rsync -a --delete ~/respaldos-dentalware/restic/ nelson@<IP nueva>:copia-restic/
    # En el VPS:
    sudo install -d -m 700 /var/backups/dentalware
    sudo rsync -a --delete ~/copia-restic/ /var/backups/dentalware/restic/
    sudo chown -R root:root /var/backups/dentalware/restic
    rm -rf ~/copia-restic
    ```
+
+   El `--delete` de los dos `rsync` hace que la copia quede igual a la del PC. Sin él, una `copia-restic` vieja que ya estuviera en el VPS (la de un backup de Hostinger, en la ruta A) se mezclaría con la nueva y el repositorio no se podría leer.
 
 6. **Contraseña de restic.** Cópiala de tu gestor de contraseñas. Pégala, pulsa Intro y después Ctrl+D:
 
@@ -209,6 +213,14 @@ Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `
     curl -s http://127.0.0.1:8080/api/health      # OK
     ```
 
+    **Si `restore.sh` falla o se corta**, la API sigue sin arrancar: no hagas `dw up -d`. Corrige lo que diga el log y repite desde una BD vacía:
+
+    ```bash
+    dw rm -sf postgres
+    docker volume rm dentalware_pgdata
+    sudo infra/backup/restore.sh
+    ```
+
 12. **nginx y certificado.** Cuando `dig +short dentalware.naphsoft.dev` dé la IP nueva, repite el paso 8 de `despliegue.md`: el sitio, certbot y la renovación.
 13. **Respaldos.** Vuelve a programarlos. Sin `--init`, porque el repositorio ya existe. Y lanza uno ahora:
 
@@ -216,7 +228,7 @@ Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `
     sudo infra/backup/install.sh --dry-run
     sudo infra/backup/install.sh
     sudo systemctl start dentalware-backup.service
-    journalctl -u dentalware-backup -n 5           # «Respaldo correcto: snapshot …»
+    journalctl -u dentalware-backup -n 20 | grep 'Respaldo correcto'   # «Respaldo correcto: snapshot …»
     ```
 
 14. **Comprueba** con la [lista de verificación](#lista-de-verificación-final) y borra la configuración sacada: `sudo rm -rf /root/config-recuperada`.
@@ -232,7 +244,7 @@ Al terminar cualquiera de los tres casos:
 - [ ] **Fotos:** abre la ficha de dos o tres trabajos con fotos: las miniaturas se ven y la foto abre.
 - [ ] **Cuentas:** el saldo de una clínica que conozcas cuadra.
 - [ ] **Login:** recepción, un técnico y el mensajero entran con sus contraseñas.
-- [ ] **El respaldo siguiente en verde:** `sudo systemctl start dentalware-backup.service` y `journalctl -u dentalware-backup -n 5` dice «Respaldo correcto». Si quieres más seguridad, lanza también el simulacro: `sudo systemctl start dentalware-restore-drill.service` → «Simulacro correcto».
+- [ ] **El respaldo siguiente en verde:** `sudo systemctl start dentalware-backup.service` y `journalctl -u dentalware-backup -n 20 | grep 'Respaldo correcto'` da la línea de ahora. Si quieres más seguridad, lanza también el simulacro: `sudo systemctl start dentalware-restore-drill.service` → «Simulacro correcto».
 - [ ] El equipo sabe qué se perdió (lo hecho después del snapshot) y lo vuelve a registrar.
 
 ## Si una restauración se interrumpe
@@ -240,7 +252,7 @@ Al terminar cualquiera de los tres casos:
 Por un corte de luz, un `kill` o porque se cerró la sesión SSH. Se ve en que el log no termina en «Restauración completa».
 
 - **La BD** queda entera: o como estaba, o ya restaurada. `pg_restore` va en una sola transacción.
-- **La API** puede haberse quedado parada: `dw ps` y, si hace falta, `dw up -d`.
+- **La API** se queda como estaba al empezar: `restore.sh` solo la vuelve a arrancar si estaba en marcha. En el caso 1, en la ruta B y al volver atrás estaba parada y debe seguir así: **no hagas `dw up -d`**. Sobre la BD vacía, la API crearía el esquema actual y la restauración siguiente fallaría con `already exists`. Si ya la arrancaste, no pasa nada: el paso siguiente borra la BD otra vez.
 - **Lo que queda en el disco:** la carpeta temporal `restaurar.*`, con el dump y las fotos **sin cifrar**. Si el script termina, la borra él; si lo cortan, no. Bórrala a mano:
 
   ```bash
@@ -249,7 +261,7 @@ Por un corte de luz, un `kill` o porque se cerró la sesión SSH. Se ve en que e
   ```
 
   En `/tmp` solo quedan las de `--con-config` sin `.env` (caso 3, paso 7).
-- **Repite** la restauración: es segura de repetir.
+- **Repite** la restauración desde el paso que borra la BD (`dw rm -sf postgres` y `docker volume rm dentalware_pgdata`): el paso 4 del caso 1, o la nota del paso 11 de la ruta B. Así es segura de repetir.
 
 Para no depender de la sesión SSH en una restauración larga, ábrela dentro de `tmux` o `screen` si están instalados.
 
@@ -275,7 +287,7 @@ Si alguien entró en el VPS, el repositorio de restic local, los scripts, el `.e
    sudo infra/backup/install.sh --init --dry-run    # «Haría: restic init …»
    sudo infra/backup/install.sh --init
    sudo systemctl start dentalware-backup.service
-   journalctl -u dentalware-backup -n 5             # «Respaldo correcto: snapshot …»
+   journalctl -u dentalware-backup -n 20 | grep 'Respaldo correcto'   # «Respaldo correcto: snapshot …»
    ```
 
    Con el repositorio apartado, `install.sh --init` no encuentra su `config` y crea uno nuevo; si siguiera ahí, intentaría leerlo con la contraseña nueva y fallaría. Cuando el primer respaldo nuevo esté en verde, borra el apartado (`sudo rm -rf /var/backups/dentalware/restic.anterior`). La copia buena sigue en tu PC, con la contraseña vieja: guarda las dos en el gestor, cada una con su etiqueta.

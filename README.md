@@ -50,9 +50,10 @@ Actualizar: `git pull && docker compose -p dentalware -f infra/docker-compose.ym
 
 ### Restaurar
 
+La BD y las fotos se restauran **siempre sobre una BD vacía**, nunca sobre la BD viva: sigue el caso 1 de [`docs/operacion/recuperacion.md`](docs/operacion/recuperacion.md), que antes guarda la BD actual, para la API y borra la BD. Los otros dos modos no tocan la BD:
+
 ```bash
-sudo infra/backup/restore.sh --snapshot latest                     # BD y fotos del último respaldo
-sudo infra/backup/restore.sh --solo-archivos '<caseId>/<id>.jpg'   # un adjunto borrado, sin tocar la BD
+sudo infra/backup/restore.sh --solo-archivos '<caseId>/<id>.jpg'   # un adjunto borrado
 sudo infra/backup/restore.sh --con-config /tmp/config-respaldada   # la configuración, para revisarla
 ```
 
