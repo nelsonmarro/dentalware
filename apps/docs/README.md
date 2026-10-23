@@ -35,7 +35,7 @@ Los tres componentes propios se usan en cualquier página sin importarlos:
 
 Quién puede hacerlo, con los rótulos de la app (`admin`, `recepcion`, `tecnico`, `mensajero`). El MDX
 no pasa por `tsc`: otro valor (`'recepción'`, con tilde) rompe el build con «Rol desconocido en
-<Rol>».
+`<Rol>`».
 
 ```mdx
 Toca <Boton>Registrar pago</Boton>.
@@ -60,7 +60,8 @@ describe lo que se ve; `pie` añade un texto debajo.
 Las capturas salen de una tubería de Playwright (`capturas/`) sobre los datos de demostración de
 `seed:demo` (ficticios), con el reloj fijo en el martes 20 de octubre de 2026 a las 10:30 (API,
 seed y navegador): dos corridas dan las mismas imágenes bit a bit. Cada spec recorre una pantalla y
-llama a `captura(page, '<seccion>/<nombre>', locator, { testInfo })`, que escribe
+llama a `captura(page, '<seccion>/<nombre>', locator, { testInfo })` (o, para la pantalla entera,
+`{ pagina: true, esperar: locator }`), que escribe
 `static/img/capturas/<seccion>/<nombre>.escritorio.png` (1280×800) y `….telefono.png` (Pixel 7).
 Los specs nunca guardan nada: los diálogos se abren, se capturan y se cierran con «Volver».
 
@@ -86,9 +87,13 @@ CAPTURAS_RAPIDO=1 pnpm capturas -- primeros-pasos.spec.ts -g entrar
 ```
 
 `capturas:servidores` deja la BD sembrada y la API con el reloj fijo en primer plano; el modo rápido la
-reutiliza, igual que las sesiones guardadas. La web dev la arranca Playwright en cada corrida, o
-déjala corriendo aparte (`pnpm --filter @dentalware/web dev`) para ganar unos segundos. Mientras
-corre no edites `apps/web`: la recarga de Vite rompe la corrida.
+reutiliza, igual que las sesiones guardadas, y se niega a correr si la API de 3000 no es la suya
+(comprueba su PID en `capturas/.auth/api.pid`). Si las capturas con sesión salen con la pantalla de
+entrar, las sesiones guardadas ya no valen: borra `capturas/.auth/*.json` y vuelve a correrlo.
+
+La web dev la arranca Playwright en cada corrida, o déjala corriendo aparte
+(`pnpm --filter @dentalware/web dev`) para ganar unos segundos. Mientras corre no edites `apps/web`:
+la recarga de Vite rompe la corrida.
 
 La contraseña de demostración y las sesiones viven en `capturas/.auth/` (solo para ti, ignorado por
 git): nunca se copian a un archivo del repo, a un informe ni a una captura.

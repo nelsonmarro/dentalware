@@ -16,6 +16,9 @@ DEMO_PASSWORD="$(node -e 'console.log("Aa1"+require("node:crypto").randomBytes(9
 (umask 077 && printf '%s' "$DEMO_PASSWORD" >"$auth_dir/demo-password")
 # El reseed invalida las sesiones guardadas: la primera corrida rápida vuelve a entrar.
 rm -f "$auth_dir"/*.json
+# El `exec` del final deja la API en este mismo proceso: su PID es el nuestro. El modo rápido lo
+# comprueba para no capturar contra otra API que escuche en 3000.
+printf '%s' "$$" >"$auth_dir/api.pid"
 export DEMO_PASSWORD NODE_ENV=test CLOCK_FIXED_AT=2026-10-20T10:30:00-05:00
 cd "$root"
 pnpm --filter @dentalware/shared build

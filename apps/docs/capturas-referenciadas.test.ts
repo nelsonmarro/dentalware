@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { proyectosCaptura, rutaCaptura, type Proyecto } from './src/components/captura'
 
 const root = import.meta.dirname
 
@@ -33,7 +34,35 @@ function nombresEnDocs(): Set<string> {
   return out
 }
 
+/** Cada `<Captura …>` de las guías, con los atributos que eligen sus variantes. Los valores entre
+ * comillas se vacían antes de buscar `telefono`, para no confundirlo con un `alt` que lo diga. */
+function capturasEnDocs(): {
+  archivo: string
+  nombre: string
+  telefono: boolean
+  solo?: Proyecto
+}[] {
+  return walk(join(root, 'docs'), /\.mdx?$/).flatMap((archivo) =>
+    [...readFileSync(archivo, 'utf8').matchAll(/<Captura\s[^>]*>/g)].map(([etiqueta]) => ({
+      archivo,
+      nombre: /\bnombre="([^"]+)"/.exec(etiqueta)?.[1] ?? '',
+      telefono: /\btelefono\b/.test(etiqueta.replace(/"[^"]*"/g, '""')),
+      solo: /\bsolo="([^"]+)"/.exec(etiqueta)?.[1] as Proyecto | undefined,
+    })),
+  )
+}
+
 describe('capturas referenciadas', () => {
+  it('existe el PNG de cada variante que pide una guía (escritorio; con `telefono`, las dos; con `solo`, esa)', () => {
+    const faltan = capturasEnDocs().flatMap(({ archivo, nombre, telefono, solo }) =>
+      proyectosCaptura({ telefono, solo })
+        .map((p) => join(root, 'static', rutaCaptura(nombre, p)))
+        .filter((png) => !existsSync(png))
+        .map((png) => `${archivo}: ${png}`),
+    )
+    expect(faltan).toEqual([])
+  })
+
   it('toda captura que usa una guía la produce un spec', () => {
     const specs = nombresEnSpecs()
     const faltan = [...nombresEnDocs()].filter((n) => !specs.has(n))

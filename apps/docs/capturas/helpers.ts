@@ -57,13 +57,14 @@ export async function guardarSesion(browser: Browser, rol: Rol, baseURL: string)
   await page.close()
 }
 
-/** Captura del elemento (o de la página si `pagina`) con nombre fijo
+/** Captura del elemento (o de la página si `pagina`, tras ver `esperar`) con nombre fijo
  * `static/img/capturas/<nombre>.<proyecto>.png`, comprimida con sharp. Falla si el elemento no
- * está: una guía nunca se queda con una captura vieja sin que lo note nadie. */
+ * está: una guía nunca se queda con una captura vieja sin que lo note nadie. La de página también
+ * espera a un elemento propio de la pantalla, para no capturarla a medio cargar. */
 export async function captura(
   page: Page,
   nombre: string,
-  objetivo: Locator | { pagina: true },
+  objetivo: Locator | { pagina: true; esperar: Locator },
   opciones: { testInfo: TestInfo; solo?: 'escritorio' | 'telefono' },
 ) {
   const proyecto = opciones.testInfo.project.name
@@ -72,7 +73,10 @@ export async function captura(
   mkdirSync(dirname(destino), { recursive: true })
   const png =
     'pagina' in objetivo
-      ? await page.screenshot({ fullPage: false, animations: 'disabled' })
+      ? await (async () => {
+          await expect(objetivo.esperar).toBeVisible()
+          return page.screenshot({ fullPage: false, animations: 'disabled' })
+        })()
       : await (async () => {
           await expect(objetivo).toBeVisible()
           await objetivo.scrollIntoViewIfNeeded()
