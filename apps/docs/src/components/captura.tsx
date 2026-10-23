@@ -7,6 +7,7 @@ import { proyectosCaptura, rutaCaptura, type Proyecto } from '../capturas-rutas'
  * (`capturas/dimensiones.ts`). */
 const DIMENSIONES: Record<string, readonly number[] | undefined> = dimensiones
 
+/** Las capturas se toman a `deviceScaleFactor: 2`, así que sus píxeles son siempre pares. */
 const mitad = (pixeles: number | undefined) => (pixeles === undefined ? undefined : pixeles / 2)
 
 /** Una variante: la tubería la toma a `deviceScaleFactor: 2`, así que se declara `2x` y el

@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { leerDimensionesPng, regenerarDimensiones, registrarDimensiones } from './dimensiones'
+import {
+  leerDimensiones,
+  leerDimensionesPng,
+  regenerarDimensiones,
+  registrarDimensiones,
+} from './dimensiones'
 
 let dir: string
 let png: string
@@ -30,6 +35,41 @@ describe('leerDimensionesPng', () => {
     const texto = join(dir, 'texto.png')
     writeFileSync(texto, 'esto no es una imagen, aunque lo diga su extensión')
     expect(() => leerDimensionesPng(texto)).toThrow(/no es un PNG/)
+  })
+
+  it('con la firma de PNG pero otro primer chunk que IHDR, lanza', () => {
+    const datos = Buffer.from(readFileSync(png))
+    datos.write('IDAT', 12, 'ascii')
+    const otro = join(dir, 'otro-chunk.png')
+    writeFileSync(otro, datos)
+    expect(() => leerDimensionesPng(otro)).toThrow(/no es un PNG/)
+  })
+})
+
+describe('leerDimensiones', () => {
+  it('sin JSON, devuelve un objeto vacío', () => {
+    expect(leerDimensiones(json)).toEqual({})
+  })
+
+  it('lee las entradas `[ancho, alto]`', () => {
+    writeFileSync(json, '{ "a/b.telefono": [10, 20] }\n')
+    expect(leerDimensiones(json)).toEqual({ 'a/b.telefono': [10, 20] })
+  })
+
+  it.each([
+    ['una lista en vez de un objeto', '[1, 2]'],
+    ['un valor que no es objeto', '5'],
+    ['una entrada que no es un par', '{ "a/b.telefono": [10] }'],
+    ['una entrada con texto', '{ "a/b.telefono": [10, "20"] }'],
+    ['una entrada que no es lista', '{ "a/b.telefono": 10 }'],
+  ])('con %s, lanza «dimensiones.json inválido»', (_caso, contenido) => {
+    writeFileSync(json, `${contenido}\n`)
+    expect(() => leerDimensiones(json)).toThrow(/dimensiones\.json inválido/)
+  })
+
+  it('con un JSON corrupto (no parsea), lanza «dimensiones.json inválido»', () => {
+    writeFileSync(json, '{ "a/b.telefono": [10, 20')
+    expect(() => leerDimensiones(json)).toThrow(/dimensiones\.json inválido/)
   })
 })
 
