@@ -8,8 +8,7 @@ on:
 # Niveles de pruebas (docs/conventions.md §7): el PR corre los unit completos y los E2E
 # `@esencial` + `@clave` en escritorio y android (Chromium) y solo los `@esencial` en iphone
 # (WebKit; `E2E_PR=1` activa el `grep` de ese proyecto, #133); el push a main corre todo,
-# incluido `@extendida`. Los navegadores son los mismos en los dos eventos para compartir la
-# caché. Los jobs corren en paralelo.
+# incluido `@extendida`. Los jobs corren en paralelo.
 # Un push nuevo a la misma rama de un PR cancela la corrida anterior; en main nunca se cancela.
 concurrency:
   group: ci-${{ github.ref }}
@@ -17,7 +16,6 @@ concurrency:
 
 env:
   HUSKY: 0
-  PW_BROWSERS: chromium webkit
   E2E_PR: ${{ github.event_name == 'pull_request' && '1' || '' }}
   PW_ARGS: ${{ github.event_name == 'pull_request' && '--project=escritorio --project=android --project=iphone --grep "@esencial|@clave"' || '' }}
 
@@ -83,6 +81,15 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # En la imagen oficial de Playwright (#141): trae Chromium y WebKit con sus librerías, así que
+    # el job no instala navegadores ni pasa por apt (el mirror del runner tardó entre 6 y 30 min
+    # varias veces y mató el job por timeout). La versión va en el nombre de la imagen porque
+    # `container.image` no admite `env`: `ci-imagen-playwright.test.ts` exige que coincida con el
+    # catalog de pnpm-workspace.yaml. `--user 1001` como recomienda Playwright (no correr como
+    # root) e `--ipc=host` para que Chromium no se quede sin memoria compartida.
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      options: --user 1001 --ipc=host
     services:
       postgres:
         image: postgres:17-alpine
@@ -90,12 +97,15 @@ jobs:
           POSTGRES_USER: dentalware
           POSTGRES_PASSWORD: dentalware
           POSTGRES_DB: dentalware_test
-        ports: ['5433:5432']
         options: >-
           --health-cmd "pg_isready -U dentalware -d dentalware_test"
           --health-interval 5s --health-timeout 3s --health-retries 10
     env:
       CI: true
+      # Desde un job en contenedor el servicio se alcanza por su nombre, no por el
+      # `localhost:5433` de apps/api/.env.test; `loadConfig` no pisa lo ya definido en el entorno
+      # y Playwright pasa el entorno del job a los `webServer` (la API, `reset-test-db` y `seed`).
+      DATABASE_URL: postgres://dentalware:dentalware@postgres:5432/dentalware_test
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -111,18 +121,9 @@ jobs:
           key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: pnpm-store-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
-      # Navegadores cacheados por versión de Playwright (fijada en el catalog de
-      # pnpm-workspace.yaml); las dependencias del sistema se instalan siempre (apt, rápido).
-      - uses: actions/cache@v6
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ env.PW_BROWSERS }}-${{ hashFiles('pnpm-workspace.yaml') }}
-      - if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @dentalware/web exec playwright install ${{ env.PW_BROWSERS }}
-      - run: pnpm --filter @dentalware/web exec playwright install-deps ${{ env.PW_BROWSERS }}
       # apps/api/.env.test ya está commiteado (BD dentalware_test); playwright.config.ts
       # fija NODE_ENV=test para el webServer de la API, así que `loadConfig` lo carga solo
+      # (salvo DATABASE_URL, que viene del entorno del job: ver arriba)
       - run: pnpm --filter @dentalware/shared build # la API importa @dentalware/shared desde dist/ al arrancar
       - run: pnpm --filter @dentalware/web exec playwright test ${{ env.PW_ARGS }}
       # Barrido del manual construido (#137): objetivos táctiles, rótulos, landmarks.
