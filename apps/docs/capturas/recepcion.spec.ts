@@ -71,7 +71,12 @@ test('crear un trabajo', async ({ page }, testInfo) => {
   await page.getByRole('link', { name: 'Nuevo trabajo' }).click()
   await expect(page.getByRole('heading', { name: 'Nuevo trabajo', level: 1 })).toBeVisible()
   // La primera pantalla del formulario (qué falta para aceptar, clínica y paciente): el
-  // formulario entero no cabe en una imagen legible.
+  // formulario entero no cabe en una imagen legible. La fecha deseada va puesta, como pide la
+  // guía: vacía, el Chromium de Playwright la pinta «dd/mm/yyyy» (sin textos en español). En el
+  // teléfono, `fill` baja hasta el campo: se vuelve arriba, a la primera pantalla.
+  await page.getByLabel('Fecha deseada').fill('2026-10-27')
+  await sinFoco(page)
+  await page.evaluate(() => window.scrollTo(0, 0))
   await captura(
     page,
     'recepcion/nuevo-trabajo-formulario',
