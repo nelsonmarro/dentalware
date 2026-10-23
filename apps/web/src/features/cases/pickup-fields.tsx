@@ -1,6 +1,6 @@
 import { toIsoDate, type caseInputSchema, type CaseInput } from '@dentalware/shared'
 import { ChevronDown, Truck } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Controller, type UseFormReturn } from 'react-hook-form'
 import type { z } from 'zod'
 import { Card, CardContent } from '@/components/ui/card'
@@ -23,6 +23,13 @@ export function PickupFields({
   form: UseFormReturn<CaseFormValues, unknown, CaseInput>
 }) {
   const [open, setOpen] = useState(false)
+  // Ids propios de cada sección: dos montadas a la vez no se pisan título, ayuda ni campos.
+  const id = useId()
+  const titleId = `${id}-title`
+  const hintId = `${id}-hint`
+  const fieldsId = `${id}-fields`
+  const courierId = `${id}-courier`
+  const dateId = `${id}-date`
   const { control, setValue, clearErrors } = form
 
   function toggle() {
@@ -37,22 +44,22 @@ export function PickupFields({
 
   return (
     // UX8-12: región con el nombre de su título, para encontrarla por rol.
-    <Card role="region" aria-labelledby="pickup-title" className="gap-0 py-0">
+    <Card role="region" aria-labelledby={titleId} className="gap-0 py-0">
       <button
         type="button"
         aria-expanded={open}
-        aria-controls="pickup-fields"
-        aria-labelledby="pickup-title"
-        aria-describedby="pickup-hint"
+        aria-controls={fieldsId}
+        aria-labelledby={titleId}
+        aria-describedby={hintId}
         onClick={toggle}
         className="flex min-h-14 w-full items-center gap-3 rounded-xl px-6 py-3 text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       >
         <Truck className="size-5 shrink-0 text-muted-foreground" aria-hidden />
         <span className="flex min-w-0 flex-1 flex-col">
-          <span id="pickup-title" className="font-medium">
+          <span id={titleId} className="font-medium">
             Programar recogida
           </span>
-          <span id="pickup-hint" className="text-sm text-muted-foreground">
+          <span id={hintId} className="text-sm text-muted-foreground">
             {open
               ? 'El trabajo queda «Por recoger» hasta que el mensajero lo traiga.'
               : 'Si el mensajero tiene que traerlo de la clínica.'}
@@ -64,15 +71,15 @@ export function PickupFields({
         />
       </button>
       {open && (
-        <CardContent id="pickup-fields" className="grid gap-4 pb-6 sm:grid-cols-2">
+        <CardContent id={fieldsId} className="grid gap-4 pb-6 sm:grid-cols-2">
           <Controller
             name="recogida.mensajeroId"
             control={control}
             render={({ field, fieldState }) => (
               <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor="pickup-courier">Mensajero</FieldLabel>
+                <FieldLabel htmlFor={courierId}>Mensajero</FieldLabel>
                 <CourierSelect
-                  id="pickup-courier"
+                  id={courierId}
                   value={field.value ?? ''}
                   onChange={field.onChange}
                   invalid={fieldState.invalid}
@@ -86,10 +93,10 @@ export function PickupFields({
             control={control}
             render={({ field, fieldState }) => (
               <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor="pickup-date">Fecha de recogida</FieldLabel>
+                <FieldLabel htmlFor={dateId}>Fecha de recogida</FieldLabel>
                 <Input
                   {...field}
-                  id="pickup-date"
+                  id={dateId}
                   type="date"
                   min={toIsoDate(new Date())}
                   className="h-11"

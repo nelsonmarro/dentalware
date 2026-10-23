@@ -594,6 +594,33 @@ describe('CaseForm', { timeout: 15_000 }, () => {
       expect(within(region).getByRole('combobox', { name: 'Mensajero' })).toBeInTheDocument()
     })
 
+    // Ids de `useId`: dos secciones montadas a la vez no comparten título, ayuda ni campos.
+    it('dos secciones «Programar recogida» montadas no comparten ids', async () => {
+      const { user } = renderForm(
+        <>
+          <CaseForm role="recepcion" pending={false} onSubmit={vi.fn()} />
+          <CaseForm role="recepcion" pending={false} onSubmit={vi.fn()} />
+        </>,
+      )
+      await screen.findAllByRole('region', { name: 'Programar recogida' })
+      const regions = screen.getAllByRole('region', { name: 'Programar recogida' })
+      expect(regions).toHaveLength(2)
+      for (const region of regions)
+        await user.click(within(region).getByRole('button', { name: 'Programar recogida' }))
+      for (const region of regions) {
+        const toggle = within(region).getByRole('button', { name: 'Programar recogida' })
+        for (const attr of ['aria-controls', 'aria-labelledby', 'aria-describedby']) {
+          const target = document.getElementById(toggle.getAttribute(attr) ?? '')
+          expect(region).toContainElement(target)
+        }
+        expect(region).toContainElement(
+          document.getElementById(region.getAttribute('aria-labelledby') ?? ''),
+        )
+        expect(within(region).getByLabelText('Fecha de recogida')).toBeInTheDocument()
+        expect(within(region).getByRole('combobox', { name: 'Mensajero' })).toBeInTheDocument()
+      }
+    })
+
     it('sin recogida el trabajo se envía sin ella', async () => {
       const onSubmit = vi.fn()
       const { user } = renderForm(<CaseForm role="recepcion" pending={false} onSubmit={onSubmit} />)

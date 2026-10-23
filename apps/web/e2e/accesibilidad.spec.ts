@@ -1175,7 +1175,8 @@ test.describe('Accesibilidad — barra lateral de escritorio', () => {
 
       await page.goto('/trabajos?vista=todos')
       await expect(page.getByRole('heading', { name: 'Trabajos', level: 1 })).toBeVisible()
-      await expect(page.getByRole('row')).not.toHaveCount(0)
+      // Una fila de datos (la 0 es la cabecera): la lista ya cargó y la página tiene su alto.
+      await expect(page.getByRole('row').nth(1)).toBeVisible()
       const sidebar = page.getByTestId('sidebar')
       const controles = [
         sidebar.getByRole('link', { name: 'Inicio' }),

@@ -47,6 +47,8 @@ describe('AppShell', () => {
     for (const clase of ['lg:sticky', 'lg:top-0', 'lg:h-svh'])
       expect(aside.className.split(' ')).toContain(clase)
     expect(nav.className.split(' ')).toContain('overflow-y-auto')
+    // El anillo de foco (`ring-2`, 2 px por fuera del enlace) no se recorta arriba ni abajo.
+    expect(nav.className.split(' ')).toContain('py-0.5')
   })
 
   // I-1 (revisión de la Tarea 7): `GET /api/entregas` es de DELIVERY_ROLES; el técnico no
