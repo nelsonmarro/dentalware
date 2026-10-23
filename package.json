@@ -7,7 +7,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @dentalware/shared build && pnpm -r --parallel --stream dev",
+    "dev": "pnpm --filter @dentalware/shared build && pnpm -r --parallel --stream --filter '!@dentalware/docs' dev",
     "build": "pnpm -r build",
     "typecheck": "tsc -b packages/shared apps/api && pnpm --filter @dentalware/web typecheck && pnpm --filter @dentalware/docs typecheck",
     "lint": "eslint .",

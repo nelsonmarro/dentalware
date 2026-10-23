@@ -1,15 +1,14 @@
 import type { LabSettingsInput, UserRole } from '@dentalware/shared'
 
-/** Día y hora de demostración: la API (`CLOCK_FIXED_AT`), el seed (`today`) y el navegador
- * (`page.clock.setFixedTime`) usan el mismo instante, así las capturas no cambian de un día a
- * otro. Un martes, a media mañana. */
-export const DEMO_TODAY = '2026-10-20'
+/** Instante de demostración: la API (`CLOCK_FIXED_AT`), el seed (su `clock`) y el navegador
+ * (`page.clock.setFixedTime`) usan el mismo, así las capturas no cambian de un día a otro. Un
+ * martes, a media mañana. */
 export const DEMO_NOW = '2026-10-20T10:30:00-05:00'
 
 /** Laboratorio ficticio: sustituye al de Arte Dental del seed normal en la BD de demostración.
- * El manual es público (LOPDP): ninguna captura puede mostrar datos reales. */
-/** Teléfonos imposibles de marcar (el manual es público): un fijo de Quito nunca empieza por 0
- * tras el «02» y el prefijo móvil 090 no está asignado en Ecuador. */
+ * El manual es público (LOPDP): ninguna captura puede mostrar datos reales. Teléfonos imposibles
+ * de marcar: un fijo de Quito nunca empieza por 0 tras el «02» y el prefijo móvil 090 no está
+ * asignado en Ecuador. */
 export const DEMO_LAB: LabSettingsInput = {
   name: 'Laboratorio Demo',
   ruc: null,

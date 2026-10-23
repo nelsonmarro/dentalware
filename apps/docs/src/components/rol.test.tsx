@@ -11,7 +11,7 @@ describe('Rol', () => {
     expect(screen.getByRole('list', { name: 'Quién puede hacerlo' })).toBeInTheDocument()
   })
 
-  it('no acepta un rol que no existe (tipo exhaustivo): el mensajero sale como «Mensajero»', () => {
+  it('rotula mensajero y técnico con los nombres de la app', () => {
     render(<Rol roles={['mensajero', 'tecnico']} />)
     expect(screen.getByText('Mensajero')).toBeInTheDocument()
     expect(screen.getByText('Técnico')).toBeInTheDocument()

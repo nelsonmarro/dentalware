@@ -143,6 +143,39 @@ export default defineConfig([
     },
   },
 
+  // Frontera del manual (ADR 37): `apps/docs` solo usa tipos de shared; nunca api ni web.
+  {
+    files: ['apps/docs/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@dentalware/api',
+              message: 'El manual no importa la API (docs/architecture.md §2, ADR 37).',
+            },
+            {
+              name: '@dentalware/web',
+              message: 'El manual no importa la web (docs/architecture.md §2, ADR 37).',
+            },
+          ],
+          patterns: [
+            {
+              group: ['**/apps/api/**', '**/apps/web/**', '../../api/**', '../../web/**'],
+              message: 'El manual no importa archivos de api ni de web (ADR 37).',
+            },
+            {
+              group: ['@dentalware/shared'],
+              allowTypeImports: true,
+              message: 'De shared, el manual solo importa tipos (ADR 37).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // --- apps/api: servicios y puertos, sin adaptadores (ADR 17-20) ---
   noAdapters(
     [`${API}/*/service.ts`, `${API}/*/*.service.ts`, `${API}/*/errors.ts`],

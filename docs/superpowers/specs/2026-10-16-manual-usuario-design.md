@@ -121,3 +121,8 @@ En `apps/docs/capturas/`, con su propio `playwright.config.ts` (el de `apps/web`
 7. Enlace «Ayuda» en la app.
 8. Imagen, compose, test de infra y documentación de despliegue.
 9. Cierre: revisión UI/UX del sitio con `frontend-design` (issue de revisión de la iteración, regla 6), historia MAN-2 y actualización de docs.
+
+## Enmiendas (2026-10-22)
+
+- `DEMO_PASSWORD` nunca va en un archivo **versionado**: en cada corrida completa se genera y vive solo en `apps/docs/capturas/.auth/demo-password` (local, 0600, ignorado por git), junto a las cookies de sesión, para el modo rápido.
+- El proyecto `telefono` usa el perfil Pixel 7 de Playwright, que mide 412 px de ancho, no 390.
