@@ -18,7 +18,7 @@ El técnico también puede <Boton>Finalizar</Boton>, y el mensajero, <Boton>Marc
 
 En la lista **Trabajos**, cada trabajo lleva su estado con su nombre y su color.
 
-<Captura nombre="recepcion/estados-chips" alt="Trabajos con su chip de estado: Cobrado, Entregado, Enviado, En proceso, Terminado, En espera, En prueba, Nuevo, Cancelado y Por recoger" telefono />
+<Captura nombre="recepcion/estados-chips" alt="Trabajos de la lista, cada uno con el chip de su estado" telefono />
 
 En la computadora, junto a la fecha de entrega, un reloj marca el trabajo que vence hoy («A. S.») y un círculo rojo con exclamación, el atrasado («L. T.»); deja el puntero encima para leer «Vence hoy» o «Atrasado».
 
@@ -39,7 +39,7 @@ Cada estado, qué significa y qué acción lo mueve:
 
 ## Pasos
 
-1. Abre la [ficha del trabajo](./la-ficha-del-trabajo.md). Las acciones están en el panel de la fase (**Recogida**, **Producción** o **Entrega**): la principal va primero y en verde, y <Boton>Cancelar trabajo</Boton> va al final y aparte, en rojo.
+1. Abre la [ficha del trabajo](./la-ficha-del-trabajo.md). Las acciones están en el panel de la fase (**Recogida**, **Producción** o **Entrega**): la principal va en verde (en **Producción** suele ser <Boton>Avanzar fase</Boton>; <Boton>Finalizar</Boton> solo en la última fase), y <Boton>Cancelar trabajo</Boton> va al final y aparte, en rojo.
 2. Toca la acción. La mayoría, como <Boton>Aceptar</Boton> o <Boton>Enviar a prueba</Boton>, se hace al momento, sin pedir confirmación.
 3. <Boton>Pausar</Boton> y <Boton>Cancelar trabajo</Boton> piden el **Motivo**. Escríbelo y toca el botón que nombra la acción (<Boton>Pausar trabajo</Boton> o <Boton>Cancelar trabajo</Boton>); <Boton>Volver</Boton> cierra sin hacer nada.
    <Captura nombre="recepcion/accion-pausar" alt="Diálogo Pausar trabajo: el trabajo queda En espera hasta que lo reanudes; campo Motivo, Volver y Pausar trabajo" telefono />

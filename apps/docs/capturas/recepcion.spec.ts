@@ -6,7 +6,9 @@ import { expect, test } from './fixtures'
  * diálogos se abren, se capturan y se cierran con «Volver» (o «Cancelar» en el de las piezas,
  * que no es una acción); los formularios se rellenan sin enviarse. */
 
-/** La cabecera de la ficha: la tarjeta que lleva el código como `h1`. */
+/** La cabecera de la ficha: la tarjeta que lleva el código como `h1`. La app no le da rol ni
+ * nombre accesible (no es una `region`), así que se busca por su `data-slot` (deuda anotada para
+ * la revisión UI/UX). */
 const cabeceraFicha = (page: Page) =>
   page.locator('[data-slot=card]').filter({ has: page.getByRole('heading', { level: 1 }) })
 
@@ -36,6 +38,20 @@ const centrado = async (objetivo: Locator) => {
   return objetivo
 }
 
+/** Desplaza el cuerpo del diálogo (su contenedor con scroll) hasta que `campo` quede arriba:
+ * así el recorte empieza en un rótulo y no en la tira de un campo cortado. */
+const alinearArriba = (campo: Locator) =>
+  campo.evaluate((el) => {
+    let cuerpo = el.parentElement
+    while (cuerpo && !['auto', 'scroll'].includes(getComputedStyle(cuerpo).overflowY)) {
+      cuerpo = cuerpo.parentElement
+    }
+    if (!cuerpo) throw new Error('El diálogo no tiene cuerpo desplazable')
+    const relleno = parseFloat(getComputedStyle(cuerpo).paddingTop)
+    cuerpo.scrollTop +=
+      el.getBoundingClientRect().top - cuerpo.getBoundingClientRect().top - relleno
+  })
+
 /** Margen alrededor de un diálogo: el recorte deja ver el fondo oscurecido en vez de las
  * esquinas redondeadas sobre la página de detrás. */
 const DIALOGO = { margen: 16 } as const
@@ -43,6 +59,11 @@ const DIALOGO = { margen: 16 } as const
 test('crear un trabajo', async ({ page }, testInfo) => {
   await page.goto('/trabajos')
   await expect(page.getByRole('heading', { name: 'Trabajos', level: 1 })).toBeVisible()
+  // En el teléfono, la barra de vistas abre desplazada hasta la vista elegida («Todos»): se
+  // vuelve al principio para que se vean «Nuevos», «En curso» y «Vencen hoy».
+  await page.getByRole('tablist').evaluate((el) => {
+    for (let n: Element | null = el; n; n = n.parentElement) n.scrollLeft = 0
+  })
   await captura(
     page,
     'recepcion/trabajos-lista',
@@ -79,6 +100,8 @@ test('crear un trabajo', async ({ page }, testInfo) => {
   await expect(page.getByRole('dialog')).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Programar recogida' }).click()
+  // La sección no tiene rol ni nombre accesible (su tarjeta no es una `region`): se busca la
+  // tarjeta del botón por su `data-slot` (deuda anotada para la revisión UI/UX).
   const recogida = page
     .locator('[data-slot=card]')
     .filter({ has: page.getByRole('button', { name: 'Programar recogida' }) })
@@ -118,7 +141,7 @@ test('la ficha del trabajo', async ({ page }, testInfo) => {
     page,
     'recepcion/ficha-historial',
     await centrado(page.getByRole('tabpanel', { name: /^Historial/ })),
-    { testInfo },
+    { testInfo, margen: 8 },
   )
 
   // La foto de la constancia de entrega: solo los trabajos entregados la tienen.
@@ -218,17 +241,22 @@ test('cuentas y pagos', async ({ page }, testInfo) => {
     },
   )
 
-  // En escritorio, con una ventana algo más alta el diálogo cabe entero, sin desplazar su cuerpo
-  // (se cortaría el rótulo de los primeros campos). Va después de las capturas de la cuenta.
-  if (!esTelefono(testInfo)) await page.setViewportSize({ width: 1280, height: 1000 })
+  // Con una ventana algo más alta, el diálogo (90 % del alto) cabe entero en escritorio y, en el
+  // teléfono, deja ver desde «Fecha» hasta el final del reparto. Va después de las capturas de
+  // la cuenta.
+  await page.setViewportSize(
+    esTelefono(testInfo) ? { width: 412, height: 915 } : { width: 1280, height: 1000 },
+  )
   const pago = await abrirDialogo(page, 'Registrar pago')
   // Un pago de $ 100.00 por transferencia: cubre «S. L.» y deja a «K. O.» debiendo.
   await pickSelectOption(page, pago.getByRole('combobox', { name: 'Método' }), 'Transferencia')
   await pago.getByLabel('Monto', { exact: true }).fill('100.00')
   await expect(pago.getByText('Queda cobrado')).toBeVisible()
   await sinFoco(page)
-  // El cuerpo del diálogo se desplaza: se baja hasta el reparto, con las dos filas a la vista.
-  await pago.getByText(/^Quedará debiendo/).scrollIntoViewIfNeeded()
+  // En el teléfono, el cuerpo del diálogo se desplaza hasta «Fecha»: el reparto queda entero a la
+  // vista y el recorte no empieza en medio de un campo.
+  if (esTelefono(testInfo)) await alinearArriba(pago.getByText('Fecha', { exact: true }))
+  await expect(pago.getByText(/^Quedará debiendo/)).toBeInViewport()
   await captura(page, 'recepcion/registrar-pago', pago, { testInfo, ...DIALOGO })
   await cerrarDialogo(page)
 
@@ -240,26 +268,28 @@ test('cuentas y pagos', async ({ page }, testInfo) => {
 
 test('avisar por whatsapp', async ({ page }, testInfo) => {
   await abrirTrabajo(page, 'A. S.')
-  // El bloque del código, la clínica y el enlace, que dice a quién se avisa.
+  // El bloque del código, la clínica y el enlace, que dice a quién se avisa. La app no le da rol
+  // ni nombre accesible: se sube desde el `h1` (deuda anotada para la revisión UI/UX).
   const bloque = page.getByRole('heading', { level: 1 }).locator('xpath=../..')
   await expect(bloque.getByRole('link', { name: /^Avisar por WhatsApp a / })).toBeVisible()
-  await captura(page, 'recepcion/whatsapp-boton', bloque, { testInfo })
+  await captura(page, 'recepcion/whatsapp-boton', bloque, { testInfo, margen: 8 })
 
   await abrirTrabajo(page, 'J. R.')
   const sinNumero = page.getByRole('heading', { level: 1 }).locator('xpath=../..')
   await expect(sinNumero.getByText('Sin WhatsApp registrado.')).toBeVisible()
-  await captura(page, 'recepcion/whatsapp-sin-numero', sinNumero, { testInfo })
+  await captura(page, 'recepcion/whatsapp-sin-numero', sinNumero, { testInfo, margen: 8 })
 })
 
 test('imprimir', async ({ page }, testInfo) => {
   await abrirTrabajo(page, 'A. S.')
+  const codigo = await page.getByRole('heading', { level: 1 }).textContent()
   await page.getByRole('link', { name: 'Imprimir' }).click()
   await captura(
     page,
     'recepcion/imprimir-orden',
     {
       pagina: true,
-      esperar: page.getByRole('heading', { name: 'Orden de trabajo 26-00004' }).first(),
+      esperar: page.getByRole('heading', { name: `Orden de trabajo ${codigo}` }).first(),
     },
     { testInfo },
   )

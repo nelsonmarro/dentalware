@@ -20,7 +20,18 @@ export default defineConfig({
   reporter: 'list',
   globalSetup: './global-setup.ts',
   outputDir: '../test-results',
-  use: { baseURL: 'http://localhost:5173', locale: 'es-EC', timezoneId: 'America/Guayaquil' },
+  use: {
+    baseURL: 'http://localhost:5173',
+    locale: 'es-EC',
+    timezoneId: 'America/Guayaquil',
+    // `locale` no basta para el `input type="date"`: Chromium lo pinta con el idioma de su
+    // interfaz (sale «10/20/2026»). En Linux ese idioma sale de `LANGUAGE`/`LANG` (probado:
+    // `--lang` solo no lo cambia); con los dos, sale «20/10/2026», como lo ve recepción.
+    launchOptions: {
+      args: ['--lang=es-EC'],
+      env: { ...process.env, LANGUAGE: 'es_EC', LANG: 'es_EC.UTF-8' },
+    },
+  },
   webServer: [
     {
       command:

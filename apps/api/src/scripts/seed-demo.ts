@@ -77,7 +77,12 @@ function daysFrom(today: string, n: number): string {
  * 30), así que se busca hacia atrás, desde `target`, el último día que llega justo ahí. Sin
  * esto, todo trabajo aceptado por el seed vencería días después de hoy y «Vencen hoy», «Vencen
  * mañana» y «Atrasados» saldrían vacías en el manual. Lanza si no hay ninguno (un `target` en
- * fin de semana: los días hábiles nunca terminan en sábado ni domingo). */
+ * fin de semana: los días hábiles nunca terminan en sábado ni domingo).
+ *
+ * El día que devuelve puede ser anterior al de recepción del trabajo (por ejemplo, «A. S.» se
+ * recibe el 14/10 y se acepta con el reloj del 12/10). No importa: «Aceptar» con ese reloj solo
+ * fija la fecha comprometida, el evento del historial lleva la hora real de la BD
+ * (`clock_timestamp()`), y la app no muestra en ningún sitio el día de aceptación. */
 export function acceptDayFor(target: string, turnaround: number): string {
   const end = new Date(`${target}T00:00:00`)
   for (let back = 0; back <= 30; back++) {
