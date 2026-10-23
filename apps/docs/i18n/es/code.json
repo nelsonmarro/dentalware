@@ -38,6 +38,9 @@
   "theme.NotFound.p2": {
     "message": "Busca lo que necesitas con el buscador o vuelve a la portada."
   },
+  "theme.NotFound.volver": {
+    "message": "Ir a la portada"
+  },
   "theme.docs.sidebar.closeSidebarButtonAriaLabel": {
     "message": "Cerrar el menú"
   },

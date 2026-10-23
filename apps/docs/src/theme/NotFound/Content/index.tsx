@@ -5,7 +5,7 @@ import clsx from 'clsx'
 
 /** La 404 del tema (`NotFound/Content`, copiada a mano) más una salida dentro de su `main`
  * (UX8-10): en el teléfono «el menú» es una hamburguesa y «el buscador», una lupa; un botón a la
- * portada es más claro. Los textos siguen saliendo de `i18n/es/code.json`. */
+ * portada es más claro. Todos los textos, también el del botón, salen de `i18n/es/code.json`. */
 export default function NotFoundContent({ className }: { className?: string }) {
   return (
     <main className={clsx('margin-vert--xl container', className)}>
@@ -28,7 +28,12 @@ export default function NotFoundContent({ className }: { className?: string }) {
             </Translate>
           </p>
           <Link className="button button--primary portada__volver" to="/">
-            Ir a la portada
+            <Translate
+              id="theme.NotFound.volver"
+              description="El botón de la 404 que lleva a la portada"
+            >
+              Ir a la portada
+            </Translate>
           </Link>
         </div>
       </div>

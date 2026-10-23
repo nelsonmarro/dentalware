@@ -126,8 +126,10 @@ jobs:
       # (salvo DATABASE_URL, que viene del entorno del job: ver arriba)
       - run: pnpm --filter @dentalware/shared build # la API importa @dentalware/shared desde dist/ al arrancar
       - run: pnpm --filter @dentalware/web exec playwright test ${{ env.PW_ARGS }}
-      # Barrido del manual construido (#137): objetivos táctiles, rótulos, landmarks.
+      # Barrido del manual construido (#137): objetivos táctiles, rótulos, landmarks. Corre aunque
+      # fallen los E2E de la web, para que un fallo de la web no oculte uno del manual.
       - run: pnpm --filter @dentalware/docs sitio
+        if: ${{ !cancelled() }}
       # Informe HTML y trazas (`trace: on-first-retry`): sin ellos un fallo solo en CI no se
       # puede depurar (#133). `playwright-report` solo existe con el reporter `html` del config.
       - uses: actions/upload-artifact@v7
