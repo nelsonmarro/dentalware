@@ -1,12 +1,14 @@
 import { count, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { cases, clinics, labSettings, products, users } from '../db/schema/index.ts'
+import { cases, clinics, deliveries, labSettings, products, users } from '../db/schema/index.ts'
+import { fixedClockAt } from '../lib/clock.ts'
+import { createServices } from '../services.ts'
 import { testPassword } from '../test/passwords.ts'
-import { cleanupTestStorage, setupTestDb, truncateAll } from '../test/setup.ts'
+import { cleanupTestStorage, createUser, setupTestDb, truncateAll } from '../test/setup.ts'
 import { ensureAdmin } from './seed.ts'
 import { seedCatalogs } from './seed-data.ts'
 import { assertDemoEnv, seedDemo } from './seed-demo.ts'
-import { DEMO_LAB, DEMO_USERS } from './seed-demo-data.ts'
+import { DEMO_LAB, DEMO_NOW, DEMO_USERS } from './seed-demo-data.ts'
 
 describe('assertDemoEnv', () => {
   it('se niega fuera de NODE_ENV=test: nunca pisa una BD real', () => {
@@ -47,7 +49,7 @@ describe('seedDemo', () => {
       storage: ctx.storage,
       adminEmail: admin.email,
       demoPassword: password,
-      today: '2026-10-20',
+      clock: fixedClockAt(DEMO_NOW),
     })
 
   it('deja un laboratorio ficticio y nada de Arte Dental', async () => {
@@ -99,6 +101,37 @@ describe('seedDemo', () => {
     expect(result.cases['vence-hoy']).toMatch(/^[0-9a-f-]{36}$/)
     const [row] = await ctx.db.select({ n: count() }).from(clinics)
     expect(Number(row?.n)).toBe(3)
+
+    // La repetición cobra la mitad.
+    const [remake] = await ctx.db
+      .select({ pct: cases.remakeChargePct })
+      .from(cases)
+      .where(eq(cases.id, result.cases['repeticion']!))
+    expect(remake?.pct).toBe('50.00')
+
+    // La entrega fallida queda cerrada y reprogramada para hoy.
+    const fallida = await ctx.db
+      .select({ status: deliveries.status, day: deliveries.scheduledFor })
+      .from(deliveries)
+      .where(eq(deliveries.caseId, result.cases['fallida']!))
+    expect(fallida).toEqual(
+      expect.arrayContaining([
+        { status: 'fallida', day: '2026-10-20' },
+        { status: 'pendiente', day: '2026-10-20' },
+      ]),
+    )
+    expect(fallida).toHaveLength(2)
+
+    // Cuentas: «norte» con $ 20.00 a favor y «alamos» con el saldo inicial de $ 35.00.
+    const services = createServices({
+      db: ctx.db,
+      storage: ctx.storage,
+      clock: fixedClockAt(DEMO_NOW),
+    })
+    const norte = await services.accounts.clinicAccount(result.clinics.norte)
+    expect(norte.breakdown.credit).toBe('20.00')
+    const alamos = await services.accounts.clinicAccount(result.clinics.alamos)
+    expect(alamos.breakdown.unlinkedAdjustments).toBe('35.00')
   })
 
   it('ningún producto ni trabajo de demostración vale $ 0.00', async () => {
@@ -125,6 +158,12 @@ describe('seedDemo', () => {
 
   it('se niega si ya hay datos de demostración (no duplica)', async () => {
     await run()
+    await expect(run()).rejects.toThrow(/ya hay datos de demostración/)
+  })
+
+  it('se niega también si ya existen los usuarios de demostración, aunque no haya clínicas', async () => {
+    const [first] = DEMO_USERS
+    await createUser(ctx.auth, ctx.db, { ...first, password: testPassword() })
     await expect(run()).rejects.toThrow(/ya hay datos de demostración/)
   })
 })

@@ -12,7 +12,8 @@ import { createClinic } from '../features/clinics/repo.ts'
 import { createDoctor } from '../features/doctors/repo.ts'
 import { upsertLabSettings } from '../features/lab-settings/repo.ts'
 import { listProducts, updateProduct, upsertClinicPrice } from '../features/products/repo.ts'
-import { fixedClockAt } from '../lib/clock.ts'
+import type { Clock } from '../lib/clock.ts'
+import { fixedClockAt, systemClock } from '../lib/clock.ts'
 import { createStorage } from '../lib/create-storage.ts'
 import { isMainModule } from '../lib/is-main-module.ts'
 import type { RequestContext } from '../lib/request-context.ts'
@@ -53,8 +54,9 @@ export type DemoSeedContext = {
   storage: Storage
   adminEmail: string
   demoPassword: string
-  /** El «hoy» del seed (`YYYY-MM-DD`): el mismo día que fija `CLOCK_FIXED_AT` en la API. */
-  today: string
+  /** El reloj de los servicios y de las fechas del seed: el mismo que fija `CLOCK_FIXED_AT` en la
+   * API (`fixedClockAt`), así las validaciones «no anterior a hoy» miran el mismo día. */
+  clock: Clock
 }
 export type DemoSeedResult = {
   users: Record<DemoUserKey, string>
@@ -83,7 +85,7 @@ async function demoPhoto(): Promise<Uint8Array> {
  * Datos de demostración para las capturas del manual (Iteración 8, MAN-1): un laboratorio,
  * usuarios, clínicas y trabajos ficticios, uno por escenario que el manual enseña. Los
  * catálogos van por los repos CRUD simples; todo lo demás, por los mismos servicios que la API
- * (`createServices`), con el reloj fijo en `today`: las reglas de negocio se cumplen igual que
+ * (`createServices`), con el reloj del contexto: las reglas de negocio se cumplen igual que
  * en la app y no hay inserts a mano. Se niega si ya corrió sobre esta BD.
  */
 export async function seedDemo({
@@ -92,23 +94,26 @@ export async function seedDemo({
   storage,
   adminEmail,
   demoPassword,
-  today,
+  clock,
 }: DemoSeedContext): Promise<DemoSeedResult> {
   const existing = await db
     .select({ id: clinics.id })
     .from(clinics)
     .where(eq(clinics.name, DEMO_CLINICS[0].name))
-  if (existing.length > 0) {
+  const [existingUser] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, DEMO_USERS[0].email))
+  if (existing.length > 0 || existingUser) {
     throw new Error('seed:demo: ya hay datos de demostración; corre reset-test-db y seed antes')
   }
   const [admin] = await db.select({ id: users.id }).from(users).where(eq(users.email, adminEmail))
   if (!admin)
     throw new Error(`seed:demo: no existe el admin ${adminEmail}; corre el seed normal antes`)
   const ctx: RequestContext = { userId: admin.id, role: 'admin' }
+  const today = clock.today()
   const daysFromToday = (n: number) => daysFrom(today, n)
-  // El mismo reloj que la API con `CLOCK_FIXED_AT`: las validaciones «no anterior a hoy» miran
-  // este día.
-  const services = createServices({ db, storage, clock: fixedClockAt(`${today}T10:30:00-05:00`) })
+  const services = createServices({ db, storage, clock })
 
   await upsertLabSettings(db, DEMO_LAB)
 
@@ -178,8 +183,13 @@ export async function seedDemo({
   for (const spec of DEMO_CASES) {
     const courierId = 'courier' in spec ? userIds[spec.courier] : undefined
     const conRecogida = spec.escenario === 'por_recoger' || spec.escenario === 'en_camino'
-    const recogida =
-      conRecogida && courierId ? { mensajeroId: courierId, fecha: daysFromToday(0) } : undefined
+    let recogida: { mensajeroId: string; fecha: string } | undefined
+    if (conRecogida) {
+      if (!courierId) {
+        throw new Error(`seed:demo: el trabajo ${spec.key} necesita mensajero para su recogida`)
+      }
+      recogida = { mensajeroId: courierId, fecha: daysFromToday(0) }
+    }
     const created = await services.cases.create(
       {
         clinicId: clinicIds[spec.clinic],
@@ -351,6 +361,11 @@ export async function seedDemo({
       case 'cancelado':
         await act(id, 'cancelar', { motivo: 'El doctor retiró el pedido' })
         return
+      default: {
+        // Un escenario nuevo en `DEMO_CASES` no compila sin decidir qué hace.
+        const unknownScenario: never = escenario
+        throw new Error(`seed:demo: escenario desconocido ${String(unknownScenario)}`)
+      }
     }
   }
 
@@ -371,20 +386,18 @@ async function main() {
   try {
     await runMigrations(db)
     const auth = createAuth(db, config)
-    // El día del reloj fijo de la API si lo hay (capturas); si no, el de la máquina.
-    const today = config.CLOCK_FIXED_AT
-      ? fixedClockAt(config.CLOCK_FIXED_AT).today()
-      : toIsoDate(new Date())
+    // El reloj fijo de la API si lo hay (capturas); si no, el de la máquina.
+    const clock = config.CLOCK_FIXED_AT ? fixedClockAt(config.CLOCK_FIXED_AT) : systemClock
     const result = await seedDemo({
       db,
       auth,
       storage: createStorage(config),
       adminEmail: config.ADMIN_EMAIL,
       demoPassword,
-      today,
+      clock,
     })
     console.log(
-      `Datos de demostración listos (hoy = ${today}): ${Object.keys(result.cases).length} trabajos, ${Object.keys(result.clinics).length} clínicas, ${Object.keys(result.users).length} usuarios`,
+      `Datos de demostración listos (hoy = ${clock.today()}): ${Object.keys(result.cases).length} trabajos, ${Object.keys(result.clinics).length} clínicas, ${Object.keys(result.users).length} usuarios`,
     )
   } finally {
     await pool.end()

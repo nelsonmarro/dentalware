@@ -8,11 +8,13 @@ export const DEMO_NOW = '2026-10-20T10:30:00-05:00'
 
 /** Laboratorio ficticio: sustituye al de Arte Dental del seed normal en la BD de demostración.
  * El manual es público (LOPDP): ninguna captura puede mostrar datos reales. */
+/** Teléfonos imposibles de marcar (el manual es público): un fijo de Quito nunca empieza por 0
+ * tras el «02» y el prefijo móvil 090 no está asignado en Ecuador. */
 export const DEMO_LAB: LabSettingsInput = {
   name: 'Laboratorio Demo',
   ruc: null,
   address: 'Av. de los Ejemplos 123 y Calle Ficticia, Quito',
-  phone: '099 000 0000',
+  phone: '02 000 0000',
   logoUrl: null,
   codePrefix: null,
   ivaPct: 15,
@@ -44,8 +46,8 @@ export const DEMO_CLINICS = [
     name: 'Clínica Sonrisa Norte',
     address: 'Av. Imaginaria N45-12 y Los Cedros',
     city: 'Quito',
-    phone: '02 200 0001',
-    whatsapp: '+593990000001',
+    phone: '02 000 0001',
+    whatsapp: '+593900000001',
     doctors: ['Dra. Valeria Andrade', 'Dr. Tomás Herrera'],
     /** Precio por clínica de algún producto, por código del catálogo del seed (sobre el precio
      * base de `DEMO_BASE_PRICES`). */
@@ -56,7 +58,7 @@ export const DEMO_CLINICS = [
     name: 'Centro Dental Los Álamos',
     address: 'Calle Ficticia 8-20 y Av. Ejemplo',
     city: 'Quito',
-    phone: '02 200 0002',
+    phone: '02 000 0002',
     whatsapp: null,
     doctors: ['Dr. Rafael Mena'],
     prices: {},
@@ -66,8 +68,8 @@ export const DEMO_CLINICS = [
     name: 'Consultorio Dra. Paredes',
     address: 'Pasaje Inventado 3 y Calle 9',
     city: 'Cumbayá',
-    phone: '02 200 0003',
-    whatsapp: '+593990000003',
+    phone: '02 000 0003',
+    whatsapp: '+593900000003',
     doctors: ['Dra. Inés Paredes'],
     prices: { DL: '110.00', AC: '60.00' },
   },

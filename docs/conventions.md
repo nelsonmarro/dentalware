@@ -19,7 +19,7 @@ Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabaj
 ## 3. Estructura
 
 - **`packages/shared/src`**: dominio puro sin I/O (schemas zod, máquina de estados, dinero, FDI, días hábiles, código de trabajo, readiness, roles). Todo sale por `index.ts`; solo depende de `zod`.
-- **`apps/api/src/features/<f>/`**: `ports.ts`, `service.ts`, `errors.ts`, `repo.ts`, `schema.ts`, `routes.ts`, `fakes.ts`, `*.test.ts` (papel de cada uno en `docs/architecture.md` §3). Transversal en `lib/`, `db/`, `scripts/`, `test/`. `app.ts` es la raíz de composición; `main.ts` solo arranca.
+- **`apps/api/src/features/<f>/`**: `ports.ts`, `service.ts`, `errors.ts`, `repo.ts`, `schema.ts`, `routes.ts`, `fakes.ts`, `*.test.ts` (papel de cada uno en `docs/architecture.md` §3). Transversal en `lib/`, `db/`, `scripts/`, `test/`. `services.ts` es la raíz de composición de los casos de uso (`createServices`) y `app.ts` monta las rutas; `main.ts` solo arranca.
 - **`apps/web/src/features/<f>/`**: `api.ts` (única frontera con la red), `use-*.ts` (TanStack Query), componentes y tests. Transversal en `components/` (`ui/` = primitivas shadcn), `lib/` y `test/`. `routes/` solo importa de `features/` y `components/` y no tiene lógica.
 - Una feature no importa el `repo`, `schema` ni `routes` de otra: declara un puerto y la raíz de composición lo inyecta (excepciones en ADR 24–26).
 
