@@ -28,5 +28,19 @@ export default defineConfig({
     // Ubuntu (#133) y el barrido mide CSS, no el motor.
     { name: 'telefono', use: { ...devices['Pixel 7'], viewport: { width: 390, height: 844 } } },
     { name: 'telefono-360', use: { ...devices['Pixel 5'], viewport: { width: 360, height: 740 } } },
+    // Safari solo en CI: WebKit no arranca en local fuera de Ubuntu (Arch no trae sus librerías,
+    // #133); el job `e2e` ya instala WebKit para los E2E de la web.
+    ...(process.env.CI
+      ? [
+          {
+            name: 'telefono-webkit',
+            use: {
+              ...devices['iPhone 13'],
+              viewport: { width: 390, height: 844 },
+              browserName: 'webkit' as const,
+            },
+          },
+        ]
+      : []),
   ],
 })

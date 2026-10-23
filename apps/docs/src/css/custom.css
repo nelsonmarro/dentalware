@@ -125,11 +125,25 @@ h1 {
  * atributo porque su clase lleva el hash del módulo CSS del tema. */
 .breadcrumbs__link,
 .navbar__brand,
-.navbar__link,
 button[class*='tocCollapsibleButton'] {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
+}
+
+.navbar__link {
+  min-height: 44px;
+}
+
+/* Solo en escritorio: Infima oculta los enlaces del navbar en el teléfono con
+ * `.navbar__item { display: none }` (≤ 996 px), con la misma especificidad. Un `display` sin media
+ * query aquí le ganaría o no según el orden en que quede el CSS (en `docusaurus start` gana este
+ * archivo y los enlaces saldrían en la barra del teléfono). */
+@media (min-width: 997px) {
+  .navbar__link {
+    display: inline-flex;
+    align-items: center;
+  }
 }
 
 .breadcrumbs__link {
@@ -137,19 +151,20 @@ button[class*='tocCollapsibleButton'] {
   min-width: 44px;
 }
 
+/* `block` (el de Infima), no `flex`: un título con marcas en línea (código, un chip) no se parte
+ * en piezas. Con la letra de 0.8rem y su interlineado, 0.75rem arriba y abajo llevan cada entrada
+ * a 44 px; el margen de cada `li` sigue siendo el de Infima, con su sangría por nivel. */
 .table-of-contents__link {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  margin: 0;
-}
-
-.table-of-contents li {
-  margin: 0;
+  display: block;
+  padding-block: 0.75rem;
 }
 
 /* UX8-07: los títulos de los avisos en sentence case (el tema los pone en mayúsculas en su módulo
- * CSS; el título es el primer hijo del aviso) */
+ * CSS; el título es el primer hijo del aviso). Sin mayúsculas, un aviso sin título propio saldría
+ * con el rótulo del tema en minúsculas («nota»), y `::first-letter` no lo arregla: el icono es un
+ * `inline-block` delante del texto y Chromium no aplica la primera letra tras él (probado). Por eso
+ * todo aviso lleva título propio: lo dicen la plantilla y el README, y lo comprueba
+ * `avisos-con-titulo.test.ts`. */
 .theme-admonition > div:first-child {
   text-transform: none;
   letter-spacing: 0;

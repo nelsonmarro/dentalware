@@ -28,6 +28,8 @@ construye también el manual, así que el job `quality` de CI lo comprueba en ca
 4. `:::warning Importante` solo para lo que no tiene vuelta (finalizar, cancelar, anular un pago),
    `:::tip Consejo` para atajos y `:::info <título>` para notas neutras (p. ej. «Precios»: el técnico y
    el mensajero no los ven).
+   Todo aviso lleva su título en sentence case: sin él, el tema pone su rótulo en minúsculas
+   («nota»); `avisos-con-titulo.test.ts` lo comprueba.
 5. Las páginas de referencia (como «Qué ve cada rol») no son tareas: no llevan «Quién puede hacerlo»
    ni pasos.
 
