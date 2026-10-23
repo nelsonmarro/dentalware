@@ -84,7 +84,7 @@ Cómo se escribe código en este repo. Complementa `CLAUDE.md` (reglas de trabaj
 - **Web** con Testing Library (`renderWithProviders`, `renderWithRouter`, `setMatchMedia`): consultas por rol y etiqueta, `findBy*` para lo asíncrono y mocks solo de `api.ts`.
 - **Un test protege una constante con valores literales**, no derivando sus casos de esa misma constante.
 - **E2E** con Playwright:
-  - Proyectos `escritorio` y `android` con el Chromium local; `iphone` (WebKit) en CI y, en local, con `pnpm --filter @dentalware/web e2e:iphone` (`scripts/e2e-iphone.sh`: la imagen oficial de Playwright de la misma versión, con los servidores del host arrancados antes en modo test), porque WebKit necesita librerías de Ubuntu que otras distros no traen (#133).
+  - Proyectos `escritorio` y `android` con el Chromium local; `iphone` (WebKit) en CI y, en local, con `pnpm --filter @dentalware/web e2e:iphone` (`scripts/e2e-iphone.sh`: la imagen oficial de Playwright de la misma versión, con los servidores del host arrancados antes en modo test), porque WebKit necesita librerías de Ubuntu que otras distros no traen (#133). El job `e2e` del CI corre en esa misma imagen (`container` del job, #141): sin `playwright install` ni apt; `ci-imagen-playwright.test.ts` exige que la versión del nombre de la imagen sea la del catalog.
   - Datos únicos por ejecución (`uniqueSuffix`), selectores por rol o label, sin `waitForTimeout`.
   - Un recorrido con varias sesiones y varios diálogos (el de entregas, los de cuentas) empieza con `test.slow()`: en WebKit del CI cada acción tarda ~1 s y el recorrido entero pasa de los 30 s por omisión (#139). Nunca se sube el `timeout` global.
   - Puertos 3000 y 5173 libres antes de correrlos.
