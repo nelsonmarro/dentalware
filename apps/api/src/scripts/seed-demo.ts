@@ -11,7 +11,7 @@ import { clinics, users } from '../db/schema/index.ts'
 import { createClinic } from '../features/clinics/repo.ts'
 import { createDoctor } from '../features/doctors/repo.ts'
 import { upsertLabSettings } from '../features/lab-settings/repo.ts'
-import { listProducts, upsertClinicPrice } from '../features/products/repo.ts'
+import { listProducts, updateProduct, upsertClinicPrice } from '../features/products/repo.ts'
 import { fixedClockAt } from '../lib/clock.ts'
 import { createStorage } from '../lib/create-storage.ts'
 import { isMainModule } from '../lib/is-main-module.ts'
@@ -19,6 +19,7 @@ import type { RequestContext } from '../lib/request-context.ts'
 import type { Storage } from '../lib/storage.ts'
 import { createServices } from '../services.ts'
 import {
+  DEMO_BASE_PRICES,
   DEMO_CASES,
   DEMO_CLINICS,
   DEMO_LAB,
@@ -121,6 +122,22 @@ export async function seedDemo({
     userIds[u.key] = created.user.id
   }
 
+  // Precios base ficticios (el seed normal los deja en 0.00), por el repo de `products`.
+  for (const p of await listProducts(db, false)) {
+    const basePrice = DEMO_BASE_PRICES[p.code]
+    if (!basePrice) {
+      throw new Error(`seed:demo: falta el precio base de demostración del producto ${p.code}`)
+    }
+    await updateProduct(db, p.id, {
+      code: p.code,
+      name: p.name,
+      categoryId: p.categoryId,
+      pricingUnit: p.pricingUnit,
+      basePrice,
+      turnaroundDays: p.turnaroundDays,
+      requiresTryIn: p.requiresTryIn,
+    })
+  }
   const products = await listProducts(db, false)
   const productId = (code: string) => {
     const p = products.find((x) => x.code === code)

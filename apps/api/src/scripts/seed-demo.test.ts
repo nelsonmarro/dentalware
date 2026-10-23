@@ -1,6 +1,6 @@
 import { count, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { cases, clinics, labSettings, users } from '../db/schema/index.ts'
+import { cases, clinics, labSettings, products, users } from '../db/schema/index.ts'
 import { testPassword } from '../test/passwords.ts'
 import { cleanupTestStorage, setupTestDb, truncateAll } from '../test/setup.ts'
 import { ensureAdmin } from './seed.ts'
@@ -99,6 +99,19 @@ describe('seedDemo', () => {
     expect(result.cases['vence-hoy']).toMatch(/^[0-9a-f-]{36}$/)
     const [row] = await ctx.db.select({ n: count() }).from(clinics)
     expect(Number(row?.n)).toBe(3)
+  })
+
+  it('ningún producto ni trabajo de demostración vale $ 0.00', async () => {
+    await run()
+    const active = await ctx.db
+      .select({ code: products.code, basePrice: products.basePrice })
+      .from(products)
+      .where(eq(products.active, true))
+    expect(active.length).toBeGreaterThan(0)
+    expect(active.filter((p) => Number(p.basePrice) <= 0)).toEqual([])
+    const totals = await ctx.db.select({ code: cases.code, total: cases.total }).from(cases)
+    expect(totals).toHaveLength(17)
+    expect(totals.filter((c) => Number(c.total) <= 0)).toEqual([])
   })
 
   it('las fechas salen del día dado, no del reloj de la máquina', async () => {

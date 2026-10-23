@@ -18,6 +18,18 @@ export const DEMO_LAB: LabSettingsInput = {
   ivaPct: 15,
 }
 
+/** Precio base ficticio de cada producto del catálogo del seed normal (que los deja en 0.00), por
+ * código: el manual no enseña trabajos a $ 0.00. Los precios por clínica de `DEMO_CLINICS` siguen
+ * mandando sobre estos. */
+export const DEMO_BASE_PRICES: Record<string, string> = {
+  ZR: '90.00',
+  DL: '100.00',
+  MP: '80.00',
+  AC: '55.00',
+  CC: '70.00',
+  PH: '60.00',
+}
+
 export const DEMO_USERS = [
   { key: 'recepcion', name: 'Carla Recepción', email: 'recepcion@demo.local', role: 'recepcion' },
   { key: 'tecnico', name: 'Diego Técnico', email: 'tecnico@demo.local', role: 'tecnico' },
@@ -35,8 +47,8 @@ export const DEMO_CLINICS = [
     phone: '02 200 0001',
     whatsapp: '+593990000001',
     doctors: ['Dra. Valeria Andrade', 'Dr. Tomás Herrera'],
-    /** Precio por clínica de algún producto, por código del catálogo del seed (el seed normal
-     * deja los precios base en 0.00). */
+    /** Precio por clínica de algún producto, por código del catálogo del seed (sobre el precio
+     * base de `DEMO_BASE_PRICES`). */
     prices: { ZR: '95.00', MP: '85.00' },
   },
   {
