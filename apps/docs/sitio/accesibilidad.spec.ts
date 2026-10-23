@@ -7,24 +7,56 @@ import {
   sinScrollHorizontal,
 } from './helpers'
 
+// UX8-02: en cada página, controles de navegación (migas, «En esta página», marca, navbar, menú
+// lateral y tabla de contenidos) a 44 px en los tres anchos.
 test.describe('todas las páginas', () => {
   for (const ruta of PAGINAS) {
-    test(`${ruta}: sin scroll horizontal, consola limpia y un solo h1`, async ({ page }) => {
+    test(`${ruta}: sin scroll horizontal, consola limpia, un solo h1 y controles de 44 px`, async ({
+      page,
+    }) => {
       const errores = consola(page)
       await page.goto(ruta)
       await sinScrollHorizontal(page)
       await expect(page.locator('h1')).toHaveCount(1)
+      await expectObjetivosTactiles(page, CONTROLES)
       expect(errores).toEqual([])
     })
   }
 })
 
-// UX8-02: migas, «En esta página», marca, navbar y tabla de contenidos a 44 px en todos los anchos.
-test('los controles de navegación de una guía miden 44 px', async ({ page }) => {
+test('la búsqueda: sin scroll horizontal, consola limpia y un solo h1', async ({ page }) => {
+  const errores = consola(page)
+  await page.goto('/search/?q=recogida')
+  await expect(page.getByRole('main').locator('a[href]').first()).toBeVisible()
+  await sinScrollHorizontal(page)
+  await expect(page.locator('h1')).toHaveCount(1)
+  expect(errores).toEqual([])
+})
+
+/** El 404 del propio documento es lo que la 404 tiene que responder: el navegador lo registra como
+ * error de consola (Chromium y WebKit) y no es un fallo de la página. Se quita solo ese. */
+const DOCUMENTO_404 = 'Failed to load resource: the server responded with a status of 404'
+
+test('la 404: un solo h1 y un solo main, sin scroll horizontal y consola limpia', async ({
+  page,
+}) => {
+  const errores = consola(page)
+  const respuesta = await page.goto('/no-existe/')
+  expect(respuesta?.status()).toBe(404)
+  await expect(page.getByRole('main').getByRole('link', { name: 'Ir a la portada' })).toBeVisible()
+  await expect(page.locator('h1')).toHaveCount(1)
+  await expect(page.getByRole('main')).toHaveCount(1)
+  await sinScrollHorizontal(page)
+  const propio = errores.findIndex((e) => e.startsWith(DOCUMENTO_404))
+  if (propio !== -1) errores.splice(propio, 1)
+  expect(errores).toEqual([])
+})
+
+// UX8-02: las migas y la marca existen (si desaparecieran, `CONTROLES` no lo notaría) y miden 44 px.
+test('las migas y la marca de una guía miden 44 px', async ({ page }) => {
   await page.goto('/recepcion/crear-un-trabajo/')
   await expectObjetivosTactiles(page, '.breadcrumbs__link')
   await expectObjetivosTactiles(page, '.navbar__brand')
-  await expectObjetivosTactiles(page, CONTROLES)
 })
 
 test('el menú del teléfono mide 44 px', async ({ page, isMobile }) => {
@@ -111,7 +143,7 @@ test('toda captura declara width y height', async ({ page }) => {
   expect(atributos.filter((a) => !(a.width > 0 && a.height > 0))).toEqual([])
 })
 
-// UX8-05: «Primeros pasos» tiene una sola página, la misma desde sus tres puertas.
+// UX8-08: «Primeros pasos» tiene una sola página, la misma desde sus tres puertas.
 test.describe('las tres puertas de Primeros pasos llevan a su página', () => {
   const llegaAlIndice = async (page: Page) => {
     await expect(page).toHaveURL(/\/primeros-pasos\/$/)
@@ -168,7 +200,7 @@ test('la 404 ofrece volver a la portada', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Manual de Dentalware' })).toBeVisible()
 })
 
-// UX8-08: la flecha de las tarjetas es decoración: no entra en el nombre del enlace.
+// UX8-05: la flecha de las tarjetas es decoración: no entra en el nombre del enlace.
 test('la flecha de las tarjetas no entra en el nombre del enlace', async ({ page }) => {
   await page.goto('/')
   await expect(

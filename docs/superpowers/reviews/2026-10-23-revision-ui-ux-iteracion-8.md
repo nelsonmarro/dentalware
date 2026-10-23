@@ -48,7 +48,7 @@ Ninguno.
 - **Qué pasa**: `Captura` pinta `<img srcSet="… 2x" loading="lazy">` sin `width` ni `height` (63 imágenes sin dimensiones en el barrido). El navegador no reserva el alto hasta que llega el PNG, y como cargan en diferido, el texto se mueve mientras se lee o se vuelve de un ancla.
 - **Por qué importa**: en el teléfono, con señal lenta, un salto de 400–700 px bajo el dedo hace perder el paso que se estaba leyendo.
 - **Propuesta**: la tubería de capturas escribe, junto a cada PNG, sus dimensiones en `static/img/capturas/dimensiones.json` (`{"recepcion/trabajos-lista.escritorio": [w, h]}`, en píxeles de CSS, la mitad del PNG a DPR 2); `Captura` las lee y pone `width`/`height` (CSS ya hace `height: auto`); `capturas-referenciadas.test.ts` comprueba que cada PNG referenciado tiene su entrada y que coincide con la cabecera del PNG (IHDR), para que no se desincronicen.
-- **Archivos**: `apps/docs/capturas/helpers.ts`, `apps/docs/static/img/capturas/dimensiones.json`, `apps/docs/src/components/captura.tsx` (+ test), `apps/docs/src/capturas-referenciadas.test.ts`.
+- **Archivos**: `apps/docs/capturas/helpers.ts`, `apps/docs/static/img/capturas/dimensiones.json`, `apps/docs/src/components/captura.tsx` (+ test), `apps/docs/capturas-referenciadas.test.ts`.
 
 ### Minor
 
@@ -167,7 +167,12 @@ Contexto, no parte de la ola: `33376da` (#142, llegó por el merge de `main`) pa
 
 ### Barrido del manual
 
-`pnpm --filter @dentalware/docs sitio` termina con 90 pruebas en verde y 6 omitidas a propósito (navbar y categoría lateral solo en escritorio, porque en el teléfono viven dentro de la hamburguesa), repartidas en `escritorio` (1280×800), `telefono` (Pixel 7, Chromium, 390×844) y `telefono-360` (Pixel 5, 360×740). En CI se suma `telefono-webkit` (iPhone 13), que no arranca en local fuera de Ubuntu (#133).
+`pnpm --filter @dentalware/docs sitio` termina con 96 pruebas en verde y 6 omitidas a propósito (navbar y categoría lateral solo en escritorio, porque en el teléfono viven dentro de la hamburguesa; menú del teléfono y sus rótulos solo en los teléfonos), repartidas en `escritorio` (1280×800), `telefono` (Pixel 7, Chromium, 390×844) y `telefono-360` (Pixel 5, 360×740). En CI se suma `telefono-webkit` (iPhone 13), que no arranca en local fuera de Ubuntu (#133). En cada ancho comprueba:
+
+- las 18 páginas de `PAGINAS`: sin scroll horizontal, consola limpia, un solo `h1` y 44 px en todos sus controles (migas, marca, navbar, menú lateral y tabla de contenidos; `expectObjetivosTactiles` los mide en una sola ida y vuelta y falla si no mide nada). `sitio/paginas.test.ts` cruza `PAGINAS` con las guías de `docs/`;
+- la búsqueda (`/search/?q=recogida`): sin scroll horizontal, consola limpia, un `h1`, un `main` y su campo en español de 44 px;
+- la 404 (`/no-existe/`): status 404, un `h1`, un `main`, sin scroll horizontal, consola limpia salvo el 404 del propio documento e «Ir a la portada» de 44 px;
+- además, el menú del teléfono, los rótulos en español, los títulos de los avisos, el chip de botón, el tamaño de las capturas, las tres puertas de «Primeros pasos», la flecha de las tarjetas y el `title` de los enlaces de ancla.
 
 ### Lighthouse (accesibilidad)
 

@@ -6,12 +6,15 @@ import { defineConfig, devices } from '@playwright/test'
  * ya servido (`pnpm --filter @dentalware/docs serve`), lo reutiliza. */
 export default defineConfig({
   testDir: '.',
-  testMatch: /.*\.spec\.ts/,
+  // Solo los `*.spec.ts`: `paginas.test.ts` es de Vitest.
+  testMatch: /.*\.spec\.ts$/,
   fullyParallel: true,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
   outputDir: '../test-results/sitio',
-  use: { baseURL: 'http://localhost:3100', locale: 'es-EC' },
+  // Traza en el reintento (#133, como la web): un fallo que solo pasa en CI (WebKit) deja con qué
+  // depurarlo en el artifact `playwright-report` (`apps/docs/test-results`).
+  use: { baseURL: 'http://localhost:3100', locale: 'es-EC', trace: 'on-first-retry' },
   webServer: {
     command: 'pnpm exec docusaurus serve --build --port 3100 --no-open',
     url: 'http://localhost:3100/',

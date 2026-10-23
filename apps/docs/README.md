@@ -17,10 +17,26 @@ pnpm --filter @dentalware/docs sitio    # barrido del sitio construido a 1280, 3
 El buscador solo funciona sobre el build (`build` + `serve`), no en `dev`. El `pnpm build` de la raíz
 construye también el manual, así que el job `quality` de CI lo comprueba en cada PR.
 
-El barrido `sitio` (`sitio/`) construye y sirve el manual en el 3100 (o reutiliza el que ya esté
-servido, en local) y recorre sus páginas, la búsqueda y la 404 a 1280, 390 y 360 (más WebKit a 390
-solo en CI): objetivos táctiles de 44 px, sin scroll horizontal, consola limpia, rótulos en español,
-`main` único y `<img>` con tamaño. Corre en el job `e2e` de CI, después de los E2E de la web.
+El barrido `sitio` (`sitio/`) construye y sirve el manual en el 3100 y lo recorre a 1280, 390 y 360
+(más WebKit a 390 solo en CI). En local, si ya hay un servidor en el 3100, lo reutiliza: tiene que
+ser `serve` (el build), nunca `dev` (`docusaurus start`), que no tiene índice de búsqueda y ordena el
+CSS de otra forma. Comprueba:
+
+- **Cada página de `PAGINAS`** (`sitio/paginas.ts`): sin scroll horizontal, consola limpia, un solo
+  `h1` y 44 px en todos sus controles (`CONTROLES`: enlaces, botones y campos, salvo los enlaces
+  dentro de una frase y los de ancla de los títulos), es decir migas, marca, navbar, menú lateral y
+  tabla de contenidos. `sitio/paginas.test.ts` (en `pnpm test`) cruza `PAGINAS` con las guías de
+  `docs/`: una guía nueva que no esté en la lista lo hace fallar.
+- **La búsqueda** (`/search/?q=recogida`): sin scroll horizontal, consola limpia, un `h1`, un
+  `main` y su campo con nombre en español y de 44 px.
+- **La 404** (`/no-existe/`): responde 404, un `h1`, un `main`, sin scroll horizontal, consola limpia
+  salvo el 404 del propio documento, y «Ir a la portada» de 44 px que lleva a la portada.
+- **Además**: el menú del teléfono (44 px y rótulos en español), el campo del buscador del navbar
+  («Buscar en el manual»), los títulos de los avisos sin mayúsculas, el chip de botón pegado a la
+  puntuación, las capturas de una guía con `width`/`height`, las tres puertas de «Primeros pasos»,
+  la flecha de las tarjetas fuera del nombre del enlace y el `title` de los enlaces de ancla.
+
+Corre en el job `e2e` de CI, después de los E2E de la web y aunque estos fallen.
 
 ## Cambios al tema de Docusaurus
 

@@ -25,6 +25,7 @@ export default defineConfig({
       '*.test.ts',
       'scripts/**/*.test.ts',
       'capturas/**/*.test.ts',
+      'sitio/**/*.test.ts',
     ],
     setupFiles: ['./src/test/setup.ts'],
   },
