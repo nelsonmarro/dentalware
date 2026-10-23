@@ -23,7 +23,7 @@ Contexto adicional obligatorio (se cargan con este archivo y se actualizan en el
 - Node 24 obligatorio en cada shell: `export PATH=$HOME/.nvm/versions/node/v24.19.0/bin:$PATH`.
 - Postgres de desarrollo en Docker, puerto 5433 (`pnpm db:up`); BD de tests `dentalware_test` en el mismo servidor.
 - Verificación completa: `pnpm build && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test`; E2E: `pnpm e2e --project=escritorio --project=android` (iphone solo en CI; con `--` de más, pnpm 11 lo reenvía y corren los 3 proyectos). Playwright arranca la API con `NODE_ENV=test`; deja libres los puertos 3000 y 5173 antes de correrlo.
-- Manual: `pnpm --filter @dentalware/docs dev` (puerto 3100); capturas con `pnpm capturas` (API y web en modo test, ver `docs/conventions.md` §7).
+- Manual: `pnpm --filter @dentalware/docs dev` (puerto 3100); barrido del manual con `pnpm --filter @dentalware/docs sitio`; capturas con `pnpm capturas` (API y web en modo test, ver `docs/conventions.md` §7).
 
 ## Git y seguimiento
 

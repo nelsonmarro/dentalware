@@ -17,6 +17,24 @@ pnpm --filter @dentalware/docs sitio    # barrido del sitio construido a 1280, 3
 El buscador solo funciona sobre el build (`build` + `serve`), no en `dev`. El `pnpm build` de la raíz
 construye también el manual, así que el job `quality` de CI lo comprueba en cada PR.
 
+El barrido `sitio` (`sitio/`) construye y sirve el manual en el 3100 (o reutiliza el que ya esté
+servido, en local) y recorre sus páginas, la búsqueda y la 404 a 1280, 390 y 360 (más WebKit a 390
+solo en CI): objetivos táctiles de 44 px, sin scroll horizontal, consola limpia, rótulos en español,
+`main` único y `<img>` con tamaño. Corre en el job `e2e` de CI, después de los E2E de la web.
+
+## Cambios al tema de Docusaurus
+
+Lo que el tema no corrige solo vive en `src/theme/` (swizzle por envoltura, sobre
+`@theme-original/…`) y en `src/css/custom.css`:
+
+- `SearchBar` y `SearchPage` envuelven los del plugin de búsqueda: nombran en español el campo
+  («Buscar en el manual», que el plugin deja en inglés) y la página de búsqueda lleva `main`. La
+  regla está en `buscador-accesible.ts`, con su test.
+- `NotFound/Content` es propio: la 404 con el botón «Ir a la portada», dentro de `main`.
+- Los rótulos del tema traducidos de más o de menos se sobrescriben en `i18n/es/code.json`.
+- Los controles de navegación miden 44 px (migas, «En esta página», marca, enlaces del navbar y de
+  la tabla de contenidos); los enlaces dentro de una frase y los de ancla de los títulos se dejan.
+
 ## Escribir una guía
 
 1. Copia `plantillas/guia.md` (está fuera de `docs/` para que no se publique) a la sección que toque,
@@ -81,7 +99,9 @@ Tres detalles de la tubería que conviene saber:
 - **Fechas en español**: Chromium se lanza con `LANGUAGE=es_EC` y `LANG=es_EC.UTF-8` en
   `launchOptions.env` (`capturas/playwright.config.ts`). El `input type="date"` toma el formato del
   idioma de la interfaz, no de `locale`: sin eso sale «10/20/2026» y no «20/10/2026». Un campo de fecha
-  vacío sigue mostrando «dd/mm/yyyy», porque el Chromium de Playwright no trae los textos en español.
+  vacío sigue mostrando «dd/mm/yyyy», porque el Chromium de Playwright no trae los textos en español:
+  el spec lo rellena (sin enviar) cuando la captura lo muestra, salvo los filtros de una lista, que
+  vacíos son su estado por omisión.
 - **El historial es la excepción al reloj fijo**: sus eventos llevan la hora real de la base de datos
   (`case_events.created_at` es `clock_timestamp()`), así que la captura del historial fija el reloj del
   navegador dos horas después del último evento del trabajo y muestra siempre «hace 2 horas».

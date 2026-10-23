@@ -146,4 +146,72 @@ En `docs/superpowers/reviews/capturas/it8/`: `01-portada-escritorio`, `02-portad
 
 ## Resultado de la ola
 
-Pendiente: se completa al cerrar la ola de fixes (`fix/revision-ui-ux-it8`).
+Ola de fixes de #137 en la rama `fix/revision-ui-ux-it8` (base `5cabf19`). Los trece hallazgos se corrigieron; lo descartado y lo que queda fuera está abajo.
+
+| Hallazgo | Commit | Qué se hizo |
+|---|---|---|
+| UX8-02, UX8-07, UX8-09 | 51c2f99 | Barrido del manual en Playwright (`pnpm --filter @dentalware/docs sitio`, `apps/docs/sitio/`): 18 páginas, búsqueda y 404 a 1280, 390 y 360, con consola, scroll horizontal, `h1`, objetivos táctiles de 44 px (`expectObjetivosTactiles` falla si no mide nada) y menú del teléfono. Migas, marca, enlaces del navbar, «En esta página», tabla de contenidos y campo de búsqueda a 44 px; títulos de los avisos sin mayúsculas; el «hueco» del chip de botón era su relleno lateral (0,5 em, no un espacio): 0,35 em. Corre en el job `e2e` de CI. |
+| Ronda de fixes de la Tarea 1 | 32cf58c | El `inline-flex` del navbar solo en escritorio (Infima lo oculta con `display: none` a ≤ 996 px y empataba en especificidad); tabla de contenidos en bloque, con el margen de Infima; avisos con título (`avisos-con-titulo.test.ts` falla ante un `:::info` sin título, con `archivo:línea`); proyecto `telefono-webkit` solo en CI. |
+| UX8-01, UX8-13 | cd192cd | Wrappers `SearchBar` y `SearchPage` sobre los del plugin: el campo se anuncia «Buscar en el manual» y la página de búsqueda lleva `main`. La regla es una función pura (`buscador-accesible.ts`) con test en jsdom y un `MutationObserver` (el teléfono vuelve a montar el campo al abrirlo). |
+| Ronda de fixes de la Tarea 2 | 1b7e591 | El campo de la página de búsqueda con nombre propio («Buscar en el manual: términos»), para no repetir el del navbar; no se reescribe un `main` que ya existe. |
+| UX8-04 | 2da6116 | `static/img/capturas/dimensiones.json` (63 entradas) que la tubería escribe al guardar cada PNG (`capturas:dimensiones` lo rehace entero); `Captura` pinta `width`/`height` a la mitad; `capturas-referenciadas.test.ts` cruza el JSON con la cabecera IHDR de cada PNG. La página ya no salta al cargar. |
+| UX8-05, UX8-06, UX8-08, UX8-10 | 043adab | Flecha de las tarjetas como `<span aria-hidden>`, sin `content` CSS; los tres rótulos de Docusaurus en `i18n/es/code.json` («Cerrar el menú», «Abrir el menú», «Enlace a la sección «{heading}»»); «Primeros pasos» con su página (`primeros-pasos/index.md`), la categoría con `link: doc` y navbar y portada a `/primeros-pasos/`; la 404 con «Ir a la portada». |
+| Ronda de fixes de la Tarea 4 | e55136c | `NotFound/Content` completo (no un envoltorio), para que el botón quede dentro de `main`; texto de la 404 y cierre de «Primeros pasos» ajustados. |
+| UX8-03, UX8-12 | bc9652d | Barra lateral de la app `lg:sticky lg:top-0 lg:h-svh` con el `nav` desplazable: «Ayuda» y «Cerrar sesión» siempre a la vista; la cabecera de la ficha («Datos del trabajo»), el bloque código/clínica/aviso y «Programar recogida» con rol y nombre, y los locators de las capturas por rol. El E2E mira «Inicio», «Ayuda» y «Cerrar sesión» arriba, a media página y al final: el del brief (solo al final) pasaba también sin el arreglo. |
+| UX8-03 (capturas) | 05460e2 | 15 PNG de escritorio regenerados: ahora muestran el pie de la barra y Chromium pinta el texto de las páginas altas con otro suavizado (el `aside` sticky va en su capa). Determinista: dos corridas dan AE = 0. |
+| Ronda de fixes de la Tarea 5 | 248b754 | El `nav` con `py-0.5`, para que el anillo de foco entero no se recorte; ids de `useId` en «Programar recogida», con test de dos secciones montadas a la vez; el E2E espera una fila de datos y no la cabecera. |
+| UX8-11 | 556b0fc | `recepcion/nuevo-trabajo-formulario` rellena (sin enviar) «Fecha deseada» con 27/10/2026 antes de capturar; era la única que mostraba «dd/mm/yyyy». |
+| UX8-11 (capturas), UX8-03, UX8-12 | 7a27060 | 15 PNG al día con «Ayuda» (icono en la cabecera del teléfono, texto en la barra de escritorio), la barra lateral y la fecha deseada. Atribuidos uno a uno con un CSS temporal que deshacía cada cambio de UI: sin él, todos salían idénticos a los de antes salvo los de la fecha y el menú de recepción. |
+
+Contexto, no parte de la ola: `33376da` (#142, llegó por el merge de `main`) pasa el job `e2e` a la imagen oficial de Playwright de la versión del catalog; ahí corre también el barrido del manual.
+
+### Barrido del manual
+
+`pnpm --filter @dentalware/docs sitio` termina con 90 pruebas en verde y 6 omitidas a propósito (navbar y categoría lateral solo en escritorio, porque en el teléfono viven dentro de la hamburguesa), repartidas en `escritorio` (1280×800), `telefono` (Pixel 7, Chromium, 390×844) y `telefono-360` (Pixel 5, 360×740). En CI se suma `telefono-webkit` (iPhone 13), que no arranca en local fuera de Ubuntu (#133).
+
+### Lighthouse (accesibilidad)
+
+CLI 13.5 sobre el sitio construido y servido en el 3100, con el Chromium de Playwright, móvil y escritorio (`--preset=desktop`):
+
+| Página | Móvil | Escritorio |
+|---|---|---|
+| `/` | 100 | 100 |
+| `/search/?q=recogida` | 100 (antes, 98) | 100 (antes, 98) |
+| `/primeros-pasos/entrar-y-salir/` | 100 | 100 |
+| `/recepcion/crear-un-trabajo/` | 100 | 100 |
+| `/mensajero/entregas-del-dia/` | 100 | 100 |
+| `/no-existe/` | sin puntuación | sin puntuación |
+
+La 404 responde con status 404 y Lighthouse lo informa como `ERRORED_DOCUMENT_REQUEST` en lugar de puntuarla; su accesibilidad la cubre el barrido (un solo `main`, un `h1`, botón de 44 px y consola limpia).
+
+### Deuda cerrada en el cierre
+
+- «Qué ve cada rol»: el texto y el `alt` del menú de escritorio nombran «Ayuda», que la captura ya muestra.
+- `docs/conventions.md` §7: la regla de las fechas vacías exceptúa los filtros de una lista.
+- `capturas/dimensiones.ts`: `leerDimensiones` valida la forma del JSON («dimensiones.json inválido»), `leerDimensionesPng` exige `IHDR` tras la firma, y el escritor a mano dice hasta cuándo coincide con Prettier (líneas bajo 100 columnas); `Captura` deja dicho que sus píxeles son pares (DPR 2).
+- `apps/docs/README.md`: el barrido `sitio` y los cambios al tema de Docusaurus (`SearchBar`, `SearchPage`, `NotFound/Content`, rótulos de `code.json`, 44 px).
+
+### Descartados
+
+- **Enlaces en línea del texto y enlaces de ancla de los títulos** (ver «Descartados» arriba): se dejan.
+- **Resultados duplicados del buscador**: artefacto del barrido, no del sitio.
+
+### Observaciones
+
+- `recepcion/trabajos-lista.escritorio` sigue mostrando «dd/mm/yyyy» en los filtros «Desde» y «Hasta»: vacíos son el estado por omisión de la lista, y rellenarlos filtraría los trabajos y cambiaría la URL. El Chromium de Playwright no trae los textos en español; en un Chrome en español se lee «dd/mm/aaaa». Decisión: se deja y la convención lo exceptúa.
+- La barra de acciones fija del formulario de nuevo trabajo es translúcida y deja ver la tarjeta «Trabajo» al fondo a la izquierda en `nuevo-trabajo-formulario.escritorio`. Es diseño anterior a la ola, no de ella; queda anotado para una revisión UI/UX futura.
+
+### Fuera de la ola
+
+- Los rótulos de «Instalar la app» en teléfonos reales: Tarea 9 de la It7, con Nelson.
+- MAN-2 (#138), las guías de técnico y administración, es lo siguiente.
+
+### Capturas «después»
+
+En `docs/superpowers/reviews/capturas/it8/`, con el sitio construido y la app en modo test (datos de demostración, reloj fijo):
+
+- `despues-portada-escritorio` (1280×800) y `despues-portada-telefono` (390): tres accesos, «Primeros pasos» con su página.
+- `despues-menu-telefono-360`: menú abierto en una guía de recepción, con «Primeros pasos» como categoría y la hamburguesa («Abrir el menú») y el cierre con sus rótulos nuevos (que se leen en el DOM, no en la imagen).
+- `despues-404-telefono` (390): «Ir a la portada» de 44 px dentro de `main`.
+- `despues-busqueda-telefono` (390): «Resultados para «recogida»» con el campo a 44 px.
+- `despues-app-tecnico-barra-fija-escritorio` (1280×800): inicio del técnico desplazado al final (documento de 1010 px), con «Diego Técnico», «Ayuda» y «Cerrar sesión» a la vista en la barra fija.
