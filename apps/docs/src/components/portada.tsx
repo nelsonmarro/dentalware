@@ -2,8 +2,8 @@ import Link from '@docusaurus/Link'
 
 type Acceso = { titulo: string; texto: string; to: string }
 
-// «Soy recepción» y «Soy mensajero» apuntan a «Entrar y salir» hasta que las Tareas 5 y 6
-// escriban sus secciones: un enlace roto rompe el build.
+// «Soy mensajero» apunta a «Entrar y salir» hasta que la Tarea 6 escriba su sección: un enlace
+// roto rompe el build.
 const ACCESOS: readonly Acceso[] = [
   {
     titulo: 'Primeros pasos',
@@ -13,7 +13,7 @@ const ACCESOS: readonly Acceso[] = [
   {
     titulo: 'Soy recepción',
     texto: 'Crear trabajos, seguirlos, entregarlos y cobrarlos.',
-    to: '/primeros-pasos/entrar-y-salir/',
+    to: '/recepcion/',
   },
   {
     titulo: 'Soy mensajero',

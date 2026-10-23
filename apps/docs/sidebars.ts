@@ -13,6 +13,20 @@ const sidebars: SidebarsConfig = {
         'primeros-pasos/que-ve-cada-rol',
       ],
     },
+    {
+      type: 'category',
+      label: 'Recepción',
+      link: { type: 'doc', id: 'recepcion/index' },
+      items: [
+        'recepcion/crear-un-trabajo',
+        'recepcion/la-ficha-del-trabajo',
+        'recepcion/estados-y-acciones',
+        'recepcion/recogidas-y-entregas',
+        'recepcion/avisar-por-whatsapp',
+        'recepcion/cuentas-y-pagos',
+        'recepcion/imprimir',
+      ],
+    },
   ],
 }
 

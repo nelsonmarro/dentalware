@@ -5,15 +5,15 @@ import { Portada } from './portada'
 describe('Portada', () => {
   it('ofrece tres accesos, cada uno con su destino', () => {
     render(<Portada />)
-    // Provisionales: «Soy recepción» y «Soy mensajero» apuntan a «Entrar y salir» hasta que las
-    // Tareas 5 y 6 escriban sus secciones (un enlace roto rompe el build).
+    // Provisional: «Soy mensajero» apunta a «Entrar y salir» hasta que la Tarea 6 escriba su
+    // sección (un enlace roto rompe el build).
     expect(screen.getByRole('link', { name: /Primeros pasos/ })).toHaveAttribute(
       'href',
       '/primeros-pasos/entrar-y-salir/',
     )
     expect(screen.getByRole('link', { name: /Soy recepción/ })).toHaveAttribute(
       'href',
-      '/primeros-pasos/entrar-y-salir/',
+      '/recepcion/',
     )
     expect(screen.getByRole('link', { name: /Soy mensajero/ })).toHaveAttribute(
       'href',

@@ -101,14 +101,25 @@ export async function captura(
   await sharp(png).png({ compressionLevel: 9, palette: true }).toFile(destino)
 }
 
-/** Abre la ficha del trabajo de demostración por la referencia del paciente (`DEMO_CASES`). */
+/** Abre la ficha del trabajo de demostración por la referencia del paciente (`DEMO_CASES`). El
+ * enlace solo lleva el código: se busca la fila (escritorio) o la tarjeta (teléfono) del
+ * paciente, y de un paciente con repetición («K. O.»), la primera, que es el original. */
 export async function abrirTrabajo(page: Page, paciente: string) {
   await page.goto('/trabajos?vista=todos')
   await page
-    .getByRole('link', { name: new RegExp(paciente.replace(/\./g, '\\.')) })
+    .getByRole('main')
+    .getByRole('row')
+    .or(page.getByRole('main').getByRole('listitem'))
+    .filter({ has: page.getByText(paciente, { exact: true }) })
+    .first()
+    .getByRole('link')
     .first()
     .click()
   await expect(page).toHaveURL(/\/trabajos\/(?!nuevo$)[^/]+$/)
+  await expect(page.getByRole('heading', { level: 1, name: /^\d{2}-\d{5}$/ })).toBeVisible()
+  // El puntero se queda donde estaba el enlace, sobre un botón de la ficha: sin moverlo, ese botón
+  // sale en su color de `hover`.
+  await page.mouse.move(0, 0)
 }
 
 /** Abre el diálogo del botón y espera a que termine de entrar (a mitad del `zoom-in-95` sale
