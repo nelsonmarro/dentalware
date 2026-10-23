@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const configSchema = z.object({
+const configFields = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'], {
       error: 'NODE_ENV debe ser development, test o production',
@@ -31,6 +31,25 @@ const configSchema = z.object({
     .enum(['local'], { error: 'STORAGE_DRIVER debe ser «local» (único driver del MVP)' })
     .default('local'),
   UPLOAD_DIR: z.string().min(1).default('./data/uploads'),
+  // Reloj fijo de la API (Iteración 8, capturas del manual): un instante ISO con zona. Solo en
+  // test: `configSchema` lo rechaza en cualquier otro entorno.
+  CLOCK_FIXED_AT: z.iso
+    .datetime({
+      offset: true,
+      error: 'CLOCK_FIXED_AT debe ser una fecha y hora ISO con zona (2026-10-20T10:30:00-05:00)',
+    })
+    .optional(),
+})
+
+const configSchema = configFields.superRefine((v, ctx) => {
+  if (v.NODE_ENV !== 'test' && v.CLOCK_FIXED_AT !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['CLOCK_FIXED_AT'],
+      message:
+        'CLOCK_FIXED_AT solo se admite con NODE_ENV=test (fija el reloj de la API para las capturas del manual)',
+    })
+  }
 })
 
 export type Config = z.infer<typeof configSchema>
