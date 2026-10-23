@@ -11,10 +11,45 @@ export PATH=$HOME/.nvm/versions/node/v24.19.0/bin:$PATH
 pnpm --filter @dentalware/docs dev      # http://localhost:3100, recarga al guardar
 pnpm --filter @dentalware/docs build    # como en CI: falla con un enlace, ancla o imagen rotos
 pnpm --filter @dentalware/docs serve    # sirve el build en http://localhost:3100
+pnpm --filter @dentalware/docs sitio    # barrido del sitio construido a 1280, 390 y 360 (Playwright)
 ```
 
 El buscador solo funciona sobre el build (`build` + `serve`), no en `dev`. El `pnpm build` de la raíz
 construye también el manual, así que el job `quality` de CI lo comprueba en cada PR.
+
+El barrido `sitio` (`sitio/`) construye y sirve el manual en el 3100 y lo recorre a 1280, 390 y 360
+(más WebKit a 390 solo en CI). En local, si ya hay un servidor en el 3100, lo reutiliza: tiene que
+ser `serve` (el build), nunca `dev` (`docusaurus start`), que no tiene índice de búsqueda y ordena el
+CSS de otra forma. Comprueba:
+
+- **Cada página de `PAGINAS`** (`sitio/paginas.ts`): sin scroll horizontal, consola limpia, un solo
+  `h1` y 44 px en todos sus controles (`CONTROLES`: enlaces, botones y campos, salvo los enlaces
+  dentro de una frase y los de ancla de los títulos), es decir migas, marca, navbar, menú lateral y
+  tabla de contenidos. `sitio/paginas.test.ts` (en `pnpm test`) cruza `PAGINAS` con las guías de
+  `docs/`: una guía nueva que no esté en la lista lo hace fallar.
+- **La búsqueda** (`/search/?q=recogida`): sin scroll horizontal, consola limpia, un `h1`, un
+  `main` y su campo con nombre en español y de 44 px.
+- **La 404** (`/no-existe/`): responde 404, un `h1`, un `main`, sin scroll horizontal, consola limpia
+  salvo el 404 del propio documento, y «Ir a la portada» de 44 px que lleva a la portada.
+- **Además**: el menú del teléfono (44 px y rótulos en español), el campo del buscador del navbar
+  («Buscar en el manual»), los títulos de los avisos sin mayúsculas, el chip de botón pegado a la
+  puntuación, las capturas de una guía con `width`/`height`, las tres puertas de «Primeros pasos»,
+  la flecha de las tarjetas fuera del nombre del enlace y el `title` de los enlaces de ancla.
+
+Corre en el job `e2e` de CI, después de los E2E de la web y aunque estos fallen.
+
+## Cambios al tema de Docusaurus
+
+Lo que el tema no corrige solo vive en `src/theme/` (swizzle por envoltura, sobre
+`@theme-original/…`) y en `src/css/custom.css`:
+
+- `SearchBar` y `SearchPage` envuelven los del plugin de búsqueda: nombran en español el campo
+  («Buscar en el manual», que el plugin deja en inglés) y la página de búsqueda lleva `main`. La
+  regla está en `buscador-accesible.ts`, con su test.
+- `NotFound/Content` es propio: la 404 con el botón «Ir a la portada», dentro de `main`.
+- Los rótulos del tema traducidos de más o de menos se sobrescriben en `i18n/es/code.json`.
+- Los controles de navegación miden 44 px (migas, «En esta página», marca, enlaces del navbar y de
+  la tabla de contenidos); los enlaces dentro de una frase y los de ancla de los títulos se dejan.
 
 ## Escribir una guía
 
@@ -27,6 +62,8 @@ construye también el manual, así que el job `quality` de CI lo comprueba en ca
 4. `:::warning Importante` solo para lo que no tiene vuelta (finalizar, cancelar, anular un pago),
    `:::tip Consejo` para atajos y `:::info <título>` para notas neutras (p. ej. «Precios»: el técnico y
    el mensajero no los ven).
+   Todo aviso lleva su título en sentence case: sin él, el tema pone su rótulo en minúsculas
+   («nota»); `avisos-con-titulo.test.ts` lo comprueba.
 5. Las páginas de referencia (como «Qué ve cada rol») no son tareas: no llevan «Quién puede hacerlo»
    ni pasos.
 
@@ -78,12 +115,19 @@ Tres detalles de la tubería que conviene saber:
 - **Fechas en español**: Chromium se lanza con `LANGUAGE=es_EC` y `LANG=es_EC.UTF-8` en
   `launchOptions.env` (`capturas/playwright.config.ts`). El `input type="date"` toma el formato del
   idioma de la interfaz, no de `locale`: sin eso sale «10/20/2026» y no «20/10/2026». Un campo de fecha
-  vacío sigue mostrando «dd/mm/yyyy», porque el Chromium de Playwright no trae los textos en español.
+  vacío sigue mostrando «dd/mm/yyyy», porque el Chromium de Playwright no trae los textos en español:
+  el spec lo rellena (sin enviar) cuando la captura lo muestra, salvo los filtros de una lista, que
+  vacíos son su estado por omisión.
 - **El historial es la excepción al reloj fijo**: sus eventos llevan la hora real de la base de datos
   (`case_events.created_at` es `clock_timestamp()`), así que la captura del historial fija el reloj del
   navegador dos horas después del último evento del trabajo y muestra siempre «hace 2 horas».
 - **`Captura` declara las imágenes solo con `srcset … 2x`, sin `src`**: con `src`, una pantalla normal
   (1x) lo elegiría y pintaría la imagen al doble de su tamaño.
+- **El tamaño de cada captura va en `static/img/capturas/dimensiones.json`**, en píxeles del PNG
+  (`"<nombre>.<proyecto>": [ancho, alto]`): `captura()` lo escribe al guardar cada imagen y `Captura`
+  lo pinta como `width`/`height` a la mitad, para que la página no salte mientras cargan. Si borras o
+  renombras capturas a mano, regenéralo entero con `pnpm --filter @dentalware/docs capturas:dimensiones`;
+  `capturas-referenciadas.test.ts` falla si no cuadra con los PNG.
 
 Requisitos: Postgres de desarrollo arriba (`pnpm db:up`, puerto 5433) y Node 24.
 

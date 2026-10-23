@@ -119,6 +119,63 @@ h1 {
   height: 44px;
 }
 
+/* UX8-01: el campo de la página de búsqueda, también a 44 px (su clase lleva el hash del módulo
+ * CSS del plugin) */
+input[class*='searchQueryInput'] {
+  min-height: 44px;
+}
+
+/* UX8-02: migas, marca, enlaces del navbar y «En esta página» a 44 px; la tabla de contenidos de
+ * escritorio, con cada entrada a 44 (sin tablas densas en el manual, no hay 36 con puntero fino).
+ * La miga de la portada es solo un icono: también 44 de ancho. «En esta página» se elige por
+ * atributo porque su clase lleva el hash del módulo CSS del tema. */
+.breadcrumbs__link,
+.navbar__brand,
+button[class*='tocCollapsibleButton'] {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.navbar__link {
+  min-height: 44px;
+}
+
+/* Solo en escritorio: Infima oculta los enlaces del navbar en el teléfono con
+ * `.navbar__item { display: none }` (≤ 996 px), con la misma especificidad. Un `display` sin media
+ * query aquí le ganaría o no según el orden en que quede el CSS (en `docusaurus start` gana este
+ * archivo y los enlaces saldrían en la barra del teléfono). */
+@media (min-width: 997px) {
+  .navbar__link {
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+.breadcrumbs__link {
+  justify-content: center;
+  min-width: 44px;
+}
+
+/* `block` (el de Infima), no `flex`: un título con marcas en línea (código, un chip) no se parte
+ * en piezas. Con la letra de 0.8rem y su interlineado, 0.75rem arriba y abajo llevan cada entrada
+ * a 44 px; el margen de cada `li` sigue siendo el de Infima, con su sangría por nivel. */
+.table-of-contents__link {
+  display: block;
+  padding-block: 0.75rem;
+}
+
+/* UX8-07: los títulos de los avisos en sentence case (el tema los pone en mayúsculas en su módulo
+ * CSS; el título es el primer hijo del aviso). Sin mayúsculas, un aviso sin título propio saldría
+ * con el rótulo del tema en minúsculas («nota»), y `::first-letter` no lo arregla: el icono es un
+ * `inline-block` delante del texto y Chromium no aplica la primera letra tras él (probado). Por eso
+ * todo aviso lleva título propio: lo dicen la plantilla y el README, y lo comprueba
+ * `avisos-con-titulo.test.ts`. */
+.theme-admonition > div:first-child {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 /* --- Captura: una o dos imágenes de la app (escritorio y teléfono) ------------------------ */
 .captura {
   margin: 1.25rem 0 1.5rem;
@@ -164,8 +221,11 @@ h1 {
 }
 
 /* --- Boton: el texto de un botón de la app, tal cual ------------------------------------- */
+/* UX8-09: el chip no tiene margen ni el MDX deja espacios (`Toca <kbd>Nuevo trabajo</kbd>.`): el
+ * aire antes de la puntuación era su relleno de 0.5em, que con un fondo tan claro se lee como un
+ * espacio. Con 0.35em el punto queda pegado al texto del chip. */
 kbd.boton {
-  padding: 0.1em 0.5em;
+  padding: 0.1em 0.35em;
   font-family: inherit;
   font-size: inherit;
   font-weight: 600;
@@ -245,15 +305,14 @@ kbd.boton {
   line-height: 1.3;
 }
 
-.portada__titulo::after {
-  content: '→' / '';
+.portada__flecha {
   display: inline-block;
   margin-left: 0.25rem;
   color: var(--dw-teal-lab);
   transition: transform 150ms ease;
 }
 
-.portada__acceso:hover .portada__titulo::after {
+.portada__acceso:hover .portada__flecha {
   transform: translateX(3px);
 }
 
@@ -271,7 +330,14 @@ kbd.boton {
 
 @media (prefers-reduced-motion: reduce) {
   .portada__acceso,
-  .portada__titulo::after {
+  .portada__flecha {
     transition: none;
   }
+}
+
+/* La 404 con salida (UX8-10): el botón «Ir a la portada» mide 44 px como todo control. */
+.portada__volver {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
 }

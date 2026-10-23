@@ -47,13 +47,18 @@ export function AppShell({
 
   return (
     <div className="flex min-h-svh bg-background text-foreground">
-      {/* Sidebar PC */}
+      {/* Sidebar PC. UX8-03: fija y de la altura de la ventana, para que el pie («Ayuda»,
+          «Cerrar sesión») no se vaya abajo con una página larga; si el menú no cabe, se desplaza
+          él solo, y su `py-0.5` deja sitio al anillo de foco (2 px) del primer y último enlace. */}
       <aside
-        className="hidden w-60 shrink-0 flex-col border-r border-border bg-card lg:flex print:hidden"
+        className="hidden w-60 shrink-0 flex-col border-r border-border bg-card lg:sticky lg:top-0 lg:flex lg:h-svh print:hidden"
         data-testid="sidebar"
       >
         <div className="px-5 py-4 text-lg font-semibold">Dentalware</div>
-        <nav aria-label="Principal" className="flex flex-1 flex-col gap-1 px-3">
+        <nav
+          aria-label="Principal"
+          className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-0.5"
+        >
           {items.map((i) => (
             <Link
               key={i.to}

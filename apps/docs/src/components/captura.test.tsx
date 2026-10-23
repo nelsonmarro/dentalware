@@ -1,6 +1,15 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import dimensiones from '@site/static/img/capturas/dimensiones.json'
 import { Captura } from './captura'
+
+/** `[ancho, alto]` en píxeles del PNG, tal como los registra la tubería. */
+function pixeles(clave: string): [number, number] {
+  const [ancho, alto] = (dimensiones as Record<string, readonly number[] | undefined>)[clave] ?? []
+  if (ancho === undefined || alto === undefined)
+    throw new Error(`Falta ${clave} en dimensiones.json`)
+  return [ancho, alto]
+}
 
 describe('Captura', () => {
   it('pinta la imagen de escritorio con su alt y la ruta fija de capturas', () => {
@@ -75,5 +84,23 @@ describe('Captura', () => {
   it('el pie, si lo hay, va en un figcaption', () => {
     render(<Captura nombre="x/y" alt="x" pie="Así se ve con una recogida pendiente." />)
     expect(screen.getByText('Así se ve con una recogida pendiente.').tagName).toBe('FIGCAPTION')
+  })
+
+  it('declara `width` y `height` a la mitad de los píxeles del PNG (son 2x): la página no salta al cargarla', () => {
+    render(<Captura nombre="recepcion/nuevo-trabajo-formulario" alt="Formulario" telefono />)
+    const [escritorio, telefono] = screen.getAllByRole('img')
+    const e = pixeles('recepcion/nuevo-trabajo-formulario.escritorio')
+    const t = pixeles('recepcion/nuevo-trabajo-formulario.telefono')
+    expect(escritorio).toHaveAttribute('width', String(e[0] / 2))
+    expect(escritorio).toHaveAttribute('height', String(e[1] / 2))
+    expect(telefono).toHaveAttribute('width', String(t[0] / 2))
+    expect(telefono).toHaveAttribute('height', String(t[1] / 2))
+  })
+
+  it('sin entrada en `dimensiones.json`, la pinta sin `width` ni `height`', () => {
+    render(<Captura nombre="no/existe" alt="Sin dimensiones" />)
+    const img = screen.getByRole('img', { name: 'Sin dimensiones' })
+    expect(img).not.toHaveAttribute('width')
+    expect(img).not.toHaveAttribute('height')
   })
 })

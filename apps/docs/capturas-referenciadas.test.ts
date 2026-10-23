@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { proyectosCaptura, rutaCaptura, type Proyecto } from './src/capturas-rutas'
+import { leerDimensiones, leerDimensionesPng } from './capturas/dimensiones'
+import { esProyecto, proyectosCaptura, rutaCaptura, type Proyecto } from './src/capturas-rutas'
 
 const root = import.meta.dirname
 
@@ -148,6 +149,39 @@ describe('capturas referenciadas', () => {
   })
   it('hay al menos una captura declarada', () => {
     expect(nombresEnSpecs().size).toBeGreaterThan(0)
+  })
+})
+
+// UX8-04: `<Captura>` declara `width`/`height` desde `dimensiones.json`; si el JSON no cuadra con
+// los PNG, la página salta al cargar (sin entrada) o la imagen se deforma (con una vieja).
+describe('dimensiones de las capturas', () => {
+  it('cada PNG referenciado tiene su entrada en `dimensiones.json` y coincide con su cabecera', () => {
+    const dimensiones = leerDimensiones()
+    const distintas = capturasEnDocs().flatMap(({ nombre, telefono, solo }) =>
+      proyectosCaptura({ telefono, solo }).flatMap((p) => {
+        const clave = `${nombre}.${p}`
+        const png = join(root, 'static', rutaCaptura(nombre, p))
+        if (!existsSync(png)) return [] // lo cuenta el test de PNG que faltan
+        const { ancho, alto } = leerDimensionesPng(png)
+        const registradas = dimensiones[clave]
+        return registradas?.[0] === ancho && registradas[1] === alto
+          ? []
+          : [`${clave}: PNG ${ancho}×${alto}, JSON ${registradas?.join('×') ?? 'sin entrada'}`]
+      }),
+    )
+    expect(distintas).toEqual([])
+  })
+
+  it('ninguna entrada de `dimensiones.json` sin su PNG', () => {
+    const sinPng = Object.keys(leerDimensiones()).filter((clave) => {
+      const punto = clave.lastIndexOf('.')
+      const proyecto = clave.slice(punto + 1)
+      return (
+        !esProyecto(proyecto) ||
+        !existsSync(join(root, 'static', rutaCaptura(clave.slice(0, punto), proyecto)))
+      )
+    })
+    expect(sinPng).toEqual([])
   })
 })
 

@@ -27,7 +27,7 @@ sidebar_position: <n>
 <Solo si hay algo sin vuelta atrás. Si no, borra este bloque.>
 :::
 
-:::info <Título corto, p. ej. «Precios»>
+:::info <Título corto en sentence case, p. ej. «Precios». Todo aviso lleva título: sin él, sale «nota» en minúsculas>
 <Una nota neutra que conviene saber (no es un riesgo ni un atajo). Si no hay, borra este bloque.>
 :::
 

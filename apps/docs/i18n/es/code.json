@@ -36,6 +36,18 @@
     "message": "Esta página no existe en el manual."
   },
   "theme.NotFound.p2": {
-    "message": "Busca lo que necesitas con el buscador o vuelve a la portada desde el menú."
+    "message": "Busca lo que necesitas con el buscador o vuelve a la portada."
+  },
+  "theme.NotFound.volver": {
+    "message": "Ir a la portada"
+  },
+  "theme.docs.sidebar.closeSidebarButtonAriaLabel": {
+    "message": "Cerrar el menú"
+  },
+  "theme.docs.sidebar.toggleSidebarButtonAriaLabel": {
+    "message": "Abrir el menú"
+  },
+  "theme.common.headingLinkTitle": {
+    "message": "Enlace a la sección «{heading}»"
   }
 }

@@ -12,6 +12,7 @@ import {
   todayIso,
   TOUCH_CONTROLS,
   TOUCH_SWITCHES,
+  trackConsoleErrors,
   uniqueSuffix,
 } from './helpers'
 
@@ -1148,6 +1149,69 @@ test.describe('Accesibilidad — objetivos táctiles ≥ 44 px', () => {
       // la pantalla. Sin esta espera el barrido medía cero controles y pasaba en vacío.
       await expect(page.getByRole('button', { name: 'Imprimir' })).toBeVisible()
       await expectTouchTargets(page, TOUCH_CONTROLS)
+    },
+  )
+})
+
+// UX8-03: con una página más alta que la ventana, la barra lateral de escritorio entera (el menú
+// arriba, «Ayuda» y «Cerrar sesión» al pie) sigue a la vista arriba, a media página y al final:
+// es fija y de la altura de la ventana. Sin eso, el pie quedaba bajo el pliegue al entrar (y = 902
+// en 800 px) y el menú se iba al desplazarse; solo al final coincidían, así que se miran las tres
+// posiciones. Solo en `escritorio`: en móvil la barra lateral no se muestra.
+test.describe('Accesibilidad — barra lateral de escritorio', () => {
+  test.skip(({ isMobile }) => isMobile, 'la barra lateral solo se muestra en escritorio')
+
+  test(
+    'con una página larga, el menú, «Ayuda» y «Cerrar sesión» siguen a la vista al desplazarse',
+    { tag: '@extendida' },
+    async ({ page }) => {
+      const consoleErrors = trackConsoleErrors(page)
+      await loginAsAdmin(page)
+      const { clinic, doctor } = await createClinicWithDoctor(page)
+      const product = await createProduct(page)
+      // Doce trabajos garantizan una lista más alta que la ventana aunque la BD esté vacía.
+      for (let i = 0; i < 12; i++)
+        await createCase(page, { clinicId: clinic.id, doctorId: doctor.id, productId: product.id })
+
+      await page.goto('/trabajos?vista=todos')
+      await expect(page.getByRole('heading', { name: 'Trabajos', level: 1 })).toBeVisible()
+      // Una fila de datos (la 0 es la cabecera): la lista ya cargó y la página tiene su alto.
+      await expect(page.getByRole('row').nth(1)).toBeVisible()
+      const sidebar = page.getByTestId('sidebar')
+      const controles = [
+        sidebar.getByRole('link', { name: 'Inicio' }),
+        sidebar.getByRole('link', { name: 'Ayuda (abre el manual en otra pestaña)' }),
+        sidebar.getByRole('button', { name: 'Cerrar sesión' }),
+      ]
+      await expect(controles[1]!).toBeVisible()
+      const { alto, ventana } = await page.evaluate(() => ({
+        alto: document.documentElement.scrollHeight,
+        ventana: window.innerHeight,
+      }))
+      // Sin una página más alta que la ventana, la prueba no probaría nada.
+      expect(alto).toBeGreaterThan(ventana)
+
+      async function enLaVentana() {
+        for (const control of controles) {
+          const box = await control.boundingBox()
+          expect(box).not.toBeNull()
+          expect(box!.y).toBeGreaterThanOrEqual(0)
+          expect(box!.y + box!.height).toBeLessThanOrEqual(ventana)
+        }
+      }
+
+      await enLaVentana() // arriba
+      await page.mouse.move(800, 400)
+      const mitad = Math.floor((alto - ventana) / 2)
+      await page.mouse.wheel(0, mitad)
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+      await enLaVentana() // a media página
+      await page.mouse.wheel(0, 4000)
+      await expect
+        .poll(() => page.evaluate(() => window.scrollY + window.innerHeight))
+        .toBeGreaterThanOrEqual(alto - 1)
+      await enLaVentana() // al final
+      expect(consoleErrors).toEqual([])
     },
   )
 })

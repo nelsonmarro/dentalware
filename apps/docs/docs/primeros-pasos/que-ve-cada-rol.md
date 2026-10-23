@@ -24,9 +24,9 @@ En **Inicio**, administración y recepción ven los contadores del día; el téc
 
 ## El menú en la computadora
 
-El menú está a la izquierda. Este es el de recepción: Inicio, Trabajos, Entregas y Cuentas, con tu nombre y <Boton>Cerrar sesión</Boton> al pie.
+El menú está a la izquierda. Este es el de recepción: Inicio, Trabajos, Entregas y Cuentas, con tu nombre, Ayuda y <Boton>Cerrar sesión</Boton> al pie.
 
-<Captura nombre="primeros-pasos/menu-recepcion" alt="Menú de recepción en la computadora: Inicio, Trabajos, Entregas y Cuentas, y al pie Carla Recepción y Cerrar sesión" solo="escritorio" />
+<Captura nombre="primeros-pasos/menu-recepcion" alt="Menú de recepción en la computadora: Inicio, Trabajos, Entregas y Cuentas, y al pie Carla Recepción, Ayuda y Cerrar sesión" solo="escritorio" />
 
 ## El menú en el teléfono
 

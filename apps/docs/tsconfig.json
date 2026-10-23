@@ -7,6 +7,14 @@
     "noUncheckedIndexedAccess": true,
     "types": ["@docusaurus/module-type-aliases", "@docusaurus/theme-classic"]
   },
-  "include": ["src", "capturas", "scripts", "docusaurus.config.ts", "sidebars.ts", "*.test.ts"],
+  "include": [
+    "src",
+    "capturas",
+    "scripts",
+    "sitio",
+    "docusaurus.config.ts",
+    "sidebars.ts",
+    "*.test.ts"
+  ],
   "exclude": ["build", ".docusaurus"]
 }

@@ -39,6 +39,18 @@ describe('AppShell', () => {
     expect(getByRole('button', { name: 'Cerrar sesión' })).toHaveTextContent('Cerrar sesión')
   })
 
+  // UX8-03: con una página larga, el pie de la barra («Ayuda», «Cerrar sesión») no se va abajo.
+  it('la barra lateral de escritorio es fija y de la altura de la ventana, con el menú desplazable', async () => {
+    renderWithQueryAndRouter(<AppShell user={USER}>contenido</AppShell>)
+    const nav = await screen.findByRole('navigation', { name: 'Principal' })
+    const aside = screen.getByTestId('sidebar')
+    for (const clase of ['lg:sticky', 'lg:top-0', 'lg:h-svh'])
+      expect(aside.className.split(' ')).toContain(clase)
+    expect(nav.className.split(' ')).toContain('overflow-y-auto')
+    // El anillo de foco (`ring-2`, 2 px por fuera del enlace) no se recorta arriba ni abajo.
+    expect(nav.className.split(' ')).toContain('py-0.5')
+  })
+
   // I-1 (revisión de la Tarea 7): `GET /api/entregas` es de DELIVERY_ROLES; el técnico no
   // debe ver un enlace a una pantalla que siempre fallaría.
   it.each([

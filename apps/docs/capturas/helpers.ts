@@ -4,6 +4,7 @@ import type { UserRole } from '@dentalware/shared'
 import { expect, type Browser, type Locator, type Page, type TestInfo } from '@playwright/test'
 import sharp from 'sharp'
 import { esProyecto, rutaCaptura, type Proyecto } from '../src/capturas-rutas'
+import { registrarDimensiones } from './dimensiones'
 import { recorte } from './recorte'
 
 // `__dirname` y no `import.meta.dirname`: apps/docs no lleva `"type": "module"` (rompe el SSR de
@@ -69,7 +70,8 @@ const SIN_DEVTOOLS = `.TanStackRouterDevtools, .tsqd-parent-container, .tsqd-tra
  * está: una guía nunca se queda con una captura vieja sin que lo note nadie. La de página también
  * espera a un elemento propio de la pantalla, para no capturarla a medio cargar. Con `margen`
  * (en px de CSS), el recorte deja ese aire de fondo de la página alrededor del elemento, que
- * tiene que caber en la ventana (si no, `recorte` lanza). */
+ * tiene que caber en la ventana (si no, `recorte` lanza). Registra su tamaño en
+ * `static/img/capturas/dimensiones.json`. */
 export async function captura(
   page: Page,
   nombre: string,
@@ -99,6 +101,8 @@ export async function captura(
           return page.screenshot({ ...comun, clip: recorte(caja, ventana, opciones.margen) })
         })()
   await sharp(png).png({ compressionLevel: 9, palette: true }).toFile(destino)
+  // Su tamaño, para que `<Captura>` declare `width`/`height` y la página no salte al cargarla.
+  registrarDimensiones(nombre, proyecto, destino)
 }
 
 /** Abre la ficha del trabajo de demostración por la referencia del paciente (`DEMO_CASES`). El
