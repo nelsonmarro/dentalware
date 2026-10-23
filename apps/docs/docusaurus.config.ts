@@ -47,7 +47,7 @@ const config: Config = {
       // Va junto al título «Dentalware»: un alt igual se leería dos veces.
       logo: { alt: '', src: 'img/logo.svg' },
       items: [
-        { to: '/primeros-pasos/entrar-y-salir/', label: 'Primeros pasos', position: 'left' },
+        { to: '/primeros-pasos/', label: 'Primeros pasos', position: 'left' },
         { to: '/recepcion/', label: 'Recepción', position: 'left' },
         { to: '/mensajero/', label: 'Mensajero', position: 'left' },
         { href: 'https://dentalware.naphsoft.dev', label: 'Abrir la app', position: 'right' },

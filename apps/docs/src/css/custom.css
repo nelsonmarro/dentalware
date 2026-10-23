@@ -305,15 +305,14 @@ kbd.boton {
   line-height: 1.3;
 }
 
-.portada__titulo::after {
-  content: '→' / '';
+.portada__flecha {
   display: inline-block;
   margin-left: 0.25rem;
   color: var(--dw-teal-lab);
   transition: transform 150ms ease;
 }
 
-.portada__acceso:hover .portada__titulo::after {
+.portada__acceso:hover .portada__flecha {
   transform: translateX(3px);
 }
 
@@ -331,7 +330,14 @@ kbd.boton {
 
 @media (prefers-reduced-motion: reduce) {
   .portada__acceso,
-  .portada__titulo::after {
+  .portada__flecha {
     transition: none;
   }
+}
+
+/* La 404 con salida (UX8-10): el botón «Ir a la portada» mide 44 px como todo control. */
+.portada__volver {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
 }

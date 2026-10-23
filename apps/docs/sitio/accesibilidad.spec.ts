@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 import {
   CONTROLES,
   consola,
@@ -109,4 +109,72 @@ test('toda captura declara width y height', async ({ page }) => {
   )
   expect(atributos.length, 'ninguna captura en la guía').toBeGreaterThan(0)
   expect(atributos.filter((a) => !(a.width > 0 && a.height > 0))).toEqual([])
+})
+
+// UX8-05: «Primeros pasos» tiene una sola página, la misma desde sus tres puertas.
+test.describe('las tres puertas de Primeros pasos llevan a su página', () => {
+  const llegaAlIndice = async (page: Page) => {
+    await expect(page).toHaveURL(/\/primeros-pasos\/$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Primeros pasos' })).toBeVisible()
+  }
+
+  test('la tarjeta de la portada', async ({ page }) => {
+    await page.goto('/')
+    await page.locator('.portada__acceso', { hasText: 'Primeros pasos' }).click()
+    await llegaAlIndice(page)
+  })
+
+  test('el navbar', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'en el teléfono el navbar es el menú lateral')
+    await page.goto('/mensajero/')
+    await page.locator('.navbar__items').getByRole('link', { name: 'Primeros pasos' }).click()
+    await llegaAlIndice(page)
+  })
+
+  test('la categoría del menú lateral', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'el menú lateral del teléfono se abre con la hamburguesa')
+    await page.goto('/mensajero/')
+    await page
+      .locator('.theme-doc-sidebar-menu')
+      .getByRole('link', { name: 'Primeros pasos', exact: true })
+      .click()
+    await llegaAlIndice(page)
+  })
+})
+
+// UX8-06: los rótulos de Docusaurus están en español natural.
+test('los rótulos del menú del teléfono están en español', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'menú del teléfono')
+  await page.goto('/recepcion/crear-un-trabajo/')
+  await page.getByRole('button', { name: 'Abrir el menú' }).click()
+  await expect(page.locator('.navbar-sidebar')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Cerrar el menú' })).toBeVisible()
+})
+
+test('el enlace de ancla de un título dice a qué sección va', async ({ page }) => {
+  await page.goto('/primeros-pasos/entrar-y-salir/')
+  const ancla = page.locator('h2:has-text("Quién puede hacerlo") .hash-link')
+  await expect(ancla).toHaveAttribute('title', 'Enlace a la sección «Quién puede hacerlo»')
+})
+
+// UX8-10: la 404 ofrece una salida que se ve y se toca igual en el teléfono y en la computadora.
+test('la 404 ofrece volver a la portada', async ({ page }) => {
+  await page.goto('/no-existe/')
+  const volver = page.getByRole('link', { name: 'Ir a la portada' })
+  await expect(volver).toBeVisible()
+  await expectObjetivosTactiles(page, 'a.portada__volver')
+  await volver.click()
+  await expect(page).toHaveURL(/\/$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Manual de Dentalware' })).toBeVisible()
+})
+
+// UX8-08: la flecha de las tarjetas es decoración: no entra en el nombre del enlace.
+test('la flecha de las tarjetas no entra en el nombre del enlace', async ({ page }) => {
+  await page.goto('/')
+  await expect(
+    page.getByRole('link', {
+      name: 'Primeros pasos Entrar, instalar la app y qué ve cada rol.',
+      exact: true,
+    }),
+  ).toBeVisible()
 })

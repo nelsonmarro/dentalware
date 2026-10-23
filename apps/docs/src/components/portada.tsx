@@ -6,7 +6,7 @@ const ACCESOS: readonly Acceso[] = [
   {
     titulo: 'Primeros pasos',
     texto: 'Entrar, instalar la app y qué ve cada rol.',
-    to: '/primeros-pasos/entrar-y-salir/',
+    to: '/primeros-pasos/',
   },
   {
     titulo: 'Soy recepción',
@@ -27,7 +27,12 @@ export function Portada() {
       {ACCESOS.map((a) => (
         <li key={a.titulo}>
           <Link className="portada__acceso" to={a.to}>
-            <span className="portada__titulo">{a.titulo}</span>
+            <span className="portada__titulo">
+              {a.titulo}
+              <span className="portada__flecha" aria-hidden="true">
+                →
+              </span>
+            </span>{' '}
             <span className="portada__texto">{a.texto}</span>
           </Link>
         </li>

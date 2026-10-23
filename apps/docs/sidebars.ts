@@ -6,7 +6,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Primeros pasos',
-      link: { type: 'generated-index', title: 'Primeros pasos', slug: '/primeros-pasos' },
+      link: { type: 'doc', id: 'primeros-pasos/index' },
       items: [
         'primeros-pasos/entrar-y-salir',
         'primeros-pasos/instalar-la-app',
