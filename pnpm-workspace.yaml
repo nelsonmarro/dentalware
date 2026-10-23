@@ -3,6 +3,8 @@ packages:
   - 'packages/*'
 
 allowBuilds:
+  # solo imprime un aviso de donación: no hace falta para el manual
+  core-js: false
   esbuild: true
 
 catalog:
@@ -67,6 +69,16 @@ catalog:
   tailwind-merge: 3.6.0
   sonner: 2.0.8
   shadcn: 4.19.1
+  # manual de usuario (apps/docs)
+  '@docusaurus/core': 3.10.2
+  '@docusaurus/preset-classic': 3.10.2
+  '@docusaurus/theme-classic': 3.10.2
+  '@docusaurus/module-type-aliases': 3.10.2
+  '@docusaurus/tsconfig': 3.10.2
+  '@docusaurus/types': 3.10.2
+  '@easyops-cn/docusaurus-search-local': 0.55.3
+  '@mdx-js/react': 3.1.1
+  prism-react-renderer: 2.4.1
   # web tests
   '@testing-library/react': 16.3.3
   '@testing-library/dom': 10.4.1

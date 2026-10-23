@@ -1,0 +1,12 @@
+{
+  "extends": "@docusaurus/tsconfig",
+  "compilerOptions": {
+    "baseUrl": null,
+    "paths": { "@site/*": ["./*"] },
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "types": ["@docusaurus/module-type-aliases", "@docusaurus/theme-classic", "vitest/globals"]
+  },
+  "include": ["src", "capturas", "scripts", "docusaurus.config.ts", "sidebars.ts", "*.test.ts"],
+  "exclude": ["build", ".docusaurus"]
+}

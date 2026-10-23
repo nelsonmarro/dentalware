@@ -1,0 +1,42 @@
+{
+  "name": "@dentalware/docs",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "docusaurus start --port 3100",
+    "build": "docusaurus build",
+    "serve": "docusaurus serve --port 3100",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "capturas": "bash scripts/capturas.sh",
+    "capturas:servidores": "bash scripts/capturas-servidores.sh"
+  },
+  "dependencies": {
+    "@docusaurus/core": "catalog:",
+    "@docusaurus/preset-classic": "catalog:",
+    "@easyops-cn/docusaurus-search-local": "catalog:",
+    "@fontsource-variable/instrument-sans": "catalog:",
+    "@fontsource-variable/jetbrains-mono": "catalog:",
+    "@mdx-js/react": "catalog:",
+    "clsx": "catalog:",
+    "prism-react-renderer": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@dentalware/shared": "workspace:*",
+    "@docusaurus/module-type-aliases": "catalog:",
+    "@docusaurus/theme-classic": "catalog:",
+    "@docusaurus/tsconfig": "catalog:",
+    "@docusaurus/types": "catalog:",
+    "@playwright/test": "catalog:",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "catalog:",
+    "sharp": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

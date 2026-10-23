@@ -1,0 +1,6 @@
+{
+  // Solo para el cargador de Playwright (`--tsconfig` en scripts/capturas.sh): no admite el
+  // `"baseUrl": null` de ../tsconfig.json (con el que TS 6 deja de heredar el `baseUrl` de
+  // @docusaurus/tsconfig). Los tipos de estos archivos los sigue comprobando ../tsconfig.json.
+  "compilerOptions": { "strict": true }
+}

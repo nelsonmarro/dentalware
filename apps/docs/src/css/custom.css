@@ -1,0 +1,276 @@
+/*
+ * Tema del manual sobre las variables de Infima, con la dirección de diseño de la app
+ * (docs/superpowers/specs/2026-09-01-dentalware-design-direction.md). Sin modo oscuro, como la
+ * app: `colorMode.disableSwitch` y ningún bloque `[data-theme='dark']`.
+ *
+ * Firma: la pestaña del ticket de la app (borde izquierdo de 4 px) en las tarjetas de la portada.
+ */
+@import '@fontsource-variable/instrument-sans';
+@import '@fontsource-variable/jetbrains-mono';
+
+:root {
+  /* Tokens de la app */
+  --dw-porcelain: #f4f6f5;
+  --dw-zirconia: #ffffff;
+  --dw-plaster: #e2e6e3;
+  --dw-graphite: #1e2a2d;
+  --dw-graphite-60: #5b6a6e;
+  --dw-teal-lab: #0f766e;
+  --dw-teal-lab-soft: #d9efec;
+  --dw-muted: #eef1f0;
+
+  /* Primario #0f766e; los tonos, con la misma regla que el generador de Infima (±10/15/30 % de luz) */
+  --ifm-color-primary: #0f766e;
+  --ifm-color-primary-dark: #0d6a63;
+  --ifm-color-primary-darker: #0d645e;
+  --ifm-color-primary-darkest: #0a534d;
+  --ifm-color-primary-light: #108279;
+  --ifm-color-primary-lighter: #11887e;
+  --ifm-color-primary-lightest: #13998f;
+
+  --ifm-background-color: var(--dw-porcelain);
+  --ifm-background-surface-color: var(--dw-zirconia);
+  --ifm-font-color-base: var(--dw-graphite);
+  --ifm-heading-color: var(--dw-graphite);
+  --ifm-color-content: var(--dw-graphite);
+  --ifm-color-content-secondary: var(--dw-graphite-60);
+  --ifm-link-color: var(--dw-teal-lab);
+  --ifm-link-hover-color: var(--ifm-color-primary-darkest);
+
+  --ifm-font-family-base: 'Instrument Sans Variable', system-ui, sans-serif;
+  --ifm-heading-font-family: var(--ifm-font-family-base);
+  --ifm-font-family-monospace: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --ifm-heading-font-weight: 600;
+  --ifm-line-height-base: 1.6;
+  --ifm-code-font-size: 90%;
+
+  --ifm-global-radius: 0.75rem;
+  --ifm-hr-border-color: var(--dw-plaster);
+  --ifm-toc-border-color: var(--dw-plaster);
+  --ifm-table-border-color: var(--dw-plaster);
+
+  --ifm-navbar-background-color: var(--dw-zirconia);
+  --ifm-navbar-shadow: none;
+  --ifm-footer-background-color: var(--dw-zirconia);
+  --ifm-menu-color: var(--dw-graphite);
+  --ifm-menu-color-active: var(--dw-teal-lab);
+  --ifm-menu-color-background-active: var(--dw-teal-lab-soft);
+  --ifm-menu-color-background-hover: var(--dw-muted);
+}
+
+/* Foco visible en todo control: el anillo de la app */
+:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+.navbar {
+  border-bottom: 1px solid var(--dw-plaster);
+}
+
+.footer {
+  border-top: 1px solid var(--dw-plaster);
+}
+
+h1 {
+  letter-spacing: -0.01em;
+}
+
+/* Objetivos táctiles de 44 px: menú lateral (también el del teléfono), sus flechas y el menú del
+ * teléfono */
+.menu__link,
+.menu__caret,
+.navbar-sidebar .menu__link {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+/* El menú del teléfono: volver al menú principal y cerrarlo */
+.navbar-sidebar__back {
+  min-height: 44px;
+}
+
+.navbar-sidebar__close {
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+}
+
+/* Solo donde Infima lo muestra: en escritorio sigue oculto */
+@media (max-width: 996px) {
+  .navbar__toggle {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.navbar__search-input {
+  height: 44px;
+}
+
+/* --- Captura: una o dos imágenes de la app (escritorio y teléfono) ------------------------ */
+.captura {
+  margin: 1.25rem 0 1.5rem;
+  padding: 0.75rem;
+  background: var(--dw-zirconia);
+  border: 1px solid var(--dw-plaster);
+  border-radius: var(--ifm-global-radius);
+}
+
+.captura__imagenes {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.captura__img {
+  display: block;
+  min-width: 0;
+  height: auto;
+  border: 1px solid var(--dw-plaster);
+  border-radius: 0.5rem;
+}
+
+.captura__img--escritorio {
+  flex: 1 1 auto;
+  max-width: 100%;
+}
+
+.captura__img--telefono {
+  flex: 0 1 auto;
+  max-width: 390px;
+}
+
+.captura figcaption {
+  margin-top: 0.625rem;
+  color: var(--dw-graphite-60);
+  font-size: 0.875rem;
+}
+
+@media (max-width: 767px) {
+  .captura__imagenes {
+    flex-direction: column;
+  }
+
+  .captura__img--telefono {
+    max-width: min(390px, 100%);
+  }
+}
+
+/* --- Boton: el texto de un botón de la app, tal cual ------------------------------------- */
+kbd.boton {
+  padding: 0.1em 0.5em;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--dw-teal-lab);
+  background: var(--dw-teal-lab-soft);
+  border: 0;
+  border-radius: 0.375rem;
+  box-shadow: none;
+  white-space: nowrap;
+}
+
+/* --- Rol: quién puede hacerlo ----------------------------------------------------------- */
+.rol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 var(--ifm-paragraph-margin-bottom);
+  padding: 0;
+  list-style: none;
+}
+
+.rol__chip,
+.markdown .rol__chip + .rol__chip {
+  margin: 0;
+  padding: 0.25rem 0.875rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--dw-graphite);
+  background: var(--dw-muted);
+  border: 1px solid var(--dw-plaster);
+  border-radius: 999px;
+}
+
+/* --- Portada: un acceso por rol, como la ficha de un trabajo en la app ------------------ */
+.portada {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.portada > li,
+.markdown .portada > li + li {
+  margin: 0;
+}
+
+.portada__acceso {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  height: 100%;
+  min-height: 44px;
+  padding: 1.125rem 1.25rem 1.25rem 1.375rem;
+  color: var(--dw-graphite);
+  background: var(--dw-zirconia);
+  border: 1px solid var(--dw-plaster);
+  /* La pestaña del ticket: el mismo borde de 4 px que lleva cada trabajo en la app */
+  border-left: 4px solid var(--dw-teal-lab);
+  border-radius: var(--ifm-global-radius);
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.portada__acceso:hover {
+  color: var(--dw-graphite);
+  text-decoration: none;
+  background: #fbfcfc;
+  border-color: var(--dw-teal-lab);
+}
+
+.portada__titulo {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.portada__titulo::after {
+  content: '→' / '';
+  display: inline-block;
+  margin-left: 0.25rem;
+  color: var(--dw-teal-lab);
+  transition: transform 150ms ease;
+}
+
+.portada__acceso:hover .portada__titulo::after {
+  transform: translateX(3px);
+}
+
+.portada__texto {
+  color: var(--dw-graphite-60);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 767px) {
+  .portada {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portada__acceso,
+  .portada__titulo::after {
+    transition: none;
+  }
+}

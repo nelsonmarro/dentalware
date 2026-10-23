@@ -6,6 +6,7 @@ import { createDb } from './db/index.ts'
 import { runMigrations } from './db/migrate.ts'
 import { reportStartupError } from './lib/startup.ts'
 import { createStorage } from './lib/create-storage.ts'
+import { fixedClockAt } from './lib/clock.ts'
 
 async function main() {
   const config = loadConfig()
@@ -13,7 +14,10 @@ async function main() {
   await runMigrations(db)
   const auth = createAuth(db, config)
   const storage = createStorage(config)
-  const app = createApp({ auth, db, webOrigin: config.WEB_ORIGIN, storage })
+  // Solo en test (`loadConfig` lo rechaza en otro entorno): las capturas del manual.
+  const clock = config.CLOCK_FIXED_AT ? fixedClockAt(config.CLOCK_FIXED_AT) : undefined
+  const app = createApp({ auth, db, webOrigin: config.WEB_ORIGIN, storage, clock })
+  if (clock) console.log('Reloj fijo en ' + config.CLOCK_FIXED_AT + ' (capturas del manual)')
 
   serve({ fetch: app.fetch, port: config.PORT }, (info) => {
     console.log(`API escuchando en http://localhost:${info.port} (${config.NODE_ENV})`)
