@@ -6,7 +6,7 @@ sidebar_position: 3
 
 # Marcar entregado
 
-Cuando dejas un trabajo terminado en la clínica, lo marcas como entregado con una foto de la constancia (la orden firmada o el sobre recibido). Sin la foto no se puede marcar.
+Cuando dejas un trabajo terminado en la clínica, lo marcas como entregado con una foto que pruebe que la clínica lo recibió. Sin la foto no se puede marcar.
 
 ## Quién puede hacerlo
 

@@ -282,7 +282,8 @@ test('avisar por whatsapp', async ({ page }, testInfo) => {
 
 test('imprimir', async ({ page }, testInfo) => {
   await abrirTrabajo(page, 'A. S.')
-  const codigo = await page.getByRole('heading', { level: 1 }).textContent()
+  const codigo = (await page.getByRole('heading', { level: 1 }).textContent()) ?? ''
+  expect(codigo).toMatch(/^\d{2}-\d{5}$/)
   await page.getByRole('link', { name: 'Imprimir' }).click()
   await captura(
     page,

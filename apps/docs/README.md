@@ -73,6 +73,18 @@ dos a `deviceScaleFactor: 2`.
 Los specs nunca guardan nada: los diálogos se abren, se capturan y se cierran con «Volver». Los botones
 de las devtools de TanStack (solo existen en `vite dev`) se ocultan en toda captura.
 
+Tres detalles de la tubería que conviene saber:
+
+- **Fechas en español**: Chromium se lanza con `LANGUAGE=es_EC` y `LANG=es_EC.UTF-8` en
+  `launchOptions.env` (`capturas/playwright.config.ts`). El `input type="date"` toma el formato del
+  idioma de la interfaz, no de `locale`: sin eso sale «10/20/2026» y no «20/10/2026». Un campo de fecha
+  vacío sigue mostrando «dd/mm/yyyy», porque el Chromium de Playwright no trae los textos en español.
+- **El historial es la excepción al reloj fijo**: sus eventos llevan la hora real de la base de datos
+  (`case_events.created_at` es `clock_timestamp()`), así que la captura del historial fija el reloj del
+  navegador dos horas después del último evento del trabajo y muestra siempre «hace 2 horas».
+- **`Captura` declara las imágenes solo con `srcset … 2x`, sin `src`**: con `src`, una pantalla normal
+  (1x) lo elegiría y pintaría la imagen al doble de su tamaño.
+
 Requisitos: Postgres de desarrollo arriba (`pnpm db:up`, puerto 5433) y Node 24.
 
 **Modo completo**, antes de cada commit y al cerrar una tarea (el puerto 3000 tiene que estar libre):

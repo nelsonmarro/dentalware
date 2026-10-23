@@ -22,6 +22,7 @@ Arriba de la pantalla sale el aviso «Sin conexión: lo que marques se enviará 
 
 1. Marca como siempre: <Boton>Recogido</Boton>, <Boton>Marcar entregado</Boton> (con su foto) o <Boton>No se pudo</Boton>.
 2. Lo marcado queda en espera. Junto a los botones de ese trabajo sale «Se enviará al volver la señal.», y el aviso de arriba cuenta cuántas acciones esperan («1 acción por enviar»). Los botones de ese trabajo se quedan desactivados: no hace falta volver a tocarlos.
+   Si lo marcaste desde un diálogo (<Boton>Marcar entregado</Boton> o <Boton>No se pudo</Boton>), el diálogo se queda abierto: el botón dice «Guardando…» y dentro sale el mismo «Se enviará al volver la señal.». Toca <Boton>Volver</Boton> para cerrarlo: lo que marcaste sigue en espera y se envía solo cuando vuelve la señal.
 3. Cuando vuelve la señal, Dentalware lo envía solo y el aviso desaparece.
 
 ## Qué pasa después

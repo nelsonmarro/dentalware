@@ -17,7 +17,7 @@ El mensajero solo ve las suyas. Recepción ve las de todos los mensajeros (lo ex
 ## Pasos para ver la ruta
 
 1. Toca **Entregas** en la barra de abajo. Arriba está el día («Hoy · martes, 20 de octubre»): con las flechas pasas al día anterior o al siguiente, y <Boton>Hoy</Boton> vuelve a hoy. Debajo, el resumen del día: «3 pendientes · 1 en camino · 2 hechas · 1 fallida».
-   <Captura nombre="mensajero/entregas-del-dia" alt="Pantalla Entregas de Marco Mensajero del martes 20 de octubre: resumen del día y las paradas de Centro Dental Los Álamos, Clínica Sonrisa Norte y Consultorio Dra. Paredes" telefono />
+   <Captura nombre="mensajero/entregas-del-dia" alt="Entregas de hoy: el resumen del día y las paradas, empezando por Centro Dental Los Álamos" telefono />
 2. Cada clínica es una parada, en orden alfabético. Toca la dirección para abrirla en el mapa (se abre en otra pestaña) y el teléfono para llamar a la clínica.
 3. Debajo van sus trabajos. Cada tarjeta dice si es **Recogida** o **Entrega**, el código del trabajo y el paciente, y las pendientes llevan sus botones: <Boton>Recogido</Boton> o <Boton>Marcar entregado</Boton>, y <Boton>No se pudo</Boton>. Lo que queda por hacer va primero y lo ya hecho, al final.
    <Captura nombre="mensajero/tarjeta-recogida" alt="Parada de Clínica Sonrisa Norte: dirección, teléfono, la recogida de M. P. con Recogido y No se pudo, la entrega de D. F. con Marcar entregado y No se pudo, y la entrega hecha de S. L." solo="telefono" />

@@ -91,6 +91,7 @@ test('marcar entregado', async ({ page }, testInfo) => {
   // La ficha corta del envío de «D. F.»: el código de la tarjeta la abre.
   const envio = tarjeta(parada(page, 'Clínica Sonrisa Norte'), 'D. F.')
   const codigo = (await envio.getByRole('link').textContent()) ?? ''
+  expect(codigo).toMatch(/^\d{2}-\d{5}$/)
   await envio.getByRole('link').click()
   await expect(page.getByRole('heading', { level: 1, name: codigo })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Marcar entregado' })).toBeVisible()
