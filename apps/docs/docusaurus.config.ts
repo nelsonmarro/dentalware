@@ -53,7 +53,7 @@ const config: Config = {
         { href: 'https://dentalware.naphsoft.dev', label: 'Abrir la app', position: 'right' },
       ],
     },
-    footer: { style: 'light', copyright: `Dentalware · Manual de usuario` },
+    footer: { style: 'light', copyright: 'Dentalware · Manual de usuario' },
     prism: { theme: prismThemes.github },
     tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
   } satisfies Preset.ThemeConfig,

@@ -33,8 +33,9 @@ Los tres componentes propios se usan en cualquier página sin importarlos:
 <Rol roles={['admin', 'recepcion']} />
 ```
 
-Quién puede hacerlo, con los rótulos de la app (`admin`, `recepcion`, `tecnico`, `mensajero`; otro
-valor no compila).
+Quién puede hacerlo, con los rótulos de la app (`admin`, `recepcion`, `tecnico`, `mensajero`). El MDX
+no pasa por `tsc`: otro valor (`'recepción'`, con tilde) rompe el build con «Rol desconocido en
+<Rol>».
 
 ```mdx
 Toca <Boton>Registrar pago</Boton>.

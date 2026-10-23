@@ -34,6 +34,19 @@ describe('Captura', () => {
       'src',
       '/img/capturas/mensajero/recogido.telefono.png',
     )
+    // Sola, no hay otra variante de la que distinguirla: el alt va sin «(en el teléfono)».
+    expect(screen.getByRole('img', { name: 'Botón Recogido' })).toBeInTheDocument()
+  })
+
+  it('con `solo="escritorio"`, solo la de escritorio aunque lleve `telefono`', () => {
+    render(
+      <Captura nombre="recepcion/inicio" alt="Inicio de recepción" telefono solo="escritorio" />,
+    )
+    expect(screen.getAllByRole('img')).toHaveLength(1)
+    expect(screen.getByRole('img', { name: 'Inicio de recepción' })).toHaveAttribute(
+      'src',
+      '/img/capturas/recepcion/inicio.escritorio.png',
+    )
   })
 
   it('el pie, si lo hay, va en un figcaption', () => {
