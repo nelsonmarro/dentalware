@@ -87,6 +87,9 @@ test.describe('Entregas (Iteración 4, #35)', () => {
     'recepción programa la recogida, el mensajero la trae y entrega el trabajo con constancia',
     { tag: '@esencial' },
     async ({ page, browser }) => {
+      // Tres sesiones, un formulario y cuatro diálogos: en WebKit del CI cada acción tarda
+      // ~1 s y el recorrido entero pasa de los 30 s por omisión (#139). El triple del tiempo.
+      test.slow()
       const { clinic, doctor } = await createClinicWithDoctor(page)
       const product = await createProduct(page)
       const courier = await createCourier(page)
