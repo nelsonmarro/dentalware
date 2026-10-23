@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { renderWithRouter } from '@/test/router'
 import { paragraph } from '@/test/text'
@@ -81,6 +81,40 @@ describe('CaseHeader', () => {
     const link = await screen.findByRole('link', { name: /Avisar por WhatsApp a Clínica Uno/ })
     expect(link.getAttribute('href')).toContain('https://wa.me/593990000000?text=')
     expect(decodeURIComponent(link.getAttribute('href') ?? '')).toContain('del laboratorio')
+  })
+
+  // UX8-12: los bloques de la cabecera se encuentran por rol (lectores de pantalla y capturas).
+  it('la cabecera es una región llamada «Datos del trabajo» que contiene el código', async () => {
+    renderWithRouter(<CaseHeader case={baseCase()} missing={[]} role="recepcion" />)
+    const region = await screen.findByRole('region', { name: 'Datos del trabajo' })
+    expect(within(region).getByRole('heading', { level: 1, name: '26-00001' })).toBeInTheDocument()
+    expect(within(region).getByText('Paciente')).toBeInTheDocument()
+  })
+
+  it('el código, la clínica y el aviso forman el grupo «Código, clínica y aviso»', async () => {
+    renderWithRouter(
+      <CaseHeader
+        case={baseCase({
+          clinic: { id: 'clinica-1', name: 'Clínica Uno', whatsapp: '+593990000000' },
+        } as Partial<CaseDetail>)}
+        missing={[]}
+        role="recepcion"
+      />,
+    )
+    const grupo = await screen.findByRole('group', { name: 'Código, clínica y aviso' })
+    expect(within(grupo).getByRole('heading', { level: 1, name: '26-00001' })).toBeInTheDocument()
+    expect(within(grupo).getByText('Clínica Uno · Dr. Gómez')).toBeInTheDocument()
+    expect(
+      within(grupo).getByRole('link', { name: /Avisar por WhatsApp a Clínica Uno/ }),
+    ).toBeInTheDocument()
+    // Los datos del paciente y las fechas quedan fuera del grupo.
+    expect(within(grupo).queryByText('Paciente')).not.toBeInTheDocument()
+  })
+
+  it('sin WhatsApp, el grupo dice que no hay número', async () => {
+    renderWithRouter(<CaseHeader case={baseCase()} missing={[]} role="recepcion" />)
+    const grupo = await screen.findByRole('group', { name: 'Código, clínica y aviso' })
+    expect(within(grupo).getByText(/Sin WhatsApp registrado\./)).toBeInTheDocument()
   })
 
   it('con el nombre del laboratorio, el aviso lo nombra', async () => {

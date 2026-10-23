@@ -68,10 +68,22 @@ export function CaseHeader({
     c.status === 'en_espera' ? [...events].reverse().find((e) => e.type === 'hold') : undefined
 
   return (
-    <Card className="border-l-4" style={{ borderLeftColor: STATUS_COLOR[c.status] }}>
+    // UX8-12: región y grupo con nombre, para que los lectores de pantalla (y las capturas del
+    // manual) los encuentren por rol. La región se nombra por lo que reúne, no por el código: el
+    // `h1` ya lo anuncia.
+    <Card
+      role="region"
+      aria-label="Datos del trabajo"
+      className="border-l-4"
+      style={{ borderLeftColor: STATUS_COLOR[c.status] }}
+    >
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex w-full flex-col gap-1 sm:w-auto">
+          <div
+            role="group"
+            aria-label="Código, clínica y aviso"
+            className="flex w-full flex-col gap-1 sm:w-auto"
+          >
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-mono text-2xl font-semibold">{c.code}</h1>
               <StatusChip status={c.status} />

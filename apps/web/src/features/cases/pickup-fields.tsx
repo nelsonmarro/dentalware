@@ -36,7 +36,8 @@ export function PickupFields({
   }
 
   return (
-    <Card className="gap-0 py-0">
+    // UX8-12: región con el nombre de su título, para encontrarla por rol.
+    <Card role="region" aria-labelledby="pickup-title" className="gap-0 py-0">
       <button
         type="button"
         aria-expanded={open}

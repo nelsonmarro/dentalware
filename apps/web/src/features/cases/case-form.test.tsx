@@ -584,6 +584,16 @@ describe('CaseForm', { timeout: 15_000 }, () => {
       )
     })
 
+    // UX8-12: la tarjeta se encuentra por rol (lectores de pantalla y capturas).
+    it('«Programar recogida» es una región con ese nombre que contiene su botón y sus campos', async () => {
+      const { user } = renderForm(<CaseForm role="recepcion" pending={false} onSubmit={vi.fn()} />)
+      const region = await screen.findByRole('region', { name: 'Programar recogida' })
+      const toggle = within(region).getByRole('button', { name: 'Programar recogida' })
+      await user.click(toggle)
+      expect(within(region).getByLabelText('Fecha de recogida')).toBeInTheDocument()
+      expect(within(region).getByRole('combobox', { name: 'Mensajero' })).toBeInTheDocument()
+    })
+
     it('sin recogida el trabajo se envía sin ella', async () => {
       const onSubmit = vi.fn()
       const { user } = renderForm(<CaseForm role="recepcion" pending={false} onSubmit={onSubmit} />)

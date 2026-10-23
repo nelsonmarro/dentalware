@@ -6,11 +6,8 @@ import { expect, test } from './fixtures'
  * diálogos se abren, se capturan y se cierran con «Volver» (o «Cancelar» en el de las piezas,
  * que no es una acción); los formularios se rellenan sin enviarse. */
 
-/** La cabecera de la ficha: la tarjeta que lleva el código como `h1`. La app no le da rol ni
- * nombre accesible (no es una `region`), así que se busca por su `data-slot` (deuda anotada para
- * la revisión UI/UX). */
-const cabeceraFicha = (page: Page) =>
-  page.locator('[data-slot=card]').filter({ has: page.getByRole('heading', { level: 1 }) })
+/** La cabecera de la ficha: la tarjeta que lleva el código como `h1`. */
+const cabeceraFicha = (page: Page) => page.getByRole('region', { name: 'Datos del trabajo' })
 
 /** La cuenta de una clínica de demostración, desde la lista «Cuentas». */
 async function abrirCuenta(page: Page, clinica: string) {
@@ -100,11 +97,7 @@ test('crear un trabajo', async ({ page }, testInfo) => {
   await expect(page.getByRole('dialog')).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Programar recogida' }).click()
-  // La sección no tiene rol ni nombre accesible (su tarjeta no es una `region`): se busca la
-  // tarjeta del botón por su `data-slot` (deuda anotada para la revisión UI/UX).
-  const recogida = page
-    .locator('[data-slot=card]')
-    .filter({ has: page.getByRole('button', { name: 'Programar recogida' }) })
+  const recogida = page.getByRole('region', { name: 'Programar recogida' })
   await pickSelectOption(
     page,
     recogida.getByRole('combobox', { name: 'Mensajero' }),
@@ -268,14 +261,13 @@ test('cuentas y pagos', async ({ page }, testInfo) => {
 
 test('avisar por whatsapp', async ({ page }, testInfo) => {
   await abrirTrabajo(page, 'A. S.')
-  // El bloque del código, la clínica y el enlace, que dice a quién se avisa. La app no le da rol
-  // ni nombre accesible: se sube desde el `h1` (deuda anotada para la revisión UI/UX).
-  const bloque = page.getByRole('heading', { level: 1 }).locator('xpath=../..')
+  // El bloque del código, la clínica y el enlace, que dice a quién se avisa.
+  const bloque = page.getByRole('group', { name: 'Código, clínica y aviso' })
   await expect(bloque.getByRole('link', { name: /^Avisar por WhatsApp a / })).toBeVisible()
   await captura(page, 'recepcion/whatsapp-boton', bloque, { testInfo, margen: 8 })
 
   await abrirTrabajo(page, 'J. R.')
-  const sinNumero = page.getByRole('heading', { level: 1 }).locator('xpath=../..')
+  const sinNumero = page.getByRole('group', { name: 'Código, clínica y aviso' })
   await expect(sinNumero.getByText('Sin WhatsApp registrado.')).toBeVisible()
   await captura(page, 'recepcion/whatsapp-sin-numero', sinNumero, { testInfo, margen: 8 })
 })
