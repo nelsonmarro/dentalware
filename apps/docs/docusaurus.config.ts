@@ -46,10 +46,10 @@ const config: Config = {
       title: 'Dentalware',
       // Va junto al título «Dentalware»: un alt igual se leería dos veces.
       logo: { alt: '', src: 'img/logo.svg' },
-      // «Mensajero» lo añade la Tarea 6 con su sección: un enlace roto rompe el build.
       items: [
         { to: '/primeros-pasos/entrar-y-salir/', label: 'Primeros pasos', position: 'left' },
         { to: '/recepcion/', label: 'Recepción', position: 'left' },
+        { to: '/mensajero/', label: 'Mensajero', position: 'left' },
         { href: 'https://dentalware.naphsoft.dev', label: 'Abrir la app', position: 'right' },
       ],
     },

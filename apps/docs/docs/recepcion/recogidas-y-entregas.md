@@ -41,7 +41,7 @@ Hoy salen también las pendientes de días anteriores y las recogidas que siguen
 
 Al marcar **Recibido**, el trabajo pasa a **Nuevo** y queda listo para <Boton>Aceptar</Boton>. Al marcar **Entregado**, el trabajo pasa a la cuenta de la clínica, que lo debe hasta que se registre su pago (ver [Cuentas y pagos](./cuentas-y-pagos.md)), y la foto queda en sus **Adjuntos** como **Constancia de entrega**.
 
-Si el mensajero no puede recoger o entregar (la clínica estaba cerrada, no había nadie…), toca <Boton>No se pudo</Boton>, elige o escribe el motivo y la **Nueva fecha** (por omisión, el siguiente día hábil). La tarjeta queda **Fallida** con el motivo, y la recogida o entrega se vuelve a programar para esa fecha, como la del trabajo de «G. H.». Normalmente lo marca el propio mensajero desde la calle; recepción también puede hacerlo si él avisa por teléfono. Cómo lo hace el mensajero lo explica su sección de este manual.
+Si el mensajero no puede recoger o entregar (la clínica estaba cerrada, no había nadie…), toca <Boton>No se pudo</Boton>, elige o escribe el motivo y la **Nueva fecha** (por omisión, el siguiente día hábil). La tarjeta queda **Fallida** con el motivo, y la recogida o entrega se vuelve a programar para esa fecha, como la del trabajo de «G. H.». Normalmente lo marca el propio mensajero desde la calle; recepción también puede hacerlo si él avisa por teléfono. Cómo lo hace el mensajero lo explica [No se pudo](../mensajero/no-se-pudo.md), en su sección de este manual.
 
 :::warning Importante
 <Boton>Marcar entregado</Boton> no tiene vuelta: el trabajo pasa a la cuenta de la clínica con la fecha de hoy. Confírmalo solo con el trabajo ya en la clínica.

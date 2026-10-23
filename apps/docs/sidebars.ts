@@ -27,6 +27,17 @@ const sidebars: SidebarsConfig = {
         'recepcion/imprimir',
       ],
     },
+    {
+      type: 'category',
+      label: 'Mensajero',
+      link: { type: 'doc', id: 'mensajero/index' },
+      items: [
+        'mensajero/entregas-del-dia',
+        'mensajero/marcar-entregado',
+        'mensajero/no-se-pudo',
+        'mensajero/sin-senal',
+      ],
+    },
   ],
 }
 
