@@ -22,16 +22,17 @@ env:
   PW_ARGS: ${{ github.event_name == 'pull_request' && '--project=escritorio --project=android --project=iphone --grep "@esencial|@clave"' || '' }}
 
 jobs:
-  # Infraestructura: scripts de infra/ con shellcheck y Caddy real (cabeceras de caché, healthcheck) e imagen de la API (tamaño, arranque).
+  # Infraestructura: scripts de infra/ con shellcheck y Caddy real (cabeceras de caché, healthcheck), imagen de la API (tamaño, arranque) e imagen del manual (sitio, cabeceras, healthcheck).
   infra:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: shellcheck
         run: find infra -name '*.sh' -print0 | xargs -0 shellcheck -x
       - run: bash infra/tests/caddy-headers.sh
       - run: bash infra/tests/api-image.sh
+      - run: bash infra/tests/docs-image.sh
 
   # Respaldos (#111, PEM-3): respalda con restic, simula el desastre (`down -v`) y restaura de
   # punta a punta, sin red externa (repositorio de restic en una carpeta temporal).

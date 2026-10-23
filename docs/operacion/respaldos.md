@@ -96,7 +96,7 @@ Los timers tienen `Persistent=true`: si el VPS estaba apagado a la hora de un tr
 
 Qué hacer tras un apagado o un reinicio:
 
-1. `dw ps` hasta ver los tres contenedores sanos.
+1. `dw ps` hasta ver los cuatro contenedores sanos.
 2. `systemctl list-units --failed 'dentalware-*'`.
 3. Lanza a mano el que haya fallado: `sudo systemctl start dentalware-backup.service`. Si fue el simulacro, lánzalo también: si no, no vuelve a correr hasta el mes siguiente.
 

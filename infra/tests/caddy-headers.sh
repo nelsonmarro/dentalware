@@ -23,7 +23,9 @@ trap cleanup EXIT
 # Entorno propio y desechable: ningún secreto real.
 {
   echo "PUBLIC_URL=http://127.0.0.1:${port}"
+  echo "DOCS_PUBLIC_URL=http://127.0.0.1:${port}"
   echo "SITE_ADDRESS=:80"
+  echo "DOCS_SITE_ADDRESS=:80"
   echo "POSTGRES_USER=dw"
   echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
   echo "POSTGRES_DB=dw"

@@ -75,7 +75,7 @@ Para una BD corrupta o un error humano: un trabajo, un pago o una clínica borra
    sudo infra/backup/restore.sh --snapshot <id>
    # … «Restauración completa desde el snapshot <id>.»
    dw up -d
-   dw ps                                            # los tres (healthy)
+   dw ps                                            # los cuatro (healthy)
    ```
 
    Aquí la copia `antes-de-restaurar-*` que deja `restore.sh` es la de la BD vacía: la buena es la `antes-de-borrar-*` del paso 3.
@@ -134,7 +134,7 @@ Usa la más reciente de las dos. La copia del PC tiene la fecha de su último `r
 Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `.env`, los respaldos de restic y los timers.
 
 1. En hPanel › VPS › Administrar › Backups & Monitoring › Snapshots & Backups, elige la copia y pulsa «Restore». El VPS queda bloqueado mientras dura, de 10 minutos a unas horas, y no se puede cancelar. Si el VPS ya no existe, pide a soporte de Hostinger que restaure esa copia en el VPS nuevo.
-2. Entra por SSH y comprueba que todo arrancó: `dw ps` (los tres sanos), `systemctl list-timers 'dentalware-*'` y `https://dentalware.naphsoft.dev`.
+2. Entra por SSH y comprueba que todo arrancó: `dw ps` (los cuatro sanos), `systemctl list-timers 'dentalware-*'` y `https://dentalware.naphsoft.dev`.
 3. Si la copia del PC es **más nueva** que el backup de Hostinger, pon encima su último snapshot. La pila ya está arrancada, así que no se usa `dw create`:
    1. Pon el código al día, porque la BD de la copia del PC puede ser de una versión posterior a la del disco de Hostinger: `cd /opt/dentalware && git pull && dw up -d --build`, y después `sudo infra/backup/install.sh`.
    2. Aparta el repositorio viejo con `sudo mv /var/backups/dentalware/restic /var/backups/dentalware/restic.hostinger` y trae el del PC con el paso 5 de la ruta B.
@@ -145,7 +145,7 @@ Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `
 ### Ruta B: VPS nuevo con la copia del PC
 
 1. **VPS nuevo.** Créalo en hPanel (o reinstala el sistema del que no arranca) y anota la IP. Entra como `nelson`, con `sudo`.
-2. **DNS ya.** En Porkbun, cambia el registro A de `dentalware` (y el AAAA, si lo tenías) a la IP nueva (paso 1 de `despliegue.md`). Hazlo ahora: la propagación tarda, y el certificado del paso 12 la necesita.
+2. **DNS ya.** En Porkbun, cambia los registros A de `dentalware` y de `docs.dentalware` (y sus AAAA, si los tenías) a la IP nueva (paso 1 de `despliegue.md`). Hazlo ahora: la propagación tarda, y los certificados del paso 12 la necesitan.
 3. **Sistema.** Firewall (paso 2) y Docker (paso 3), y con Docker, `rsync` y `git`: `sudo pacman -Syu --needed rsync git` (en Arch, nunca `-S` sin `-yu`). nginx con certbot, como en el VPS de antes: allí ya estaban por naphsoft, y su configuración no está en este respaldo.
 4. **Repo.** Clónalo en `/opt/dentalware` (paso 4).
 5. **Repositorio de restic.** Súbelo desde tu PC a tu carpeta del VPS y, ya en él, muévelo a su sitio, solo para root:
@@ -209,7 +209,7 @@ Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `
     sudo infra/backup/restore.sh
     # … «Restauración completa desde el snapshot latest.»
     dw up -d
-    dw ps                                         # los tres sanos
+    dw ps                                         # los cuatro sanos
     curl -s http://127.0.0.1:8080/api/health      # OK
     ```
 
@@ -221,7 +221,7 @@ Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `
     sudo infra/backup/restore.sh
     ```
 
-12. **nginx y certificado.** Cuando `dig +short dentalware.naphsoft.dev` dé la IP nueva, repite el paso 8 de `despliegue.md`: el sitio, certbot y la renovación.
+12. **nginx y certificado.** Cuando `dig +short dentalware.naphsoft.dev` dé la IP nueva, repite el paso 8 de `despliegue.md`: el sitio, certbot y la renovación. Y el paso 8 bis (el sitio del manual no está en el respaldo: se rehace con ese paso), cuando `dig +short docs.dentalware.naphsoft.dev` dé también la IP nueva.
 13. **Respaldos.** Vuelve a programarlos. Sin `--init`, porque el repositorio ya existe. Y lanza uno ahora:
 
     ```bash
@@ -239,6 +239,7 @@ Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `
 Al terminar cualquiera de los tres casos:
 
 - [ ] `https://dentalware.naphsoft.dev` abre con candado válido y entras como admin.
+- [ ] `https://docs.dentalware.naphsoft.dev` abre el manual.
 - [ ] **Trabajos:** la lista tiene los de la fecha del snapshot, y los últimos que recuerdas están.
 - [ ] **Clínicas:** están todas, con sus doctores y precios.
 - [ ] **Fotos:** abre la ficha de dos o tres trabajos con fotos: las miniaturas se ven y la foto abre.

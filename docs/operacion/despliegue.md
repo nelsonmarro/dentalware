@@ -11,16 +11,21 @@ Internet ──443──▶ nginx del VPS (TLS con certbot; ya sirve naphsoft.de
                     │
                     ├── naphsoft.dev ───────────▶ /opt/naphsoft/server (:3000)   ← no se toca
                     │
-                    └── dentalware.naphsoft.dev ─▶ 127.0.0.1:8080
-                                                   │  Docker (proyecto «dentalware»)
-                                                   ▼
-                                       caddy (web + proxy /api) ──▶ api (Node 24) ──▶ postgres 17
-                                                                     │
-                                                                     └── volumen uploads (fotos)
+                    ├── dentalware.naphsoft.dev ─▶ 127.0.0.1:8080
+                    │                              │  Docker (proyecto «dentalware»)
+                    │                              ▼
+                    │                  caddy (web + proxy /api) ──▶ api (Node 24) ──▶ postgres 17
+                    │                                                │
+                    │                                                └── volumen uploads (fotos)
+                    │
+                    └── docs.dentalware.naphsoft.dev ─▶ 127.0.0.1:8081
+                                                          │  mismo proyecto Docker
+                                                          ▼
+                                                  docs (manual de usuario, solo páginas)
 ```
 
-- **nginx del VPS:** sigue siendo el único que escucha en 80/443. Añadimos un sitio para el dominio de Dentalware y certbot le saca el certificado.
-- **Contenedores:** el `docker-compose.yml` del repo levanta tres (`caddy`, `api` y `postgres`). Un archivo de ajuste local (paso 6) hace que Caddy escuche solo en `127.0.0.1:8080`, por HTTP, sin pelear por los puertos.
+- **nginx del VPS:** sigue siendo el único que escucha en 80/443. Añadimos un sitio para el dominio de Dentalware y otro para el del manual, y certbot les saca el certificado.
+- **Contenedores:** el `docker-compose.yml` del repo levanta cuatro (`caddy`, `docs`, `api` y `postgres`). Un archivo de ajuste local (paso 6) hace que Caddy escuche solo en `127.0.0.1:8080`, por HTTP, sin pelear por los puertos. `docs` sirve el manual de usuario con su propio Caddy y ya viene del repo escuchando solo en `127.0.0.1:8081`.
 - **Migraciones:** la API migra la base de datos sola al arrancar.
 - **Puertos:** Postgres no se publica fuera de Docker.
 
@@ -45,13 +50,17 @@ En Porkbun › Domain Management › `naphsoft.dev` › DNS, añade estos regist
 |---|---|---|---|
 | A | `dentalware` | `82.25.95.39` | 600 |
 | AAAA (opcional) | `dentalware` | `2a02:4780:2d:a9fe::1` | 600 |
+| A | `docs.dentalware` | `82.25.95.39` | 600 |
+| AAAA (opcional) | `docs.dentalware` | `2a02:4780:2d:a9fe::1` | 600 |
 
-Añade el AAAA solo si nginx escucha en IPv6 (el sitio del paso 8 lo hace). Si dudas, deja solo el A.
+`docs.dentalware` es el manual de usuario (paso 8 bis). Añade los AAAA solo si nginx escucha en IPv6 (los sitios de los pasos 8 y 8 bis lo hacen). Si dudas, deja solo los A.
 
-Comprueba desde tu PC, hasta que devuelva la IP. Puede tardar de minutos a un par de horas:
+Comprueba desde tu PC, hasta que los dos devuelvan la IP. Puede tardar de minutos a un par de horas:
 
 ```bash
 dig +short dentalware.naphsoft.dev
+# 82.25.95.39
+dig +short docs.dentalware.naphsoft.dev
 # 82.25.95.39
 ```
 
@@ -129,6 +138,10 @@ Deja `infra/.env` así, con tus valores:
 SITE_ADDRESS=:80
 # URL pública con https: se incrusta en la web (QR de la orden impresa) y en las cookies.
 PUBLIC_URL=https://dentalware.naphsoft.dev
+# El manual (servicio docs), también detrás del nginx: HTTP interno en 127.0.0.1:8081.
+DOCS_SITE_ADDRESS=:80
+# URL pública del manual: se incrusta en la web (enlace «Ayuda»).
+DOCS_PUBLIC_URL=https://docs.dentalware.naphsoft.dev
 
 POSTGRES_USER=dentalware
 POSTGRES_PASSWORD=<el primero que generaste>
@@ -199,7 +212,13 @@ A partir de aquí, `dw …` es `docker compose …` con todo lo de Dentalware.
 
 ## Paso 7 — Construir y arrancar
 
-La primera vez tarda unos minutos: compila la web y la API.
+Antes, comprueba que los puertos 8080 y 8081 están libres: el VPS lo comparten naphsoft y `docs.verith`, y si otro servicio ya escucha en uno de ellos, el contenedor no arranca.
+
+```bash
+sudo ss -ltnp | grep -E ':(8080|8081) '   # vacío
+```
+
+La primera vez tarda unos minutos: compila la web, la API y el manual.
 
 ```bash
 cd /opt/dentalware
@@ -207,12 +226,13 @@ dw up -d --build
 dw ps
 ```
 
-Espera a que los tres estén `running`, con `api` y `postgres` en `(healthy)`:
+Espera a que los cuatro estén `running`, con `api` y `postgres` en `(healthy)`:
 
 ```bash
 watch -n 5 'docker compose -p dentalware ps'
 # Ctrl+C cuando estén healthy
 curl -s http://127.0.0.1:8080/api/health   # responde OK
+curl -sI http://127.0.0.1:8081/ | head -1  # HTTP/1.1 200 OK: el manual
 dw logs api --tail 30                      # «API escuchando en http://localhost:3000 (production)»
 ```
 
@@ -288,6 +308,39 @@ sudo systemctl enable --now certbot-renew.timer
 sudo certbot renew --dry-run
 ```
 
+## Paso 8 bis — El manual en nginx
+
+El manual de usuario (`docs.dentalware.naphsoft.dev`) es público y solo tiene páginas: el contenedor `docs` ya escucha en `127.0.0.1:8081`, sin ajuste local. Como en el paso 8, primero el sitio por HTTP y después el certificado:
+
+```bash
+sudo tee /etc/nginx/sites-available/docs-dentalware > /dev/null <<'EOF'
+server {
+    listen 80;
+    listen [::]:80;
+    server_name docs.dentalware.naphsoft.dev;
+
+    location / {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+sudo ln -s /etc/nginx/sites-available/docs-dentalware /etc/nginx/sites-enabled/docs-dentalware
+sudo nginx -t && sudo systemctl reload nginx
+curl -sI http://docs.dentalware.naphsoft.dev | head -3     # 200 desde tu PC
+
+sudo certbot --nginx -d docs.dentalware.naphsoft.dev
+# Acepta la redirección de HTTP a HTTPS si lo pregunta.
+sudo nginx -t && sudo systemctl reload nginx
+curl -sI https://docs.dentalware.naphsoft.dev | head -3    # 200 por HTTPS
+```
+
+La renovación es la del paso 8.3: el timer de certbot renueva todos los certificados.
+
 ## Paso 9 — Crear el administrador y los catálogos iniciales
 
 Una sola vez. Es idempotente: repetirlo no duplica nada.
@@ -307,6 +360,7 @@ Desde tu PC y tu celular:
 - [ ] Creas una clínica y un trabajo de prueba y le **subes una foto** desde el celular. Así compruebas el límite de 30 MB de nginx y el volumen de fotos.
 - [ ] Imprimes la orden: el QR abre `https://dentalware.naphsoft.dev/t/<código>`.
 - [ ] Las herramientas de desarrollo del navegador no muestran errores en la consola.
+- [ ] `https://docs.dentalware.naphsoft.dev` abre el manual con candado válido, y «Ayuda» de la app lleva a él.
 - [ ] `https://naphsoft.dev` sigue funcionando.
 - [ ] Borras (cancelas) el trabajo de prueba.
 
@@ -408,6 +462,8 @@ git pull
 # Si el Caddyfile del repo cambió, regenera el del VPS (paso 6.2):
 git diff --stat HEAD@{1} -- infra/Caddyfile
 { printf '{\n\tservers {\n\t\ttrusted_proxies static private_ranges\n\t}\n}\n\n'; cat infra/Caddyfile; } > infra/Caddyfile.vps
+# Un .env de antes del manual solo necesita DOCS_PUBLIC_URL (paso 5), para el enlace «Ayuda»;
+# DOCS_SITE_ADDRESS toma :80 por omisión.
 dw up -d --build
 dw ps                                               # healthy
 dw logs api --tail 20
@@ -418,6 +474,8 @@ systemctl list-timers --all 'dentalware-*'         # los tres timers, con su pr�
 
 - Las migraciones de la base de datos se aplican solas al arrancar la API.
 - Si cambias `PUBLIC_URL`, hace falta `--build`, porque va dentro de la web.
+- `dw up -d --build` reconstruye también el manual (servicio `docs`); si cambias `DOCS_PUBLIC_URL`, hace falta `--build` (va dentro de la web, en el enlace «Ayuda»).
+- Si tu `infra/.env` es de antes del manual, añádele `DOCS_PUBLIC_URL` (paso 5) antes del `dw up -d --build`, y después haz el DNS de `docs.dentalware` (paso 1) y el paso 8 bis.
 - En los celulares, la app se actualiza sola al cerrarla y volver a abrirla.
 
 **Volver atrás** si algo sale mal. Primero, mira si la versión nueva traía migraciones de la base de datos:
@@ -453,7 +511,7 @@ En los dos casos, el repo queda en un commit suelto (*detached HEAD*), y el `git
 | Qué | Cómo |
 |---|---|
 | Ver si todo está arriba | `dw ps` |
-| Logs de la API / de Caddy | `dw logs api --tail 100`, `dw logs caddy --tail 100` |
+| Logs de la API / de Caddy / del manual | `dw logs api --tail 100`, `dw logs caddy --tail 100`, `dw logs docs --tail 100` |
 | Reiniciar un servicio | `dw restart api` |
 | Parar todo / arrancar | `dw down` / `dw up -d` (sin `-v`: **`down -v` borra la BD y las fotos**) |
 | Espacio en disco | `df -h /`, `docker system df` |
@@ -461,6 +519,7 @@ En los dos casos, el repo queda en un commit suelto (*detached HEAD*), y el `git
 | nginx | `sudo nginx -t`, `sudo systemctl reload nginx`, `sudo journalctl -u nginx -n 50` |
 | Entrar a la base de datos | `dw exec postgres psql -U dentalware -d dentalware` |
 | 502 Bad Gateway | la API o Caddy están caídos: `dw ps`, `dw logs api` |
+| 502 en el manual | `dw logs docs`; el contenedor no arranca o el nginx apunta a otro puerto |
 | 413 al subir una foto | falta `client_max_body_size 30m` en el sitio de nginx (paso 8.1) |
 | «Demasiados intentos» en el login para todos | falta `trusted_proxies` en `Caddyfile.vps` (paso 6.2) |
 | El QR de la orden apunta a otro sitio | `PUBLIC_URL` mal puesto: corrígelo y `dw up -d --build` |
@@ -469,11 +528,11 @@ En los dos casos, el repo queda en un commit suelto (*detached HEAD*), y el `git
 
 ## Lista final
 
-- [ ] DNS apuntando al VPS y firewall con solo 22/80/443.
+- [ ] DNS (`dentalware` y `docs.dentalware`) apuntando al VPS y firewall con solo 22/80/443.
 - [ ] Docker instalado; naphsoft sigue funcionando.
 - [ ] `infra/.env` con `chmod 600` y copiado al gestor de contraseñas.
-- [ ] `dw ps`: los tres contenedores sanos.
-- [ ] HTTPS válido y renovación automática del certificado.
+- [ ] `dw ps`: los cuatro contenedores sanos.
+- [ ] HTTPS válido en la app y en el manual, y renovación automática de los certificados.
 - [ ] Admin creado y laboratorio configurado.
 - [ ] Contraseña de restic en `/etc/dentalware/restic-password` (600) y copiada al gestor de contraseñas.
 - [ ] `systemctl list-timers --all 'dentalware-*'`: los tres timers (respaldo diario, verificación semanal y simulacro mensual) activos.

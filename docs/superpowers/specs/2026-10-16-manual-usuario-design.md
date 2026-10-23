@@ -126,3 +126,5 @@ En `apps/docs/capturas/`, con su propio `playwright.config.ts` (el de `apps/web`
 
 - `DEMO_PASSWORD` nunca va en un archivo **versionado**: en cada corrida completa se genera y vive solo en `apps/docs/capturas/.auth/demo-password` (local, 0600, ignorado por git), junto a las cookies de sesión, para el modo rápido.
 - El proyecto `telefono` usa el perfil Pixel 7 de Playwright, que mide 412 px de ancho, no 390.
+- §7: el puerto del servicio `docs`, `127.0.0.1:8081:80`, está en el `docker-compose.yml` del repo, no en el `docker-compose.vps.yml` local; el caso «sin nginx delante» queda fuera de alcance, porque 80/443 son de `caddy`. `SITE_ADDRESS: ${DOCS_SITE_ADDRESS:-:80}`: un `.env` sin `DOCS_SITE_ADDRESS` (de antes del manual) sirve igual.
+- §6: no hay menú de usuario; el enlace «Ayuda» vive en el pie de la barra lateral (escritorio) y en la cabecera móvil.

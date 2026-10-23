@@ -8,7 +8,7 @@ Fuente de verdad de **qué** construye cada feature del MVP, escrita desde el pu
 
 **Código.** `<FEATURE>-<n>` (p. ej. `CIC-1`). El título del issue es «`CIC-1` · aceptar un trabajo con los datos obligatorios completos».
 
-Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 7 = baja.
+Prioridad del backlog: Iteración 3 = alta, 4 y 5 = media, 7 = baja, 8 = alta (la iteración en curso).
 
 **Recorte de alcance (Nelson, 2026-10-03).** Para lanzar antes, el MVP se ciñe al flujo que sostiene el negocio: **recibir → producir → entregar → cobrar**. Salen a Post-MVP CAL-1 (calendario), CAL-3 (ICS), CTA-4 (facturas del SRI), AVI-1, AVI-2 y AVI-3 (correos automáticos) y PEM-2 (histórico de VEVI); la Iteración 6 desaparece (la numeración de la 7 se conserva). Se recortan a su versión mínima CAL-2 (solo la vista «Vencen mañana»), AVI-4 (solo el enlace `wa.me`, pasa a la Iteración 7) y PEM-3 (respaldo diario sin S3); CTA-1 aplica el porcentaje de las repeticiones y CTA-3 sirve también para el saldo inicial de cada clínica. Las entregas (ENT-1 a ENT-5, recogidas incluidas) y el cobro **por trabajo** (CTA-2, con reparto del pago y estado `cobrado`) quedan completos. Las historias retiradas se conservan abajo marcadas «Post-MVP». Dentro de una iteración, el orden de las historias en este documento es el orden sugerido de desarrollo.
 
@@ -426,6 +426,31 @@ Solo AVI-4, reducida al enlace `wa.me`, sigue en el MVP (Iteración 7).
 
 ---
 
+## Iteración 8 — Manual de usuario (prioridad alta)
+
+### MAN — Manual de usuario
+
+**MAN-1.** Como usuario de Dentalware (recepción, técnico, mensajero o administrador), quiero un manual en línea, con capturas y en lenguaje sencillo, para aprender a usar el programa y resolver dudas sin tener que preguntar. _(Iteración 8, #127; diseño en `2026-10-16-manual-usuario-design.md`.)_
+- Versión mínima aceptable: sitio de Docusaurus en español (`apps/docs`), público en `docs.dentalware.naphsoft.dev`, con guías por rol y por tarea, capturas de la app con datos ficticios y buscador local.
+- Criterios:
+  - Cada guía sigue la misma plantilla: para qué sirve, quién puede hacerlo, pasos con captura, qué pasa después y problemas frecuentes; los botones, tal cual salen en la app.
+  - Las capturas se regeneran con un comando (`pnpm capturas`) sobre los datos de demostración (`seed:demo`) y salen iguales en cada corrida; nunca muestran datos reales, contraseñas ni direcciones internas.
+  - El build falla con un enlace, un ancla o una imagen rotos; responsive a 1280, 390 y 360, 44 px, contraste AA y Lighthouse de accesibilidad ≥ 95.
+  - El enlace «Ayuda» de la app abre el manual en otra pestaña, en la guía del rol.
+  - Se despliega en el VPS con el resto de la app (servicio `docs`), documentado en `docs/operacion/despliegue.md`.
+
+**Recorte (Nelson, 2026-10-15).** Para publicar antes lo que más se usa, MAN-1 se queda con el sitio, la tubería de capturas, el enlace «Ayuda», el despliegue y tres secciones: «Primeros pasos», «Recepción» y «Mensajero». Las guías del técnico y de administración y la referencia pasan a MAN-2, con la misma plantilla y la misma tubería. Mientras tanto, el enlace «Ayuda» lleva a `admin` y `tecnico` a la portada.
+
+**MAN-2.** Como técnico o administrador, quiero las guías de mi trabajo y una referencia común en el manual, para aprender a usar Dentalware y resolver dudas sin tener que preguntar. _(Iteración 8, #138; se empieza tras la ola de fixes de la revisión UI/UX de la Iteración 8, #137.)_
+- Versión mínima aceptable: las secciones «Técnico» (mis trabajos, avanzar fase, pruebas y en espera, finalizar), «Administración» (clínicas y doctores, productos y precios por clínica, fases, usuarios y roles, datos del laboratorio; ajustes, saldo inicial y anular pagos; importar CSV) y «Referencia» (glosario, estados del trabajo con su diagrama, preguntas frecuentes), con la misma plantilla y la misma tubería de capturas que MAN-1; la portada suma «Soy técnico» y «Administro el laboratorio».
+- Criterios:
+  - Cada guía de tarea lleva su captura, y el test de capturas referenciadas sigue en verde.
+  - El enlace «Ayuda» lleva a `admin` y `tecnico` a sus guías (`HELP_PATH`).
+  - El glosario y el diagrama de estados se derivan de `CASE_TRANSITIONS` de `shared`: un estado o una transición nuevos no pasan sin salir en el manual.
+  - Responsive a 1280, 390 y 360 y Lighthouse de accesibilidad ≥ 95; nada real.
+
+---
+
 ## Mapa historia → issue
 
 Issues creados el 2026-09-12 (etiqueta `historia`, sub-issue de la épica de su iteración: #4, #5, #6, #7, #9). Las tareas técnicas relacionadas (`tarea`) se enlazan desde la historia.
@@ -440,3 +465,4 @@ Issues creados el 2026-09-12 (etiqueta `historia`, sub-issue de la épica de su 
 | CTA-1 · CTA-2 · CTA-3 · CTA-4 · CTA-5 | #82, #83, #84, #85, #86 | #36 (E2E It. 5) |
 | AVI-1 · AVI-2 · AVI-3 · AVI-4 | #87, #88, #89, #90 | #37 (E2E It. 6) |
 | PEM-1 · PEM-2 · PEM-3 | #91, #92, #93 | #48 (driver S3), #23 (imagen API); #25 cerrado en PEM-1 |
+| MAN-1 · MAN-2 | #127, #138 (épica #126); #137, historia de la revisión UI/UX de la Iteración 8 | — |

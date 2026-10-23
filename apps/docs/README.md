@@ -129,3 +129,19 @@ que ya no se usa): `capturas-referenciadas.test.ts` (en `pnpm test`) lo comprueb
 Ni en el texto ni en una captura: pacientes, clínicas o doctores reales; el nombre, la dirección o los
 teléfonos del laboratorio; contraseñas, tokens, IPs ni URLs internas. Las capturas salen solo de los
 datos de demostración, que son ficticios.
+
+## Qué falta (MAN-2)
+
+Este manual cubre MAN-1 (#127): «Primeros pasos», «Recepción» y «Mensajero». MAN-2 (#138) añade, con
+la misma plantilla y la misma tubería de capturas:
+
+- **Técnico**: mis trabajos, avanzar fase, pruebas y en espera, finalizar.
+- **Administración**: clínicas y doctores, productos y precios por clínica, fases, usuarios y roles,
+  datos del laboratorio; ajustes, saldo inicial y anular pagos; importar CSV.
+- **Referencia**: glosario, estados del trabajo con su diagrama (derivados de `CASE_TRANSITIONS` de
+  `shared`) y preguntas frecuentes.
+
+Al publicarlas: «Soy técnico» y «Administro el laboratorio» en la portada, las secciones en
+`sidebars.ts` y en el menú superior, y `HELP_PATH` de `admin` y `tecnico`
+(`apps/web/src/features/help/help-url.ts`) a sus guías, que hoy llevan a la portada. Antes, la ola de
+fixes de la revisión UI/UX de la Iteración 8 (#137).
