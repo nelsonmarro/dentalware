@@ -36,7 +36,8 @@ export function Captura({
 }) {
   const proyectos = proyectosCaptura({ telefono, solo })
   return (
-    <figure className="captura">
+    // `captura--doble`: en el teléfono se ve solo la variante del teléfono (`custom.css`).
+    <figure className={proyectos.length > 1 ? 'captura captura--doble' : 'captura'}>
       <div className="captura__imagenes">
         {proyectos.map((p) => (
           <CapturaImg

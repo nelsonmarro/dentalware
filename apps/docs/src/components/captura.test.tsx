@@ -62,6 +62,16 @@ describe('Captura', () => {
     )
   })
 
+  it('con las dos variantes, la figura lleva `captura--doble` (en el teléfono se ve solo la del teléfono)', () => {
+    const { container } = render(<Captura nombre="a/b" alt="x" telefono />)
+    expect(container.querySelector('figure')).toHaveClass('captura', 'captura--doble')
+  })
+
+  it('con una sola variante, sin `captura--doble`', () => {
+    const { container } = render(<Captura nombre="a/b" alt="x" />)
+    expect(container.querySelector('figure')).not.toHaveClass('captura--doble')
+  })
+
   it('el pie, si lo hay, va en un figcaption', () => {
     render(<Captura nombre="x/y" alt="x" pie="Así se ve con una recogida pendiente." />)
     expect(screen.getByText('Así se ve con una recogida pendiente.').tagName).toBe('FIGCAPTION')

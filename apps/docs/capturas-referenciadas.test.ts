@@ -108,6 +108,16 @@ describe('lectura de <Captura> en las guías', () => {
 })
 
 describe('capturas referenciadas', () => {
+  it('el lector encuentra todas las `<Captura` de cada guía (ninguna se le escapa)', () => {
+    const distintas = walk(join(root, 'docs'), /\.mdx?$/).flatMap((archivo) => {
+      const texto = readFileSync(archivo, 'utf8')
+      const etiquetas = texto.match(/<Captura\b/g)?.length ?? 0
+      const leidas = capturasEnTexto(texto).length
+      return etiquetas === leidas ? [] : [`${archivo}: ${etiquetas} etiquetas, ${leidas} leídas`]
+    })
+    expect(distintas).toEqual([])
+  })
+
   it('existe el PNG de cada variante que pide una guía (escritorio; con `telefono`, las dos; con `solo`, esa)', () => {
     const faltan = capturasEnDocs().flatMap(({ archivo, nombre, telefono, solo }) =>
       proyectosCaptura({ telefono, solo })

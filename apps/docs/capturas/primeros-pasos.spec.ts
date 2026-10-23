@@ -9,7 +9,11 @@ test.describe('Primeros pasos', () => {
     const tarjeta = page
       .locator('[data-slot=card]')
       .filter({ has: page.getByRole('button', { name: 'Ingresar' }) })
-    await captura(page, 'primeros-pasos/entrar-formulario', tarjeta, { testInfo })
+    // Solo la de escritorio: en el teléfono la tarjeta es la misma.
+    await captura(page, 'primeros-pasos/entrar-formulario', tarjeta, {
+      testInfo,
+      solo: 'escritorio',
+    })
   })
 })
 

@@ -173,6 +173,7 @@ Minor diferidos, anotados en el ledger de la ola; ninguno bloquea:
 - Icono en iPhone (UX7-10).
 - `FormDialog` hace `scrollIntoView` al enfocar un campo: comprobar en Safari de iOS, abriendo un diálogo desde una lista desplazada, que no mueve la página de fondo (M-3 de la revisión final).
 - Barra de estado en Android (UX7-11).
+- Manual, «Instalar la app»: comprobar los rótulos del sistema (Chrome de Android, Safari de iOS y Chrome de la computadora: «Instalar aplicación», «Añadir»/«Agregar», «Compartir» o «⋯») en los teléfonos del laboratorio (#127).
 
 ### Capturas «después»
 

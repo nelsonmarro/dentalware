@@ -24,8 +24,11 @@ construye también el manual, así que el job `quality` de CI lo comprueba en ca
    míralas y escribe los pasos sobre lo que se ve.
 3. Frases cortas, en sentence case y con el vocabulario del laboratorio (trabajo, clínica, doctor,
    pieza, fase, recogida, entrega, saldo a favor). Los botones, tal cual salen en la app.
-4. `:::warning Importante` solo para lo que no tiene vuelta (finalizar, cancelar, anular un pago) y
-   `:::tip Consejo` para atajos.
+4. `:::warning Importante` solo para lo que no tiene vuelta (finalizar, cancelar, anular un pago),
+   `:::tip Consejo` para atajos y `:::info <título>` para notas neutras (p. ej. «Precios»: el técnico y
+   el mensajero no los ven).
+5. Las páginas de referencia (como «Qué ve cada rol») no son tareas: no llevan «Quién puede hacerlo»
+   ni pasos.
 
 Los tres componentes propios se usan en cualquier página sin importarlos:
 
@@ -52,7 +55,8 @@ El texto de un botón o enlace de la app, tal cual.
 ```
 
 Una captura de `static/img/capturas/<nombre>.escritorio.png`; con `telefono`, también la de
-`<nombre>.telefono.png` al lado (debajo si las dos no caben a su tamaño real), y con `solo="telefono"`, solo esa. `alt`
+`<nombre>.telefono.png` al lado (debajo si las dos no caben a su tamaño real; en el teléfono, solo la
+del teléfono), y con `solo="telefono"`, solo esa. `alt`
 describe lo que se ve; `pie` añade un texto debajo. Las capturas se toman a 2 píxeles por punto y
 `Captura` las declara `2x`: se ven a su tamaño real en la app, nítidas, y nunca se estiran.
 

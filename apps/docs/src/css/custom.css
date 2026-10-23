@@ -76,6 +76,13 @@ h1 {
   letter-spacing: -0.01em;
 }
 
+/* Los enlaces dentro del texto se distinguen también por el subrayado, no solo por el color
+ * (Lighthouse `link-in-text-block`). Las tarjetas de la portada ya son bloques con borde. */
+.markdown :is(p, li, td) > a:not(.portada__acceso) {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 /* Objetivos táctiles de 44 px: menú lateral (también el del teléfono), sus flechas y el menú del
  * teléfono */
 .menu__link,
@@ -140,6 +147,14 @@ h1 {
   height: auto;
   border: 1px solid var(--dw-plaster);
   border-radius: 0.5rem;
+}
+
+/* En el teléfono, de una captura con las dos variantes solo se ve la del teléfono: la de
+ * escritorio, encogida a 360 px, no se lee. */
+@media (max-width: 767px) {
+  .captura--doble .captura__img--escritorio {
+    display: none;
+  }
 }
 
 .captura figcaption {

@@ -4,6 +4,7 @@ import type { UserRole } from '@dentalware/shared'
 import { expect, type Browser, type Locator, type Page, type TestInfo } from '@playwright/test'
 import sharp from 'sharp'
 import { esProyecto, rutaCaptura, type Proyecto } from '../src/capturas-rutas'
+import { recorte } from './recorte'
 
 // `__dirname` y no `import.meta.dirname`: apps/docs no lleva `"type": "module"` (rompe el SSR de
 // Docusaurus), así que Playwright carga estos archivos como CommonJS.
@@ -68,7 +69,7 @@ const SIN_DEVTOOLS = `.TanStackRouterDevtools, .tsqd-parent-container, .tsqd-tra
  * está: una guía nunca se queda con una captura vieja sin que lo note nadie. La de página también
  * espera a un elemento propio de la pantalla, para no capturarla a medio cargar. Con `margen`
  * (en px de CSS), el recorte deja ese aire de fondo de la página alrededor del elemento, que
- * tiene que caber en la ventana. */
+ * tiene que caber en la ventana (si no, `recorte` lanza). */
 export async function captura(
   page: Page,
   nombre: string,
@@ -92,21 +93,12 @@ export async function captura(
           await expect(objetivo).toBeVisible()
           await objetivo.scrollIntoViewIfNeeded()
           if (!opciones.margen) return objetivo.screenshot(comun)
-          return page.screenshot({ ...comun, clip: await recorte(page, objetivo, opciones.margen) })
+          const caja = await objetivo.boundingBox()
+          const ventana = page.viewportSize()
+          if (!caja || !ventana) throw new Error(`No se pudo medir el elemento de ${nombre}.`)
+          return page.screenshot({ ...comun, clip: recorte(caja, ventana, opciones.margen) })
         })()
   await sharp(png).png({ compressionLevel: 9, palette: true }).toFile(destino)
-}
-
-/** La caja del elemento más `margen` px por lado, sin salirse de la ventana. */
-async function recorte(page: Page, objetivo: Locator, margen: number) {
-  const caja = await objetivo.boundingBox()
-  const ventana = page.viewportSize()
-  if (!caja || !ventana) throw new Error('No se pudo medir el elemento de la captura.')
-  const x = Math.max(0, caja.x - margen)
-  const y = Math.max(0, caja.y - margen)
-  const derecha = Math.min(ventana.width, caja.x + caja.width + margen)
-  const abajo = Math.min(ventana.height, caja.y + caja.height + margen)
-  return { x, y, width: derecha - x, height: abajo - y }
 }
 
 /** Abre la ficha del trabajo de demostración por la referencia del paciente (`DEMO_CASES`). */

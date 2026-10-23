@@ -27,6 +27,10 @@ sidebar_position: <n>
 <Solo si hay algo sin vuelta atrás. Si no, borra este bloque.>
 :::
 
+:::info <Título corto, p. ej. «Precios»>
+<Una nota neutra que conviene saber (no es un riesgo ni un atajo). Si no hay, borra este bloque.>
+:::
+
 ## Problemas frecuentes
 
 - **<Mensaje o situación tal cual>:** <qué hacer>.

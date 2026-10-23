@@ -16,15 +16,15 @@ Dentalware se abre desde el navegador, pero también puedes instalarlo: queda un
 
 1. Abre la dirección de la app en **Chrome**.
 2. Toca el menú **⋮**, arriba a la derecha.
-3. Toca **Instalar aplicación** (en algunos teléfonos dice **Añadir a pantalla de inicio**).
+3. Toca **Instalar aplicación** (en algunos teléfonos dice **Añadir a pantalla de inicio**; en otros, **Agregar**).
 4. Confirma con **Instalar**. El icono de Dentalware aparece en la pantalla de inicio.
 
 ## Pasos en un iPhone
 
-1. Abre la dirección de la app en **Safari** (en otro navegador no se puede instalar).
-2. Toca el botón **Compartir** (el cuadrado con la flecha hacia arriba), abajo en el centro.
-3. Desliza hacia abajo y toca **Añadir a pantalla de inicio**.
-4. Toca **Añadir**, arriba a la derecha. El icono de Dentalware aparece en la pantalla de inicio.
+1. Abre la dirección de la app en **Safari**.
+2. Toca el botón **Compartir** (el cuadrado con la flecha hacia arriba). Si no lo ves, toca **⋯** y después **Compartir**.
+3. Desliza hacia abajo y toca **Añadir a pantalla de inicio** (en algunos teléfonos dice **Agregar**).
+4. Toca **Añadir** (o **Agregar**), arriba a la derecha. El icono de Dentalware aparece en la pantalla de inicio.
 
 ## Pasos en la computadora
 
@@ -42,5 +42,7 @@ No hace falta actualizar nada a mano. Cuando hay una versión nueva, la app la d
 
 ## Problemas frecuentes
 
-- **No aparece «Instalar aplicación» ni el icono de instalar:** comprueba que estés en Chrome (Android o computadora) o en Safari (iPhone). Si ya la instalaste antes, la opción no vuelve a salir: busca el icono de Dentalware.
+- **No aparece «Instalar aplicación» ni el icono de instalar:** prueba con Chrome (Android o computadora) o con Safari (iPhone). Si ya la instalaste antes, la opción no vuelve a salir: busca el icono de Dentalware.
 - **La app instalada no abre:** necesita internet para entrar. Comprueba la señal o el wifi y vuelve a abrirla.
+
+{/* Pendiente: comprobar los rótulos en los teléfonos del laboratorio (Tarea 9 de la It7) */}

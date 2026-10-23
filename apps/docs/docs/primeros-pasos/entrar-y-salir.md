@@ -14,18 +14,18 @@ Para usar Dentalware entras con tu correo y tu contraseña. Así la app sabe qui
 
 ## Pasos para entrar
 
-1. Abre la dirección de la app en el navegador del teléfono o de la computadora (o toca su icono si [la instalaste](./instalar-la-app.md)).
+1. Abre la dirección de la app, que te da administración, en el navegador del teléfono o de la computadora (o toca su icono si [la instalaste](./instalar-la-app.md)).
 2. Escribe tu **Correo** y tu **Contraseña**. Te los da administración.
 3. Toca <Boton>Ingresar</Boton>.
-   <Captura nombre="primeros-pasos/entrar-formulario" alt="Pantalla para entrar: correo, contraseña y el botón Ingresar" telefono />
-4. Se abre **Inicio**. En recepción, con tu nombre arriba («Bienvenido, Carla Recepción») y los contadores del día: trabajos nuevos, en curso, los que vencen hoy o mañana, atrasados, en prueba, listos y las entregas de hoy. Toca un contador para ver esos trabajos.
+   <Captura nombre="primeros-pasos/entrar-formulario" alt="Pantalla para entrar: correo, contraseña y el botón Ingresar" />
+4. Se abre **Inicio**. En recepción, con tu nombre arriba («Bienvenido, Carla Recepción») y los contadores del día: trabajos nuevos, en curso, los que vencen hoy o mañana, atrasados, en prueba, listos y las entregas de hoy. Toca un contador para ver esos trabajos; «Entregas de hoy» abre **Entregas**. Al pie, «Estado del servidor» dice si la app llega al servidor: si dice «API: sin conexión», revisa la señal o el wifi.
    <Captura nombre="primeros-pasos/inicio-recepcion" alt="Inicio de recepción: contadores de trabajos nuevos, en curso, que vencen, atrasados, en prueba, listos y entregas de hoy" telefono />
 
 El técnico ve primero «Mis trabajos» y el mensajero, sus recogidas y entregas de hoy. Lo explica [Qué ve cada rol](./que-ve-cada-rol.md).
 
 ## Pasos para salir
 
-1. En la computadora, toca <Boton>Cerrar sesión</Boton> al pie del menú de la izquierda, bajo tu nombre. En el teléfono es el icono de la puerta con la flecha, arriba a la derecha, junto a «Dentalware».
+1. En la computadora, toca <Boton>Cerrar sesión</Boton> al pie del menú de la izquierda, bajo tu nombre. En el teléfono es el icono de la puerta con la flecha, en la barra de arriba, a la derecha.
    <Captura nombre="primeros-pasos/cerrar-sesion" alt="Botón Cerrar sesión: en la computadora, al pie del menú; en el teléfono, el icono arriba a la derecha" telefono />
 2. Vuelves a la pantalla para entrar.
 

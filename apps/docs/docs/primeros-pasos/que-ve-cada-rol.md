@@ -8,6 +8,8 @@ sidebar_position: 3
 
 Cada persona entra con un rol, y el menú solo muestra las pantallas de ese rol. Si buscas una pantalla y no está en tu menú, es que tu rol no la usa.
 
+Los roles son cuatro: **Administrador**, **Recepción**, **Técnico** y **Mensajero**. En este manual, «administración» es quien tiene el rol Administrador: crea los usuarios, da las contraseñas y cambia los roles.
+
 ## Las pantallas de cada rol
 
 | Pantalla          | Quién la ve                          |
