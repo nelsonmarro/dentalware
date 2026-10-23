@@ -1,6 +1,6 @@
 import { onlineManager } from '@tanstack/react-query'
 import { act, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithQueryAndRouter } from '@/test/render'
 import { AppShell } from './app-shell'
 
@@ -71,24 +71,34 @@ describe('AppShell', () => {
     },
   )
 
-  it.each([
-    { role: 'recepcion' as const, href: 'https://docs.dentalware.naphsoft.dev/recepcion/' },
-    { role: 'mensajero' as const, href: 'https://docs.dentalware.naphsoft.dev/mensajero/' },
-  ])(
-    '«Ayuda» abre la guía del rol $role en otra pestaña, en la barra lateral y en la cabecera móvil',
-    async ({ role, href }) => {
-      renderWithQueryAndRouter(<AppShell user={{ name: 'Ana', role }}>contenido</AppShell>)
-      const links = await screen.findAllByRole('link', {
-        name: 'Ayuda (abre el manual en otra pestaña)',
-      })
-      expect(links).toHaveLength(2)
-      for (const link of links) {
-        expect(link).toHaveAttribute('href', href)
-        expect(link).toHaveAttribute('target', '_blank')
-        expect(link).toHaveAttribute('rel', 'noopener')
-      }
-    },
-  )
+  // Sin VITE_DOCS_URL, la URL de producción: un `.env` local no cambia el resultado.
+  describe('«Ayuda»', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_DOCS_URL', '')
+    })
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it.each([
+      { role: 'recepcion' as const, href: 'https://docs.dentalware.naphsoft.dev/recepcion/' },
+      { role: 'mensajero' as const, href: 'https://docs.dentalware.naphsoft.dev/mensajero/' },
+    ])(
+      'abre la guía del rol $role en otra pestaña, en la barra lateral y en la cabecera móvil',
+      async ({ role, href }) => {
+        renderWithQueryAndRouter(<AppShell user={{ name: 'Ana', role }}>contenido</AppShell>)
+        const links = await screen.findAllByRole('link', {
+          name: 'Ayuda (abre el manual en otra pestaña)',
+        })
+        expect(links).toHaveLength(2)
+        for (const link of links) {
+          expect(link).toHaveAttribute('href', href)
+          expect(link).toHaveAttribute('target', '_blank')
+          expect(link).toHaveAttribute('rel', 'noopener')
+        }
+      },
+    )
+  })
 
   // UX4-11: el aviso sin conexión vive en el layout autenticado, en todas las pantallas de `_app`.
   describe('sin conexión', () => {
