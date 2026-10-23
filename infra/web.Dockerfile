@@ -18,6 +18,10 @@ COPY apps/web apps/web
 # (p. ej. la IP del VPS), y ese papel circula semanas por el laboratorio.
 ARG VITE_PUBLIC_URL
 ENV VITE_PUBLIC_URL=$VITE_PUBLIC_URL
+# URL pública del manual de usuario (`apps/web/src/features/help/help-url.ts`, enlace «Ayuda»):
+# también la incrusta Vite al compilar; la pasa docker-compose desde DOCS_PUBLIC_URL.
+ARG VITE_DOCS_URL
+ENV VITE_DOCS_URL=$VITE_DOCS_URL
 RUN pnpm --filter @dentalware/web... build
 
 FROM caddy:2-alpine

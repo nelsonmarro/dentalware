@@ -9,6 +9,7 @@ services:
       # El QR de la orden imprimible codifica esta URL (Vite la incrusta en build).
       args:
         VITE_PUBLIC_URL: ${PUBLIC_URL}
+        VITE_DOCS_URL: ${DOCS_PUBLIC_URL}
     restart: unless-stopped
     ports:
       - '80:80'

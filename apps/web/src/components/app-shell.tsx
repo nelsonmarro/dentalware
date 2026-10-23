@@ -1,10 +1,11 @@
 import type { UserRole } from '@dentalware/shared'
 import { ACCOUNTS_ROLES, DELIVERY_ROLES, hasRole, SETTINGS_ROLES } from '@dentalware/shared'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ClipboardList, Home, LogOut, Settings, Truck, Wallet } from 'lucide-react'
+import { CircleHelp, ClipboardList, Home, LogOut, Settings, Truck, Wallet } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { signOut } from '@/features/auth/session'
+import { helpUrl } from '@/features/help/help-url'
 import { OfflineNotice } from '@/components/offline-notice'
 
 type NavItem = { to: string; label: string; icon: typeof Home; roles?: readonly UserRole[] }
@@ -21,6 +22,8 @@ const NAV_LINK_BASE =
   'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none'
 const NAV_LINK_ACTIVE = 'bg-accent text-accent-foreground font-medium'
 const NAV_LINK_INACTIVE = 'text-muted-foreground'
+
+const HELP_LABEL = 'Ayuda (abre el manual en otra pestaña)'
 
 const BOTTOM_LINK_BASE =
   'flex flex-1 flex-col items-center gap-1 py-2 text-xs transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none'
@@ -66,6 +69,15 @@ export function AppShell({
         </nav>
         <div className="flex flex-col gap-2 border-t border-border px-3 py-3 text-sm">
           <span className="truncate px-1 text-muted-foreground">{user.name}</span>
+          <a
+            href={helpUrl(user.role)}
+            target="_blank"
+            rel="noopener"
+            aria-label={HELP_LABEL}
+            className={`${NAV_LINK_BASE} ${NAV_LINK_INACTIVE} min-h-11`}
+          >
+            <CircleHelp className="size-4" /> Ayuda
+          </a>
           <Button variant="outline" className="w-full justify-start gap-2" onClick={logout}>
             <LogOut className="size-4" />
             Cerrar sesión
@@ -80,9 +92,16 @@ export function AppShell({
             página (horizontal y barra de estado). */}
         <header className="flex items-center justify-between border-b border-border pt-[calc(0.75rem+env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] pb-3 pl-[max(1rem,env(safe-area-inset-left))] lg:hidden print:hidden">
           <span className="font-semibold">Dentalware</span>
-          <Button variant="ghost" size="icon" onClick={logout} aria-label="Cerrar sesión">
-            <LogOut className="size-4" />
-          </Button>
+          <div className="flex items-center">
+            <Button asChild variant="ghost" size="icon">
+              <a href={helpUrl(user.role)} target="_blank" rel="noopener" aria-label={HELP_LABEL}>
+                <CircleHelp className="size-4" />
+              </a>
+            </Button>
+            <Button variant="ghost" size="icon" onClick={logout} aria-label="Cerrar sesión">
+              <LogOut className="size-4" />
+            </Button>
+          </div>
         </header>
 
         <main className="flex-1 py-4 pr-[max(1rem,env(safe-area-inset-right))] pb-24 pl-[max(1rem,env(safe-area-inset-left))] lg:p-8 lg:pb-8 print:p-0">
