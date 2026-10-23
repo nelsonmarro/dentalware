@@ -71,17 +71,20 @@ test('un chip de botón va pegado a la puntuación', async ({ page }) => {
   expect(texto, 'aire entre el texto del chip y la puntuación (em)').toBeLessThanOrEqual(0.4)
 })
 
-// UX8-01: el buscador se anuncia en español, en el navbar y en la página de búsqueda.
-// El plugin convierte el campo en combobox al tocarlo (en el teléfono, al abrir la lupa): el
-// nombre tiene que seguir ahí después.
-test('el campo del buscador se llama «Buscar en el manual»', async ({ page }) => {
+// UX8-01: el buscador se anuncia en español, en el navbar y en la página de búsqueda. En escritorio
+// el campo ya se ve sin tocarlo (lo que audita Lighthouse); el plugin lo convierte en combobox al
+// tocarlo (en el teléfono, al abrir la lupa) y el nombre tiene que seguir ahí después.
+test('el campo del buscador se llama «Buscar en el manual»', async ({ page, isMobile }) => {
   await page.goto('/')
+  if (!isMobile) {
+    await expect(page.getByRole('textbox', { name: 'Buscar en el manual' })).toBeVisible()
+  }
   await page.locator('.navbar__search-input, .navbar__search button').first().click()
   await expect(page.getByRole('combobox', { name: 'Buscar en el manual' })).toBeVisible()
   await page.goto('/search/?q=recogida')
-  // El del navbar también está aquí y con el mismo nombre: el de la búsqueda es el de main.
+  // El del navbar también está aquí: el de la página tiene su propio nombre y va en main.
   await expect(
-    page.getByRole('main').getByRole('searchbox', { name: 'Buscar en el manual' }),
+    page.getByRole('main').getByRole('searchbox', { name: 'Buscar en el manual: términos' }),
   ).toBeVisible()
   await expectObjetivosTactiles(page, 'input[class*="searchQueryInput"]')
 })

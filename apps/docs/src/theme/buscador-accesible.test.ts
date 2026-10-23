@@ -15,10 +15,13 @@ describe('etiquetarBuscador', () => {
     expect(raiz.querySelector('input')).toHaveAttribute('aria-label', 'Buscar en el manual')
   })
 
-  it('nombra el campo de la página de búsqueda', () => {
+  it('nombra el campo de la página de búsqueda distinto del del navbar', () => {
     const raiz = dom('<input class="searchQueryInput_abc" placeholder="Buscar">')
     etiquetarBuscador(raiz)
-    expect(raiz.querySelector('input')).toHaveAttribute('aria-label', 'Buscar en el manual')
+    expect(raiz.querySelector('input')).toHaveAttribute(
+      'aria-label',
+      'Buscar en el manual: términos',
+    )
   })
 
   it('marca como main el contenedor de resultados si la página no tiene ninguno', () => {
@@ -33,11 +36,34 @@ describe('etiquetarBuscador', () => {
     expect(raiz.querySelector('.container')).not.toHaveAttribute('role')
   })
 
+  it('tampoco si otro elemento ya hace de main', () => {
+    const raiz = dom('<div role="main"></div><div class="container margin-vert--lg"></div>')
+    etiquetarBuscador(raiz)
+    expect(raiz.querySelector('.container')).not.toHaveAttribute('role')
+  })
+
   it('es idempotente y no toca otros campos', () => {
     const raiz = dom('<input class="navbar__search-input"><input aria-label="Otro">')
     etiquetarBuscador(raiz)
     etiquetarBuscador(raiz)
     expect(raiz.querySelector('[aria-label="Otro"]')).toBeInTheDocument()
     expect(raiz.querySelectorAll('[aria-label="Buscar en el manual"]')).toHaveLength(1)
+  })
+
+  it('sobre todo el documento, como SearchPage: nombra los dos campos y marca main', () => {
+    dom(
+      '<nav><input class="navbar__search-input" aria-label="Search"></nav>' +
+        '<div class="container margin-vert--lg"><input class="searchQueryInput_abc"></div>',
+    )
+    etiquetarBuscador(document)
+    expect(document.querySelector('.navbar__search-input')).toHaveAttribute(
+      'aria-label',
+      'Buscar en el manual',
+    )
+    expect(document.querySelector('.searchQueryInput_abc')).toHaveAttribute(
+      'aria-label',
+      'Buscar en el manual: términos',
+    )
+    expect(document.querySelector('.container')).toHaveAttribute('role', 'main')
   })
 })
