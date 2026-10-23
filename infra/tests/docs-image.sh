@@ -18,11 +18,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Sin DOCS_SITE_ADDRESS, como un .env de antes del manual: el compose usa :80 por omisión.
 {
   echo "PUBLIC_URL=http://127.0.0.1:${port}"
   echo "DOCS_PUBLIC_URL=http://127.0.0.1:${port}"
   echo "SITE_ADDRESS=:80"
-  echo "DOCS_SITE_ADDRESS=:80"
   echo "POSTGRES_USER=dw"
   echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
   echo "POSTGRES_DB=dw"
@@ -44,10 +44,12 @@ compose() {
     --env-file "$tmp/.env" "$@"
 }
 fail() { echo "FALLA: $*" >&2; failures=$((failures + 1)); }
+# Toda petición con tope de tiempo: un contenedor colgado falla la prueba en vez de colgarla.
+http() { curl -s --max-time 10 "$@"; }
 header_of() {
-  curl -sI "${base}$1" | tr -d '\r' | awk -v h="$2" 'tolower($1) == tolower(h) ":" { sub(/^[^:]*: */, ""); print }'
+  http -I "${base}$1" | tr -d '\r' | awk -v h="$2" 'tolower($1) == tolower(h) ":" { sub(/^[^:]*: */, ""); print }'
 }
-status_of() { curl -s -o /dev/null -w '%{http_code}' "${base}$1"; }
+status_of() { http -o /dev/null -w '%{http_code}' "${base}$1"; }
 expect_header() {
   local path="$1" name="$2" expected="$3" actual
   actual="$(header_of "$path" "$name")"
@@ -67,10 +69,14 @@ for path in / /primeros-pasos/entrar-y-salir/ /recepcion/ /mensajero/; do
   [ "$(status_of "$path")" = "200" ] || fail "${path}: no responde 200"
   expect_header "$path" Cache-Control "no-cache"
 done
-# Una página que no existe es 404, no la portada.
+# Una página que no existe es 404, no la portada, con la página «Página no encontrada» del manual.
 [ "$(status_of /no-existe/)" = "404" ] || fail "/no-existe/: debe responder 404"
+case "$(http "${base}/no-existe/")" in
+  *'Página no encontrada'*) ;;
+  *) fail "/no-existe/: no muestra la página «Página no encontrada» del manual" ;;
+esac
 # Los assets con hash son inmutables.
-asset="$(curl -s "${base}/" | grep -oE '/assets/[^"]+\.js' | head -n 1 || true)"
+asset="$(http "${base}/" | grep -oE '/assets/[^"]+\.js' | head -n 1 || true)"
 if [ -z "$asset" ]; then
   fail "la portada no enlaza ningún archivo de /assets/"
 else
@@ -78,7 +84,7 @@ else
   expect_header "$asset" Cache-Control "public, max-age=31536000, immutable"
 fi
 # Las capturas se sirven.
-captura="$(curl -s "${base}/primeros-pasos/entrar-y-salir/" | grep -oE '/img/capturas/[^"]+\.png' | head -n 1 || true)"
+captura="$(http "${base}/primeros-pasos/entrar-y-salir/" | grep -oE '/img/capturas/[^"]+\.png' | head -n 1 || true)"
 if [ -z "$captura" ]; then
   fail "la guía /primeros-pasos/entrar-y-salir/ no enlaza ninguna captura"
 else
@@ -87,6 +93,9 @@ fi
 # Cabeceras de seguridad.
 [ "$(header_of / Strict-Transport-Security | grep -c .)" = "1" ] || fail "/: falta Strict-Transport-Security"
 expect_header / X-Content-Type-Options "nosniff"
+expect_header / Referrer-Policy "strict-origin-when-cross-origin"
+expect_header / Content-Security-Policy "frame-ancestors 'none'"
+[ "$(header_of / Server | grep -c . || true)" = "0" ] || fail "/: no debe enviar la cabecera Server"
 # Healthy.
 cid="$(compose ps -q docs)"
 health="starting"

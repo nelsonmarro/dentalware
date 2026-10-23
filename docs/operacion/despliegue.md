@@ -212,6 +212,12 @@ A partir de aquí, `dw …` es `docker compose …` con todo lo de Dentalware.
 
 ## Paso 7 — Construir y arrancar
 
+Antes, comprueba que los puertos 8080 y 8081 están libres: el VPS lo comparten naphsoft y `docs.verith`, y si otro servicio ya escucha en uno de ellos, el contenedor no arranca.
+
+```bash
+sudo ss -ltnp | grep -E ':(8080|8081) '   # vacío
+```
+
 La primera vez tarda unos minutos: compila la web, la API y el manual.
 
 ```bash
@@ -456,6 +462,8 @@ git pull
 # Si el Caddyfile del repo cambió, regenera el del VPS (paso 6.2):
 git diff --stat HEAD@{1} -- infra/Caddyfile
 { printf '{\n\tservers {\n\t\ttrusted_proxies static private_ranges\n\t}\n}\n\n'; cat infra/Caddyfile; } > infra/Caddyfile.vps
+# Un .env de antes del manual solo necesita DOCS_PUBLIC_URL (paso 5), para el enlace «Ayuda»;
+# DOCS_SITE_ADDRESS toma :80 por omisión.
 dw up -d --build
 dw ps                                               # healthy
 dw logs api --tail 20
@@ -467,7 +475,7 @@ systemctl list-timers --all 'dentalware-*'         # los tres timers, con su pr�
 - Las migraciones de la base de datos se aplican solas al arrancar la API.
 - Si cambias `PUBLIC_URL`, hace falta `--build`, porque va dentro de la web.
 - `dw up -d --build` reconstruye también el manual (servicio `docs`); si cambias `DOCS_PUBLIC_URL`, hace falta `--build` (va dentro de la web, en el enlace «Ayuda»).
-- Si tu `infra/.env` es de antes del manual, añádele `DOCS_SITE_ADDRESS` y `DOCS_PUBLIC_URL` (paso 5) antes del `dw up -d --build`, y después haz el DNS de `docs.dentalware` (paso 1) y el paso 8 bis.
+- Si tu `infra/.env` es de antes del manual, añádele `DOCS_PUBLIC_URL` (paso 5) antes del `dw up -d --build`, y después haz el DNS de `docs.dentalware` (paso 1) y el paso 8 bis.
 - En los celulares, la app se actualiza sola al cerrarla y volver a abrirla.
 
 **Volver atrás** si algo sale mal. Primero, mira si la versión nueva traía migraciones de la base de datos:
@@ -511,7 +519,7 @@ En los dos casos, el repo queda en un commit suelto (*detached HEAD*), y el `git
 | nginx | `sudo nginx -t`, `sudo systemctl reload nginx`, `sudo journalctl -u nginx -n 50` |
 | Entrar a la base de datos | `dw exec postgres psql -U dentalware -d dentalware` |
 | 502 Bad Gateway | la API o Caddy están caídos: `dw ps`, `dw logs api` |
-| 502 en el manual | el contenedor `docs` está caído o falta `DOCS_SITE_ADDRESS` en el `.env`: `dw ps`, `dw logs docs` |
+| 502 en el manual | `dw logs docs`; el contenedor no arranca o el nginx apunta a otro puerto |
 | 413 al subir una foto | falta `client_max_body_size 30m` en el sitio de nginx (paso 8.1) |
 | «Demasiados intentos» en el login para todos | falta `trusted_proxies` en `Caddyfile.vps` (paso 6.2) |
 | El QR de la orden apunta a otro sitio | `PUBLIC_URL` mal puesto: corrígelo y `dw up -d --build` |

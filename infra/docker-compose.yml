@@ -37,7 +37,7 @@ services:
     ports:
       - '127.0.0.1:8081:80'
     environment:
-      SITE_ADDRESS: ${DOCS_SITE_ADDRESS}
+      SITE_ADDRESS: ${DOCS_SITE_ADDRESS:-:80}
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:2019/config/ >/dev/null']
       interval: 30s

@@ -16,3 +16,4 @@ infra/data
 *.md
 apps/docs/build
 apps/docs/.docusaurus
+apps/docs/capturas

@@ -28,5 +28,14 @@
   },
   "theme.SearchPage.searchContext.everywhere": {
     "message": "En todo el manual"
+  },
+  "theme.NotFound.title": {
+    "message": "Página no encontrada"
+  },
+  "theme.NotFound.p1": {
+    "message": "Esta página no existe en el manual."
+  },
+  "theme.NotFound.p2": {
+    "message": "Busca lo que necesitas con el buscador o vuelve a la portada desde el menú."
   }
 }

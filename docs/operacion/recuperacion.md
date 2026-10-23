@@ -145,7 +145,7 @@ Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `
 ### Ruta B: VPS nuevo con la copia del PC
 
 1. **VPS nuevo.** Créalo en hPanel (o reinstala el sistema del que no arranca) y anota la IP. Entra como `nelson`, con `sudo`.
-2. **DNS ya.** En Porkbun, cambia el registro A de `dentalware` (y el AAAA, si lo tenías) a la IP nueva (paso 1 de `despliegue.md`). Hazlo ahora: la propagación tarda, y el certificado del paso 12 la necesita.
+2. **DNS ya.** En Porkbun, cambia los registros A de `dentalware` y de `docs.dentalware` (y sus AAAA, si los tenías) a la IP nueva (paso 1 de `despliegue.md`). Hazlo ahora: la propagación tarda, y los certificados del paso 12 la necesitan.
 3. **Sistema.** Firewall (paso 2) y Docker (paso 3), y con Docker, `rsync` y `git`: `sudo pacman -Syu --needed rsync git` (en Arch, nunca `-S` sin `-yu`). nginx con certbot, como en el VPS de antes: allí ya estaban por naphsoft, y su configuración no está en este respaldo.
 4. **Repo.** Clónalo en `/opt/dentalware` (paso 4).
 5. **Repositorio de restic.** Súbelo desde tu PC a tu carpeta del VPS y, ya en él, muévelo a su sitio, solo para root:
@@ -221,7 +221,7 @@ Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `
     sudo infra/backup/restore.sh
     ```
 
-12. **nginx y certificado.** Cuando `dig +short dentalware.naphsoft.dev` dé la IP nueva, repite el paso 8 de `despliegue.md`: el sitio, certbot y la renovación.
+12. **nginx y certificado.** Cuando `dig +short dentalware.naphsoft.dev` dé la IP nueva, repite el paso 8 de `despliegue.md`: el sitio, certbot y la renovación. Y el paso 8 bis (el sitio del manual no está en el respaldo: se rehace con ese paso), cuando `dig +short docs.dentalware.naphsoft.dev` dé también la IP nueva.
 13. **Respaldos.** Vuelve a programarlos. Sin `--init`, porque el repositorio ya existe. Y lanza uno ahora:
 
     ```bash
@@ -239,6 +239,7 @@ Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `
 Al terminar cualquiera de los tres casos:
 
 - [ ] `https://dentalware.naphsoft.dev` abre con candado válido y entras como admin.
+- [ ] `https://docs.dentalware.naphsoft.dev` abre el manual.
 - [ ] **Trabajos:** la lista tiene los de la fecha del snapshot, y los últimos que recuerdas están.
 - [ ] **Clínicas:** están todas, con sus doctores y precios.
 - [ ] **Fotos:** abre la ficha de dos o tres trabajos con fotos: las miniaturas se ven y la foto abre.
