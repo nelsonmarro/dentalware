@@ -162,7 +162,11 @@ describe('CaseForm', { timeout: 15_000 }, () => {
     vi.mocked(fetchClinics).mockRejectedValueOnce(new TypeError('Failed to fetch'))
     renderForm(<CaseForm role="admin" pending={false} onSubmit={vi.fn()} />)
 
-    expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    // Primera prueba del archivo: con toda la suite en paralelo, el primer render (router,
+    // consultas) pasa del segundo por omisión de `findBy*` y el formulario sigue cargando.
+    expect(
+      await screen.findByRole('button', { name: 'Reintentar' }, { timeout: 5_000 }),
+    ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument()
   })
 
