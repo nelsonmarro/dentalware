@@ -120,6 +120,8 @@ export default defineConfig([
     '**/routeTree.gen.ts',
     'apps/api/drizzle/**',
     'apps/web/dev-dist/**',
+    'apps/docs/build/**',
+    'apps/docs/.docusaurus/**',
     '.remember/**',
   ]),
   {
@@ -131,7 +133,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['apps/web/**/*.{ts,tsx}'],
+    files: ['apps/web/**/*.{ts,tsx}', 'apps/docs/src/**/*.{ts,tsx}'],
     extends: [reactHooks.configs.flat.recommended],
   },
   {

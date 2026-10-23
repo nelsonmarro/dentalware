@@ -1,0 +1,32 @@
+{
+  "theme.SearchBar.label": {
+    "message": "Buscar"
+  },
+  "theme.SearchBar.seeAll": {
+    "message": "Ver todos los resultados"
+  },
+  "theme.SearchBar.noResultsText": {
+    "message": "Sin resultados"
+  },
+  "theme.SearchBar.searchInContext": {
+    "message": "Ver todos los resultados en «{context}»"
+  },
+  "theme.SearchBar.seeAllOutsideContext": {
+    "message": "Ver todos los resultados fuera de «{context}»"
+  },
+  "theme.SearchPage.existingResultsTitle": {
+    "message": "Resultados para «{query}»"
+  },
+  "theme.SearchPage.emptyResultsTitle": {
+    "message": "Buscar en el manual"
+  },
+  "theme.SearchPage.documentsFound.plurals": {
+    "message": "{count} página encontrada|{count} páginas encontradas"
+  },
+  "theme.SearchPage.noResultsText": {
+    "message": "No se encontró ninguna página"
+  },
+  "theme.SearchPage.searchContext.everywhere": {
+    "message": "En todo el manual"
+  }
+}

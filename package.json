@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "pnpm --filter @dentalware/shared build && pnpm -r --parallel --stream dev",
     "build": "pnpm -r build",
-    "typecheck": "tsc -b packages/shared apps/api && pnpm --filter @dentalware/web typecheck",
+    "typecheck": "tsc -b packages/shared apps/api && pnpm --filter @dentalware/web typecheck && pnpm --filter @dentalware/docs typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "e2e": "pnpm --filter @dentalware/web e2e",
     "e2e:pr": "pnpm --filter @dentalware/web e2e:pr",
+    "capturas": "pnpm --filter @dentalware/docs capturas",
     "db:up": "docker compose -f infra/docker-compose.dev.yml up -d",
     "db:down": "docker compose -f infra/docker-compose.dev.yml down",
     "prepare": "husky"
