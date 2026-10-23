@@ -87,6 +87,11 @@ Tres detalles de la tubería que conviene saber:
   navegador dos horas después del último evento del trabajo y muestra siempre «hace 2 horas».
 - **`Captura` declara las imágenes solo con `srcset … 2x`, sin `src`**: con `src`, una pantalla normal
   (1x) lo elegiría y pintaría la imagen al doble de su tamaño.
+- **El tamaño de cada captura va en `static/img/capturas/dimensiones.json`**, en píxeles del PNG
+  (`"<nombre>.<proyecto>": [ancho, alto]`): `captura()` lo escribe al guardar cada imagen y `Captura`
+  lo pinta como `width`/`height` a la mitad, para que la página no salte mientras cargan. Si borras o
+  renombras capturas a mano, regenéralo entero con `pnpm --filter @dentalware/docs capturas:dimensiones`;
+  `capturas-referenciadas.test.ts` falla si no cuadra con los PNG.
 
 Requisitos: Postgres de desarrollo arriba (`pnpm db:up`, puerto 5433) y Node 24.
 

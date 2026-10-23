@@ -94,3 +94,19 @@ test('la página de búsqueda tiene main', async ({ page }) => {
   await page.goto('/search/?q=recogida')
   await expect(page.getByRole('main')).toHaveCount(1)
 })
+
+// UX8-04: cada captura reserva su sitio antes de cargar (`width`/`height` de `dimensiones.json`),
+// así la página no salta mientras llegan las imágenes.
+test('toda captura declara width y height', async ({ page }) => {
+  await page.goto('/recepcion/crear-un-trabajo/')
+  const imagenes = page.locator('img.captura__img')
+  const atributos = await imagenes.evaluateAll((imgs) =>
+    imgs.map((img) => ({
+      src: img.getAttribute('srcset') ?? '',
+      width: Number(img.getAttribute('width')),
+      height: Number(img.getAttribute('height')),
+    })),
+  )
+  expect(atributos.length, 'ninguna captura en la guía').toBeGreaterThan(0)
+  expect(atributos.filter((a) => !(a.width > 0 && a.height > 0))).toEqual([])
+})

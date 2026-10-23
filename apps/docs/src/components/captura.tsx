@@ -1,17 +1,37 @@
 import useBaseUrl from '@docusaurus/useBaseUrl'
+import dimensiones from '@site/static/img/capturas/dimensiones.json'
 import type { ReactNode } from 'react'
 import { proyectosCaptura, rutaCaptura, type Proyecto } from '../capturas-rutas'
+
+/** `[ancho, alto]` en píxeles de cada PNG, por `<nombre>.<proyecto>`: lo escribe la tubería
+ * (`capturas/dimensiones.ts`). */
+const DIMENSIONES: Record<string, readonly number[] | undefined> = dimensiones
+
+const mitad = (pixeles: number | undefined) => (pixeles === undefined ? undefined : pixeles / 2)
 
 /** Una variante: la tubería la toma a `deviceScaleFactor: 2`, así que se declara `2x` y el
  * navegador la pinta a la mitad de sus píxeles (su tamaño real en la app, nítida en retina). Solo
  * `srcSet`, sin `src`: el `src` cuenta como candidata `1x` y una pantalla normal la elegiría,
- * pintándola al doble. La ruta pasa por `useBaseUrl` por si el sitio se publica bajo otra base. */
-function CapturaImg({ ruta, alt, proyecto }: { ruta: string; alt: string; proyecto: Proyecto }) {
-  const src = useBaseUrl(ruta)
+ * pintándola al doble. La ruta pasa por `useBaseUrl` por si el sitio se publica bajo otra base.
+ * `width`/`height` (también a la mitad) reservan su sitio antes de cargarla, para que la página
+ * no salte (UX8-04); sin entrada en `dimensiones.json`, van sin ellos. */
+function CapturaImg({
+  nombre,
+  alt,
+  proyecto,
+}: {
+  nombre: string
+  alt: string
+  proyecto: Proyecto
+}) {
+  const src = useBaseUrl(rutaCaptura(nombre, proyecto))
+  const [ancho, alto] = DIMENSIONES[`${nombre}.${proyecto}`] ?? []
   return (
     <img
       srcSet={`${src} 2x`}
       alt={alt}
+      width={mitad(ancho)}
+      height={mitad(alto)}
       loading="lazy"
       className={`captura__img captura__img--${proyecto}`}
     />
@@ -42,7 +62,7 @@ export function Captura({
         {proyectos.map((p) => (
           <CapturaImg
             key={p}
-            ruta={rutaCaptura(nombre, p)}
+            nombre={nombre}
             alt={p === 'telefono' && proyectos.length > 1 ? `${alt} (en el teléfono)` : alt}
             proyecto={p}
           />
