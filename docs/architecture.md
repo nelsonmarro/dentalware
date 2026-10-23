@@ -114,8 +114,9 @@ Saldo de clínica = Σ cargos de los trabajos entregados y cobrados + Σ ajustes
 
 ## 7. Despliegue y CI
 
-- `infra/docker-compose.yml` levanta tres contenedores y un volumen:
+- `infra/docker-compose.yml` levanta cuatro contenedores y un volumen:
   - `caddy`: sirve la web y hace de proxy de `/api`. Caché: `no-cache` por defecto (shell, service worker y manifiesto), `immutable` solo en `/assets/*` (un asset que no existe da 404, nunca el `index.html`) y nada propio en `/api/*`, que fija la API;
+  - `docs`: sirve el manual (`apps/docs`) con su propio Caddy en `127.0.0.1:8081`, detrás del nginx; imagen `infra/docs.Dockerfile` (`infra/Caddyfile.docs`, `DOCS_SITE_ADDRESS`): mismas cabeceras de seguridad que `caddy`, `immutable` solo en `/assets/*` y `no-cache` en el resto, y una ruta que no existe da 404, nunca la portada;
   - `api`: Node 24, migra al arrancar;
   - `postgres`;
   - volumen `uploads`.
@@ -123,7 +124,7 @@ Saldo de clínica = Σ cargos de los trabajos entregados y cobrados + Σ ajustes
 - **Desarrollo**: Postgres en el puerto 5433, con la BD `dentalware_test`.
 - **`PUBLIC_URL`**: se incrusta en el bundle (QR de la orden), así que cambiarlo exige `--build`.
 - **CI**: `quality`, `e2e`, `infra` y `respaldo` en paralelo; los niveles de E2E por evento están en `docs/conventions.md` §7 (el PR corre también los `@esencial` en `iphone`, #133). Una ruleset del repo sobre `main` exige esos cuatro checks en verde para mergear y prohíbe borrarla y el `--force`; el auto-merge de GitHub está activado y espera a ellos (antes mergeaba al instante).
-  - `infra`: `shellcheck` de todo `infra/**/*.sh`, las cabeceras de Caddy real (`infra/tests/caddy-headers.sh`) y la imagen de la API (`infra/tests/api-image.sh`: tamaño y arranque).
+  - `infra`: `shellcheck` de todo `infra/**/*.sh`, las cabeceras de Caddy real (`infra/tests/caddy-headers.sh`), la imagen de la API (`infra/tests/api-image.sh`: tamaño y arranque) y la imagen del manual (`infra/tests/docs-image.sh`: páginas, 404, cabeceras, capturas y healthcheck).
   - `respaldo`: las unidades de systemd e `install.sh --dry-run` (`infra/tests/backup-units.sh`) y el ciclo respaldo → desastre → restauración, la verificación y el simulacro (`infra/tests/backup-roundtrip.sh`), sin red externa.
 - **Deploy**: manual por SSH, con un respaldo antes: `git pull`, `docker compose … up -d --build` y `sudo infra/backup/install.sh` (pasos en «Actualizar a una versión nueva» de `docs/operacion/despliegue.md`).
 

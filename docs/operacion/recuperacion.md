@@ -75,7 +75,7 @@ Para una BD corrupta o un error humano: un trabajo, un pago o una clínica borra
    sudo infra/backup/restore.sh --snapshot <id>
    # … «Restauración completa desde el snapshot <id>.»
    dw up -d
-   dw ps                                            # los tres (healthy)
+   dw ps                                            # los cuatro (healthy)
    ```
 
    Aquí la copia `antes-de-restaurar-*` que deja `restore.sh` es la de la BD vacía: la buena es la `antes-de-borrar-*` del paso 3.
@@ -134,7 +134,7 @@ Usa la más reciente de las dos. La copia del PC tiene la fecha de su último `r
 Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `.env`, los respaldos de restic y los timers.
 
 1. En hPanel › VPS › Administrar › Backups & Monitoring › Snapshots & Backups, elige la copia y pulsa «Restore». El VPS queda bloqueado mientras dura, de 10 minutos a unas horas, y no se puede cancelar. Si el VPS ya no existe, pide a soporte de Hostinger que restaure esa copia en el VPS nuevo.
-2. Entra por SSH y comprueba que todo arrancó: `dw ps` (los tres sanos), `systemctl list-timers 'dentalware-*'` y `https://dentalware.naphsoft.dev`.
+2. Entra por SSH y comprueba que todo arrancó: `dw ps` (los cuatro sanos), `systemctl list-timers 'dentalware-*'` y `https://dentalware.naphsoft.dev`.
 3. Si la copia del PC es **más nueva** que el backup de Hostinger, pon encima su último snapshot. La pila ya está arrancada, así que no se usa `dw create`:
    1. Pon el código al día, porque la BD de la copia del PC puede ser de una versión posterior a la del disco de Hostinger: `cd /opt/dentalware && git pull && dw up -d --build`, y después `sudo infra/backup/install.sh`.
    2. Aparta el repositorio viejo con `sudo mv /var/backups/dentalware/restic /var/backups/dentalware/restic.hostinger` y trae el del PC con el paso 5 de la ruta B.
@@ -209,7 +209,7 @@ Restaura el disco entero del VPS a la fecha de ese backup: Docker, el repo, el `
     sudo infra/backup/restore.sh
     # … «Restauración completa desde el snapshot latest.»
     dw up -d
-    dw ps                                         # los tres sanos
+    dw ps                                         # los cuatro sanos
     curl -s http://127.0.0.1:8080/api/health      # OK
     ```
 

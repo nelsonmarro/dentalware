@@ -14,3 +14,5 @@ node_modules
 docs
 infra/data
 *.md
+apps/docs/build
+apps/docs/.docusaurus

@@ -29,6 +29,21 @@ services:
       api:
         condition: service_healthy
 
+  # Manual de usuario (apps/docs) con su propio Caddy, solo en 127.0.0.1:8081: lo publica el
+  # nginx del VPS (docs/operacion/despliegue.md, paso 8 bis).
+  docs:
+    build: { context: .., dockerfile: infra/docs.Dockerfile }
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:8081:80'
+    environment:
+      SITE_ADDRESS: ${DOCS_SITE_ADDRESS}
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:2019/config/ >/dev/null']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   api:
     build: { context: .., dockerfile: infra/api.Dockerfile }
     restart: unless-stopped
