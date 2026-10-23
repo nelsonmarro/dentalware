@@ -6,6 +6,7 @@
     "dev": "docusaurus start --port 3100",
     "build": "docusaurus build",
     "serve": "docusaurus serve --port 3100",
+    "sitio": "playwright test --config sitio/playwright.config.ts --tsconfig capturas/tsconfig.playwright.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "capturas": "bash scripts/capturas.sh",

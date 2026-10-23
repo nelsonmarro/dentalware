@@ -11,6 +11,7 @@ export PATH=$HOME/.nvm/versions/node/v24.19.0/bin:$PATH
 pnpm --filter @dentalware/docs dev      # http://localhost:3100, recarga al guardar
 pnpm --filter @dentalware/docs build    # como en CI: falla con un enlace, ancla o imagen rotos
 pnpm --filter @dentalware/docs serve    # sirve el build en http://localhost:3100
+pnpm --filter @dentalware/docs sitio    # barrido del sitio construido a 1280, 390 y 360 (Playwright)
 ```
 
 El buscador solo funciona sobre el build (`build` + `serve`), no en `dev`. El `pnpm build` de la raíz
