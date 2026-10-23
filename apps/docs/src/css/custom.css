@@ -119,6 +119,12 @@ h1 {
   height: 44px;
 }
 
+/* UX8-01: el campo de la página de búsqueda, también a 44 px (su clase lleva el hash del módulo
+ * CSS del plugin) */
+input[class*='searchQueryInput'] {
+  min-height: 44px;
+}
+
 /* UX8-02: migas, marca, enlaces del navbar y «En esta página» a 44 px; la tabla de contenidos de
  * escritorio, con cada entrada a 44 (sin tablas densas en el manual, no hay 36 con puntero fino).
  * La miga de la portada es solo un icono: también 44 de ancho. «En esta página» se elige por

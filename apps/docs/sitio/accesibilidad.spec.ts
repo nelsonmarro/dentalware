@@ -70,3 +70,24 @@ test('un chip de botón va pegado a la puntuación', async ({ page }) => {
   expect(caja, 'margen entre el chip y la puntuación (px)').toBeLessThan(2)
   expect(texto, 'aire entre el texto del chip y la puntuación (em)').toBeLessThanOrEqual(0.4)
 })
+
+// UX8-01: el buscador se anuncia en español, en el navbar y en la página de búsqueda.
+// El plugin convierte el campo en combobox al tocarlo (en el teléfono, al abrir la lupa): el
+// nombre tiene que seguir ahí después.
+test('el campo del buscador se llama «Buscar en el manual»', async ({ page }) => {
+  await page.goto('/')
+  await page.locator('.navbar__search-input, .navbar__search button').first().click()
+  await expect(page.getByRole('combobox', { name: 'Buscar en el manual' })).toBeVisible()
+  await page.goto('/search/?q=recogida')
+  // El del navbar también está aquí y con el mismo nombre: el de la búsqueda es el de main.
+  await expect(
+    page.getByRole('main').getByRole('searchbox', { name: 'Buscar en el manual' }),
+  ).toBeVisible()
+  await expectObjetivosTactiles(page, 'input[class*="searchQueryInput"]')
+})
+
+// UX8-13: la página de búsqueda tiene un landmark main.
+test('la página de búsqueda tiene main', async ({ page }) => {
+  await page.goto('/search/?q=recogida')
+  await expect(page.getByRole('main')).toHaveCount(1)
+})
