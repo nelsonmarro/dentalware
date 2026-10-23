@@ -57,9 +57,47 @@ describe lo que se ve; `pie` añade un texto debajo.
 
 ## Regenerar las capturas
 
-`pnpm capturas` (desde la raíz) arranca la API y la web en modo test, carga los datos de demostración y
-vuelve a sacar todas las capturas en `static/img/capturas/`. El modo rápido y el detalle de la tubería
-se completan con ella (Tarea 3 del plan del manual).
+Las capturas salen de una tubería de Playwright (`capturas/`) sobre los datos de demostración de
+`seed:demo` (ficticios), con el reloj fijo en el martes 20 de octubre de 2026 a las 10:30 (API,
+seed y navegador): dos corridas dan las mismas imágenes bit a bit. Cada spec recorre una pantalla y
+llama a `captura(page, '<seccion>/<nombre>', locator, { testInfo })`, que escribe
+`static/img/capturas/<seccion>/<nombre>.escritorio.png` (1280×800) y `….telefono.png` (Pixel 7).
+Los specs nunca guardan nada: los diálogos se abren, se capturan y se cierran con «Volver».
+
+Requisitos: Postgres de desarrollo arriba (`pnpm db:up`, puerto 5433) y Node 24.
+
+**Modo completo**, antes de cada commit y al cerrar una tarea (el puerto 3000 tiene que estar libre):
+
+```bash
+pnpm capturas                                      # todas
+pnpm capturas -- recepcion.spec.ts -g "pago"       # solo las que casen
+```
+
+Genera una contraseña de demostración nueva, vacía la BD de test y la vuelve a sembrar
+(`reset-test-db` → `seed` → `seed:demo`), arranca su propia API con el reloj fijo (y la web, si no
+está en 5173), entra con los cuatro roles y toma las capturas. Al terminar lista las imágenes que
+cambiaron.
+
+**Modo rápido**, mientras se diseña una captura (segundos por corrida, sin resembrar):
+
+```bash
+pnpm --filter @dentalware/docs capturas:servidores   # en otra terminal; se para con Ctrl+C
+CAPTURAS_RAPIDO=1 pnpm capturas -- primeros-pasos.spec.ts -g entrar
+```
+
+`capturas:servidores` deja la BD sembrada y la API con el reloj fijo en primer plano; el modo rápido la
+reutiliza, igual que las sesiones guardadas. La web dev la arranca Playwright en cada corrida, o
+déjala corriendo aparte (`pnpm --filter @dentalware/web dev`) para ganar unos segundos. Mientras
+corre no edites `apps/web`: la recarga de Vite rompe la corrida.
+
+La contraseña de demostración y las sesiones viven en `capturas/.auth/` (solo para ti, ignorado por
+git): nunca se copian a un archivo del repo, a un informe ni a una captura.
+
+**Qué revisar en el `git diff`**: una imagen cambiada significa que cambió la UI (los datos y el reloj
+son fijos). Ábrela y comprueba que el cambio es el esperado y que la guía sigue diciendo lo que se
+ve. Una imagen nueva necesita su `<Captura nombre="…">` en una guía, y una guía no puede pedir una
+captura que ningún spec produce: `capturas-referenciadas.test.ts` (en `pnpm test`) lo comprueba en
+las dos direcciones.
 
 ## Qué no puede salir nunca
 

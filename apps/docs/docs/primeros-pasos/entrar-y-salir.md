@@ -6,4 +6,4 @@ sidebar_position: 1
 
 # Entrar y salir
 
-(Se escribe en la Tarea 4.)
+<Captura nombre="primeros-pasos/entrar-formulario" alt="Pantalla para entrar: correo, contraseña y el botón Ingresar" telefono />

@@ -8,3 +8,5 @@ docs/caputras_ejemplo
 /docs/
 apps/docs/build
 apps/docs/.docusaurus
+# sesiones y contraseña locales de las capturas (ignoradas por git en su propio .gitignore)
+apps/docs/capturas/.auth
