@@ -160,7 +160,7 @@ test('el enlace de ancla de un título dice a qué sección va', async ({ page }
 // UX8-10: la 404 ofrece una salida que se ve y se toca igual en el teléfono y en la computadora.
 test('la 404 ofrece volver a la portada', async ({ page }) => {
   await page.goto('/no-existe/')
-  const volver = page.getByRole('link', { name: 'Ir a la portada' })
+  const volver = page.getByRole('main').getByRole('link', { name: 'Ir a la portada' })
   await expect(volver).toBeVisible()
   await expectObjetivosTactiles(page, 'a.portada__volver')
   await volver.click()

@@ -10,8 +10,3 @@ declare module '@theme-original/SearchPage' {
   const SearchPage: ComponentType<Record<string, unknown>>
   export default SearchPage
 }
-declare module '@theme-original/NotFound/Content' {
-  import type { ComponentType } from 'react'
-  const Content: ComponentType<{ className?: string }>
-  export default Content
-}
