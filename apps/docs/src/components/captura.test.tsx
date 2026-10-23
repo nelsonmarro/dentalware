@@ -15,6 +15,14 @@ describe('Captura', () => {
     expect(img).toHaveAttribute('loading', 'lazy')
   })
 
+  it('declara la imagen como 2x: se muestra a la mitad de sus píxeles, nítida y sin estirarse', () => {
+    render(<Captura nombre="primeros-pasos/entrar-formulario" alt="Entrar" telefono />)
+    expect(screen.getAllByRole('img').map((i) => i.getAttribute('srcset'))).toEqual([
+      '/img/capturas/primeros-pasos/entrar-formulario.escritorio.png 2x',
+      '/img/capturas/primeros-pasos/entrar-formulario.telefono.png 2x',
+    ])
+  })
+
   it('con `telefono`, añade la variante de teléfono con su propio alt', () => {
     render(<Captura nombre="mensajero/entregas-del-dia" alt="Entregas del día" telefono />)
     const imgs = screen.getAllByRole('img')

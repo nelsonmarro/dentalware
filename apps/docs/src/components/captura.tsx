@@ -1,23 +1,21 @@
+import useBaseUrl from '@docusaurus/useBaseUrl'
 import type { ReactNode } from 'react'
+import { proyectosCaptura, rutaCaptura, type Proyecto } from '../capturas-rutas'
 
-export type Proyecto = 'escritorio' | 'telefono'
-
-/** Ruta fija de una captura: la tubería (`capturas/helpers.ts`) escribe exactamente aquí y
- * `capturas-referenciadas.test.ts` cruza los nombres en las dos direcciones. */
-export function rutaCaptura(nombre: string, proyecto: Proyecto): string {
-  return `/img/capturas/${nombre}.${proyecto}.png`
-}
-
-/** Qué variantes pinta una `<Captura>`: escritorio; con `telefono`, las dos; con `solo`, esa.
- * `capturas-referenciadas.test.ts` exige el PNG de cada una con esta misma regla. */
-export function proyectosCaptura({
-  telefono = false,
-  solo,
-}: {
-  telefono?: boolean
-  solo?: Proyecto
-}): Proyecto[] {
-  return solo ? [solo] : telefono ? ['escritorio', 'telefono'] : ['escritorio']
+/** Una variante: la tubería la toma a `deviceScaleFactor: 2`, así que se declara `2x` y el
+ * navegador la pinta a la mitad de sus píxeles (su tamaño real en la app, nítida en retina). La
+ * ruta pasa por `useBaseUrl` por si el sitio se publica bajo otra base. */
+function CapturaImg({ ruta, alt, proyecto }: { ruta: string; alt: string; proyecto: Proyecto }) {
+  const src = useBaseUrl(ruta)
+  return (
+    <img
+      src={src}
+      srcSet={`${src} 2x`}
+      alt={alt}
+      loading="lazy"
+      className={`captura__img captura__img--${proyecto}`}
+    />
+  )
 }
 
 export function Captura({
@@ -41,12 +39,11 @@ export function Captura({
     <figure className="captura">
       <div className="captura__imagenes">
         {proyectos.map((p) => (
-          <img
+          <CapturaImg
             key={p}
-            src={rutaCaptura(nombre, p)}
+            ruta={rutaCaptura(nombre, p)}
             alt={p === 'telefono' && proyectos.length > 1 ? `${alt} (en el teléfono)` : alt}
-            loading="lazy"
-            className={`captura__img captura__img--${p}`}
+            proyecto={p}
           />
         ))}
       </div>

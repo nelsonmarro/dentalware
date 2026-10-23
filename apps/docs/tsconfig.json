@@ -5,7 +5,7 @@
     "paths": { "@site/*": ["./*"] },
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "types": ["@docusaurus/module-type-aliases", "@docusaurus/theme-classic", "vitest/globals"]
+    "types": ["@docusaurus/module-type-aliases", "@docusaurus/theme-classic"]
   },
   "include": ["src", "capturas", "scripts", "docusaurus.config.ts", "sidebars.ts", "*.test.ts"],
   "exclude": ["build", ".docusaurus"]

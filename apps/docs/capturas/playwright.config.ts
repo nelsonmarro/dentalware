@@ -40,11 +40,17 @@ export default defineConfig({
       cwd: '../../..',
     },
   ],
+  // Las dos a 2 píxeles por punto (el Pixel 7 trae 2.625): `Captura` las declara `2x` y el sitio
+  // las pinta a su tamaño real, nítidas también en pantallas retina.
   projects: [
     {
       name: 'escritorio',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } },
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+        deviceScaleFactor: 2,
+      },
     },
-    { name: 'telefono', use: { ...devices['Pixel 7'] } },
+    { name: 'telefono', use: { ...devices['Pixel 7'], deviceScaleFactor: 2 } },
   ],
 })

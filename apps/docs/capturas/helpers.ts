@@ -1,14 +1,14 @@
 import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import type { UserRole } from '@dentalware/shared'
 import { expect, type Browser, type Locator, type Page, type TestInfo } from '@playwright/test'
 import sharp from 'sharp'
-
-export type Rol = 'admin' | 'recepcion' | 'tecnico' | 'mensajero'
+import { esProyecto, rutaCaptura, type Proyecto } from '../src/capturas-rutas'
 
 // `__dirname` y no `import.meta.dirname`: apps/docs no lleva `"type": "module"` (rompe el SSR de
 // Docusaurus), así que Playwright carga estos archivos como CommonJS.
 export const AUTH_DIR = join(__dirname, '.auth')
-export const CAPTURAS_DIR = join(__dirname, '..', 'static', 'img', 'capturas')
+export const STATIC_DIR = join(__dirname, '..', 'static')
 
 /** Variables de `apps/api/.env.test`: el admin de las capturas es el mismo que el de la API en
  * modo test, leído de ahí y no copiado en este archivo. */
@@ -33,7 +33,7 @@ function requerida(nombre: string, env: Record<string, string> = {}): string {
 /** Credenciales de los usuarios de demostración (apps/api/src/scripts/seed-demo-data.ts) y del
  * admin de `.env.test`. La contraseña de demostración viene del entorno (`capturas.sh` la lee de
  * `.auth/demo-password`), nunca de un archivo del repo. */
-function cuenta(rol: Rol): { email: string; password: string } {
+function cuenta(rol: UserRole): { email: string; password: string } {
   if (rol === 'admin') {
     const env = envTest()
     return { email: requerida('ADMIN_EMAIL', env), password: requerida('ADMIN_PASSWORD', env) }
@@ -41,10 +41,10 @@ function cuenta(rol: Rol): { email: string; password: string } {
   return { email: `${rol}@demo.local`, password: requerida('DEMO_PASSWORD') }
 }
 
-export const sesionDe = (rol: Rol) => join(AUTH_DIR, `${rol}.json`)
+export const sesionDe = (rol: UserRole) => join(AUTH_DIR, `${rol}.json`)
 
 /** Inicia sesión y guarda el `storageState` del rol (lo llama `global-setup.ts` una vez por corrida). */
-export async function guardarSesion(browser: Browser, rol: Rol, baseURL: string) {
+export async function guardarSesion(browser: Browser, rol: UserRole, baseURL: string) {
   const { email, password } = cuenta(rol)
   const page = await browser.newPage({ baseURL })
   await page.goto('/login')
@@ -65,11 +65,13 @@ export async function captura(
   page: Page,
   nombre: string,
   objetivo: Locator | { pagina: true; esperar: Locator },
-  opciones: { testInfo: TestInfo; solo?: 'escritorio' | 'telefono' },
+  opciones: { testInfo: TestInfo; solo?: Proyecto },
 ) {
   const proyecto = opciones.testInfo.project.name
+  if (!esProyecto(proyecto)) throw new Error(`Proyecto de capturas desconocido: ${proyecto}`)
   if (opciones.solo && opciones.solo !== proyecto) return
-  const destino = join(CAPTURAS_DIR, `${nombre}.${proyecto}.png`)
+  // La misma ruta que pinta `<Captura>` en el sitio.
+  const destino = join(STATIC_DIR, rutaCaptura(nombre, proyecto))
   mkdirSync(dirname(destino), { recursive: true })
   const png =
     'pagina' in objetivo

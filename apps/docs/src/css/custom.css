@@ -128,22 +128,16 @@ h1 {
   gap: 0.75rem;
 }
 
+/* Declaradas 2x (`srcset`): se pintan a su tamaño real en la app, nunca estiradas; solo se encogen
+ * si no caben. */
 .captura__img {
   display: block;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
   height: auto;
   border: 1px solid var(--dw-plaster);
   border-radius: 0.5rem;
-}
-
-.captura__img--escritorio {
-  flex: 1 1 auto;
-  max-width: 100%;
-}
-
-.captura__img--telefono {
-  flex: 0 1 auto;
-  max-width: 390px;
 }
 
 .captura figcaption {
@@ -155,10 +149,6 @@ h1 {
 @media (max-width: 767px) {
   .captura__imagenes {
     flex-direction: column;
-  }
-
-  .captura__img--telefono {
-    max-width: min(390px, 100%);
   }
 }
 

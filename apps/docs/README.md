@@ -53,7 +53,8 @@ El texto de un botón o enlace de la app, tal cual.
 
 Una captura de `static/img/capturas/<nombre>.escritorio.png`; con `telefono`, también la de
 `<nombre>.telefono.png` al lado (debajo en el teléfono), y con `solo="telefono"`, solo esa. `alt`
-describe lo que se ve; `pie` añade un texto debajo.
+describe lo que se ve; `pie` añade un texto debajo. Las capturas se toman a 2 píxeles por punto y
+`Captura` las declara `2x`: se ven a su tamaño real en la app, nítidas, y nunca se estiran.
 
 ## Regenerar las capturas
 
@@ -62,7 +63,8 @@ Las capturas salen de una tubería de Playwright (`capturas/`) sobre los datos d
 seed y navegador): dos corridas dan las mismas imágenes bit a bit. Cada spec recorre una pantalla y
 llama a `captura(page, '<seccion>/<nombre>', locator, { testInfo })` (o, para la pantalla entera,
 `{ pagina: true, esperar: locator }`), que escribe
-`static/img/capturas/<seccion>/<nombre>.escritorio.png` (1280×800) y `….telefono.png` (Pixel 7).
+`static/img/capturas/<seccion>/<nombre>.escritorio.png` (1280×800) y `….telefono.png` (Pixel 7), las
+dos a `deviceScaleFactor: 2`.
 Los specs nunca guardan nada: los diálogos se abren, se capturan y se cierran con «Volver».
 
 Requisitos: Postgres de desarrollo arriba (`pnpm db:up`, puerto 5433) y Node 24.
@@ -101,8 +103,8 @@ git): nunca se copian a un archivo del repo, a un informe ni a una captura.
 **Qué revisar en el `git diff`**: una imagen cambiada significa que cambió la UI (los datos y el reloj
 son fijos). Ábrela y comprueba que el cambio es el esperado y que la guía sigue diciendo lo que se
 ve. Una imagen nueva necesita su `<Captura nombre="…">` en una guía, y una guía no puede pedir una
-captura que ningún spec produce: `capturas-referenciadas.test.ts` (en `pnpm test`) lo comprueba en
-las dos direcciones.
+captura que ningún spec produce, ni quedar un PNG que ninguna guía pide (una variante de teléfono
+que ya no se usa): `capturas-referenciadas.test.ts` (en `pnpm test`) lo comprueba.
 
 ## Qué no puede salir nunca
 

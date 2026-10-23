@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { proyectosCaptura, rutaCaptura, type Proyecto } from './src/components/captura'
+import { proyectosCaptura, rutaCaptura, type Proyecto } from './src/capturas-rutas'
 
 const root = import.meta.dirname
 
@@ -23,34 +23,89 @@ function nombresEnSpecs(): Set<string> {
   return out
 }
 
-/** Nombres que usan los MDX: `<Captura nombre="<seccion>/<nombre>"`. */
-function nombresEnDocs(): Set<string> {
-  const out = new Set<string>()
-  for (const f of walk(join(root, 'docs'), /\.mdx?$/)) {
-    for (const m of readFileSync(f, 'utf8').matchAll(/<Captura\s[^>]*nombre="([^"]+)"/g)) {
-      out.add(m[1]!)
+type CapturaEnGuia = { nombre: string; telefono: boolean; solo?: Proyecto }
+
+// Un valor entre comillas o entre llaves (con un nivel de llaves dentro: `pie={<>…{x}…</>}`), que
+// puede llevar `>` sin cerrar la etiqueta.
+const VALOR = String.raw`"[^"]*"|\{(?:[^{}]|\{[^{}]*\})*\}`
+const ETIQUETA = new RegExp(String.raw`<Captura\b((?:${VALOR}|[^>"{])*)/?>`, 'g')
+const ATRIBUTO = new RegExp(String.raw`([A-Za-z]+)(?:=(${VALOR}))?`, 'g')
+
+/** Cada `<Captura …>` de un MDX, con los atributos que eligen sus variantes. Los atributos se leen
+ * uno a uno: un `>` o la palabra `telefono` dentro del valor de otro (`alt`, `pie`) no cuentan, y
+ * `telefono={false}` es falso. */
+function capturasEnTexto(texto: string): CapturaEnGuia[] {
+  return [...texto.matchAll(ETIQUETA)].map(([, cuerpo = '']) => {
+    const atributos = new Map(
+      [...cuerpo.matchAll(ATRIBUTO)].map(([, nombre = '', valor]) => [nombre, valor] as const),
+    )
+    const cadena = (a: string) => /^"([^"]*)"$/.exec(atributos.get(a) ?? '')?.[1]
+    const telefono =
+      atributos.has('telefono') && atributos.get('telefono')?.replace(/\s+/g, '') !== '{false}'
+    return {
+      nombre: cadena('nombre') ?? '',
+      telefono,
+      solo: cadena('solo') as Proyecto | undefined,
     }
-  }
-  return out
+  })
 }
 
-/** Cada `<Captura …>` de las guías, con los atributos que eligen sus variantes. Los valores entre
- * comillas se vacían antes de buscar `telefono`, para no confundirlo con un `alt` que lo diga. */
-function capturasEnDocs(): {
-  archivo: string
-  nombre: string
-  telefono: boolean
-  solo?: Proyecto
-}[] {
+function capturasEnDocs(): (CapturaEnGuia & { archivo: string })[] {
   return walk(join(root, 'docs'), /\.mdx?$/).flatMap((archivo) =>
-    [...readFileSync(archivo, 'utf8').matchAll(/<Captura\s[^>]*>/g)].map(([etiqueta]) => ({
-      archivo,
-      nombre: /\bnombre="([^"]+)"/.exec(etiqueta)?.[1] ?? '',
-      telefono: /\btelefono\b/.test(etiqueta.replace(/"[^"]*"/g, '""')),
-      solo: /\bsolo="([^"]+)"/.exec(etiqueta)?.[1] as Proyecto | undefined,
-    })),
+    capturasEnTexto(readFileSync(archivo, 'utf8')).map((c) => ({ archivo, ...c })),
   )
 }
+
+const nombresEnDocs = () => new Set(capturasEnDocs().map((c) => c.nombre))
+
+/** Cada PNG que pide una guía, como ruta bajo `static/` (`/img/capturas/<nombre>.<proyecto>.png`). */
+const pngsPedidos = () =>
+  new Set(
+    capturasEnDocs().flatMap(({ nombre, telefono, solo }) =>
+      proyectosCaptura({ telefono, solo }).map((p) => rutaCaptura(nombre, p)),
+    ),
+  )
+
+describe('lectura de <Captura> en las guías', () => {
+  it('lee nombre, telefono y solo', () => {
+    expect(
+      capturasEnTexto(
+        '<Captura nombre="a/b" alt="x" telefono />\n<Captura nombre="c/d" alt="y" solo="telefono" />',
+      ),
+    ).toEqual([
+      { nombre: 'a/b', telefono: true, solo: undefined },
+      { nombre: 'c/d', telefono: false, solo: 'telefono' },
+    ])
+  })
+
+  it('no confunde con `telefono` un alt que lo diga', () => {
+    expect(capturasEnTexto('<Captura nombre="a/b" alt="Menú del telefono" />')).toEqual([
+      { nombre: 'a/b', telefono: false, solo: undefined },
+    ])
+  })
+
+  it('lee `telefono={false}` como falso y `telefono={true}` como verdadero', () => {
+    expect(
+      capturasEnTexto(
+        '<Captura nombre="a/b" alt="x" telefono={false} /><Captura nombre="c/d" alt="y" telefono={true} />',
+      ).map((c) => c.telefono),
+    ).toEqual([false, true])
+  })
+
+  it('tolera `>` dentro de comillas o de llaves antes de `nombre`', () => {
+    expect(
+      capturasEnTexto(
+        '<Captura alt="Ir a Inicio > Trabajos" pie={<>Toca <Boton>Volver</Boton></>} nombre="a/b" telefono />',
+      ),
+    ).toEqual([{ nombre: 'a/b', telefono: true, solo: undefined }])
+  })
+
+  it('lee una etiqueta partida en varias líneas', () => {
+    expect(capturasEnTexto('<Captura\n  nombre="a/b"\n  alt="x"\n  solo="escritorio"\n/>')).toEqual(
+      [{ nombre: 'a/b', telefono: false, solo: 'escritorio' }],
+    )
+  })
+})
 
 describe('capturas referenciadas', () => {
   it('existe el PNG de cada variante que pide una guía (escritorio; con `telefono`, las dos; con `solo`, esa)', () => {
@@ -61,6 +116,14 @@ describe('capturas referenciadas', () => {
         .map((png) => `${archivo}: ${png}`),
     )
     expect(faltan).toEqual([])
+  })
+
+  it('todo PNG de static/img/capturas lo pide alguna guía (ninguna variante huérfana)', () => {
+    const pedidos = pngsPedidos()
+    const huerfanos = walk(join(root, 'static', 'img', 'capturas'), /\.png$/)
+      .map((png) => `/${relative(join(root, 'static'), png).split(sep).join('/')}`)
+      .filter((ruta) => !pedidos.has(ruta))
+    expect(huerfanos).toEqual([])
   })
 
   it('toda captura que usa una guía la produce un spec', () => {
