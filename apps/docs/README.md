@@ -52,7 +52,7 @@ El texto de un botón o enlace de la app, tal cual.
 ```
 
 Una captura de `static/img/capturas/<nombre>.escritorio.png`; con `telefono`, también la de
-`<nombre>.telefono.png` al lado (debajo en el teléfono), y con `solo="telefono"`, solo esa. `alt`
+`<nombre>.telefono.png` al lado (debajo si las dos no caben a su tamaño real), y con `solo="telefono"`, solo esa. `alt`
 describe lo que se ve; `pie` añade un texto debajo. Las capturas se toman a 2 píxeles por punto y
 `Captura` las declara `2x`: se ven a su tamaño real en la app, nítidas, y nunca se estiran.
 
@@ -62,10 +62,12 @@ Las capturas salen de una tubería de Playwright (`capturas/`) sobre los datos d
 `seed:demo` (ficticios), con el reloj fijo en el martes 20 de octubre de 2026 a las 10:30 (API,
 seed y navegador): dos corridas dan las mismas imágenes bit a bit. Cada spec recorre una pantalla y
 llama a `captura(page, '<seccion>/<nombre>', locator, { testInfo })` (o, para la pantalla entera,
-`{ pagina: true, esperar: locator }`), que escribe
+`{ pagina: true, esperar: locator }`; con `margen: 16`, el recorte deja 16 px del fondo de la página
+alrededor del elemento, que tiene que caber en la ventana), que escribe
 `static/img/capturas/<seccion>/<nombre>.escritorio.png` (1280×800) y `….telefono.png` (Pixel 7), las
 dos a `deviceScaleFactor: 2`.
-Los specs nunca guardan nada: los diálogos se abren, se capturan y se cierran con «Volver».
+Los specs nunca guardan nada: los diálogos se abren, se capturan y se cierran con «Volver». Los botones
+de las devtools de TanStack (solo existen en `vite dev`) se ocultan en toda captura.
 
 Requisitos: Postgres de desarrollo arriba (`pnpm db:up`, puerto 5433) y Node 24.
 

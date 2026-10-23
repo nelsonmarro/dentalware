@@ -121,9 +121,11 @@ h1 {
   border-radius: var(--ifm-global-radius);
 }
 
+/* Lado a lado si caben a su tamaño real; si no, la segunda baja (nunca se encogen las dos hasta
+ * no poder leerse). Sola en su línea, una captura ancha se encoge al ancho de la columna. */
 .captura__imagenes {
   display: flex;
-  flex-direction: row;
+  flex-flow: row wrap;
   align-items: flex-start;
   gap: 0.75rem;
 }
@@ -144,12 +146,6 @@ h1 {
   margin-top: 0.625rem;
   color: var(--dw-graphite-60);
   font-size: 0.875rem;
-}
-
-@media (max-width: 767px) {
-  .captura__imagenes {
-    flex-direction: column;
-  }
 }
 
 /* --- Boton: el texto de un botón de la app, tal cual ------------------------------------- */

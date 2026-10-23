@@ -3,13 +3,13 @@ import type { ReactNode } from 'react'
 import { proyectosCaptura, rutaCaptura, type Proyecto } from '../capturas-rutas'
 
 /** Una variante: la tubería la toma a `deviceScaleFactor: 2`, así que se declara `2x` y el
- * navegador la pinta a la mitad de sus píxeles (su tamaño real en la app, nítida en retina). La
- * ruta pasa por `useBaseUrl` por si el sitio se publica bajo otra base. */
+ * navegador la pinta a la mitad de sus píxeles (su tamaño real en la app, nítida en retina). Solo
+ * `srcSet`, sin `src`: el `src` cuenta como candidata `1x` y una pantalla normal la elegiría,
+ * pintándola al doble. La ruta pasa por `useBaseUrl` por si el sitio se publica bajo otra base. */
 function CapturaImg({ ruta, alt, proyecto }: { ruta: string; alt: string; proyecto: Proyecto }) {
   const src = useBaseUrl(ruta)
   return (
     <img
-      src={src}
       srcSet={`${src} 2x`}
       alt={alt}
       loading="lazy"

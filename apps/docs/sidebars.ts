@@ -7,7 +7,11 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Primeros pasos',
       link: { type: 'generated-index', title: 'Primeros pasos', slug: '/primeros-pasos' },
-      items: ['primeros-pasos/entrar-y-salir'],
+      items: [
+        'primeros-pasos/entrar-y-salir',
+        'primeros-pasos/instalar-la-app',
+        'primeros-pasos/que-ve-cada-rol',
+      ],
     },
   ],
 }

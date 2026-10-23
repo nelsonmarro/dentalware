@@ -8,14 +8,9 @@ vi.mock('@docusaurus/useBaseUrl', () => ({
 }))
 
 describe('Captura bajo un baseUrl', () => {
-  it('pasa la ruta de la imagen (src y srcset) por useBaseUrl', () => {
+  it('pasa la ruta de la imagen por useBaseUrl', () => {
     render(<Captura nombre="primeros-pasos/entrar-formulario" alt="Entrar" />)
-    const img = screen.getByRole('img', { name: 'Entrar' })
-    expect(img).toHaveAttribute(
-      'src',
-      '/manual/img/capturas/primeros-pasos/entrar-formulario.escritorio.png',
-    )
-    expect(img).toHaveAttribute(
+    expect(screen.getByRole('img', { name: 'Entrar' })).toHaveAttribute(
       'srcset',
       '/manual/img/capturas/primeros-pasos/entrar-formulario.escritorio.png 2x',
     )

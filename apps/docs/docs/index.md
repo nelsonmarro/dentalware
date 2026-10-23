@@ -15,4 +15,6 @@ Todo trabajo pasa por cuatro momentos: **recibir** (llega del doctor, con sus pi
 
 ## Por dónde empezar
 
+Si es la primera vez que usas Dentalware, empieza por **Primeros pasos**: cómo [entrar y salir](./primeros-pasos/entrar-y-salir.md), cómo [instalar la app](./primeros-pasos/instalar-la-app.md) en el teléfono o la computadora y [qué ve cada rol](./primeros-pasos/que-ve-cada-rol.md).
+
 <Portada />

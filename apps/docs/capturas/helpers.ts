@@ -57,15 +57,23 @@ export async function guardarSesion(browser: Browser, rol: UserRole, baseURL: st
   await page.close()
 }
 
+/** Los botones de TanStack Router/Query Devtools: solo existen en `vite dev` (la web de las
+ * capturas), nunca en producción, y no pueden salir en el manual. */
+const SIN_DEVTOOLS = `.TanStackRouterDevtools, .tsqd-parent-container, .tsqd-transitions-container {
+  display: none !important;
+}`
+
 /** Captura del elemento (o de la página si `pagina`, tras ver `esperar`) con nombre fijo
  * `static/img/capturas/<nombre>.<proyecto>.png`, comprimida con sharp. Falla si el elemento no
  * está: una guía nunca se queda con una captura vieja sin que lo note nadie. La de página también
- * espera a un elemento propio de la pantalla, para no capturarla a medio cargar. */
+ * espera a un elemento propio de la pantalla, para no capturarla a medio cargar. Con `margen`
+ * (en px de CSS), el recorte deja ese aire de fondo de la página alrededor del elemento, que
+ * tiene que caber en la ventana. */
 export async function captura(
   page: Page,
   nombre: string,
   objetivo: Locator | { pagina: true; esperar: Locator },
-  opciones: { testInfo: TestInfo; solo?: Proyecto },
+  opciones: { testInfo: TestInfo; solo?: Proyecto; margen?: number },
 ) {
   const proyecto = opciones.testInfo.project.name
   if (!esProyecto(proyecto)) throw new Error(`Proyecto de capturas desconocido: ${proyecto}`)
@@ -73,18 +81,32 @@ export async function captura(
   // La misma ruta que pinta `<Captura>` en el sitio.
   const destino = join(STATIC_DIR, rutaCaptura(nombre, proyecto))
   mkdirSync(dirname(destino), { recursive: true })
+  const comun = { animations: 'disabled', style: SIN_DEVTOOLS } as const
   const png =
     'pagina' in objetivo
       ? await (async () => {
           await expect(objetivo.esperar).toBeVisible()
-          return page.screenshot({ fullPage: false, animations: 'disabled' })
+          return page.screenshot({ ...comun, fullPage: false })
         })()
       : await (async () => {
           await expect(objetivo).toBeVisible()
           await objetivo.scrollIntoViewIfNeeded()
-          return objetivo.screenshot({ animations: 'disabled' })
+          if (!opciones.margen) return objetivo.screenshot(comun)
+          return page.screenshot({ ...comun, clip: await recorte(page, objetivo, opciones.margen) })
         })()
   await sharp(png).png({ compressionLevel: 9, palette: true }).toFile(destino)
+}
+
+/** La caja del elemento más `margen` px por lado, sin salirse de la ventana. */
+async function recorte(page: Page, objetivo: Locator, margen: number) {
+  const caja = await objetivo.boundingBox()
+  const ventana = page.viewportSize()
+  if (!caja || !ventana) throw new Error('No se pudo medir el elemento de la captura.')
+  const x = Math.max(0, caja.x - margen)
+  const y = Math.max(0, caja.y - margen)
+  const derecha = Math.min(ventana.width, caja.x + caja.width + margen)
+  const abajo = Math.min(ventana.height, caja.y + caja.height + margen)
+  return { x, y, width: derecha - x, height: abajo - y }
 }
 
 /** Abre la ficha del trabajo de demostración por la referencia del paciente (`DEMO_CASES`). */
