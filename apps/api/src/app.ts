@@ -6,48 +6,25 @@ import { logger } from 'hono/logger'
 import { secureHeaders } from 'hono/secure-headers'
 import type { Auth } from './auth.ts'
 import type { Db } from './db/index.ts'
-import { createAccountsRepo, drizzleAccountsUnitOfWork } from './features/accounts/repo.ts'
 import { accountsRoutes } from './features/accounts/routes.ts'
-import { createAccountsService } from './features/accounts/service.ts'
 import { attachmentsRoutes } from './features/attachments/routes.ts'
-import { createAttachmentsRepo } from './features/attachments/repo.ts'
-import { createAttachmentsService } from './features/attachments/service.ts'
 import { meRoutes } from './features/auth/me.routes.ts'
 import type { AppEnv } from './features/auth/session.ts'
 import { requireRole, sessionMiddleware } from './features/auth/session.ts'
-import { createImportCatalog } from './features/cases/import.repo.ts'
 import { importRoutes } from './features/cases/import.routes.ts'
-import { createImportService } from './features/cases/import.service.ts'
 import { casesRoutes } from './features/cases/routes.ts'
-import {
-  createCaseSettlement,
-  createCasesRepo,
-  createUsersQuery,
-  drizzleUnitOfWork,
-} from './features/cases/repo.ts'
-import { createCasesService } from './features/cases/service.ts'
 import { clinicsRoutes } from './features/clinics/routes.ts'
-import {
-  createCouriersQuery,
-  createCaseDeliveryInfoQuery,
-  createDeliveriesRepo,
-  drizzleDeliveriesUnitOfWork,
-} from './features/deliveries/repo.ts'
 import { deliveriesRoutes } from './features/deliveries/routes.ts'
-import { createDeliveriesService } from './features/deliveries/service.ts'
 import { doctorsRoutes } from './features/doctors/routes.ts'
 import { healthRoutes } from './features/health/routes.ts'
 import { labSettingsRoutes } from './features/lab-settings/routes.ts'
 import { productsRoutes } from './features/products/routes.ts'
-import { listStages } from './features/stages/repo.ts'
 import { stagesRoutes } from './features/stages/routes.ts'
 import { usersRoutes } from './features/users/routes.ts'
 import type { Clock } from './lib/clock.ts'
-import { systemClock } from './lib/clock.ts'
 import type { IdGenerator } from './lib/ids.ts'
-import { randomIds } from './lib/ids.ts'
-import { sharpImages } from './lib/images.ts'
 import type { Storage } from './lib/storage.ts'
+import { createServices } from './services.ts'
 
 export type AppDeps = {
   auth: Auth
@@ -61,78 +38,7 @@ export type AppDeps = {
 export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps) {
   const app = new Hono<AppEnv>()
 
-  const casesRepo = createCasesRepo(db)
-  const attachmentsRepo = createAttachmentsRepo(db)
-  const effectiveClock = clock ?? systemClock
-  // La unidad de trabajo de `cases` re-crea el repositorio de entregas sobre su `tx` (ADR 19):
-  // la factoría se inyecta aquí para que `cases/repo.ts` no importe `deliveries/repo.ts`.
-  const casesUow = drizzleUnitOfWork(db, { deliveries: createDeliveriesRepo })
-  const couriersQuery = createCouriersQuery(db)
-  const accountsRepo = createAccountsRepo(db)
-  const casesService = createCasesService({
-    // `CaseAccountQuery` lo declara `cases` y lo cumple el repo de `accounts` (ADR 35): Σ
-    // ajustes y Σ asignaciones vigentes del trabajo para la cuenta de su ficha.
-    account: accountsRepo,
-    cases: casesRepo,
-    attachments: attachmentsRepo,
-    // Puerto de la feature `stages` (CRUD simple, sin ports.ts propio): solo las fases activas.
-    stages: { active: () => listStages(db, false) },
-    // Puerto de la feature `users` (ADR 24: `createUsersQuery` lee `users` por join/lectura de
-    // solo lectura desde el `repo.ts` de `cases`, sin importar el `repo`/rutas de `users`).
-    users: createUsersQuery(db),
-    // `CouriersLookup` es un puerto declarado por `cases`; aquí se cumple con
-    // `createCouriersQuery` de `deliveries` (ADR 24): valida el mensajero de una recogida o un
-    // envío y da su nombre para el historial, sobre la lista que alimenta el selector.
-    couriers: {
-      findActiveCourier: async (userId) =>
-        (await couriersQuery.activeCouriers()).find((c) => c.id === userId),
-    },
-    // Lectura de la entrega pendiente y de la última hecha para la ficha (M-4, UX4-07/09),
-    // fuera de la transacción; las escrituras de entregas siguen dentro de `uow.run`.
-    deliveries: createCaseDeliveryInfoQuery(db),
-    // Sin `tryins` aquí: el servicio solo accede a pruebas en boca dentro de `uow.run`
-    // (transaccional, ADR 19). Una instancia suelta invitaría a escribir fuera de la tx.
-    uow: casesUow,
-    clock: effectiveClock,
-  })
-  // `uow` propio de `deliveries` (distinto del `casesUow`): compone `createDeliveriesRepo(tx)`
-  // con un `CaseEventLog` adaptado de `createCasesRepo(tx).addEvent`, sin que `deliveries/`
-  // importe nada de `cases/` (la frontera la cruza solo esta raíz de composición).
-  const deliveriesUow = drizzleDeliveriesUnitOfWork(db, {
-    events: (tx) => ({ addEvent: (e) => createCasesRepo(tx).addEvent(e) }),
-  })
-  const deliveriesService = createDeliveriesService({
-    deliveries: createDeliveriesRepo(db),
-    couriers: couriersQuery,
-    uow: deliveriesUow,
-    clock: effectiveClock,
-  })
-  const importService = createImportService({
-    catalog: createImportCatalog(db),
-    uow: casesUow,
-    clock: effectiveClock,
-  })
-  const attachmentsService = createAttachmentsService({
-    attachments: attachmentsRepo,
-    cases: { exists: async (id) => (await casesRepo.byId(id)) !== undefined },
-    events: { add: (e) => casesRepo.addEvent(e) },
-    // `PendingDeliveryLookup` y `DeliveryProofLookup` los declara `attachments`; aquí se cumplen
-    // con el repo de `deliveries` (ADR 34), sin que una feature importe el `repo.ts` de la otra.
-    deliveries: createDeliveriesRepo(db),
-    storage,
-    images: sharpImages,
-    ids: ids ?? randomIds,
-  })
-
-  // Cuentas (CTA-1/2): el repo lee `cases` por join (ADR 24) y el servicio calcula con las
-  // reglas de `shared`. Su `uow` compone `createAccountsRepo(tx)` con el `CaseSettlement` que
-  // cumple el repo de `cases` sobre la misma `tx` (ADR 35, patrón de ADR 34): `accounts/` no
-  // importa nada de `cases/`.
-  const accountsService = createAccountsService({
-    accounts: accountsRepo,
-    uow: drizzleAccountsUnitOfWork(db, { cases: createCaseSettlement }),
-    clock: effectiveClock,
-  })
+  const services = createServices({ db, storage, clock, ids })
 
   app.use(secureHeaders())
   if (process.env.NODE_ENV !== 'test') app.use(logger())
@@ -173,11 +79,11 @@ export function createApp({ auth, db, webOrigin, storage, clock, ids }: AppDeps)
     .route('/api/config/doctores', doctorsRoutes(db))
     .route('/api/config/productos', productsRoutes(db))
     .route('/api/config/fases', stagesRoutes(db))
-    .route('/api/trabajos', casesRoutes(casesService, importRoutes(importService)))
+    .route('/api/trabajos', casesRoutes(services.cases, importRoutes(services.import)))
     .route('/api/users', usersRoutes(db, auth))
-    .route('/api/adjuntos', attachmentsRoutes(attachmentsService))
-    .route('/api/entregas', deliveriesRoutes(deliveriesService))
-    .route('/api/cuentas', accountsRoutes(accountsService))
+    .route('/api/adjuntos', attachmentsRoutes(services.attachments))
+    .route('/api/entregas', deliveriesRoutes(services.deliveries))
+    .route('/api/cuentas', accountsRoutes(services.accounts))
 
   app.notFound((c) => c.json({ message: 'Recurso no encontrado' }, 404))
   app.onError((err, c) => {
