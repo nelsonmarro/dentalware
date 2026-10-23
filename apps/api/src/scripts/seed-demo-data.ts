@@ -76,7 +76,9 @@ export const DEMO_CLINICS = [
 export type DemoClinicKey = (typeof DEMO_CLINICS)[number]['key']
 
 /** Un trabajo por escenario que el manual necesita enseñar. Las fechas son días relativos a hoy
- * (`recibidoHace`, `venceEn`, en días de calendario; negativo = pasado). `escenario` es el
+ * (`recibidoHace`, `venceEn`, en días de calendario; negativo = pasado). En los escenarios que
+ * pasan por «Aceptar», `venceEn` es también la fecha comprometida (`acceptDayFor` en
+ * seed-demo.ts) y tiene que caer de lunes a viernes: hoy es martes 20 de octubre de 2026. `escenario` es el
  * estado final al que `seedDemo` lo lleva con acciones reales (ver `runScenario` en
  * seed-demo.ts). */
 export const DEMO_CASES = [
@@ -129,7 +131,7 @@ export const DEMO_CASES = [
     product: 'ZR',
     teeth: [46],
     recibidoHace: -10,
-    venceEn: -2,
+    venceEn: -1,
     escenario: 'en_proceso',
   },
   {
@@ -149,7 +151,7 @@ export const DEMO_CASES = [
     product: 'DL',
     teeth: [12],
     recibidoHace: -4,
-    venceEn: 4,
+    venceEn: 3,
     escenario: 'en_espera',
   },
   {
@@ -159,7 +161,7 @@ export const DEMO_CASES = [
     product: 'MP',
     teeth: [24, 25, 26],
     recibidoHace: -5,
-    venceEn: 5,
+    venceEn: 6,
     escenario: 'en_prueba',
   },
   {
@@ -201,7 +203,7 @@ export const DEMO_CASES = [
     product: 'ZR',
     teeth: [11],
     recibidoHace: -15,
-    venceEn: -9,
+    venceEn: -8,
     escenario: 'entregado',
     courier: 'mensajero',
   },
@@ -223,7 +225,7 @@ export const DEMO_CASES = [
     product: 'DL',
     teeth: [13],
     recibidoHace: -30,
-    venceEn: -24,
+    venceEn: -22,
     escenario: 'cobrado',
     courier: 'mensajero',
   },

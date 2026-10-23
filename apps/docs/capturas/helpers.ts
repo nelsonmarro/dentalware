@@ -1,14 +1,15 @@
 import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import type { UserRole } from '@dentalware/shared'
 import { expect, type Browser, type Locator, type Page, type TestInfo } from '@playwright/test'
 import sharp from 'sharp'
-
-export type Rol = 'admin' | 'recepcion' | 'tecnico' | 'mensajero'
+import { esProyecto, rutaCaptura, type Proyecto } from '../src/capturas-rutas'
+import { recorte } from './recorte'
 
 // `__dirname` y no `import.meta.dirname`: apps/docs no lleva `"type": "module"` (rompe el SSR de
 // Docusaurus), así que Playwright carga estos archivos como CommonJS.
 export const AUTH_DIR = join(__dirname, '.auth')
-export const CAPTURAS_DIR = join(__dirname, '..', 'static', 'img', 'capturas')
+export const STATIC_DIR = join(__dirname, '..', 'static')
 
 /** Variables de `apps/api/.env.test`: el admin de las capturas es el mismo que el de la API en
  * modo test, leído de ahí y no copiado en este archivo. */
@@ -33,7 +34,7 @@ function requerida(nombre: string, env: Record<string, string> = {}): string {
 /** Credenciales de los usuarios de demostración (apps/api/src/scripts/seed-demo-data.ts) y del
  * admin de `.env.test`. La contraseña de demostración viene del entorno (`capturas.sh` la lee de
  * `.auth/demo-password`), nunca de un archivo del repo. */
-function cuenta(rol: Rol): { email: string; password: string } {
+function cuenta(rol: UserRole): { email: string; password: string } {
   if (rol === 'admin') {
     const env = envTest()
     return { email: requerida('ADMIN_EMAIL', env), password: requerida('ADMIN_PASSWORD', env) }
@@ -41,10 +42,10 @@ function cuenta(rol: Rol): { email: string; password: string } {
   return { email: `${rol}@demo.local`, password: requerida('DEMO_PASSWORD') }
 }
 
-export const sesionDe = (rol: Rol) => join(AUTH_DIR, `${rol}.json`)
+export const sesionDe = (rol: UserRole) => join(AUTH_DIR, `${rol}.json`)
 
 /** Inicia sesión y guarda el `storageState` del rol (lo llama `global-setup.ts` una vez por corrida). */
-export async function guardarSesion(browser: Browser, rol: Rol, baseURL: string) {
+export async function guardarSesion(browser: Browser, rol: UserRole, baseURL: string) {
   const { email, password } = cuenta(rol)
   const page = await browser.newPage({ baseURL })
   await page.goto('/login')
@@ -57,42 +58,68 @@ export async function guardarSesion(browser: Browser, rol: Rol, baseURL: string)
   await page.close()
 }
 
+/** Los botones de TanStack Router/Query Devtools: solo existen en `vite dev` (la web de las
+ * capturas), nunca en producción, y no pueden salir en el manual. */
+const SIN_DEVTOOLS = `.TanStackRouterDevtools, .tsqd-parent-container, .tsqd-transitions-container {
+  display: none !important;
+}`
+
 /** Captura del elemento (o de la página si `pagina`, tras ver `esperar`) con nombre fijo
  * `static/img/capturas/<nombre>.<proyecto>.png`, comprimida con sharp. Falla si el elemento no
  * está: una guía nunca se queda con una captura vieja sin que lo note nadie. La de página también
- * espera a un elemento propio de la pantalla, para no capturarla a medio cargar. */
+ * espera a un elemento propio de la pantalla, para no capturarla a medio cargar. Con `margen`
+ * (en px de CSS), el recorte deja ese aire de fondo de la página alrededor del elemento, que
+ * tiene que caber en la ventana (si no, `recorte` lanza). */
 export async function captura(
   page: Page,
   nombre: string,
   objetivo: Locator | { pagina: true; esperar: Locator },
-  opciones: { testInfo: TestInfo; solo?: 'escritorio' | 'telefono' },
+  opciones: { testInfo: TestInfo; solo?: Proyecto; margen?: number },
 ) {
   const proyecto = opciones.testInfo.project.name
+  if (!esProyecto(proyecto)) throw new Error(`Proyecto de capturas desconocido: ${proyecto}`)
   if (opciones.solo && opciones.solo !== proyecto) return
-  const destino = join(CAPTURAS_DIR, `${nombre}.${proyecto}.png`)
+  // La misma ruta que pinta `<Captura>` en el sitio.
+  const destino = join(STATIC_DIR, rutaCaptura(nombre, proyecto))
   mkdirSync(dirname(destino), { recursive: true })
+  const comun = { animations: 'disabled', style: SIN_DEVTOOLS } as const
   const png =
     'pagina' in objetivo
       ? await (async () => {
           await expect(objetivo.esperar).toBeVisible()
-          return page.screenshot({ fullPage: false, animations: 'disabled' })
+          return page.screenshot({ ...comun, fullPage: false })
         })()
       : await (async () => {
           await expect(objetivo).toBeVisible()
           await objetivo.scrollIntoViewIfNeeded()
-          return objetivo.screenshot({ animations: 'disabled' })
+          if (!opciones.margen) return objetivo.screenshot(comun)
+          const caja = await objetivo.boundingBox()
+          const ventana = page.viewportSize()
+          if (!caja || !ventana) throw new Error(`No se pudo medir el elemento de ${nombre}.`)
+          return page.screenshot({ ...comun, clip: recorte(caja, ventana, opciones.margen) })
         })()
   await sharp(png).png({ compressionLevel: 9, palette: true }).toFile(destino)
 }
 
-/** Abre la ficha del trabajo de demostración por la referencia del paciente (`DEMO_CASES`). */
+/** Abre la ficha del trabajo de demostración por la referencia del paciente (`DEMO_CASES`). El
+ * enlace solo lleva el código: se busca la fila (escritorio) o la tarjeta (teléfono) del
+ * paciente, y de un paciente con repetición («K. O.»), la primera, que es el original. */
 export async function abrirTrabajo(page: Page, paciente: string) {
   await page.goto('/trabajos?vista=todos')
   await page
-    .getByRole('link', { name: new RegExp(paciente.replace(/\./g, '\\.')) })
+    .getByRole('main')
+    .getByRole('row')
+    .or(page.getByRole('main').getByRole('listitem'))
+    .filter({ has: page.getByText(paciente, { exact: true }) })
+    .first()
+    .getByRole('link')
     .first()
     .click()
   await expect(page).toHaveURL(/\/trabajos\/(?!nuevo$)[^/]+$/)
+  await expect(page.getByRole('heading', { level: 1, name: /^\d{2}-\d{5}$/ })).toBeVisible()
+  // El puntero se queda donde estaba el enlace, sobre un botón de la ficha: sin moverlo, ese botón
+  // sale en su color de `hover`.
+  await page.mouse.move(0, 0)
 }
 
 /** Abre el diálogo del botón y espera a que termine de entrar (a mitad del `zoom-in-95` sale

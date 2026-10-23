@@ -9,18 +9,31 @@ describe('Captura', () => {
     )
     const img = screen.getByRole('img', { name: 'Formulario de nuevo trabajo' })
     expect(img).toHaveAttribute(
-      'src',
-      '/img/capturas/recepcion/nuevo-trabajo-formulario.escritorio.png',
+      'srcset',
+      '/img/capturas/recepcion/nuevo-trabajo-formulario.escritorio.png 2x',
     )
     expect(img).toHaveAttribute('loading', 'lazy')
+  })
+
+  it('declara la imagen como 2x: se muestra a la mitad de sus píxeles, nítida y sin estirarse', () => {
+    render(<Captura nombre="primeros-pasos/entrar-formulario" alt="Entrar" telefono />)
+    expect(screen.getAllByRole('img').map((i) => i.getAttribute('srcset'))).toEqual([
+      '/img/capturas/primeros-pasos/entrar-formulario.escritorio.png 2x',
+      '/img/capturas/primeros-pasos/entrar-formulario.telefono.png 2x',
+    ])
+  })
+
+  it('sin `src`: con él, el navegador lo toma como candidata 1x y en una pantalla normal pinta la imagen al doble', () => {
+    render(<Captura nombre="primeros-pasos/entrar-formulario" alt="Entrar" telefono />)
+    for (const img of screen.getAllByRole('img')) expect(img).not.toHaveAttribute('src')
   })
 
   it('con `telefono`, añade la variante de teléfono con su propio alt', () => {
     render(<Captura nombre="mensajero/entregas-del-dia" alt="Entregas del día" telefono />)
     const imgs = screen.getAllByRole('img')
-    expect(imgs.map((i) => i.getAttribute('src'))).toEqual([
-      '/img/capturas/mensajero/entregas-del-dia.escritorio.png',
-      '/img/capturas/mensajero/entregas-del-dia.telefono.png',
+    expect(imgs.map((i) => i.getAttribute('srcset'))).toEqual([
+      '/img/capturas/mensajero/entregas-del-dia.escritorio.png 2x',
+      '/img/capturas/mensajero/entregas-del-dia.telefono.png 2x',
     ])
     expect(
       screen.getByRole('img', { name: 'Entregas del día (en el teléfono)' }),
@@ -31,8 +44,8 @@ describe('Captura', () => {
     render(<Captura nombre="mensajero/recogido" alt="Botón Recogido" solo="telefono" />)
     expect(screen.getAllByRole('img')).toHaveLength(1)
     expect(screen.getByRole('img')).toHaveAttribute(
-      'src',
-      '/img/capturas/mensajero/recogido.telefono.png',
+      'srcset',
+      '/img/capturas/mensajero/recogido.telefono.png 2x',
     )
     // Sola, no hay otra variante de la que distinguirla: el alt va sin «(en el teléfono)».
     expect(screen.getByRole('img', { name: 'Botón Recogido' })).toBeInTheDocument()
@@ -44,9 +57,19 @@ describe('Captura', () => {
     )
     expect(screen.getAllByRole('img')).toHaveLength(1)
     expect(screen.getByRole('img', { name: 'Inicio de recepción' })).toHaveAttribute(
-      'src',
-      '/img/capturas/recepcion/inicio.escritorio.png',
+      'srcset',
+      '/img/capturas/recepcion/inicio.escritorio.png 2x',
     )
+  })
+
+  it('con las dos variantes, la figura lleva `captura--doble` (en el teléfono se ve solo la del teléfono)', () => {
+    const { container } = render(<Captura nombre="a/b" alt="x" telefono />)
+    expect(container.querySelector('figure')).toHaveClass('captura', 'captura--doble')
+  })
+
+  it('con una sola variante, sin `captura--doble`', () => {
+    const { container } = render(<Captura nombre="a/b" alt="x" />)
+    expect(container.querySelector('figure')).not.toHaveClass('captura--doble')
   })
 
   it('el pie, si lo hay, va en un figcaption', () => {

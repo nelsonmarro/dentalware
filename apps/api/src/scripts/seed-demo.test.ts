@@ -7,7 +7,7 @@ import { testPassword } from '../test/passwords.ts'
 import { cleanupTestStorage, createUser, setupTestDb, truncateAll } from '../test/setup.ts'
 import { ensureAdmin } from './seed.ts'
 import { seedCatalogs } from './seed-data.ts'
-import { assertDemoEnv, seedDemo } from './seed-demo.ts'
+import { acceptDayFor, assertDemoEnv, seedDemo } from './seed-demo.ts'
 import { DEMO_LAB, DEMO_NOW, DEMO_USERS } from './seed-demo-data.ts'
 
 describe('assertDemoEnv', () => {
@@ -21,6 +21,18 @@ describe('assertDemoEnv', () => {
   })
   it('con NODE_ENV=test y contraseña, pasa', () => {
     expect(() => assertDemoEnv('test', testPassword())).not.toThrow()
+  })
+})
+
+describe('acceptDayFor', () => {
+  it('da el último día desde el que «Aceptar» promete justo la fecha pedida', () => {
+    // Lunes 12 + 6 días hábiles = martes 20 (el fin de semana no cuenta).
+    expect(acceptDayFor('2026-10-20', 6)).toBe('2026-10-12')
+    expect(acceptDayFor('2026-10-21', 10)).toBe('2026-10-07')
+  })
+
+  it('lanza si la fecha cae en fin de semana: ningún día hábil termina ahí', () => {
+    expect(() => acceptDayFor('2026-10-25', 7)).toThrow(/fin de semana/)
   })
 })
 
@@ -154,6 +166,30 @@ describe('seedDemo', () => {
       .from(cases)
       .where(eq(cases.id, result.cases['vence-hoy']!))
     expect(row?.dueDate).toBe('2026-10-20')
+  })
+
+  it('deja trabajos que vencen hoy, mañana y atrasados, por su fecha comprometida', async () => {
+    const result = await run()
+    const services = createServices({
+      db: ctx.db,
+      storage: ctx.storage,
+      clock: fixedClockAt(DEMO_NOW),
+    })
+    const summary = await services.cases.summary()
+    expect(summary.vencen_hoy).toBeGreaterThanOrEqual(1)
+    expect(summary.vencen_manana).toBeGreaterThanOrEqual(1)
+    expect(summary.atrasados).toBeGreaterThanOrEqual(1)
+    // «Aceptar» fija la comprometida: la de cada escenario es la que pide su `venceEn`.
+    const promised = async (key: string) =>
+      (
+        await ctx.db
+          .select({ promisedDate: cases.promisedDate })
+          .from(cases)
+          .where(eq(cases.id, result.cases[key]!))
+      )[0]?.promisedDate
+    expect(await promised('vence-hoy')).toBe('2026-10-20')
+    expect(await promised('vence-manana')).toBe('2026-10-21')
+    expect(await promised('atrasado')).toBe('2026-10-19')
   })
 
   it('se niega si ya hay datos de demostración (no duplica)', async () => {

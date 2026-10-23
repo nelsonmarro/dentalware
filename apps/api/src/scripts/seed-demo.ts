@@ -1,4 +1,4 @@
-import { toIsoDate, type CaseActionInput } from '@dentalware/shared'
+import { addBusinessDays, toIsoDate, type CaseActionInput } from '@dentalware/shared'
 import { eq } from 'drizzle-orm'
 import sharp from 'sharp'
 import type { Auth } from '../auth.ts'
@@ -70,6 +70,29 @@ function daysFrom(today: string, n: number): string {
   const d = new Date(`${today}T12:00:00`)
   d.setDate(d.getDate() + n)
   return toIsoDate(d)
+}
+
+/** Día en que hay que aceptar un trabajo para que «Aceptar» le prometa `target`: el servicio fija
+ * la fecha comprometida en hoy + `turnaround` días hábiles (`addBusinessDays`, sin feriados, ADR
+ * 30), así que se busca hacia atrás, desde `target`, el último día que llega justo ahí. Sin
+ * esto, todo trabajo aceptado por el seed vencería días después de hoy y «Vencen hoy», «Vencen
+ * mañana» y «Atrasados» saldrían vacías en el manual. Lanza si no hay ninguno (un `target` en
+ * fin de semana: los días hábiles nunca terminan en sábado ni domingo).
+ *
+ * El día que devuelve puede ser anterior al de recepción del trabajo (por ejemplo, «A. S.» se
+ * recibe el 14/10 y se acepta con el reloj del 12/10). No importa: «Aceptar» con ese reloj solo
+ * fija la fecha comprometida, el evento del historial lleva la hora real de la BD
+ * (`clock_timestamp()`), y la app no muestra en ningún sitio el día de aceptación. */
+export function acceptDayFor(target: string, turnaround: number): string {
+  const end = new Date(`${target}T00:00:00`)
+  for (let back = 0; back <= 30; back++) {
+    const start = new Date(end)
+    start.setDate(start.getDate() - back)
+    if (toIsoDate(addBusinessDays(start, turnaround, [])) === target) return toIsoDate(start)
+  }
+  throw new Error(
+    `seed:demo: ningún día de aceptación promete ${target} con ${turnaround} días hábiles (¿cae en fin de semana?)`,
+  )
 }
 
 /** Una foto ficticia: un rectángulo teal, generado al vuelo (ningún binario en el repo). */
@@ -144,6 +167,11 @@ export async function seedDemo({
     })
   }
   const products = await listProducts(db, false)
+  const turnaroundOf = (code: string) => {
+    const p = products.find((x) => x.code === code)
+    if (!p) throw new Error(`seed:demo: el catálogo no tiene el producto ${code}`)
+    return p.turnaroundDays
+  }
   const productId = (code: string) => {
     const p = products.find((x) => x.code === code)
     if (!p) throw new Error(`seed:demo: el catálogo no tiene el producto ${code}`)
@@ -227,7 +255,19 @@ export async function seedDemo({
       ctx,
     )
     caseIds[spec.key] = created.id
-    await runScenario(spec.escenario, created.id, courierId ?? userIds.mensajero)
+    // «Aceptar» corre con el reloj del día que promete el `venceEn` del escenario (la fecha
+    // comprometida); todo lo demás, con el reloj del seed. Solo se calcula en los escenarios
+    // que aceptan: en los demás, `venceEn` es solo la fecha deseada y puede caer en fin de semana.
+    const accept = () => {
+      const acceptOn = acceptDayFor(daysFromToday(spec.venceEn), turnaroundOf(spec.product))
+      const clockOnAccept = fixedClockAt(`${acceptOn}T10:30:00-05:00`)
+      return createServices({ db, storage, clock: clockOnAccept }).cases.action(
+        created.id,
+        { accion: 'aceptar', motivo: null },
+        ctx,
+      )
+    }
+    await runScenario(spec.escenario, created.id, courierId ?? userIds.mensajero, accept)
   }
 
   // Una repetición al 50 % (enseña `remake` y el cargo parcial en la cuenta).
@@ -291,7 +331,12 @@ export async function seedDemo({
 
   /** Lleva el trabajo recién creado a su estado final con acciones reales, en el orden en que
    * las haría el laboratorio. */
-  async function runScenario(escenario: Scenario, id: string, courierId: string) {
+  async function runScenario(
+    escenario: Scenario,
+    id: string,
+    courierId: string,
+    accept: () => Promise<unknown>,
+  ) {
     switch (escenario) {
       case 'por_recoger':
         return
@@ -306,32 +351,32 @@ export async function seedDemo({
       case 'nuevo':
         return
       case 'en_proceso':
-        await act(id, 'aceptar')
+        await accept()
         return
       case 'en_proceso_fase_3':
-        await act(id, 'aceptar')
+        await accept()
         await services.cases.changeStage(id, { direccion: 'avanzar', motivo: null }, ctx)
         await services.cases.changeStage(id, { direccion: 'avanzar', motivo: null }, ctx)
         return
       case 'en_espera':
-        await act(id, 'aceptar')
+        await accept()
         await act(id, 'pausar', { motivo: 'Falta el antagonista' })
         return
       case 'en_prueba':
-        await act(id, 'aceptar')
+        await accept()
         await act(id, 'enviar_prueba')
         return
       case 'terminado':
-        await act(id, 'aceptar')
+        await accept()
         await act(id, 'finalizar')
         return
       case 'enviado':
-        await ship(id, courierId)
+        await ship(id, courierId, accept)
         return
       case 'entregado':
       case 'cobrado': {
         // `cobrado` se entrega igual: lo cierra después el pago completo (cuentas).
-        await ship(id, courierId)
+        await ship(id, courierId, accept)
         const bytes = await demoPhoto()
         const proof = await services.attachments.upload(
           {
@@ -348,7 +393,7 @@ export async function seedDemo({
         return
       }
       case 'entrega_fallida': {
-        await ship(id, courierId)
+        await ship(id, courierId, accept)
         const pending = (await services.cases.detail(id, ctx)).case.pendingDelivery
         if (!pending) throw new Error('seed:demo: el envío no dejó entrega pendiente')
         await services.deliveries.fail(
@@ -371,8 +416,8 @@ export async function seedDemo({
 
   /** Aceptar, finalizar y enviar. Las fechas de envío no pueden ser anteriores a hoy: todo se
    * envía «hoy». */
-  async function ship(id: string, courierId: string) {
-    await act(id, 'aceptar')
+  async function ship(id: string, courierId: string, accept: () => Promise<unknown>) {
+    await accept()
     await act(id, 'finalizar')
     await act(id, 'marcar_enviado', { envio: { mensajeroId: courierId, fecha: daysFromToday(0) } })
   }

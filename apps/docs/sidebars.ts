@@ -7,7 +7,36 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Primeros pasos',
       link: { type: 'generated-index', title: 'Primeros pasos', slug: '/primeros-pasos' },
-      items: ['primeros-pasos/entrar-y-salir'],
+      items: [
+        'primeros-pasos/entrar-y-salir',
+        'primeros-pasos/instalar-la-app',
+        'primeros-pasos/que-ve-cada-rol',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Recepción',
+      link: { type: 'doc', id: 'recepcion/index' },
+      items: [
+        'recepcion/crear-un-trabajo',
+        'recepcion/la-ficha-del-trabajo',
+        'recepcion/estados-y-acciones',
+        'recepcion/recogidas-y-entregas',
+        'recepcion/avisar-por-whatsapp',
+        'recepcion/cuentas-y-pagos',
+        'recepcion/imprimir',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Mensajero',
+      link: { type: 'doc', id: 'mensajero/index' },
+      items: [
+        'mensajero/entregas-del-dia',
+        'mensajero/marcar-entregado',
+        'mensajero/no-se-pudo',
+        'mensajero/sin-senal',
+      ],
     },
   ],
 }

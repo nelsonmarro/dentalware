@@ -1,10 +1,11 @@
+import type { UserRole } from '@dentalware/shared'
 import { test as base } from '@playwright/test'
 import { CLOCK_FIXED_AT } from './playwright.config'
-import { sesionDe, type Rol } from './helpers'
+import { sesionDe } from './helpers'
 
 /** El `test` de todos los specs de capturas: la sesión del `rol` (por omisión, recepción;
  * `test.use({ rol: 'mensajero' })` para otro) y `Date` fijo en el navegador. */
-export const test = base.extend<{ rol: Rol }>({
+export const test = base.extend<{ rol: UserRole }>({
   rol: ['recepcion', { option: true }],
   storageState: async ({ rol }, use) => use(sesionDe(rol)),
   page: async ({ page }, use) => {

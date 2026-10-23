@@ -20,7 +20,18 @@ export default defineConfig({
   reporter: 'list',
   globalSetup: './global-setup.ts',
   outputDir: '../test-results',
-  use: { baseURL: 'http://localhost:5173', locale: 'es-EC', timezoneId: 'America/Guayaquil' },
+  use: {
+    baseURL: 'http://localhost:5173',
+    locale: 'es-EC',
+    timezoneId: 'America/Guayaquil',
+    // `locale` no basta para el `input type="date"`: Chromium lo pinta con el idioma de su
+    // interfaz (sale «10/20/2026»). En Linux ese idioma sale de `LANGUAGE`/`LANG` (probado:
+    // `--lang` solo no lo cambia); con los dos, sale «20/10/2026», como lo ve recepción.
+    launchOptions: {
+      args: ['--lang=es-EC'],
+      env: { ...process.env, LANGUAGE: 'es_EC', LANG: 'es_EC.UTF-8' },
+    },
+  },
   webServer: [
     {
       command:
@@ -40,11 +51,17 @@ export default defineConfig({
       cwd: '../../..',
     },
   ],
+  // Las dos a 2 píxeles por punto (el Pixel 7 trae 2.625): `Captura` las declara `2x` y el sitio
+  // las pinta a su tamaño real, nítidas también en pantallas retina.
   projects: [
     {
       name: 'escritorio',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } },
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+        deviceScaleFactor: 2,
+      },
     },
-    { name: 'telefono', use: { ...devices['Pixel 7'] } },
+    { name: 'telefono', use: { ...devices['Pixel 7'], deviceScaleFactor: 2 } },
   ],
 })
