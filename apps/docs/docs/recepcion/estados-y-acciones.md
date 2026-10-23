@@ -18,7 +18,9 @@ El técnico también puede <Boton>Finalizar</Boton>, y el mensajero, <Boton>Marc
 
 En la lista **Trabajos**, cada trabajo lleva su estado con su nombre y su color.
 
-<Captura nombre="recepcion/estados-chips" alt="Trabajos con su chip de estado: Cancelado, Nuevo, Enviado, Cobrado, Entregado y los demás" telefono />
+<Captura nombre="recepcion/estados-chips" alt="Trabajos con su chip de estado: Cobrado, Entregado, Enviado, En proceso, Terminado, En espera, En prueba, Nuevo, Cancelado y Por recoger" telefono />
+
+En la computadora, junto a la fecha de entrega, un reloj marca el trabajo que vence hoy («A. S.») y un círculo rojo con exclamación, el atrasado («L. T.»); deja el puntero encima para leer «Vence hoy» o «Atrasado».
 
 Cada estado, qué significa y qué acción lo mueve:
 

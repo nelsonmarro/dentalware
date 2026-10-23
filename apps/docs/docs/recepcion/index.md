@@ -16,7 +16,7 @@ Recepción lleva el trabajo de punta a punta: lo registra cuando llega, sigue su
 6. **Cobras.** En **Cuentas** ves cuánto debe cada clínica y registras sus pagos: [Cuentas y pagos](./cuentas-y-pagos.md).
 7. **Imprimes.** La orden de trabajo para el laboratorio y la clínica, y el estado de cuenta: [Imprimir](./imprimir.md).
 
-Empieza el día en **Inicio**: sus contadores (nuevos, en curso, vencen hoy, atrasados, entregas de hoy…) llevan directo a cada lista.
+Empieza el día en **Inicio**: sus contadores (nuevos, en curso, vencen hoy, vencen mañana, atrasados, entregas de hoy…) llevan directo a cada lista. En el laboratorio de ejemplo, hoy vence el trabajo de «A. S.», mañana el de «C. V.» y el de «L. T.» está atrasado.
 
 :::info Datos de ejemplo
 Las capturas de esta sección son de un laboratorio de demostración: las clínicas «Clínica Sonrisa Norte», «Centro Dental Los Álamos» y «Consultorio Dra. Paredes», sus pacientes (por iniciales, como «A. S.») y los mensajeros Marco y Lucía son ficticios.

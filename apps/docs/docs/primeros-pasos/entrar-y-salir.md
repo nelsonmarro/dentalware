@@ -18,8 +18,8 @@ Para usar Dentalware entras con tu correo y tu contraseña. Así la app sabe qui
 2. Escribe tu **Correo** y tu **Contraseña**. Te los da administración.
 3. Toca <Boton>Ingresar</Boton>.
    <Captura nombre="primeros-pasos/entrar-formulario" alt="Pantalla para entrar: correo, contraseña y el botón Ingresar" />
-4. Se abre **Inicio**. En recepción, con tu nombre arriba («Bienvenido, Carla Recepción») y los contadores del día: trabajos nuevos, en curso, los que vencen hoy o mañana, atrasados, en prueba, listos y las entregas de hoy. Toca un contador para ver esos trabajos; «Entregas de hoy» abre **Entregas**. Al pie, «Estado del servidor» dice si la app llega al servidor: si dice «API: sin conexión», revisa la señal o el wifi.
-   <Captura nombre="primeros-pasos/inicio-recepcion" alt="Inicio de recepción: contadores de trabajos nuevos, en curso, que vencen, atrasados, en prueba, listos y entregas de hoy" telefono />
+4. Se abre **Inicio**. En recepción, con tu nombre arriba («Bienvenido, Carla Recepción») y los contadores del día: trabajos nuevos, en curso, los que vencen hoy o mañana, atrasados, en prueba, listos y las entregas de hoy. En el ejemplo, un trabajo vence hoy, otro mañana y otro está atrasado. Toca un contador para ver esos trabajos; «Entregas de hoy» abre **Entregas**. Al pie, «Estado del servidor» dice si la app llega al servidor: si dice «API: sin conexión», revisa la señal o el wifi.
+   <Captura nombre="primeros-pasos/inicio-recepcion" alt="Inicio de recepción: 2 trabajos nuevos, 5 en curso, 1 que vence hoy, 1 que vence mañana, 1 atrasado, 1 en prueba, 4 listos y 4 entregas de hoy" telefono />
 
 El técnico ve primero «Mis trabajos» y el mensajero, sus recogidas y entregas de hoy. Lo explica [Qué ve cada rol](./que-ve-cada-rol.md).
 

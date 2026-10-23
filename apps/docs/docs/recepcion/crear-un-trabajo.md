@@ -32,7 +32,7 @@ Cada orden que llega de una clínica se registra como un trabajo: quién lo pide
 
 Al guardar, un aviso dice «Trabajo creado» (o «Recogida programada») y se abre la [ficha del trabajo](./la-ficha-del-trabajo.md), con su código (por ejemplo, 26-00004). El trabajo nace **Nuevo**; con la recogida programada nace **Por recoger** y sale en **Entregas** el día de la recogida, para el mensajero que elegiste.
 
-Cuando ya no falta nada, toca <Boton>Aceptar</Boton> en la ficha: el trabajo pasa a **En proceso** y Dentalware fija la **fecha comprometida**, la que el laboratorio promete. Se cuenta en días hábiles desde el día en que lo aceptas, según el producto: los sábados y domingos no cuentan (los feriados, sí). Las vistas «Vencen hoy», «Vencen mañana» y «Atrasados» miran esa fecha (o la deseada, mientras el trabajo no se acepta).
+Cuando ya no falta nada, toca <Boton>Aceptar</Boton> en la ficha: el trabajo pasa a **En proceso** y Dentalware fija la **fecha comprometida**, la que el laboratorio promete. Se cuenta en días hábiles desde el día en que lo aceptas, según el producto: los sábados y domingos no cuentan (los feriados, sí). Las vistas «Vencen hoy», «Vencen mañana» y «Atrasados» miran esa fecha (o la deseada, mientras el trabajo no se acepta): por ejemplo, el trabajo de «A. S.» tiene la comprometida el 20/10/2026 y sale en «Vencen hoy».
 
 :::info Datos del paciente
 Dentalware guarda lo mínimo del paciente: una referencia (iniciales o un código), y la edad y el sexo si hacen falta. No escribas su nombre completo ni otros datos personales.
