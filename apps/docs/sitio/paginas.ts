@@ -22,6 +22,8 @@ export const PAGINAS = [
   '/mensajero/sin-senal/',
   '/referencia/',
   '/referencia/estados/',
+  '/referencia/glosario/',
+  '/referencia/preguntas-frecuentes/',
 ] as const
 
 const conBarras = (ruta: string) => `/${ruta}/`.replace(/\/+/g, '/')

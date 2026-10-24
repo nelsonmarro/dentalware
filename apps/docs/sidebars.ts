@@ -42,7 +42,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Referencia',
       link: { type: 'doc', id: 'referencia/index' },
-      items: ['referencia/estados'],
+      items: ['referencia/estados', 'referencia/glosario', 'referencia/preguntas-frecuentes'],
     },
   ],
 }
