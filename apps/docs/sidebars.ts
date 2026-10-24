@@ -51,6 +51,18 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Administración',
+      link: { type: 'doc', id: 'administracion/index' },
+      items: [
+        'administracion/datos-del-laboratorio',
+        'administracion/fases',
+        'administracion/productos-y-precios',
+        'administracion/clinicas-y-doctores',
+        'administracion/usuarios-y-roles',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Referencia',
       link: { type: 'doc', id: 'referencia/index' },
       items: ['referencia/estados', 'referencia/glosario', 'referencia/preguntas-frecuentes'],

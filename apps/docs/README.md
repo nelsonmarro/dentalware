@@ -192,13 +192,12 @@ datos de demostración, que son ficticios.
 ## Qué falta (MAN-2)
 
 Este manual cubre MAN-1 (#127): «Primeros pasos», «Recepción» y «Mensajero», y de MAN-2 (#138) la
-**Referencia** (glosario, estados del trabajo con su diagrama y preguntas frecuentes) y **Técnico** (mis
-trabajos, avanzar fase, pruebas y espera, finalizar). Falta, con la misma plantilla y la misma
-tubería de capturas:
+**Referencia** (glosario, estados del trabajo con su diagrama y preguntas frecuentes), **Técnico** (mis
+trabajos, avanzar fase, pruebas y espera, finalizar) y la configuración de **Administración** (datos
+del laboratorio, fases, productos y precios, clínicas y doctores, usuarios y roles). Falta, con la
+misma plantilla y la misma tubería de capturas:
 
-- **Administración**: clínicas y doctores, productos y precios por clínica, fases, usuarios y roles,
-  datos del laboratorio; ajustes, saldo inicial y anular pagos; importar CSV.
+- **Administración**: ajustes, saldo inicial y anular pagos; importar CSV.
 
-Al publicarlas: «Soy técnico» y «Administro el laboratorio» en la portada, las secciones en
-`sidebars.ts` y en el menú superior, y `HELP_PATH` de `admin` y `tecnico`
-(`apps/web/src/features/help/help-url.ts`) a sus guías, que hoy llevan a la portada.
+Al publicarlas: «Soy técnico» y «Administro el laboratorio» en la portada y `HELP_PATH` de `admin` y
+`tecnico` (`apps/web/src/features/help/help-url.ts`) a sus guías, que hoy llevan a la portada.

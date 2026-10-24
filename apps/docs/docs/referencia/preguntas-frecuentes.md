@@ -34,7 +34,7 @@ Sigue marcando lo que haces: Dentalware lo guarda y lo envía solo cuando vuelve
 
 ## ¿Qué hago si olvidé mi contraseña?
 
-Pide a administración que te asigne una nueva. Si la app dice que tu usuario está bloqueado, también es administración quien lo reactiva. Ver [Entrar y salir](../primeros-pasos/entrar-y-salir.md).
+Pide a administración que te asigne una nueva. Si la app dice que tu usuario está bloqueado, también es administración quien lo reactiva. Ver [Entrar y salir](../primeros-pasos/entrar-y-salir.md) y, si eres de administración, [Usuarios y roles](../administracion/usuarios-y-roles.md).
 
 ## ¿Qué hago si marqué una pieza equivocada en el odontograma?
 
@@ -66,4 +66,12 @@ Revisa que el trabajo esté **Enviado** y que la entrega sea tuya: el mensajero 
 
 ## ¿Qué hago si no encuentro una pantalla en el menú?
 
-Cada rol ve solo sus pantallas. Si tu trabajo cambió, pide a administración que cambie tu rol. Ver [Qué ve cada rol](../primeros-pasos/que-ve-cada-rol.md).
+Cada rol ve solo sus pantallas. Si tu trabajo cambió, pide a administración que cambie tu rol. Ver [Qué ve cada rol](../primeros-pasos/que-ve-cada-rol.md) y [Usuarios y roles](../administracion/usuarios-y-roles.md).
+
+## ¿Cómo le doy a una clínica un precio distinto?
+
+Administración lo guarda en la ficha de la clínica, pestaña **Precios especiales**: los trabajos nuevos de esa clínica toman ese precio en vez del base. Los trabajos ya creados no cambian. Ver [Productos y precios](../administracion/productos-y-precios.md).
+
+## ¿Qué hago cuando alguien deja el laboratorio?
+
+Administración bloquea su acceso en **Configuración › Usuarios** con <Boton>Bloquear</Boton>. Su usuario no se borra, para que su nombre siga en el historial de los trabajos. Ver [Usuarios y roles](../administracion/usuarios-y-roles.md).
