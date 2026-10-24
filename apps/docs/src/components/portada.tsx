@@ -14,13 +14,23 @@ const ACCESOS: readonly Acceso[] = [
     to: '/recepcion/',
   },
   {
+    titulo: 'Soy técnico',
+    texto: 'Mis trabajos, fases, fotos y finalizar.',
+    to: '/tecnico/',
+  },
+  {
     titulo: 'Soy mensajero',
     texto: 'Recogidas y entregas del día, desde el teléfono.',
     to: '/mensajero/',
   },
+  {
+    titulo: 'Administro el laboratorio',
+    texto: 'Clínicas, productos, fases, usuarios y cuentas.',
+    to: '/administracion/',
+  },
 ]
 
-/** Los accesos por rol de la portada (`docs/index.md`). */
+/** Los accesos de la portada (`docs/index.md`): primeros pasos y uno por rol. */
 export function Portada() {
   return (
     <ul className="portada">

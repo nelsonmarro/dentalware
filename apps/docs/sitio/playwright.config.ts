@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
 /** Barrido del manual construido (revisión UI/UX de la It8, #137): objetivos táctiles, scroll
- * horizontal, consola, rótulos en español y landmarks, a 1280, 390 y 360. No necesita la API ni
+ * horizontal, consola, rótulos en español y landmarks, a 1280, 1024, 390 y 360. No necesita la API ni
  * datos: `docusaurus serve --build` construye el sitio y lo sirve en 3100. En local, con el sitio
  * ya servido (`pnpm --filter @dentalware/docs serve`), lo reutiliza. */
 export default defineConfig({
@@ -26,6 +26,12 @@ export default defineConfig({
     {
       name: 'escritorio',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } },
+    },
+    // El primer ancho de escritorio de Docusaurus (997 px) redondeado: el navbar entero tiene que
+    // caber en una línea también aquí, con la marca sin cortar.
+    {
+      name: 'escritorio-1024',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1024, height: 768 } },
     },
     // Un teléfono con Chromium (el de las capturas, a 390): WebKit no corre en local fuera de
     // Ubuntu (#133) y el barrido mide CSS, no el motor.

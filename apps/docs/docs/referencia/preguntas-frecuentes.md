@@ -18,15 +18,19 @@ Toca <Boton>No se pudo</Boton> en la tarjeta del trabajo, elige o escribe el mot
 
 ## ¿Qué hago si un pago se registró mal?
 
-Un pago nunca se edita ni se borra. Pide a administración que lo anule con <Boton>Anular pago</Boton> y, después, registra el pago correcto. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
+Un pago nunca se edita ni se borra. Pide a administración que lo anule con <Boton>Anular pago</Boton> y, después, registra el pago correcto. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md) y [Ajustes y anular pagos](../administracion/ajustes-y-anular-pagos.md).
+
+## ¿Cómo cargo lo que una clínica ya debía antes de Dentalware?
+
+Administración lo registra una sola vez como **saldo inicial**: en la cuenta de la clínica, <Boton>Registrar ajuste</Boton> y el atajo <Boton>Saldo inicial</Boton>, con el monto y la fecha de esa deuda. Ver [Ajustes y anular pagos](../administracion/ajustes-y-anular-pagos.md#pasos-para-cargar-el-saldo-inicial).
 
 ## ¿Qué hago si un trabajo volvió de Cobrado a Entregado?
 
-Es normal: **Cobrado** significa que los pagos cubren lo que vale el trabajo, y si deja de ser así vuelve solo a **Entregado**. Pasa, por ejemplo, cuando administración anula un pago o registra un recargo. Revisa los movimientos de la cuenta de la clínica. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md) y [Estados del trabajo](./estados.md).
+Es normal: **Cobrado** significa que los pagos cubren lo que vale el trabajo, y si deja de ser así vuelve solo a **Entregado**. Pasa, por ejemplo, cuando administración anula un pago o registra un recargo. Revisa los movimientos de la cuenta de la clínica. Ver [Ajustes y anular pagos](../administracion/ajustes-y-anular-pagos.md) y [Estados del trabajo](./estados.md).
 
 ## ¿Qué hago si no veo los precios?
 
-El técnico y el mensajero no ven precios, saldos ni notas internas, ni en la pantalla ni en la orden impresa. Si tu trabajo necesita verlos, pide a administración que revise tu rol. Ver [Qué ve cada rol](../primeros-pasos/que-ve-cada-rol.md).
+El técnico y el mensajero no ven precios, saldos ni notas internas, ni en la pantalla ni en la orden impresa. Si tu trabajo necesita verlos, pide a administración que revise tu rol. Ver [Qué ve cada rol](../primeros-pasos/que-ve-cada-rol.md) y, si eres técnico, [Mis trabajos](../tecnico/mis-trabajos.md).
 
 ## ¿Qué hago si la app dice «Sin conexión»?
 
@@ -34,7 +38,7 @@ Sigue marcando lo que haces: Dentalware lo guarda y lo envía solo cuando vuelve
 
 ## ¿Qué hago si olvidé mi contraseña?
 
-Pide a administración que te asigne una nueva. Si la app dice que tu usuario está bloqueado, también es administración quien lo reactiva. Ver [Entrar y salir](../primeros-pasos/entrar-y-salir.md).
+Pide a administración que te asigne una nueva. Si la app dice que tu usuario está bloqueado, también es administración quien lo reactiva. Ver [Entrar y salir](../primeros-pasos/entrar-y-salir.md) y, si eres de administración, [Usuarios y roles](../administracion/usuarios-y-roles.md).
 
 ## ¿Qué hago si marqué una pieza equivocada en el odontograma?
 
@@ -54,7 +58,7 @@ Abre la ficha y mira la pestaña **Historial**. Cada cambio de estado, fase o t�
 
 ## ¿Qué hago si me equivoqué al finalizar o cancelar un trabajo?
 
-<Boton>Finalizar</Boton> y <Boton>Cancelar trabajo</Boton> no tienen vuelta, por eso piden confirmación. Si finalizaste por error, el trabajo queda **Terminado** y sigue su camino a la entrega: no crees otro, porque se cobraría dos veces; deja un comentario en el **Historial** (solo se pierden las fases que faltaban). Si cancelaste por error, regístralo otra vez como un trabajo nuevo, que tendrá otro código. Ver [Estados y acciones](../recepcion/estados-y-acciones.md) y [Crear un trabajo](../recepcion/crear-un-trabajo.md).
+<Boton>Finalizar</Boton> y <Boton>Cancelar trabajo</Boton> no tienen vuelta, por eso piden confirmación. Si finalizaste por error, el trabajo queda **Terminado** y sigue su camino a la entrega: no crees otro, porque se cobraría dos veces; deja un comentario en el **Historial** (solo se pierden las fases que faltaban). Si cancelaste por error, regístralo otra vez como un trabajo nuevo, que tendrá otro código. Ver [Estados y acciones](../recepcion/estados-y-acciones.md), [Finalizar](../tecnico/finalizar.md) y [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 
 ## ¿Qué hago si una clínica pagó de más o por adelantado?
 
@@ -66,4 +70,12 @@ Revisa que el trabajo esté **Enviado** y que la entrega sea tuya: el mensajero 
 
 ## ¿Qué hago si no encuentro una pantalla en el menú?
 
-Cada rol ve solo sus pantallas. Si tu trabajo cambió, pide a administración que cambie tu rol. Ver [Qué ve cada rol](../primeros-pasos/que-ve-cada-rol.md).
+Cada rol ve solo sus pantallas. Si tu trabajo cambió, pide a administración que cambie tu rol. Ver [Qué ve cada rol](../primeros-pasos/que-ve-cada-rol.md) y [Usuarios y roles](../administracion/usuarios-y-roles.md).
+
+## ¿Cómo le doy a una clínica un precio distinto?
+
+Administración lo guarda en la ficha de la clínica, pestaña **Precios especiales**: los trabajos nuevos de esa clínica toman ese precio en vez del base. Los trabajos ya creados no cambian. Ver [Productos y precios](../administracion/productos-y-precios.md).
+
+## ¿Qué hago cuando alguien deja el laboratorio?
+
+Administración bloquea su acceso en **Configuración › Usuarios** con <Boton>Bloquear</Boton>. Su usuario no se borra, para que su nombre siga en el historial de los trabajos. Ver [Usuarios y roles](../administracion/usuarios-y-roles.md).

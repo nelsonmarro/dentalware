@@ -39,7 +39,7 @@ Cada estado, qué significa y qué acción lo mueve:
 
 ## Pasos
 
-1. Abre la [ficha del trabajo](./la-ficha-del-trabajo.md). Las acciones están en el panel de la fase (**Recogida**, **Producción** o **Entrega**): la principal va en verde (en **Producción** suele ser <Boton>Avanzar fase</Boton>; <Boton>Finalizar</Boton> solo en la última fase), y <Boton>Cancelar trabajo</Boton> va al final y aparte, en rojo.
+1. Abre la [ficha del trabajo](./la-ficha-del-trabajo.md). Las acciones están en el panel de la fase (**Recogida**, **Producción** o **Entrega**): la principal va en verde (en **Producción** suele ser <Boton>Avanzar fase</Boton>; <Boton>Finalizar</Boton> está en todas las fases, pero solo es la principal en la última), y <Boton>Cancelar trabajo</Boton> va al final y aparte, en rojo.
 2. Toca la acción. La mayoría, como <Boton>Aceptar</Boton> o <Boton>Enviar a prueba</Boton>, se hace al momento, sin pedir confirmación.
 3. <Boton>Pausar</Boton> y <Boton>Cancelar trabajo</Boton> piden el **Motivo**. Escríbelo y toca el botón que nombra la acción (<Boton>Pausar trabajo</Boton> o <Boton>Cancelar trabajo</Boton>); <Boton>Volver</Boton> cierra sin hacer nada.
    <Captura nombre="recepcion/accion-pausar" alt="Diálogo Pausar trabajo: el trabajo queda En espera hasta que lo reanudes; campo Motivo, Volver y Pausar trabajo" telefono />

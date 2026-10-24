@@ -60,10 +60,21 @@ const config: Config = {
       title: 'Dentalware',
       // Va junto al título «Dentalware»: un alt igual se leería dos veces.
       logo: { alt: '', src: 'img/logo.svg' },
+      // Las guías de cada rol van en un desplegable: con una entrada por rol, el navbar no cabía
+      // en una línea entre ~997 y ~1180 px (lo vigila el barrido a 1024).
       items: [
         { to: '/primeros-pasos/', label: 'Primeros pasos', position: 'left' },
-        { to: '/recepcion/', label: 'Recepción', position: 'left' },
-        { to: '/mensajero/', label: 'Mensajero', position: 'left' },
+        {
+          type: 'dropdown',
+          label: 'Guías',
+          position: 'left',
+          items: [
+            { to: '/recepcion/', label: 'Recepción' },
+            { to: '/tecnico/', label: 'Técnico' },
+            { to: '/mensajero/', label: 'Mensajero' },
+            { to: '/administracion/', label: 'Administración' },
+          ],
+        },
         { to: '/referencia/', label: 'Referencia', position: 'left' },
         { href: 'https://dentalware.naphsoft.dev', label: 'Abrir la app', position: 'right' },
       ],

@@ -1,6 +1,14 @@
 import { count, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { cases, clinics, deliveries, labSettings, products, users } from '../db/schema/index.ts'
+import {
+  cases,
+  clinics,
+  deliveries,
+  labSettings,
+  products,
+  stages,
+  users,
+} from '../db/schema/index.ts'
 import { fixedClockAt } from '../lib/clock.ts'
 import { createServices } from '../services.ts'
 import { testPassword } from '../test/passwords.ts'
@@ -190,6 +198,22 @@ describe('seedDemo', () => {
     expect(await promised('vence-hoy')).toBe('2026-10-20')
     expect(await promised('vence-manana')).toBe('2026-10-21')
     expect(await promised('atrasado')).toBe('2026-10-19')
+  })
+
+  it('deja el trabajo atrasado en la última fase activa, para «Finalizar» del técnico', async () => {
+    const result = await run()
+    const [row] = await ctx.db
+      .select({ status: cases.status, stage: cases.currentStageId })
+      .from(cases)
+      .where(eq(cases.id, result.cases['atrasado']!))
+    const ordered = await ctx.db
+      .select({ id: stages.id, name: stages.name })
+      .from(stages)
+      .where(eq(stages.active, true))
+      .orderBy(stages.sort)
+    expect(row?.status).toBe('en_proceso')
+    expect(ordered.at(-1)?.name).toBe('Control de calidad')
+    expect(row?.stage).toBe(ordered.at(-1)?.id)
   })
 
   it('se niega si ya hay datos de demostración (no duplica)', async () => {

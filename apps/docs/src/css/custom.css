@@ -152,6 +152,13 @@ button[class*='tocCollapsibleButton'] {
   }
 }
 
+/* Las guías del desplegable «Guías» del navbar (escritorio) */
+.dropdown__link {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
 .breadcrumbs__link {
   justify-content: center;
   min-width: 44px;
@@ -260,9 +267,12 @@ kbd.boton {
 }
 
 /* --- Portada: un acceso por rol, como la ficha de un trabajo en la app ------------------ */
+/* Tantas columnas como quepan con 13rem cada una, y nunca más de tres: tres a 1280 (las dos
+ * últimas tarjetas, en la segunda fila) y dos a 1024, donde con tres los títulos se partían en
+ * tres líneas. El `max` con un tercio del ancho (menos los dos huecos) es el tope de tres. */
 .portada {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(max(13rem, calc((100% - 2rem) / 3)), 1fr));
   gap: 1rem;
   margin: 1rem 0 0;
   padding: 0;

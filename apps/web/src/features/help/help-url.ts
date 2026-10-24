@@ -4,12 +4,12 @@ import type { UserRole } from '@dentalware/shared'
  * por omisión, el manual público. */
 const DEFAULT_DOCS_URL = 'https://docs.dentalware.naphsoft.dev'
 
-/** Guía de cada rol. `Record` exhaustivo: un rol nuevo no compila sin decidir su guía. MAN-2
- * cambia `admin` y `tecnico` a las suyas. */
+/** Guía de cada rol: cada uno va a su sección del manual. `Record` exhaustivo: un rol nuevo no
+ * compila sin decidir su guía. */
 export const HELP_PATH: Record<UserRole, string> = {
-  admin: '/',
+  admin: '/administracion/',
   recepcion: '/recepcion/',
-  tecnico: '/',
+  tecnico: '/tecnico/',
   mensajero: '/mensajero/',
 }
 

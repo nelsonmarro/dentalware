@@ -29,6 +29,17 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Técnico',
+      link: { type: 'doc', id: 'tecnico/index' },
+      items: [
+        'tecnico/mis-trabajos',
+        'tecnico/avanzar-fase',
+        'tecnico/pruebas-y-espera',
+        'tecnico/finalizar',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Mensajero',
       link: { type: 'doc', id: 'mensajero/index' },
       items: [
@@ -36,6 +47,20 @@ const sidebars: SidebarsConfig = {
         'mensajero/marcar-entregado',
         'mensajero/no-se-pudo',
         'mensajero/sin-senal',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Administración',
+      link: { type: 'doc', id: 'administracion/index' },
+      items: [
+        'administracion/datos-del-laboratorio',
+        'administracion/fases',
+        'administracion/productos-y-precios',
+        'administracion/clinicas-y-doctores',
+        'administracion/usuarios-y-roles',
+        'administracion/ajustes-y-anular-pagos',
+        'administracion/importar-csv',
       ],
     },
     {

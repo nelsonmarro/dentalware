@@ -41,4 +41,4 @@ El técnico y el mensajero no ven el total, los precios ni las notas internas en
 ## Problemas frecuentes
 
 - **No aparece el botón Editar:** solo se edita un trabajo **Por recoger**, **Nuevo** o **En proceso**. Después, los cambios se cuentan con un comentario en el **Historial**.
-- **No aparece Avanzar fase:** la fase solo cambia con el trabajo **En proceso**, y el panel dice por qué no, por ejemplo «El trabajo está en espera: reanúdalo para poder cambiar de fase.». En la última fase, <Boton>Avanzar fase</Boton> se desactiva: lo que sigue es <Boton>Finalizar</Boton>.
+- **No aparece Avanzar fase:** la fase solo cambia con el trabajo **En proceso**, y el panel dice por qué no, por ejemplo «El trabajo está en espera: reanúdalo para poder cambiar de fase.». En la última fase, <Boton>Avanzar fase</Boton> desaparece: lo que sigue es <Boton>Finalizar</Boton>.

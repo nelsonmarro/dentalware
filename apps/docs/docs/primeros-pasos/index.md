@@ -12,4 +12,4 @@ Esta sección es para todos: administración, recepción, técnicos y mensajeros
 2. **Instala la app.** Un icono en la pantalla de inicio y se abre como cualquier otra app: [Instalar la app](./instalar-la-app.md).
 3. **Mira qué te toca.** El menú muestra solo las pantallas de tu rol: [Qué ve cada rol](./que-ve-cada-rol.md).
 
-Después, sigue con la guía de tu rol: [recepción](../recepcion/index.md) o [mensajero](../mensajero/index.md). Las guías de administración y del técnico llegan más adelante; mientras tanto, [Qué ve cada rol](./que-ve-cada-rol.md) te dice qué pantallas tiene tu menú.
+Después, sigue con la guía de tu rol: [recepción](../recepcion/index.md), [técnico](../tecnico/index.md), [mensajero](../mensajero/index.md) o [administración](../administracion/index.md). Si no sabes cuál es tu rol, [Qué ve cada rol](./que-ve-cada-rol.md) te dice qué pantallas tiene tu menú.
