@@ -132,7 +132,9 @@ export const DEMO_CASES = [
     teeth: [46],
     recibidoHace: -10,
     venceEn: -1,
-    escenario: 'en_proceso',
+    // En la última fase: el manual del técnico enseña «Finalizar» como el paso que queda. La
+    // lista no muestra la fase, así que las capturas de recepción no cambian.
+    escenario: 'en_proceso_ultima_fase',
   },
   {
     key: 'vence-manana',
