@@ -355,6 +355,12 @@ kbd.boton {
   border-radius: var(--ifm-global-radius);
 }
 
+/* Reserva el alto del diagrama antes de que Mermaid lo pinte en el navegador, para que la página
+ * no salte. */
+.estados {
+  min-height: 30rem;
+}
+
 .estados svg {
   display: block;
   max-width: 100%;

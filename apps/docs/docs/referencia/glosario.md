@@ -23,6 +23,7 @@ Las palabras que más se usan en Dentalware, por orden alfabético. Cada una dic
 - **Dentalware instalada:** Dentalware guardada como app (PWA) en el teléfono o la computadora, con su propio icono y a pantalla completa. Ver [Instalar la app](../primeros-pasos/instalar-la-app.md).
 - **Días hábiles:** los días de lunes a viernes. Con ellos se cuenta la fecha comprometida; los feriados sí cuentan como hábiles. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 - **Doctor:** el odontólogo de una clínica que pide el trabajo. Se elige después de la clínica. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
+- **En camino al laboratorio:** un trabajo Por recoger que el mensajero ya recogió en la clínica y trae al laboratorio. Sigue Por recoger hasta que recepción toca <Boton>Recibido</Boton>. Ver [Recogidas y entregas](../recepcion/recogidas-y-entregas.md).
 - **En espera:** estado de un trabajo parado con un motivo (por ejemplo, falta el antagonista). Se reanuda con <Boton>Reanudar</Boton>. Ver [Estados y acciones](../recepcion/estados-y-acciones.md).
 - **En proceso:** estado de un trabajo que se está haciendo y avanza por sus fases. Ver [Estados y acciones](../recepcion/estados-y-acciones.md).
 - **En prueba:** estado de un trabajo que está en la clínica para probarlo en boca. Ver [Estados y acciones](../recepcion/estados-y-acciones.md).
@@ -45,7 +46,7 @@ Las palabras que más se usan en Dentalware, por orden alfabético. Cada una dic
 - **Orden de trabajo:** el papel impreso que acompaña al trabajo, con el paciente, las fechas, el odontograma y las líneas. Hay una copia del laboratorio (sin precios) y una de la clínica. Ver [Imprimir](../recepcion/imprimir.md).
 - **Pago:** dinero que entrega una clínica, con su monto, método y fecha. Se reparte entre sus trabajos y nunca se edita ni se borra: si estaba mal, administración lo anula. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
 - **Pieza y notación FDI:** cada diente se nombra con dos cifras (por ejemplo, 11 o 46), según la notación FDI. Se marcan en el odontograma. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
-- **Por recoger:** estado de un trabajo registrado que sigue en la clínica y que el mensajero irá a buscar. Ver [Recogidas y entregas](../recepcion/recogidas-y-entregas.md).
+- **Por recoger:** estado de un trabajo registrado que todavía no llegó al laboratorio: el mensajero irá a buscarlo o ya lo trae (En camino al laboratorio). Ver [Recogidas y entregas](../recepcion/recogidas-y-entregas.md).
 - **Precio por clínica:** el precio propio de un producto para una clínica. Si no lo tiene, se usa el precio base. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 - **Producto:** lo que el laboratorio fabrica y cobra (por ejemplo, una corona de zirconio). Cada línea de un trabajo es un producto. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 - **Prueba en boca:** cuando el trabajo va a la clínica para que el doctor lo pruebe al paciente antes de terminarlo. Se marca con <Boton>Enviar a prueba</Boton> y el trabajo pasa a En prueba. Ver [Estados y acciones](../recepcion/estados-y-acciones.md).

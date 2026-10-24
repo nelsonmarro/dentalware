@@ -175,6 +175,11 @@ export default defineConfig([
           patterns: [
             ...fronteraManual.patterns,
             {
+              group: ['**/scripts/**'],
+              message:
+                'El sitio no importa guiones (ADR 37): lo que derivan va en `src/referencia/*.json`.',
+            },
+            {
               group: ['@dentalware/shared'],
               allowTypeImports: true,
               message: 'De shared, el manual solo importa tipos (ADR 37).',

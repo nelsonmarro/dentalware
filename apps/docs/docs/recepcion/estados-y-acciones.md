@@ -31,8 +31,8 @@ Cada estado, qué significa y qué acción lo mueve:
 - **En prueba:** está en la clínica para probarlo en boca. <Boton>Recibir de prueba</Boton> lo devuelve a **En proceso**.
 - **Terminado:** está listo para entregar. <Boton>Marcar enviado</Boton> lo pasa a **Enviado**.
 - **Enviado:** va con el mensajero hacia la clínica. <Boton>Marcar entregado</Boton> lo pasa a **Entregado**.
-- **Entregado:** está en la clínica y ya se suma a la cuenta de la clínica. No tiene acción: pasa solo a **Cobrado** cuando los pagos lo cubren.
-- **Cobrado:** los pagos de la clínica cubren lo que vale. No tiene acción: vuelve solo a **Entregado** si deja de estar cubierto (por ejemplo, si administración anula un pago).
+- **Entregado:** está en la clínica y ya se suma a la cuenta de la clínica. No tiene acción: pasa solo a **Cobrado** cuando los pagos y los ajustes de la clínica lo cubren. Si no hay nada que cobrar (por ejemplo, una repetición sin cargo), <Boton>Marcar entregado</Boton> lo deja **Cobrado** directamente.
+- **Cobrado:** los pagos y los ajustes de la clínica cubren lo que vale. No tiene acción: vuelve solo a **Entregado** si deja de estar cubierto (por ejemplo, si administración anula un pago o registra un recargo).
 - **Cancelado:** se canceló y ya no se hace. No hay ninguna acción para retomarlo.
 
 <Boton>Cancelar trabajo</Boton> está en todos los estados salvo **Entregado**, **Cobrado** y **Cancelado**. [Recogidas y entregas](./recogidas-y-entregas.md) explica **Recibido**, **Marcar enviado** y **Marcar entregado**, y [Cuentas y pagos](./cuentas-y-pagos.md), cómo un trabajo llega a **Cobrado**.

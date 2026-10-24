@@ -27,6 +27,7 @@ const TERMINOS = [
   'Días hábiles',
   'Prueba en boca',
   'En espera',
+  'En camino al laboratorio',
   'Repetición',
   'Recogida',
   'Entrega',

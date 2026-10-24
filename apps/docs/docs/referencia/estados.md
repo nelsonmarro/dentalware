@@ -16,7 +16,7 @@ Cada flecha es una acción de la ficha, con el nombre de su botón. La tabla de 
 
 ## Qué significa cada estado
 
-- **Por recoger:** está registrado, pero sigue en la clínica y el mensajero va a buscarlo.
+- **Por recoger:** está registrado, pero todavía no llegó al laboratorio: el mensajero va a buscarlo o ya lo trae (**En camino al laboratorio**, que explican [Recogidas y entregas](../recepcion/recogidas-y-entregas.md)).
 - **Nuevo:** ya está en el laboratorio y espera que lo acepten.
 - **En proceso:** se está haciendo y avanza por sus fases.
 - **En espera:** está parado, con un motivo (por ejemplo, falta el antagonista).
@@ -31,4 +31,4 @@ De **Entregado** a **Cobrado**, y de vuelta, no se pasa con un botón: lo decide
 
 ## Quién hace qué
 
-Cómo se hace cada acción desde la ficha, qué pide y qué no tiene vuelta lo explica [Estados y acciones](../recepcion/estados-y-acciones.md).
+La columna «Quién» de la tabla de arriba dice qué roles pueden hacer cada acción. Cómo se hace cada acción desde la ficha, qué pide y qué no tiene vuelta lo explica [Estados y acciones](../recepcion/estados-y-acciones.md).

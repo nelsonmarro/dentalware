@@ -22,7 +22,7 @@ Un pago nunca se edita ni se borra. Pide a administración que lo anule con <Bot
 
 ## ¿Qué hago si un trabajo volvió de Cobrado a Entregado?
 
-Es normal: **Cobrado** significa que los pagos cubren lo que vale el trabajo, y si deja de ser así vuelve solo a **Entregado**. Pasa, por ejemplo, cuando administración anula un pago o registra un recargo. Revisa los movimientos de la cuenta de la clínica. Ver [Estados del trabajo](./estados.md).
+Es normal: **Cobrado** significa que los pagos cubren lo que vale el trabajo, y si deja de ser así vuelve solo a **Entregado**. Pasa, por ejemplo, cuando administración anula un pago o registra un recargo. Revisa los movimientos de la cuenta de la clínica. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md) y [Estados del trabajo](./estados.md).
 
 ## ¿Qué hago si no veo los precios?
 

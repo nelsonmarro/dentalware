@@ -12,7 +12,7 @@
     "capturas": "bash scripts/capturas.sh",
     "capturas:servidores": "bash scripts/capturas-servidores.sh",
     "capturas:dimensiones": "tsx scripts/dimensiones.ts",
-    "referencia:estados": "tsx scripts/referencia-estados.ts"
+    "referencia:estados": "pnpm --filter @dentalware/shared build && tsx scripts/referencia-estados.ts"
   },
   "dependencies": {
     "@docusaurus/core": "catalog:",
