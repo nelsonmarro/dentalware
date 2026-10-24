@@ -1,6 +1,6 @@
 ---
 title: Datos del laboratorio
-description: El nombre, la dirección, los teléfonos, el RUC y el logo que salen en la orden impresa, en el estado de cuenta y en el aviso por WhatsApp.
+description: El nombre, la dirección, los teléfonos, el RUC y el logo que salen en la orden impresa y en el estado de cuenta, y el nombre que firma el aviso por WhatsApp.
 sidebar_position: 2
 ---
 

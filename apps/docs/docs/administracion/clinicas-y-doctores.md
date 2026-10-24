@@ -14,8 +14,8 @@ Las clínicas son los clientes del laboratorio: mandan los trabajos, los reciben
 
 ## Pasos para crear o editar una clínica
 
-1. Abre **Configuración** y toca **Clínicas**. La lista muestra cada clínica con su **Ciudad**, su **WhatsApp**, sus días de **Crédito** y su **Estado**.
-   <Captura nombre="administracion/clinicas-lista" alt="Lista Clínicas con Centro Dental Los Álamos, Clínica Sonrisa Norte y Consultorio Dra. Paredes, cada una con su ciudad, su WhatsApp si lo tiene, 30 días de crédito y Activo" telefono />
+1. Abre **Configuración** y toca **Clínicas**. La lista muestra cada clínica con su **Ciudad**, su **WhatsApp** y su **Estado**; en la computadora, la tabla muestra también sus días de **Crédito**.
+   <Captura nombre="administracion/clinicas-lista" alt="La lista de clínicas, empezando por Centro Dental Los Álamos y Clínica Sonrisa Norte, cada una con su ciudad, su WhatsApp si lo tiene, Activo, el lápiz y el interruptor" telefono />
 2. Toca <Boton>Nueva clínica</Boton>, o el lápiz de una clínica para cambiar sus datos.
 3. Llena el formulario. Solo el **Nombre** es obligatorio:
    - **RUC**, **Ciudad**, **Dirección** y **Teléfono**. La dirección y la ciudad son las que abre el mapa del mensajero.

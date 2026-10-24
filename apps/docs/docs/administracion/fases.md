@@ -17,7 +17,7 @@ Las fases son las etapas por las que pasa un trabajo mientras se hace: por ejemp
 1. Abre **Configuración** y toca **Fases**.
 2. La lista muestra las fases activas en su orden, con su número, su **Color** y su **Estado**. En el laboratorio de ejemplo son siete: Recepción, Modelo, Diseño, Estructura, Cerámica/Acrílico, Acabado y Control de calidad.
    <Captura nombre="administracion/fases-lista" alt="Fases de producción: la lista numerada de Recepción a Control de calidad, cada una con su color, Activo y los botones para subir, bajar, editar y el interruptor de activa" telefono />
-3. Para cambiar el orden, usa las flechas de cada fase: **Subir** la adelanta un puesto y **Bajar** la atrasa uno. El cambio se guarda al momento.
+3. Para cambiar el orden, usa las flechas de cada fase: **Subir** la adelanta un puesto y **Bajar** la atrasa uno. El cambio se guarda al momento. El orden cuenta también las fases inactivas: con las inactivas ocultas, un cambio puede no verse; enciende **Mostrar inactivas** para ordenar.
 
 ## Pasos para crear o cambiar una fase
 
@@ -25,7 +25,7 @@ Las fases son las etapas por las que pasa un trabajo mientras se hace: por ejemp
 2. Escribe el **Nombre** y elige el **Color**: con el cuadro de color o escribiendo el código, como #7351BB.
    <Captura nombre="administracion/fase-formulario" alt="Diálogo Editar fase de Diseño, con el nombre, el cuadro de color y el código #7351BB, y los botones Cancelar y Guardar" telefono />
 3. Toca <Boton>Guardar</Boton>, o <Boton>Cancelar</Boton> para cerrar sin cambiar nada.
-4. Revisa dónde quedó una fase nueva: no siempre sale al final. Llévala a su sitio con las flechas.
+4. Una fase nueva sale arriba, junto a la primera; súbela o bájala a su sitio antes de aceptar trabajos. Mientras sea la primera, los trabajos que se acepten entran en ella.
 
 ## Qué pasa después
 

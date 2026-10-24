@@ -23,7 +23,7 @@ Los productos son lo que el laboratorio fabrica y cobra, como una corona de zirc
 ## Pasos para crear un producto
 
 1. En **Productos**, pestaña **Productos**, mira el catálogo: código, nombre, categoría, cómo se cobra, precio base, días y estado. El matraz junto a los días marca los productos que requieren prueba en clínica.
-   <Captura nombre="administracion/productos-lista" alt="Productos y precios: el catálogo con Acrílico, Cromo cobalto, Disilicato de litio, Metal porcelana, Prótesis híbrida y Zirconio, cada uno con su código, categoría, cómo se cobra, precio base y días" telefono />
+   <Captura nombre="administracion/productos-lista" alt="La lista de productos, empezando por Acrílico y Cromo cobalto, cada uno con su código, su categoría, cómo se cobra, su precio base, sus días y Activo" telefono />
 2. Toca <Boton>Nuevo producto</Boton>, o el lápiz de un producto para cambiarlo.
 3. Llena el formulario:
    - **Código**: corto y único, como ZR (se escribe en mayúsculas). Con él se busca el producto al crear un trabajo.

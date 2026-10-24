@@ -179,7 +179,7 @@ test('usuarios', async ({ page }, testInfo) => {
     .getByRole('row')
     .or(page.getByRole('main').getByRole('listitem'))
     .filter({ hasText: 'Lucía Mensajera' })
-    .getByRole('button', { name: 'Bloquear' })
+    .getByRole('button', { name: 'Bloquear', exact: true })
     .click()
   const bloquear = await listo(page.getByRole('alertdialog'))
   await captura(page, 'administracion/usuario-bloquear', bloquear, { testInfo, ...DIALOGO })
