@@ -26,7 +26,7 @@ Es normal: **Cobrado** significa que los pagos cubren lo que vale el trabajo, y 
 
 ## ¿Qué hago si no veo los precios?
 
-El técnico y el mensajero no ven precios, saldos ni notas internas, ni en la pantalla ni en la orden impresa. Si tu trabajo necesita verlos, pide a administración que revise tu rol. Ver [Qué ve cada rol](../primeros-pasos/que-ve-cada-rol.md).
+El técnico y el mensajero no ven precios, saldos ni notas internas, ni en la pantalla ni en la orden impresa. Si tu trabajo necesita verlos, pide a administración que revise tu rol. Ver [Qué ve cada rol](../primeros-pasos/que-ve-cada-rol.md) y, si eres técnico, [Mis trabajos](../tecnico/mis-trabajos.md).
 
 ## ¿Qué hago si la app dice «Sin conexión»?
 
@@ -54,7 +54,7 @@ Abre la ficha y mira la pestaña **Historial**. Cada cambio de estado, fase o t�
 
 ## ¿Qué hago si me equivoqué al finalizar o cancelar un trabajo?
 
-<Boton>Finalizar</Boton> y <Boton>Cancelar trabajo</Boton> no tienen vuelta, por eso piden confirmación. Si finalizaste por error, el trabajo queda **Terminado** y sigue su camino a la entrega: no crees otro, porque se cobraría dos veces; deja un comentario en el **Historial** (solo se pierden las fases que faltaban). Si cancelaste por error, regístralo otra vez como un trabajo nuevo, que tendrá otro código. Ver [Estados y acciones](../recepcion/estados-y-acciones.md) y [Crear un trabajo](../recepcion/crear-un-trabajo.md).
+<Boton>Finalizar</Boton> y <Boton>Cancelar trabajo</Boton> no tienen vuelta, por eso piden confirmación. Si finalizaste por error, el trabajo queda **Terminado** y sigue su camino a la entrega: no crees otro, porque se cobraría dos veces; deja un comentario en el **Historial** (solo se pierden las fases que faltaban). Si cancelaste por error, regístralo otra vez como un trabajo nuevo, que tendrá otro código. Ver [Estados y acciones](../recepcion/estados-y-acciones.md), [Finalizar](../tecnico/finalizar.md) y [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 
 ## ¿Qué hago si una clínica pagó de más o por adelantado?
 

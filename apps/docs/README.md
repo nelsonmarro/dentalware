@@ -192,10 +192,10 @@ datos de demostración, que son ficticios.
 ## Qué falta (MAN-2)
 
 Este manual cubre MAN-1 (#127): «Primeros pasos», «Recepción» y «Mensajero», y de MAN-2 (#138) la
-**Referencia** (glosario, estados del trabajo con su diagrama y preguntas frecuentes). Faltan, con la
-misma plantilla y la misma tubería de capturas:
+**Referencia** (glosario, estados del trabajo con su diagrama y preguntas frecuentes) y **Técnico** (mis
+trabajos, avanzar fase, pruebas y espera, finalizar). Falta, con la misma plantilla y la misma
+tubería de capturas:
 
-- **Técnico**: mis trabajos, avanzar fase, pruebas y en espera, finalizar.
 - **Administración**: clínicas y doctores, productos y precios por clínica, fases, usuarios y roles,
   datos del laboratorio; ajustes, saldo inicial y anular pagos; importar CSV.
 

@@ -63,6 +63,7 @@ const config: Config = {
       items: [
         { to: '/primeros-pasos/', label: 'Primeros pasos', position: 'left' },
         { to: '/recepcion/', label: 'Recepción', position: 'left' },
+        { to: '/tecnico/', label: 'Técnico', position: 'left' },
         { to: '/mensajero/', label: 'Mensajero', position: 'left' },
         { to: '/referencia/', label: 'Referencia', position: 'left' },
         { href: 'https://dentalware.naphsoft.dev', label: 'Abrir la app', position: 'right' },

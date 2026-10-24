@@ -32,7 +32,7 @@ Las palabras que más se usan en Dentalware, por orden alfabético. Cada una dic
 - **Enviado:** estado de un trabajo terminado que va con el mensajero hacia la clínica. Ver [Recogidas y entregas](../recepcion/recogidas-y-entregas.md).
 - **Estado:** el punto del flujo en que va un trabajo (de Por recoger a Cobrado, o Cancelado). Cambia con las acciones de la ficha. Ver [Estados y acciones](../recepcion/estados-y-acciones.md) y el [diagrama de estados](./estados.md).
 - **Estado de cuenta:** el papel que se manda a la clínica con los cargos, pagos y ajustes de un periodo y lo que queda por cobrar. Ver [Imprimir](../recepcion/imprimir.md).
-- **Fase:** cada etapa de producción por la que pasa un trabajo En proceso (Recepción, Modelo…). Se avanza y retrocede en la ficha. Ver [La ficha del trabajo](../recepcion/la-ficha-del-trabajo.md).
+- **Fase:** cada etapa de producción por la que pasa un trabajo En proceso (Recepción, Modelo…). Se avanza y retrocede en la ficha. Ver [La ficha del trabajo](../recepcion/la-ficha-del-trabajo.md) y [Avanzar fase](../tecnico/avanzar-fase.md).
 - **Fecha comprometida:** la fecha que promete el laboratorio. Se fija al aceptar el trabajo, contando días hábiles según el producto. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 - **Fecha de ingreso:** el día en que el trabajo llegó al laboratorio; por omisión, hoy. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 - **Fecha deseada:** la fecha que pide la clínica. Hace falta para aceptar el trabajo. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
