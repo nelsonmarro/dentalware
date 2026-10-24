@@ -68,6 +68,14 @@ describe('glosario del manual', () => {
     }
   })
 
+  it('cada entrada lleva al menos un enlace relativo a una guía', () => {
+    const lineas = glosario.split('\n').filter((l) => /^- \*\*.+?:\*\* /.test(l))
+    expect(lineas.length).toBeGreaterThan(0)
+    for (const linea of lineas) {
+      expect(linea, linea.slice(0, 40)).toMatch(/\]\((\.\/|\.\.\/)[^)]*\.md/)
+    }
+  })
+
   it('va en orden alfabético', () => {
     const orden = [...entradas].sort((a, b) => a.localeCompare(b, 'es'))
     expect(entradas).toEqual(orden)

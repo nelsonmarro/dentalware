@@ -38,7 +38,7 @@ Pide a administración que te asigne una nueva. Si la app dice que tu usuario es
 
 ## ¿Qué hago si marqué una pieza equivocada en el odontograma?
 
-Mientras el trabajo siga **Por recoger**, **Nuevo** o **En proceso**, toca <Boton>Editar</Boton> en la ficha, abre las piezas de la línea y toca la pieza equivocada para quitarla. Después, <Boton>Guardar</Boton>. Si el trabajo ya pasó de ahí, deja un comentario en el **Historial**. Ver [La ficha del trabajo](../recepcion/la-ficha-del-trabajo.md).
+Mientras el trabajo siga **Por recoger**, **Nuevo** o **En proceso**, toca <Boton>Editar</Boton> en la ficha, toca <Boton>Piezas</Boton> en la línea y toca la pieza equivocada para quitarla. Guarda el odontograma con su <Boton>Guardar</Boton> y después guarda el formulario con el <Boton>Guardar</Boton> de abajo. Si el trabajo ya pasó de ahí, deja un comentario en el **Historial**. Ver [La ficha del trabajo](../recepcion/la-ficha-del-trabajo.md).
 
 ## ¿Cómo repito un trabajo?
 
@@ -46,7 +46,7 @@ Desde que el trabajo está **Terminado**, la ficha tiene el botón <Boton>Repeti
 
 ## ¿Cómo imprimo solo la copia de la clínica?
 
-En la ficha, toca <Boton>Imprimir</Boton> y, en **Copia a imprimir**, elige **Clínica**. La copia del laboratorio sale sin precios y la de la clínica, con precios. Ver [Imprimir](../recepcion/imprimir.md).
+En la ficha, toca <Boton>Imprimir</Boton>, en **Copia a imprimir** elige **Clínica** y toca <Boton>Imprimir</Boton>. La copia del laboratorio sale sin precios y la de la clínica, con precios; solo administración y recepción pueden elegir la de la clínica, porque técnico y mensajero imprimen solo la del laboratorio. Ver [Imprimir](../recepcion/imprimir.md).
 
 ## ¿Cómo sé quién cambió el estado de un trabajo?
 
@@ -54,7 +54,7 @@ Abre la ficha y mira la pestaña **Historial**. Cada cambio de estado, fase o t�
 
 ## ¿Qué hago si me equivoqué al finalizar o cancelar un trabajo?
 
-<Boton>Finalizar</Boton> y <Boton>Cancelar trabajo</Boton> no tienen vuelta: ninguna acción devuelve un trabajo terminado a **En proceso** ni retoma uno cancelado. Por eso piden confirmación. Deja un comentario en el **Historial** y, si hace falta hacerlo de nuevo, crea el trabajo otra vez. Ver [Estados y acciones](../recepcion/estados-y-acciones.md).
+<Boton>Finalizar</Boton> y <Boton>Cancelar trabajo</Boton> no tienen vuelta, por eso piden confirmación. Si finalizaste por error, el trabajo queda **Terminado** y sigue su camino a la entrega: no crees otro, porque se cobraría dos veces; deja un comentario en el **Historial** (solo se pierden las fases que faltaban). Si cancelaste por error, regístralo otra vez como un trabajo nuevo, que tendrá otro código. Ver [Estados y acciones](../recepcion/estados-y-acciones.md) y [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 
 ## ¿Qué hago si una clínica pagó de más o por adelantado?
 
