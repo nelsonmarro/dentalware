@@ -2,10 +2,12 @@ import type { Locator, Page, TestInfo } from '@playwright/test'
 import { captura } from './helpers'
 import { expect, test } from './fixtures'
 
-/** Capturas de la sección «Administración» del manual (configuración), con la sesión del admin de
- * `apps/api/.env.test`. Ninguna cambia datos: los formularios se abren, se capturan y se cierran
- * con «Cancelar» (el botón de cerrar de los formularios de configuración), y «Bloquear» se abre y
- * se cierra con «Volver». «Nuevo usuario» se captura vacío: nunca se escribe una contraseña. */
+/** Capturas de la sección «Administración» del manual, con la sesión del admin de
+ * `apps/api/.env.test`. Ninguna cambia datos: los formularios de configuración se abren, se
+ * capturan y se cierran con «Cancelar» (su botón de cerrar), y los diálogos de las cuentas y
+ * «Bloquear», con «Volver»; los que se rellenan nunca se envían. «Nuevo usuario» se captura vacío:
+ * nunca se escribe una contraseña. La importación solo valida (sin `confirmar`, la API no crea
+ * nada) y nunca pulsa «Importar N trabajos». */
 test.use({ rol: 'admin' })
 
 const esTelefono = (testInfo: TestInfo) => testInfo.project.name === 'telefono'
@@ -185,4 +187,154 @@ test('usuarios', async ({ page }, testInfo) => {
   await captura(page, 'administracion/usuario-bloquear', bloquear, { testInfo, ...DIALOGO })
   await bloquear.getByRole('button', { name: 'Volver' }).click()
   await expect(bloquear).toHaveCount(0)
+})
+
+/** Abre el diálogo de la cuenta por su botón y lo busca por su título: el desplegable de
+ * «Trabajo» (un `Combobox`) también es un `dialog`, montado aunque esté cerrado. */
+async function abrirDeCuenta(page: Page, boton: string | RegExp, titulo: string) {
+  await page.getByRole('button', { name: boton }).click()
+  const dialogo = await listo(page.getByRole('dialog', { name: titulo }))
+  await sinFoco(page)
+  return dialogo
+}
+
+/** Lleva el cuerpo desplazable del diálogo a su principio o a su final. En el teléfono no cabe
+ * entero: al escribir en el último campo se queda abajo y esconde el primero («Tipo»). */
+const desplazar = (dialogo: Locator, hacia: 'principio' | 'final') =>
+  dialogo.evaluate((el, final) => {
+    for (const hijo of el.querySelectorAll<HTMLElement>('*')) {
+      if (!['auto', 'scroll'].includes(getComputedStyle(hijo).overflowY)) continue
+      hijo.scrollTop = final ? hijo.scrollHeight : 0
+    }
+  }, hacia === 'final')
+
+/** Cierra con «Volver»: nunca se confirma nada desde un spec. */
+async function volver(dialogo: Locator) {
+  await dialogo.getByRole('button', { name: 'Volver' }).click()
+  await expect(dialogo).toHaveCount(0)
+}
+
+/** La cuenta de una clínica de demostración, desde la lista «Cuentas». */
+async function abrirCuenta(page: Page, clinica: string) {
+  await page.goto('/cuentas')
+  await page.getByRole('link', { name: clinica }).first().click()
+  await expect(page.getByRole('heading', { level: 1, name: clinica })).toBeVisible()
+}
+
+test('ajustes y anular pagos', async ({ page }, testInfo) => {
+  // Una ventana algo más alta: el diálogo (90 % del alto) cabe entero, con su aviso al pie.
+  await page.setViewportSize(
+    esTelefono(testInfo) ? { width: 412, height: 915 } : { width: 1280, height: 1000 },
+  )
+  await abrirCuenta(page, 'Clínica Sonrisa Norte')
+
+  // Un descuento de $ 40.00 a «S. L.», que debe $ 35.00 y ya tiene $ 60.00 pagados: $ 5.00
+  // vuelven al saldo a favor, y el diálogo lo dice antes de confirmar.
+  const ajuste = await abrirDeCuenta(page, 'Registrar ajuste', 'Registrar ajuste')
+  await ajuste.getByRole('button', { name: 'Descuento o nota de crédito' }).click()
+  await ajuste.getByLabel('Monto', { exact: true }).fill('40.00')
+  await ajuste.getByRole('combobox', { name: 'Trabajo' }).click()
+  await page.getByRole('option', { name: /S\. L\./ }).click()
+  await ajuste.getByLabel('Motivo').fill('Descuento acordado por el retraso de la entrega')
+  await expect(
+    ajuste.getByText('de lo ya pagado por este trabajo vuelven al saldo a favor.'),
+  ).toBeVisible()
+  await sinFoco(page)
+  await desplazar(ajuste, 'principio')
+  await captura(page, 'administracion/registrar-ajuste', ajuste, { testInfo, ...DIALOGO })
+  await volver(ajuste)
+
+  // «Saldo inicial» rellena el tipo, el trabajo y el motivo; el monto lo escribe el admin.
+  const inicial = await abrirDeCuenta(page, 'Registrar ajuste', 'Registrar ajuste')
+  await inicial.getByRole('button', { name: 'Saldo inicial' }).click()
+  await inicial.getByLabel('Monto', { exact: true }).fill('120.00')
+  await expect(inicial.getByRole('button', { name: 'Recargo' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await expect(inicial.getByLabel('Motivo')).toHaveValue('Saldo inicial')
+  await sinFoco(page)
+  // En el teléfono, hasta el final: el «Recargo» elegido, «Sin trabajo» y el motivo.
+  await desplazar(inicial, esTelefono(testInfo) ? 'final' : 'principio')
+  await captura(page, 'administracion/saldo-inicial', inicial, { testInfo, ...DIALOGO })
+  await volver(inicial)
+
+  await page.getByRole('tab', { name: 'Movimientos' }).click()
+  const anular = await abrirDeCuenta(page, /^Anular pago de /, 'Anular pago')
+  await expect(anular.getByText(/^Se quita lo aplicado a /)).toBeVisible()
+  await anular.getByLabel('Motivo').fill('Se registró con el monto equivocado')
+  await sinFoco(page)
+  await captura(page, 'administracion/anular-pago', anular, { testInfo, ...DIALOGO })
+  await volver(anular)
+})
+
+/** Un CSV de trabajos con la cabecera de la plantilla (`IMPORT_COLUMNS` de shared). */
+const csv = (...filas: string[]) =>
+  Buffer.from(
+    [
+      'clinica,doctor,paciente,producto,piezas,cantidad,color,fecha_deseada,caja,observaciones',
+      ...filas,
+    ].join('\n'),
+  )
+
+test('importar trabajos', async ({ page }, testInfo) => {
+  await page.goto('/trabajos')
+  await expect(page.getByRole('heading', { level: 1, name: 'Trabajos' })).toBeVisible()
+  await page.getByRole('main').getByRole('button', { name: 'Importar', exact: true }).click()
+  const dialogo = await listo(page.getByRole('dialog'))
+  await expect(dialogo.getByRole('link', { name: 'Descargar plantilla' })).toBeVisible()
+  await sinFoco(page)
+  // El diálogo ancho ocupa en el teléfono casi todo el ancho: allí, 8 px de margen.
+  await captura(page, 'administracion/importar-dialogo', dialogo, {
+    testInfo,
+    margen: esTelefono(testInfo) ? 8 : DIALOGO.margen,
+  })
+  if (esTelefono(testInfo)) {
+    await cancelar(page)
+    return
+  }
+
+  // Validar no crea nada: un archivo con errores muestra la tabla de fila, columna y mensaje.
+  const archivo = dialogo.getByLabel('Archivo CSV')
+  await archivo.setInputFiles({
+    name: 'trabajos.csv',
+    mimeType: 'text/csv',
+    buffer: csv(
+      'Clínica Sonrisa Norte,Dra. Valeria Andrade,R. P.,ZR,"11,21",1,A2,30/10/2026,C-014,',
+      'Centro Dental Los Álamos,Dr. Tomás Herrera,F. C.,MP,36,1,A3,30/10/2026,,',
+      'Clínica Ejemplo Sur,Dr. Rafael Mena,H. N.,ZR,14,1,,,,',
+      'Centro Dental Los Álamos,Dr. Rafael Mena,O. E.,ZR,19,1,,31/02/2026,,',
+    ),
+  })
+  await dialogo.getByRole('button', { name: 'Validar' }).click()
+  await expect(dialogo.getByRole('table')).toBeVisible()
+  // El puntero se queda sobre el botón del pie, que saldría en su color de `hover`.
+  await page.mouse.move(0, 0)
+  await sinFoco(page)
+  await captura(page, 'administracion/importar-errores', dialogo, {
+    testInfo,
+    solo: 'escritorio',
+    ...DIALOGO,
+  })
+
+  // Corregido, «Validar» dice cuántos trabajos saldrán y ofrece importarlos (no se pulsa).
+  await archivo.setInputFiles({
+    name: 'trabajos.csv',
+    mimeType: 'text/csv',
+    buffer: csv(
+      'Clínica Sonrisa Norte,Dra. Valeria Andrade,R. P.,ZR,"11,21",1,A2,30/10/2026,C-014,',
+      'Clínica Sonrisa Norte,Dra. Valeria Andrade,R. P.,MP,36,1,A3,30/10/2026,C-014,',
+      'Centro Dental Los Álamos,Dr. Rafael Mena,O. E.,ZR,15,1,,30/10/2026,,',
+    ),
+  })
+  await dialogo.getByRole('button', { name: 'Validar' }).click()
+  await expect(dialogo.getByRole('button', { name: 'Importar 2 trabajos' })).toBeVisible()
+  await page.mouse.move(0, 0)
+  await sinFoco(page)
+  await captura(page, 'administracion/importar-listo', dialogo, {
+    testInfo,
+    solo: 'escritorio',
+    ...DIALOGO,
+  })
+  await cancelar(page)
 })
