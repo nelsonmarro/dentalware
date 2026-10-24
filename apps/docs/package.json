@@ -11,11 +11,13 @@
     "test": "vitest run",
     "capturas": "bash scripts/capturas.sh",
     "capturas:servidores": "bash scripts/capturas-servidores.sh",
-    "capturas:dimensiones": "tsx scripts/dimensiones.ts"
+    "capturas:dimensiones": "tsx scripts/dimensiones.ts",
+    "referencia:estados": "pnpm --filter @dentalware/shared build && tsx scripts/referencia-estados.ts"
   },
   "dependencies": {
     "@docusaurus/core": "catalog:",
     "@docusaurus/preset-classic": "catalog:",
+    "@docusaurus/theme-mermaid": "catalog:",
     "@easyops-cn/docusaurus-search-local": "catalog:",
     "@fontsource-variable/instrument-sans": "catalog:",
     "@fontsource-variable/jetbrains-mono": "catalog:",
@@ -37,6 +39,7 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "jsdom": "catalog:",
+    "prettier": "catalog:",
     "sharp": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",

@@ -210,3 +210,18 @@ test('la flecha de las tarjetas no entra en el nombre del enlace', async ({ page
     }),
   ).toBeVisible()
 })
+
+// El diagrama de la referencia lo pinta Mermaid en el navegador, después de cargar la página: se
+// espera al SVG para que sus errores de consola y su ancho cuenten.
+test('la referencia de estados: el diagrama se pinta, sin scroll horizontal ni errores', async ({
+  page,
+}) => {
+  const errores = consola(page)
+  await page.goto('/referencia/estados/')
+  const figura = page.getByRole('img', { name: /Diagrama de los estados de un trabajo/ })
+  await expect(figura.locator('svg')).toBeVisible()
+  await expect(figura.locator('svg')).toContainText('Por recoger')
+  await sinScrollHorizontal(page)
+  await expect(page.getByRole('table')).toBeVisible()
+  expect(errores).toEqual([])
+})

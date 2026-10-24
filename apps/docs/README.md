@@ -12,6 +12,7 @@ pnpm --filter @dentalware/docs dev      # http://localhost:3100, recarga al guar
 pnpm --filter @dentalware/docs build    # como en CI: falla con un enlace, ancla o imagen rotos
 pnpm --filter @dentalware/docs serve    # sirve el build en http://localhost:3100
 pnpm --filter @dentalware/docs sitio    # barrido del sitio construido a 1280, 390 y 360 (Playwright)
+pnpm --filter @dentalware/docs referencia:estados  # construye shared y rehace src/referencia/estados.json
 ```
 
 El buscador solo funciona sobre el build (`build` + `serve`), no en `dev`. El `pnpm build` de la raíz
@@ -34,7 +35,9 @@ CSS de otra forma. Comprueba:
 - **Además**: el menú del teléfono (44 px y rótulos en español), el campo del buscador del navbar
   («Buscar en el manual»), los títulos de los avisos sin mayúsculas, el chip de botón pegado a la
   puntuación, las capturas de una guía con `width`/`height`, las tres puertas de «Primeros pasos»,
-  la flecha de las tarjetas fuera del nombre del enlace y el `title` de los enlaces de ancla.
+  la flecha de las tarjetas fuera del nombre del enlace, el `title` de los enlaces de ancla y el
+  diagrama de la referencia de estados (espera al SVG de Mermaid, que se pinta en el navegador, antes
+  de mirar consola y ancho).
 
 Corre en el job `e2e` de CI, después de los E2E de la web y aunque estos fallen.
 
@@ -67,7 +70,7 @@ Lo que el tema no corrige solo vive en `src/theme/` (swizzle por envoltura, sobr
 5. Las páginas de referencia (como «Qué ve cada rol») no son tareas: no llevan «Quién puede hacerlo»
    ni pasos.
 
-Los tres componentes propios se usan en cualquier página sin importarlos:
+Los componentes propios se usan en cualquier página sin importarlos:
 
 ```mdx
 <Rol roles={['admin', 'recepcion']} />
@@ -96,6 +99,18 @@ Una captura de `static/img/capturas/<nombre>.escritorio.png`; con `telefono`, ta
 del teléfono), y con `solo="telefono"`, solo esa. `alt`
 describe lo que se ve; `pie` añade un texto debajo. Las capturas se toman a 2 píxeles por punto y
 `Captura` las declara `2x`: se ven a su tamaño real en la app, nítidas, y nunca se estiran.
+
+```mdx
+<Estados />
+```
+
+El diagrama de estados del trabajo y la tabla «Acción · De · A · Quién» de la referencia. No lleva
+datos escritos a mano: los lee de `src/referencia/estados.json`, que `pnpm --filter @dentalware/docs
+referencia:estados` rehace desde la máquina de estados de `shared` (construye `shared` primero, porque
+lee su `dist`). `referencia-estados.test.ts` falla si el JSON quedó viejo. El diagrama es Mermaid
+(`@docusaurus/theme-mermaid`, tema `neutral`) y se pinta en el navegador; `@mermaid-js/layout-elk` se
+resuelve a vacío en `docusaurus.config.ts` (facebook/docusaurus#11430) y `mermaid` está fijado en
+`pnpm-workspace.yaml`.
 
 ## Regenerar las capturas
 
@@ -176,16 +191,14 @@ datos de demostración, que son ficticios.
 
 ## Qué falta (MAN-2)
 
-Este manual cubre MAN-1 (#127): «Primeros pasos», «Recepción» y «Mensajero». MAN-2 (#138) añade, con
-la misma plantilla y la misma tubería de capturas:
+Este manual cubre MAN-1 (#127): «Primeros pasos», «Recepción» y «Mensajero», y de MAN-2 (#138) la
+**Referencia** (glosario, estados del trabajo con su diagrama y preguntas frecuentes). Faltan, con la
+misma plantilla y la misma tubería de capturas:
 
 - **Técnico**: mis trabajos, avanzar fase, pruebas y en espera, finalizar.
 - **Administración**: clínicas y doctores, productos y precios por clínica, fases, usuarios y roles,
   datos del laboratorio; ajustes, saldo inicial y anular pagos; importar CSV.
-- **Referencia**: glosario, estados del trabajo con su diagrama (derivados de `CASE_TRANSITIONS` de
-  `shared`) y preguntas frecuentes.
 
 Al publicarlas: «Soy técnico» y «Administro el laboratorio» en la portada, las secciones en
 `sidebars.ts` y en el menú superior, y `HELP_PATH` de `admin` y `tecnico`
-(`apps/web/src/features/help/help-url.ts`) a sus guías, que hoy llevan a la portada. Antes, la ola de
-fixes de la revisión UI/UX de la Iteración 8 (#137).
+(`apps/web/src/features/help/help-url.ts`) a sus guías, que hoy llevan a la portada.

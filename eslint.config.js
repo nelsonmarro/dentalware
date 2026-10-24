@@ -111,6 +111,27 @@ const dataGridAppBoundary = {
     'DataGrid es transversal (components/): no depende de una feature de la app, de una ruta ni de @/lib/api.',
 }
 
+// Frontera del manual con api y web (ADR 37): la comparten el sitio y, por la enmienda, sus guiones
+// y tests, que además pueden importar el runtime de shared.
+const fronteraManual = {
+  paths: [
+    {
+      name: '@dentalware/api',
+      message: 'El manual no importa la API (docs/architecture.md §2, ADR 37).',
+    },
+    {
+      name: '@dentalware/web',
+      message: 'El manual no importa la web (docs/architecture.md §2, ADR 37).',
+    },
+  ],
+  patterns: [
+    {
+      group: ['**/apps/api/**', '**/apps/web/**', '../../api/**', '../../web/**'],
+      message: 'El manual no importa archivos de api ni de web (ADR 37).',
+    },
+  ],
+}
+
 export default defineConfig([
   globalIgnores([
     '**/dist/**',
@@ -150,20 +171,13 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          paths: [
-            {
-              name: '@dentalware/api',
-              message: 'El manual no importa la API (docs/architecture.md §2, ADR 37).',
-            },
-            {
-              name: '@dentalware/web',
-              message: 'El manual no importa la web (docs/architecture.md §2, ADR 37).',
-            },
-          ],
+          paths: fronteraManual.paths,
           patterns: [
+            ...fronteraManual.patterns,
             {
-              group: ['**/apps/api/**', '**/apps/web/**', '../../api/**', '../../web/**'],
-              message: 'El manual no importa archivos de api ni de web (ADR 37).',
+              group: ['**/scripts/**'],
+              message:
+                'El sitio no importa guiones (ADR 37): lo que derivan va en `src/referencia/*.json`.',
             },
             {
               group: ['@dentalware/shared'],
@@ -172,6 +186,19 @@ export default defineConfig([
             },
           ],
         },
+      ],
+    },
+  },
+
+  // Enmienda del ADR 37: los guiones y los tests del manual derivan contenido de shared (la
+  // referencia de estados, `scripts/referencia-estados.ts`); el sitio sigue con solo tipos.
+  {
+    files: ['apps/docs/scripts/**/*.ts', 'apps/docs/**/*.test.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        // La misma frontera con api y web, sin el patrón de shared.
+        fronteraManual,
       ],
     },
   },

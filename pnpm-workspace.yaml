@@ -7,6 +7,10 @@ allowBuilds:
   core-js: false
   esbuild: true
 
+overrides:
+  # theme-mermaid pide `>=11.6.0`: sin fijarlo, un `pnpm update` cambiaría el diagrama del manual
+  mermaid: 12.2.0
+
 catalog:
   # tooling
   typescript: 6.0.3
@@ -73,6 +77,7 @@ catalog:
   '@docusaurus/core': 3.10.2
   '@docusaurus/preset-classic': 3.10.2
   '@docusaurus/theme-classic': 3.10.2
+  '@docusaurus/theme-mermaid': 3.10.2
   '@docusaurus/module-type-aliases': 3.10.2
   '@docusaurus/tsconfig': 3.10.2
   '@docusaurus/types': 3.10.2
