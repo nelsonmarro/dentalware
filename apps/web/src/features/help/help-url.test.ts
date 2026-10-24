@@ -7,9 +7,8 @@ describe('helpUrl', () => {
   it.each([
     { role: 'recepcion' as const, url: 'https://docs.dentalware.naphsoft.dev/recepcion/' },
     { role: 'mensajero' as const, url: 'https://docs.dentalware.naphsoft.dev/mensajero/' },
-    // MAN-2 les da su guía; hasta entonces, la portada.
-    { role: 'admin' as const, url: 'https://docs.dentalware.naphsoft.dev/' },
-    { role: 'tecnico' as const, url: 'https://docs.dentalware.naphsoft.dev/' },
+    { role: 'tecnico' as const, url: 'https://docs.dentalware.naphsoft.dev/tecnico/' },
+    { role: 'admin' as const, url: 'https://docs.dentalware.naphsoft.dev/administracion/' },
   ])('$role → $url', ({ role, url }) => {
     vi.stubEnv('VITE_DOCS_URL', '')
     expect(helpUrl(role)).toBe(url)
