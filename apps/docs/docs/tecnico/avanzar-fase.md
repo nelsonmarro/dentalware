@@ -34,7 +34,7 @@ Si hay que rehacer una etapa (por ejemplo, el diseño no encaja con el modelo), 
 
 1. En la ficha, toca la pestaña **Adjuntos**.
 2. Toca <Boton>Añadir foto</Boton> para tomarla con la cámara del teléfono, o <Boton>Subir archivo</Boton> para elegir una foto o un PDF ya guardado.
-   <Captura nombre="tecnico/ficha-adjuntos-anadir-foto" alt="Pestaña Adjuntos del trabajo de C. V., todavía sin fotos ni documentos, con los botones Añadir foto y Subir archivo" solo="telefono" />
+   <Captura nombre="tecnico/ficha-adjuntos-anadir-foto" alt="Adjuntos, todavía sin fotos ni documentos, con los botones Añadir foto y Subir archivo" solo="telefono" />
 3. Un aviso confirma la subida («Foto añadida») y la foto queda en **Adjuntos**, a la vista de todos los que abran el trabajo.
 
 ## Qué pasa después

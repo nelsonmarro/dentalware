@@ -29,7 +29,7 @@ Un trabajo **Nuevo** todavía no sale en **Mis trabajos** aunque sea tuyo: apare
 
 1. Toca **Trabajos** en el menú (en el teléfono, en la barra de abajo).
 2. Elige una vista arriba (**En curso**, **Vencen hoy**, **Atrasados**…) o escribe el código, el paciente o la caja en **Buscar por código, paciente o caja**.
-   <Captura nombre="tecnico/trabajos-lista-sin-precios" alt="Lista Trabajos en la vista En curso: código, clínica y doctor, paciente, trabajo, fecha de entrega y estado de cada uno, sin columna de total" telefono />
+   <Captura nombre="tecnico/trabajos-lista-sin-precios" alt="Lista Trabajos en la vista En curso: código, clínica y doctor, paciente, trabajo, fecha de entrega y estado de cada uno, sin el total" telefono />
 3. Toca el código para abrir la ficha.
 
 En **Trabajos** ves todos los trabajos del laboratorio, no solo los tuyos.
@@ -42,4 +42,4 @@ El técnico nunca ve precios, saldos ni notas internas: la lista no tiene la col
 
 - **No me sale un trabajo en Mis trabajos:** puede que esté asignado a otro técnico, que siga **Nuevo** (aún no aceptado) o que ya esté **Terminado**. Búscalo en **Trabajos**; si es tuyo y no sale, pide a recepción que te lo asigne como técnico responsable.
 - **No veo el total ni los precios:** es a propósito: el técnico no ve dinero. Ver [Qué ve cada rol](../primeros-pasos/que-ve-cada-rol.md).
-- **No veo Cuentas ni Configuración en el menú:** son de administración y recepción. El técnico solo tiene **Inicio** y **Trabajos**.
+- **No veo Cuentas ni Configuración en el menú:** **Cuentas** es de administración y recepción; **Configuración**, solo de administración. El técnico solo tiene **Inicio** y **Trabajos**.

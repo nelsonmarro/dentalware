@@ -20,7 +20,7 @@ Cuando el trabajo pasó por todas sus fases y está listo para entregar, lo fina
    <Captura nombre="tecnico/finalizar-confirmacion" alt="Confirmación Finalizar: el trabajo pasará a Terminado con la fecha de hoy y no hay ninguna acción para devolverlo a En proceso; botones Finalizar y Volver" telefono />
 3. Toca <Boton>Finalizar</Boton> otra vez para confirmar, o <Boton>Volver</Boton> para dejarlo como está. Un aviso dice «Trabajo finalizado».
 
-<Boton>Finalizar</Boton> también está en las fases anteriores, al pie del panel y en gris: solo úsalo si el trabajo de verdad está terminado, porque las fases que faltaban ya no se marcan.
+<Boton>Finalizar</Boton> también está en las fases anteriores, al pie del panel, como botón secundario (sin relleno): solo úsalo si el trabajo de verdad está terminado, porque las fases que faltaban ya no se marcan.
 
 ## Pasos para imprimir la orden
 
