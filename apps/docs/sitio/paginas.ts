@@ -31,6 +31,8 @@ export const PAGINAS = [
   '/administracion/productos-y-precios/',
   '/administracion/clinicas-y-doctores/',
   '/administracion/usuarios-y-roles/',
+  '/administracion/ajustes-y-anular-pagos/',
+  '/administracion/importar-csv/',
   '/referencia/',
   '/referencia/estados/',
   '/referencia/glosario/',

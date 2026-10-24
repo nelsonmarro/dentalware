@@ -46,7 +46,7 @@ Un trabajo cuyo pendiente llega a cero pasa solo a **Cobrado**: no hay un botón
 Para enviar a la clínica el detalle de un periodo, toca <Boton>Estado de cuenta</Boton>: lo explica [Imprimir](./imprimir.md).
 
 :::info Ajustes y pagos anulados
-<Boton>Registrar ajuste</Boton> (descuentos, recargos y el saldo inicial de una clínica) y <Boton>Anular pago</Boton> son solo de administración. Si un pago se registró mal, pídele a administración que lo anule: un pago nunca se edita ni se borra.
+<Boton>Registrar ajuste</Boton> (descuentos, recargos y el saldo inicial de una clínica) y <Boton>Anular pago</Boton> son solo de administración. Si un pago se registró mal, pídele a administración que lo anule: un pago nunca se edita ni se borra. Cómo lo hace administración: [Ajustes y anular pagos](../administracion/ajustes-y-anular-pagos.md).
 :::
 
 ## Problemas frecuentes

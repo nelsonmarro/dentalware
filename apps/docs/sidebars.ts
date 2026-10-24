@@ -59,6 +59,8 @@ const sidebars: SidebarsConfig = {
         'administracion/productos-y-precios',
         'administracion/clinicas-y-doctores',
         'administracion/usuarios-y-roles',
+        'administracion/ajustes-y-anular-pagos',
+        'administracion/importar-csv',
       ],
     },
     {

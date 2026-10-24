@@ -26,9 +26,11 @@ En **Configuración**, arriba, están las cinco secciones: **Laboratorio**, **Us
 
 ## En las cuentas
 
-Recepción registra los pagos, pero hay dos cosas que solo hace administración: registrar **ajustes** (descuentos, recargos y el saldo inicial de una clínica) y **anular pagos** mal registrados. Lo básico de las cuentas está en [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
+Recepción registra los pagos, pero hay dos cosas que solo hace administración: registrar **ajustes** (descuentos, recargos y el saldo inicial de una clínica) y **anular pagos** mal registrados. Cómo se hacen: [Ajustes y anular pagos](./ajustes-y-anular-pagos.md). Lo básico de las cuentas está en [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
 
-{/* Tarea 5: enlazar ajustes-y-anular-pagos e importar-csv */}
+## Al empezar con muchos trabajos
+
+Si el laboratorio ya tiene órdenes en una planilla, cárgalas de una vez en vez de crearlas una a una: [Importar trabajos desde un CSV](./importar-csv.md). Antes, configura las clínicas, los doctores y los productos que usan.
 
 :::info Nada se borra
 En Configuración no hay botón para borrar. Una clínica, un doctor, un producto, una categoría o una fase que ya no se usa se **desactiva** con su interruptor: deja de salir en las listas para elegir, como al crear un trabajo. Lo que ya está guardado en los trabajos no cambia. A un usuario se le **bloquea** el acceso. Las fases piden un cuidado más: lee [Fases](./fases.md) antes de desactivar una.

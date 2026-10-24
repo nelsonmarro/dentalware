@@ -18,11 +18,15 @@ Toca <Boton>No se pudo</Boton> en la tarjeta del trabajo, elige o escribe el mot
 
 ## ¿Qué hago si un pago se registró mal?
 
-Un pago nunca se edita ni se borra. Pide a administración que lo anule con <Boton>Anular pago</Boton> y, después, registra el pago correcto. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
+Un pago nunca se edita ni se borra. Pide a administración que lo anule con <Boton>Anular pago</Boton> y, después, registra el pago correcto. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md) y [Ajustes y anular pagos](../administracion/ajustes-y-anular-pagos.md).
+
+## ¿Cómo cargo lo que una clínica ya debía antes de Dentalware?
+
+Administración lo registra una sola vez como **saldo inicial**: en la cuenta de la clínica, <Boton>Registrar ajuste</Boton> y el atajo <Boton>Saldo inicial</Boton>, con el monto y la fecha de esa deuda. Ver [Ajustes y anular pagos](../administracion/ajustes-y-anular-pagos.md#pasos-para-cargar-el-saldo-inicial).
 
 ## ¿Qué hago si un trabajo volvió de Cobrado a Entregado?
 
-Es normal: **Cobrado** significa que los pagos cubren lo que vale el trabajo, y si deja de ser así vuelve solo a **Entregado**. Pasa, por ejemplo, cuando administración anula un pago o registra un recargo. Revisa los movimientos de la cuenta de la clínica. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md) y [Estados del trabajo](./estados.md).
+Es normal: **Cobrado** significa que los pagos cubren lo que vale el trabajo, y si deja de ser así vuelve solo a **Entregado**. Pasa, por ejemplo, cuando administración anula un pago o registra un recargo. Revisa los movimientos de la cuenta de la clínica. Ver [Ajustes y anular pagos](../administracion/ajustes-y-anular-pagos.md) y [Estados del trabajo](./estados.md).
 
 ## ¿Qué hago si no veo los precios?
 

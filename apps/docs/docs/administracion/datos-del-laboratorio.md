@@ -6,7 +6,7 @@ sidebar_position: 2
 
 # Datos del laboratorio
 
-Los datos del laboratorio son la cabecera de todo lo que sale hacia las clínicas: la orden de trabajo impresa, el estado de cuenta y el aviso por WhatsApp. Conviene llenarlos antes de imprimir la primera orden.
+Los datos del laboratorio son la cabecera de lo que se imprime para las clínicas: la orden de trabajo y el estado de cuenta. El nombre, además, firma el aviso por WhatsApp. Conviene llenarlos antes de imprimir la primera orden.
 
 ## Quién puede hacerlo
 

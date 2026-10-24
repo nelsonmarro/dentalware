@@ -39,7 +39,7 @@ Dentalware guarda lo mínimo del paciente: una referencia (iniciales o un códig
 :::
 
 :::tip Consejo
-Si tienes muchas órdenes en una planilla (CSV), <Boton>Importar</Boton> en **Trabajos** las carga de una vez.
+Si tienes muchas órdenes en una planilla (CSV), <Boton>Importar</Boton> en **Trabajos** las carga de una vez: lo explica [Importar trabajos desde un CSV](../administracion/importar-csv.md).
 :::
 
 ## Problemas frecuentes

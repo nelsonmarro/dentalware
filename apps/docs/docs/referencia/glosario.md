@@ -9,7 +9,7 @@ sidebar_position: 3
 Las palabras que más se usan en Dentalware, por orden alfabético. Cada una dice dónde se usa.
 
 - **Administración:** quien tiene el rol Administrador. Crea los usuarios, da las contraseñas, cambia los roles y es la única que registra ajustes y anula pagos. Ver [Qué ve cada rol](../primeros-pasos/que-ve-cada-rol.md) y [Administrar el laboratorio](../administracion/index.md).
-- **Ajuste:** descuento o recargo en la cuenta de una clínica, con su motivo; puede ir ligado a un trabajo o sin trabajo (como el saldo inicial). Solo lo registra administración. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
+- **Ajuste:** descuento o recargo en la cuenta de una clínica, con su motivo; puede ir ligado a un trabajo o sin trabajo (como el saldo inicial). Solo lo registra administración. Ver [Ajustes y anular pagos](../administracion/ajustes-y-anular-pagos.md).
 - **Antigüedad:** cuánto tiempo lleva sin pagarse lo que debe una clínica, en tramos de 0–30, 31–60, 61–90 y más de 90 días. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
 - **Aplicado:** la parte de un pago que se pone en un trabajo concreto («Aplicado a 26-00012»). Lo que no se aplica queda como saldo a favor. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
 - **Cancelado:** estado de un trabajo que se canceló con su motivo y ya no se hace; no tiene acción para retomarlo. Ver [Estados y acciones](../recepcion/estados-y-acciones.md).
@@ -36,7 +36,7 @@ Las palabras que más se usan en Dentalware, por orden alfabético. Cada una dic
 - **Fecha comprometida:** la fecha que promete el laboratorio. Se fija al aceptar el trabajo, contando días hábiles según el producto. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 - **Fecha de ingreso:** el día en que el trabajo llegó al laboratorio; por omisión, hoy. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 - **Fecha deseada:** la fecha que pide la clínica. Hace falta para aceptar el trabajo. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
-- **Importar CSV:** cargar de una vez muchas órdenes desde una planilla en formato CSV, con el botón <Boton>Importar</Boton> de Trabajos. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
+- **Importar CSV:** cargar de una vez muchas órdenes desde una planilla en formato CSV, con el botón <Boton>Importar</Boton> de Trabajos. Ver [Importar trabajos desde un CSV](../administracion/importar-csv.md).
 - **Línea:** cada producto de un trabajo, con sus piezas, su cantidad y su precio. Un trabajo puede tener varias. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 - **Lista de verificación:** lo que trajo la clínica con la orden (antagonista, mordida, color, fotos). Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 - **Mensajero:** quien recoge los trabajos en las clínicas y los entrega ya terminados. Solo ve sus propias recogidas y entregas. Ver [Entregas del día](../mensajero/entregas-del-dia.md).
@@ -44,7 +44,7 @@ Las palabras que más se usan en Dentalware, por orden alfabético. Cada una dic
 - **Nuevo:** estado de un trabajo que ya está en el laboratorio y espera que lo acepten. Ver [Estados y acciones](../recepcion/estados-y-acciones.md).
 - **Odontograma:** el dibujo de la boca donde se marcan las piezas de una línea tocándolas. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 - **Orden de trabajo:** el papel impreso que acompaña al trabajo, con el paciente, las fechas, el odontograma y las líneas. Hay una copia del laboratorio (sin precios) y una de la clínica. Ver [Imprimir](../recepcion/imprimir.md).
-- **Pago:** dinero que entrega una clínica, con su monto, método y fecha. Se reparte entre sus trabajos y nunca se edita ni se borra: si estaba mal, administración lo anula. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
+- **Pago:** dinero que entrega una clínica, con su monto, método y fecha. Se reparte entre sus trabajos y nunca se edita ni se borra: si estaba mal, administración lo anula. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md) y [Ajustes y anular pagos](../administracion/ajustes-y-anular-pagos.md).
 - **Pieza y notación FDI:** cada diente se nombra con dos cifras (por ejemplo, 11 o 46), según la notación FDI. Se marcan en el odontograma. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
 - **Por recoger:** estado de un trabajo registrado que todavía no llegó al laboratorio: el mensajero irá a buscarlo o ya lo trae (En camino al laboratorio). Ver [Recogidas y entregas](../recepcion/recogidas-y-entregas.md).
 - **Precio por clínica:** el precio propio de un producto para una clínica. Si no lo tiene, se usa el precio base. Ver [Productos y precios](../administracion/productos-y-precios.md).
@@ -56,7 +56,7 @@ Las palabras que más se usan en Dentalware, por orden alfabético. Cada una dic
 - **Rol:** el papel de cada persona en Dentalware (Administrador, Recepción, Técnico o Mensajero), que decide qué pantallas ve y qué puede hacer. Ver [Qué ve cada rol](../primeros-pasos/que-ve-cada-rol.md) y [Usuarios y roles](../administracion/usuarios-y-roles.md).
 - **Saldo:** lo que una clínica debe en total, ya descontado lo que tiene a favor. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
 - **Saldo a favor:** la parte de un pago que no se aplicó a ningún trabajo. No se pierde: se aplica después con <Boton>Aplicar saldo a favor</Boton>. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
-- **Saldo inicial:** lo que una clínica ya debía antes de empezar a usar Dentalware. Lo registra administración como un ajuste sin trabajo. Ver [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
+- **Saldo inicial:** lo que una clínica ya debía antes de empezar a usar Dentalware. Lo registra administración como un ajuste sin trabajo. Ver [Ajustes y anular pagos](../administracion/ajustes-y-anular-pagos.md).
 - **Técnico responsable:** la persona del laboratorio que tiene asignado el trabajo mientras está en producción. Ver [La ficha del trabajo](../recepcion/la-ficha-del-trabajo.md).
 - **Terminado:** estado de un trabajo ya hecho y listo para entregar. Ver [Estados y acciones](../recepcion/estados-y-acciones.md).
 - **Trabajo:** cada orden que manda una clínica para un paciente: lo que hay que hacer, sus fechas y todo lo que le pasa hasta que se cobra. Ver [Crear un trabajo](../recepcion/crear-un-trabajo.md).
