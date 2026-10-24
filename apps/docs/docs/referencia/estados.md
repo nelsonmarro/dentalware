@@ -23,11 +23,11 @@ Cada flecha es una acción de la ficha, con el nombre de su botón. La tabla de 
 - **En prueba:** está en la clínica para probarlo en boca.
 - **Terminado:** está listo para entregar.
 - **Enviado:** va con el mensajero hacia la clínica.
-- **Entregado:** está en la clínica y ya se suma a su cuenta. Pasa solo a **Cobrado** cuando los pagos lo cubren.
-- **Cobrado:** los pagos de la clínica cubren lo que vale. Vuelve solo a **Entregado** si deja de estar cubierto, por ejemplo si administración anula un pago.
+- **Entregado:** está en la clínica y ya se suma a su cuenta. Pasa por sí solo a **Cobrado** cuando los pagos y los ajustes de la clínica lo cubren. Si no hay nada que cobrar (por ejemplo, una repetición sin cargo), <Boton>Marcar entregado</Boton> lo deja **Cobrado** directamente.
+- **Cobrado:** los pagos y los ajustes de la clínica cubren lo que vale. Vuelve por sí solo a **Entregado** si deja de estar cubierto, por ejemplo por un ajuste o un pago anulado.
 - **Cancelado:** se canceló y ya no se hace. No hay ninguna acción para retomarlo.
 
-**Entregado** y **Cobrado** no se cambian con un botón: los mueven los pagos de la clínica. Lo explica [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
+De **Entregado** a **Cobrado**, y de vuelta, no se pasa con un botón: lo deciden los pagos y los ajustes de la clínica. Lo explica [Cuentas y pagos](../recepcion/cuentas-y-pagos.md).
 
 ## Quién hace qué
 

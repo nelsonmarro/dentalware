@@ -1,6 +1,7 @@
 import Mermaid from '@theme/Mermaid'
 import estados from '@site/src/referencia/estados.json'
-import type { Estados as ReferenciaEstados } from '@site/scripts/referencia-estados'
+import type { Estados as ReferenciaEstados } from '@site/src/referencia/estados'
+import { textoMermaid } from '@site/src/referencia/texto-mermaid'
 import { ROTULO_ROL } from './rol'
 
 /** Derivado de la máquina de estados de shared por `pnpm referencia:estados` (enmienda del ADR 37:
@@ -9,8 +10,7 @@ const REFERENCIA = estados as ReferenciaEstados
 
 const ROTULO_ESTADO = Object.fromEntries(REFERENCIA.estados.map((e) => [e.clave, e.rotulo]))
 
-/** «Cancelar trabajo» sale de casi todos los estados: como flechas taparía el diagrama, así que va
- * en la nota y en la tabla. */
+/** «Cancelar trabajo» no sale en el diagrama (`textoMermaid`): va en la nota y en la tabla. */
 const CANCELAR = REFERENCIA.transiciones.find((t) => t.accion === 'cancelar')
 
 const rotulos = (claves: readonly string[]) => claves.map((c) => ROTULO_ESTADO[c] ?? c)
@@ -19,15 +19,6 @@ const rotulos = (claves: readonly string[]) => claves.map((c) => ROTULO_ESTADO[c
 function enumerar(partes: readonly string[]): string {
   if (partes.length < 2) return partes.join('')
   return `${partes.slice(0, -1).join(', ')} y ${partes.at(-1)}`
-}
-
-function diagrama(): string {
-  const nodos = REFERENCIA.estados.map((e) => `  ${e.clave}["${e.rotulo}"]`)
-  const flechas = REFERENCIA.transiciones
-    .filter((t) => t !== CANCELAR)
-    .flatMap((t) => t.desde.map((desde) => `  ${desde} -->|"${t.rotulo}"| ${t.hasta}`))
-  // De arriba abajo: de izquierda a derecha mide ~1850 px y en un teléfono no se lee.
-  return ['flowchart TD', ...nodos, ...flechas].join('\n')
 }
 
 const SIN_CANCELAR = REFERENCIA.estados
@@ -47,7 +38,7 @@ export function Estados() {
         role="img"
         aria-label="Diagrama de los estados de un trabajo y las acciones que los cambian; la tabla de abajo tiene lo mismo"
       >
-        <Mermaid value={diagrama()} />
+        <Mermaid value={textoMermaid(REFERENCIA)} />
       </figure>
       {CANCELAR && (
         <p className="estados__nota">

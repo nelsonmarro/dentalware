@@ -7,10 +7,8 @@ import {
   CASE_STATUS_LABEL,
   CASE_STATUSES,
   CASE_TRANSITIONS,
-  type CaseAction,
-  type CaseStatus,
-  type UserRole,
 } from '@dentalware/shared'
+import type { Estados } from '../src/referencia/estados'
 
 /** La referencia de estados del manual (`<Estados />`) sale de este JSON, que se deriva de la
  * máquina de estados de shared: un estado o una transición nuevos hacen fallar
@@ -19,17 +17,6 @@ import {
  * runtime de shared se lee aquí y no en el componente). `__dirname` y no `import.meta`: el paquete
  * es CommonJS para `tsx` (como `capturas/dimensiones.ts`). */
 export const ESTADOS_JSON = join(__dirname, '..', 'src', 'referencia', 'estados.json')
-
-export type Estados = {
-  estados: { clave: CaseStatus; rotulo: string }[]
-  transiciones: {
-    accion: CaseAction
-    rotulo: string
-    desde: CaseStatus[]
-    hasta: CaseStatus
-    roles: UserRole[]
-  }[]
-}
 
 /** Pura, sin I/O: estados y acciones en el orden de `CASE_STATUSES` y `CASE_ACTIONS`. */
 export function derivarEstados(): Estados {

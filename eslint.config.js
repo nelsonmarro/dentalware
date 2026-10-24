@@ -111,6 +111,27 @@ const dataGridAppBoundary = {
     'DataGrid es transversal (components/): no depende de una feature de la app, de una ruta ni de @/lib/api.',
 }
 
+// Frontera del manual con api y web (ADR 37): la comparten el sitio y, por la enmienda, sus guiones
+// y tests, que además pueden importar el runtime de shared.
+const fronteraManual = {
+  paths: [
+    {
+      name: '@dentalware/api',
+      message: 'El manual no importa la API (docs/architecture.md §2, ADR 37).',
+    },
+    {
+      name: '@dentalware/web',
+      message: 'El manual no importa la web (docs/architecture.md §2, ADR 37).',
+    },
+  ],
+  patterns: [
+    {
+      group: ['**/apps/api/**', '**/apps/web/**', '../../api/**', '../../web/**'],
+      message: 'El manual no importa archivos de api ni de web (ADR 37).',
+    },
+  ],
+}
+
 export default defineConfig([
   globalIgnores([
     '**/dist/**',
@@ -150,21 +171,9 @@ export default defineConfig([
       '@typescript-eslint/no-restricted-imports': [
         'error',
         {
-          paths: [
-            {
-              name: '@dentalware/api',
-              message: 'El manual no importa la API (docs/architecture.md §2, ADR 37).',
-            },
-            {
-              name: '@dentalware/web',
-              message: 'El manual no importa la web (docs/architecture.md §2, ADR 37).',
-            },
-          ],
+          paths: fronteraManual.paths,
           patterns: [
-            {
-              group: ['**/apps/api/**', '**/apps/web/**', '../../api/**', '../../web/**'],
-              message: 'El manual no importa archivos de api ni de web (ADR 37).',
-            },
+            ...fronteraManual.patterns,
             {
               group: ['@dentalware/shared'],
               allowTypeImports: true,
@@ -183,24 +192,8 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        {
-          paths: [
-            {
-              name: '@dentalware/api',
-              message: 'El manual no importa la API (docs/architecture.md §2, ADR 37).',
-            },
-            {
-              name: '@dentalware/web',
-              message: 'El manual no importa la web (docs/architecture.md §2, ADR 37).',
-            },
-          ],
-          patterns: [
-            {
-              group: ['**/apps/api/**', '**/apps/web/**', '../../api/**', '../../web/**'],
-              message: 'El manual no importa archivos de api ni de web (ADR 37).',
-            },
-          ],
-        },
+        // La misma frontera con api y web, sin el patrón de shared.
+        fronteraManual,
       ],
     },
   },
