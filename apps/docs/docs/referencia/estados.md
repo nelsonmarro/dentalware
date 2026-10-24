@@ -16,7 +16,7 @@ Cada flecha es una acción de la ficha, con el nombre de su botón. La tabla de 
 
 ## Qué significa cada estado
 
-- **Por recoger:** está registrado, pero todavía no llegó al laboratorio: el mensajero va a buscarlo o ya lo trae (**En camino al laboratorio**, que explican [Recogidas y entregas](../recepcion/recogidas-y-entregas.md)).
+- **Por recoger:** está registrado, pero todavía no llegó al laboratorio: el mensajero va a buscarlo o ya lo trae (**En camino al laboratorio**, que explica [Recogidas y entregas](../recepcion/recogidas-y-entregas.md)).
 - **Nuevo:** ya está en el laboratorio y espera que lo acepten.
 - **En proceso:** se está haciendo y avanza por sus fases.
 - **En espera:** está parado, con un motivo (por ejemplo, falta el antagonista).

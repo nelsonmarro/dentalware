@@ -349,6 +349,8 @@ kbd.boton {
 .estados {
   margin: 1.25rem 0 1rem;
   padding: 0.75rem;
+  /* Reserva el alto mientras Mermaid pinta en el cliente, para que la página no salte */
+  min-height: 30rem;
   overflow-x: auto;
   background: var(--dw-zirconia);
   border: 1px solid var(--dw-plaster);
@@ -357,9 +359,6 @@ kbd.boton {
 
 /* Reserva el alto del diagrama antes de que Mermaid lo pinte en el navegador, para que la página
  * no salte. */
-.estados {
-  min-height: 30rem;
-}
 
 .estados svg {
   display: block;
