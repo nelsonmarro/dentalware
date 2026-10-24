@@ -13,7 +13,11 @@ const config: Config = {
   // Un enlace, un ancla o una imagen rotos rompen el build (y el job `quality`).
   onBrokenLinks: 'throw',
   onBrokenAnchors: 'throw',
-  markdown: { hooks: { onBrokenMarkdownLinks: 'throw', onBrokenMarkdownImages: 'throw' } },
+  // `mermaid: true` pinta los bloques ```mermaid (y el componente `@theme/Mermaid` de `<Estados>`).
+  markdown: {
+    mermaid: true,
+    hooks: { onBrokenMarkdownLinks: 'throw', onBrokenMarkdownImages: 'throw' },
+  },
   presets: [
     [
       'classic',
@@ -24,7 +28,17 @@ const config: Config = {
       } satisfies Preset.Options,
     ],
   ],
+  plugins: [
+    // `@docusaurus/theme-mermaid` importa `@mermaid-js/layout-elk` (dependencia opcional y pesada,
+    // que no usamos) dentro de un `if` que el bundler no descarta: sin el paquete, el build falla
+    // con «Can't resolve '@mermaid-js/layout-elk'» (facebook/docusaurus#11430). Se resuelve a vacío.
+    () => ({
+      name: 'mermaid-sin-elk',
+      configureWebpack: () => ({ resolve: { alias: { '@mermaid-js/layout-elk': false } } }),
+    }),
+  ],
   themes: [
+    '@docusaurus/theme-mermaid',
     [
       // Los textos del buscador en español están en `i18n/es/code.json`: la versión 0.55.3 no
       // tiene opción `translations` y toma los de la traducción de Docusaurus.
@@ -50,11 +64,14 @@ const config: Config = {
         { to: '/primeros-pasos/', label: 'Primeros pasos', position: 'left' },
         { to: '/recepcion/', label: 'Recepción', position: 'left' },
         { to: '/mensajero/', label: 'Mensajero', position: 'left' },
+        { to: '/referencia/', label: 'Referencia', position: 'left' },
         { href: 'https://dentalware.naphsoft.dev', label: 'Abrir la app', position: 'right' },
       ],
     },
     footer: { style: 'light', copyright: 'Dentalware · Manual de usuario' },
     prism: { theme: prismThemes.github },
+    // Sin modo oscuro (ADR 37): el mismo tema en los dos.
+    mermaid: { theme: { light: 'neutral', dark: 'neutral' } },
     tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
   } satisfies Preset.ThemeConfig,
 }

@@ -1,7 +1,7 @@
 import type { UserRole } from '@dentalware/shared'
 
 /** Los rótulos de la app (`apps/web/src/features/users/role-label.ts`). */
-const ROL_LABEL: Record<UserRole, string> = {
+export const ROTULO_ROL: Record<UserRole, string> = {
   admin: 'Administrador',
   recepcion: 'Recepción',
   tecnico: 'Técnico',
@@ -11,7 +11,7 @@ const ROL_LABEL: Record<UserRole, string> = {
 /** El MDX no pasa por `tsc`: un rol mal escrito (`'recepción'`) llega aquí y, en vez de pintar un
  * chip vacío, rompe el build (SSR) con un mensaje que dice qué valores valen. */
 function rotulo(rol: UserRole): string {
-  const label: string | undefined = ROL_LABEL[rol]
+  const label: string | undefined = ROTULO_ROL[rol]
   if (label === undefined) {
     throw new Error(
       `Rol desconocido en <Rol>: «${rol}». Usa admin, recepcion, tecnico o mensajero.`,

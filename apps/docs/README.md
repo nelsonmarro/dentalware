@@ -12,6 +12,7 @@ pnpm --filter @dentalware/docs dev      # http://localhost:3100, recarga al guar
 pnpm --filter @dentalware/docs build    # como en CI: falla con un enlace, ancla o imagen rotos
 pnpm --filter @dentalware/docs serve    # sirve el build en http://localhost:3100
 pnpm --filter @dentalware/docs sitio    # barrido del sitio construido a 1280, 390 y 360 (Playwright)
+pnpm --filter @dentalware/docs referencia:estados  # rehace src/referencia/estados.json desde shared
 ```
 
 El buscador solo funciona sobre el build (`build` + `serve`), no en `dev`. El `pnpm build` de la raíz
@@ -34,7 +35,9 @@ CSS de otra forma. Comprueba:
 - **Además**: el menú del teléfono (44 px y rótulos en español), el campo del buscador del navbar
   («Buscar en el manual»), los títulos de los avisos sin mayúsculas, el chip de botón pegado a la
   puntuación, las capturas de una guía con `width`/`height`, las tres puertas de «Primeros pasos»,
-  la flecha de las tarjetas fuera del nombre del enlace y el `title` de los enlaces de ancla.
+  la flecha de las tarjetas fuera del nombre del enlace, el `title` de los enlaces de ancla y el
+  diagrama de la referencia de estados (espera al SVG de Mermaid, que se pinta en el navegador, antes
+  de mirar consola y ancho).
 
 Corre en el job `e2e` de CI, después de los E2E de la web y aunque estos fallen.
 

@@ -38,6 +38,12 @@ const sidebars: SidebarsConfig = {
         'mensajero/sin-senal',
       ],
     },
+    {
+      type: 'category',
+      label: 'Referencia',
+      link: { type: 'doc', id: 'referencia/index' },
+      items: ['referencia/estados'],
+    },
   ],
 }
 

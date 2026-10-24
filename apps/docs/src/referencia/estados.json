@@ -1,0 +1,94 @@
+{
+  "estados": [
+    { "clave": "por_recoger", "rotulo": "Por recoger" },
+    { "clave": "nuevo", "rotulo": "Nuevo" },
+    { "clave": "en_proceso", "rotulo": "En proceso" },
+    { "clave": "en_espera", "rotulo": "En espera" },
+    { "clave": "en_prueba", "rotulo": "En prueba" },
+    { "clave": "terminado", "rotulo": "Terminado" },
+    { "clave": "enviado", "rotulo": "Enviado" },
+    { "clave": "entregado", "rotulo": "Entregado" },
+    { "clave": "cobrado", "rotulo": "Cobrado" },
+    { "clave": "cancelado", "rotulo": "Cancelado" }
+  ],
+  "transiciones": [
+    {
+      "accion": "recibir",
+      "rotulo": "Recibido",
+      "desde": ["por_recoger"],
+      "hasta": "nuevo",
+      "roles": ["admin", "recepcion"]
+    },
+    {
+      "accion": "aceptar",
+      "rotulo": "Aceptar",
+      "desde": ["nuevo"],
+      "hasta": "en_proceso",
+      "roles": ["admin", "recepcion"]
+    },
+    {
+      "accion": "pausar",
+      "rotulo": "Pausar",
+      "desde": ["en_proceso"],
+      "hasta": "en_espera",
+      "roles": ["admin", "recepcion"]
+    },
+    {
+      "accion": "reanudar",
+      "rotulo": "Reanudar",
+      "desde": ["en_espera"],
+      "hasta": "en_proceso",
+      "roles": ["admin", "recepcion"]
+    },
+    {
+      "accion": "enviar_prueba",
+      "rotulo": "Enviar a prueba",
+      "desde": ["en_proceso"],
+      "hasta": "en_prueba",
+      "roles": ["admin", "recepcion"]
+    },
+    {
+      "accion": "recibir_prueba",
+      "rotulo": "Recibir de prueba",
+      "desde": ["en_prueba"],
+      "hasta": "en_proceso",
+      "roles": ["admin", "recepcion"]
+    },
+    {
+      "accion": "finalizar",
+      "rotulo": "Finalizar",
+      "desde": ["en_proceso"],
+      "hasta": "terminado",
+      "roles": ["admin", "recepcion", "tecnico"]
+    },
+    {
+      "accion": "marcar_enviado",
+      "rotulo": "Marcar enviado",
+      "desde": ["terminado"],
+      "hasta": "enviado",
+      "roles": ["admin", "recepcion", "mensajero"]
+    },
+    {
+      "accion": "marcar_entregado",
+      "rotulo": "Marcar entregado",
+      "desde": ["enviado"],
+      "hasta": "entregado",
+      "roles": ["admin", "recepcion", "mensajero"]
+    },
+    {
+      "accion": "cancelar",
+      "rotulo": "Cancelar trabajo",
+      "desde": [
+        "por_recoger",
+        "nuevo",
+        "en_proceso",
+        "en_espera",
+        "en_prueba",
+        "terminado",
+        "enviado"
+      ],
+      "hasta": "cancelado",
+      "roles": ["admin", "recepcion"]
+    }
+  ]
+}

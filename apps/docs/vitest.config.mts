@@ -12,6 +12,7 @@ export default defineConfig({
       '@docusaurus/Link': fileURLToPath(new URL('./src/test/link.tsx', import.meta.url)),
       '@docusaurus/Translate': fileURLToPath(new URL('./src/test/translate.tsx', import.meta.url)),
       '@theme/Heading': fileURLToPath(new URL('./src/test/heading.tsx', import.meta.url)),
+      '@theme/Mermaid': fileURLToPath(new URL('./src/test/mermaid.tsx', import.meta.url)),
       '@docusaurus/useBaseUrl': fileURLToPath(
         new URL('./src/test/use-base-url.ts', import.meta.url),
       ),

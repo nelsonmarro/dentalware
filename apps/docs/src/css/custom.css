@@ -341,3 +341,81 @@ kbd.boton {
   display: inline-flex;
   align-items: center;
 }
+
+/* --- Estados: el diagrama de la referencia y su tabla ------------------------------------ */
+/* Con el borde de `.captura`. Mermaid pinta el SVG a `width: 100%` con un `max-width` en línea (su
+ * tamaño natural): en un teléfono se encoge al ancho de la figura y, si aun así no cabe, la figura
+ * se desplaza por dentro, nunca la página. */
+.estados {
+  margin: 1.25rem 0 1rem;
+  padding: 0.75rem;
+  overflow-x: auto;
+  background: var(--dw-zirconia);
+  border: 1px solid var(--dw-plaster);
+  border-radius: var(--ifm-global-radius);
+}
+
+.estados svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+/* En el teléfono, encogido al ancho de la columna (~47 % a 360 px), el texto del diagrama no se
+ * lee: no baja de 30rem (~75 %) y la figura se desplaza por dentro. */
+@media (max-width: 575px) {
+  .estados svg {
+    min-width: 30rem;
+  }
+}
+
+.estados__nota {
+  color: var(--dw-graphite-60);
+  font-size: 0.9375rem;
+}
+
+/* Infima pinta las tablas como bloque con scroll propio; aquí la tabla es una tabla (para que
+ * `caption` quede encima y las columnas ocupen el ancho) y el envoltorio es el que se desplaza. */
+.estados__tabla-envoltorio {
+  margin-bottom: var(--ifm-spacing-vertical);
+  overflow-x: auto;
+}
+
+.estados__tabla {
+  display: table;
+  width: 100%;
+  margin: 0;
+}
+
+.estados__tabla caption {
+  padding-bottom: 0.5rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.estados__tabla td:first-child {
+  font-weight: 600;
+}
+
+/* A 360 px, las cuatro columnas caben con menos relleno y la letra un punto menor; «Quién» lleva
+ * un rol por línea y, si no cabe, parte la palabra con guion (con el `lang="es"` del sitio). */
+@media (max-width: 575px) {
+  .estados__tabla {
+    font-size: 0.875rem;
+  }
+
+  .estados__tabla :is(th, td):last-child {
+    width: 6.5rem;
+    hyphens: auto;
+  }
+
+  /* Un rol por línea. */
+  .estados__rol {
+    display: block;
+  }
+
+  .estados__tabla :is(th, td) {
+    padding: 0.5rem 0.375rem;
+  }
+}
