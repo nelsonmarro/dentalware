@@ -176,6 +176,35 @@ export default defineConfig([
     },
   },
 
+  // Enmienda del ADR 37: los guiones y los tests del manual derivan contenido de shared (la
+  // referencia de estados, `scripts/referencia-estados.ts`); el sitio sigue con solo tipos.
+  {
+    files: ['apps/docs/scripts/**/*.ts', 'apps/docs/**/*.test.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@dentalware/api',
+              message: 'El manual no importa la API (docs/architecture.md §2, ADR 37).',
+            },
+            {
+              name: '@dentalware/web',
+              message: 'El manual no importa la web (docs/architecture.md §2, ADR 37).',
+            },
+          ],
+          patterns: [
+            {
+              group: ['**/apps/api/**', '**/apps/web/**', '../../api/**', '../../web/**'],
+              message: 'El manual no importa archivos de api ni de web (ADR 37).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // --- apps/api: servicios y puertos, sin adaptadores (ADR 17-20) ---
   noAdapters(
     [`${API}/*/service.ts`, `${API}/*/*.service.ts`, `${API}/*/errors.ts`],
