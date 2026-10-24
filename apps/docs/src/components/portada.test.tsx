@@ -3,34 +3,40 @@ import { describe, expect, it } from 'vitest'
 import { Portada } from './portada'
 
 describe('Portada', () => {
-  it('ofrece tres accesos, cada uno con su destino', () => {
+  it('ofrece cinco accesos, en orden y cada uno con su destino', () => {
     render(<Portada />)
-    expect(screen.getByRole('link', { name: /Primeros pasos/ })).toHaveAttribute(
-      'href',
-      '/primeros-pasos/',
-    )
-    expect(screen.getByRole('link', { name: /Soy recepción/ })).toHaveAttribute(
-      'href',
-      '/recepcion/',
-    )
-    expect(screen.getByRole('link', { name: /Soy mensajero/ })).toHaveAttribute(
-      'href',
-      '/mensajero/',
-    )
-    expect(screen.getAllByRole('link')).toHaveLength(3)
+    const enlaces = screen.getAllByRole('link')
+    expect(
+      enlaces.map((a) => [
+        a.querySelector('.portada__titulo')?.textContent,
+        a.getAttribute('href'),
+      ]),
+    ).toEqual([
+      ['Primeros pasos→', '/primeros-pasos/'],
+      ['Soy recepción→', '/recepcion/'],
+      ['Soy técnico→', '/tecnico/'],
+      ['Soy mensajero→', '/mensajero/'],
+      ['Administro el laboratorio→', '/administracion/'],
+    ])
   })
 
   it('cada acceso dice para qué sirve, no solo su título', () => {
     render(<Portada />)
     expect(screen.getByRole('link', { name: /Soy mensajero/ })).toHaveAccessibleName(
-      /Recogidas y entregas del día/,
+      'Soy mensajero Recogidas y entregas del día, desde el teléfono.',
+    )
+    expect(screen.getByRole('link', { name: /Soy técnico/ })).toHaveAccessibleName(
+      'Soy técnico Mis trabajos, fases, fotos y finalizar.',
+    )
+    expect(screen.getByRole('link', { name: /Administro el laboratorio/ })).toHaveAccessibleName(
+      'Administro el laboratorio Clínicas, productos, fases, usuarios y cuentas.',
     )
   })
 
   it('la flecha es un nodo oculto al lector', () => {
     const { container } = render(<Portada />)
     const flechas = container.querySelectorAll('.portada__flecha')
-    expect(flechas).toHaveLength(3)
+    expect(flechas).toHaveLength(5)
     for (const f of flechas) {
       expect(f).toHaveAttribute('aria-hidden', 'true')
       expect(f).toHaveTextContent('→')

@@ -1,6 +1,6 @@
 # Manual de usuario de Dentalware (`apps/docs`)
 
-El manual en línea para recepción, el mensajero y, más adelante, técnicos y administración: un sitio de
+El manual en línea para recepción, técnicos, mensajeros y administración: un sitio de
 [Docusaurus](https://docusaurus.io) en español, con buscador local y capturas de la app hechas con datos
 ficticios. Se publica en `docs.dentalware.naphsoft.dev`.
 
@@ -11,15 +11,15 @@ export PATH=$HOME/.nvm/versions/node/v24.19.0/bin:$PATH
 pnpm --filter @dentalware/docs dev      # http://localhost:3100, recarga al guardar
 pnpm --filter @dentalware/docs build    # como en CI: falla con un enlace, ancla o imagen rotos
 pnpm --filter @dentalware/docs serve    # sirve el build en http://localhost:3100
-pnpm --filter @dentalware/docs sitio    # barrido del sitio construido a 1280, 390 y 360 (Playwright)
+pnpm --filter @dentalware/docs sitio    # barrido del sitio construido a 1280, 1024, 390 y 360 (Playwright)
 pnpm --filter @dentalware/docs referencia:estados  # construye shared y rehace src/referencia/estados.json
 ```
 
 El buscador solo funciona sobre el build (`build` + `serve`), no en `dev`. El `pnpm build` de la raíz
 construye también el manual, así que el job `quality` de CI lo comprueba en cada PR.
 
-El barrido `sitio` (`sitio/`) construye y sirve el manual en el 3100 y lo recorre a 1280, 390 y 360
-(más WebKit a 390 solo en CI). En local, si ya hay un servidor en el 3100, lo reutiliza: tiene que
+El barrido `sitio` (`sitio/`) construye y sirve el manual en el 3100 y lo recorre a 1280, 1024, 390 y
+360 (más WebKit a 390 solo en CI). En local, si ya hay un servidor en el 3100, lo reutiliza: tiene que
 ser `serve` (el build), nunca `dev` (`docusaurus start`), que no tiene índice de búsqueda y ordena el
 CSS de otra forma. Comprueba:
 
@@ -32,6 +32,10 @@ CSS de otra forma. Comprueba:
   `main` y su campo con nombre en español y de 44 px.
 - **La 404** (`/no-existe/`): responde 404, un `h1`, un `main`, sin scroll horizontal, consola limpia
   salvo el 404 del propio documento, y «Ir a la portada» de 44 px que lleva a la portada.
+- **El navbar**: en escritorio (1280 y 1024) cabe en una línea, con la marca entera y sin pasar de
+  64 px de alto; el desplegable «Guías» se abre con el teclado y sus guías miden 44 px, también en el
+  menú del teléfono. Las guías de cada rol van en ese desplegable: con una entrada por rol, el navbar
+  se partía entre ~997 y ~1180 px.
 - **Además**: el menú del teléfono (44 px y rótulos en español), el campo del buscador del navbar
   («Buscar en el manual»), los títulos de los avisos sin mayúsculas, el chip de botón pegado a la
   puntuación, las capturas de una guía con `width`/`height`, las tres puertas de «Primeros pasos»,
@@ -51,8 +55,8 @@ Lo que el tema no corrige solo vive en `src/theme/` (swizzle por envoltura, sobr
   regla está en `buscador-accesible.ts`, con su test.
 - `NotFound/Content` es propio: la 404 con el botón «Ir a la portada», dentro de `main`.
 - Los rótulos del tema traducidos de más o de menos se sobrescriben en `i18n/es/code.json`.
-- Los controles de navegación miden 44 px (migas, «En esta página», marca, enlaces del navbar y de
-  la tabla de contenidos); los enlaces dentro de una frase y los de ancla de los títulos se dejan.
+- Los controles de navegación miden 44 px (migas, «En esta página», marca, enlaces del navbar, las
+  guías del desplegable «Guías» y la tabla de contenidos); los enlaces dentro de una frase y los de ancla de los títulos se dejan.
 
 ## Escribir una guía
 
@@ -189,15 +193,11 @@ Ni en el texto ni en una captura: pacientes, clínicas o doctores reales; el nom
 teléfonos del laboratorio; contraseñas, tokens, IPs ni URLs internas. Las capturas salen solo de los
 datos de demostración, que son ficticios.
 
-## Qué falta (MAN-2)
+## Qué cubre
 
-Este manual cubre MAN-1 (#127): «Primeros pasos», «Recepción» y «Mensajero», y de MAN-2 (#138) la
-**Referencia** (glosario, estados del trabajo con su diagrama y preguntas frecuentes), **Técnico** (mis
-trabajos, avanzar fase, pruebas y espera, finalizar) y la configuración de **Administración** (datos
-del laboratorio, fases, productos y precios, clínicas y doctores, usuarios y roles). Falta, con la
-misma plantilla y la misma tubería de capturas:
-
-- **Administración**: ajustes, saldo inicial y anular pagos; importar CSV.
-
-Al publicarlas: «Soy técnico» y «Administro el laboratorio» en la portada y `HELP_PATH` de `admin` y
-`tecnico` (`apps/web/src/features/help/help-url.ts`) a sus guías, que hoy llevan a la portada.
+MAN-1 (#127): «Primeros pasos», «Recepción» y «Mensajero». MAN-2 (#138): la **Referencia** (glosario,
+estados del trabajo con su diagrama y preguntas frecuentes), **Técnico** (mis trabajos, avanzar fase,
+pruebas y espera, finalizar) y **Administración** (datos del laboratorio, fases, productos y precios,
+clínicas y doctores, usuarios y roles, ajustes y anular pagos, importar CSV). La portada tiene un
+acceso por rol y el enlace «Ayuda» de la app lleva a cada rol a su sección (`HELP_PATH` en
+`apps/web/src/features/help/help-url.ts`).

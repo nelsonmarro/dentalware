@@ -68,6 +68,91 @@ test('el menú del teléfono mide 44 px', async ({ page, isMobile }) => {
   await expectObjetivosTactiles(menu, 'a[href], button')
 })
 
+// El navbar de escritorio cabe en una línea desde el primer ancho de escritorio de Docusaurus
+// (997 px; el proyecto `escritorio-1024`): con una entrada por rol, «Primeros pasos» se partía en
+// dos líneas y la marca salía cortada («D…») entre ~997 y ~1180 px. Las guías van en «Guías».
+test('el navbar cabe en una línea', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'en el teléfono el navbar es el menú lateral')
+  await page.goto('/recepcion/crear-un-trabajo/')
+  // Cada enlace del navbar (en «Guías», su botón), con su centro y su alto: en una línea, todos
+  // comparten centro y miden lo mismo; uno partido en dos líneas es más alto.
+  const items = await page.locator('.navbar__inner a.navbar__link').evaluateAll((els) =>
+    els
+      .filter((el) => el.getBoundingClientRect().width > 0)
+      .map((el) => {
+        const caja = el.getBoundingClientRect()
+        return {
+          nombre: (el as HTMLElement).innerText.trim(),
+          centro: caja.top + caja.height / 2,
+          alto: caja.height,
+        }
+      }),
+  )
+  expect(items.map((i) => i.nombre)).toEqual([
+    'Primeros pasos',
+    'Guías',
+    'Referencia',
+    'Abrir la app',
+  ])
+  const primero = items[0]!
+  for (const item of items) {
+    expect(Math.abs(item.centro - primero.centro), `«${item.nombre}» en otra línea`).toBeLessThan(1)
+    expect(Math.abs(item.alto - primero.alto), `«${item.nombre}» partido en dos`).toBeLessThan(1)
+  }
+  const alto = await page.locator('nav.navbar').evaluate((el) => el.getBoundingClientRect().height)
+  expect(alto, 'alto del navbar').toBeLessThanOrEqual(64)
+  // La marca, entera: sin `text-overflow` que la corte.
+  const marca = await page
+    .locator('.navbar__title')
+    .evaluate((el) => ({ ancho: el.scrollWidth, visible: el.clientWidth }))
+  expect(marca.ancho, 'la marca «Dentalware» cortada').toBeLessThanOrEqual(marca.visible)
+})
+
+test('el desplegable «Guías» se abre con el teclado y sus guías miden 44 px', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, 'en el teléfono, «Guías» va en el menú lateral')
+  await page.goto('/referencia/')
+  const guias = page.locator('.navbar__items').getByRole('button', { name: 'Guías' })
+  await guias.focus()
+  await page.keyboard.press('Enter')
+  await expect(guias).toHaveAttribute('aria-expanded', 'true')
+  const menu = page.locator('.navbar__items .dropdown__menu')
+  await expect(menu.getByRole('link')).toHaveText([
+    'Recepción',
+    'Técnico',
+    'Mensajero',
+    'Administración',
+  ])
+  await expectObjetivosTactiles(menu, 'a[href]')
+  await page.keyboard.press('Tab')
+  await expect(menu.getByRole('link', { name: 'Recepción' })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/\/recepcion\/$/)
+})
+
+test('en el teléfono, «Guías» se despliega en el menú y sus guías miden 44 px', async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(!isMobile, 'menú del teléfono')
+  await page.goto('/referencia/')
+  await page.getByRole('button', { name: 'Abrir el menú' }).click()
+  const menu = page.locator('.navbar-sidebar')
+  // En una guía, el menú abre en el índice de la sección: el navbar está en el menú principal.
+  await menu.getByRole('button', { name: /Volver al menú principal/ }).click()
+  // El menú principal (el primero; el segundo es el de la sección, que también tiene
+  // «Administración»).
+  const principal = menu.locator('.navbar-sidebar__item').first()
+  await principal.getByRole('button', { name: 'Expandir el menú desplegable' }).click()
+  const administracion = principal.getByRole('link', { name: 'Administración', exact: true })
+  await expect(administracion).toBeVisible()
+  await expectObjetivosTactiles(menu, 'a[href], button')
+  await administracion.click()
+  await expect(page).toHaveURL(/\/administracion\/$/)
+})
+
 // UX8-07: los títulos de los avisos en sentence case, como todo el manual.
 test('los títulos de los avisos no van en mayúsculas', async ({ page }) => {
   await page.goto('/mensajero/entregas-del-dia/')
