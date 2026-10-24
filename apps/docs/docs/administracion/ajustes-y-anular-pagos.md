@@ -21,8 +21,8 @@ Recepción ve los ajustes y los pagos anulados en la cuenta, pero no los registr
 3. En **Tipo**, elige **Descuento o nota de crédito** (baja lo que debe la clínica) o **Recargo** (lo sube).
 4. Escribe el **Monto**, sin signo. Revisa la **Fecha**: es hoy y no puede ser posterior.
 5. En **Trabajo**, elige a qué trabajo va, o déjalo en **Sin trabajo: solo la clínica**. La lista tiene los trabajos entregados o cobrados de esa clínica: cada uno con su código, su paciente y lo que debe («Debe $ 35.00») o «Cobrado». Puedes buscar por código o por paciente.
-6. Escribe el **Motivo**: es obligatorio y sale en los movimientos de la cuenta.
    <Captura nombre="administracion/registrar-ajuste" alt="Diálogo Registrar ajuste de Clínica Sonrisa Norte: descuento de $ 40.00 con fecha 20/10/2026 al trabajo 26-00012 S. L., que debe $ 35.00, y al pie el aviso «$ 5.00 de lo ya pagado por este trabajo vuelven al saldo a favor.»" telefono />
+6. Escribe el **Motivo**: es obligatorio y sale en los movimientos de la cuenta.
 7. Toca <Boton>Registrar ajuste</Boton>.
 
 ## Con trabajo o sin trabajo
@@ -43,7 +43,7 @@ Ese dinero no se pierde: vuelve al pago de donde salió, como saldo a favor de l
 El saldo inicial es lo que una clínica ya debía antes de empezar a usar Dentalware. Se registra una sola vez, como un recargo sin trabajo.
 
 1. En la cuenta de la clínica, toca <Boton>Registrar ajuste</Boton>.
-2. Toca <Boton>Saldo inicial</Boton>, junto a **Motivo**. Elige **Recargo**, deja **Sin trabajo: solo la clínica** y escribe «Saldo inicial» en el motivo.
+2. Toca <Boton>Saldo inicial</Boton>, junto a **Motivo**. El atajo elige **Recargo**, deja **Sin trabajo: solo la clínica** y escribe «Saldo inicial» en el motivo.
 3. Escribe el **Monto**: lo que debía la clínica.
 4. Cambia la **Fecha** a la de esa deuda, si la sabes: la antigüedad de la cuenta cuenta los días desde ahí.
    <Captura nombre="administracion/saldo-inicial" alt="Diálogo Registrar ajuste tras tocar Saldo inicial: Recargo elegido, monto $ 120.00, fecha 20/10/2026, Trabajo «Sin trabajo: solo la clínica» y motivo «Saldo inicial»" telefono />
@@ -71,7 +71,7 @@ Anular un pago no tiene vuelta atrás. Si te equivocaste de pago, registra uno n
 - **En el estado de cuenta**, el pago anulado sale tachado, con «Anulado» y «No suma», sin quién lo anuló ni por qué. Ver [Imprimir](../recepcion/imprimir.md).
 
 :::info Ajustes sin vuelta atrás
-Un ajuste tampoco se edita ni se borra. Si te equivocaste, registra otro al revés: un recargo por el mismo monto deshace un descuento, y al revés. Usa el motivo para decir qué corrige.
+Un ajuste tampoco se edita ni se borra. Si te equivocaste, registra otro al revés: un recargo por el mismo monto deshace un descuento, y al revés. Usa el motivo para decir qué corrige. Si el descuento había devuelto dinero al saldo a favor, el recargo no lo vuelve a poner en el trabajo: ese dinero sigue a favor en su pago hasta que lo apliques con <Boton>Aplicar saldo a favor</Boton>.
 :::
 
 :::info Estados de cuenta ya impresos

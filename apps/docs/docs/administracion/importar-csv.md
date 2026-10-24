@@ -41,12 +41,12 @@ Las demás puedes dejarlas vacías:
 La clínica, el doctor y el producto tienen que existir y estar activos: Dentalware no los crea. Si falta alguno, créalo antes en **Configuración** ([Clínicas y doctores](./clinicas-y-doctores.md), [Productos y precios](./productos-y-precios.md)).
 
 :::info Un trabajo con varios productos
-Las filas **seguidas** con la misma clínica, el mismo doctor, el mismo paciente, la misma fecha deseada y la misma caja forman un solo trabajo, con un producto por fila. Si las separas con otra fila en medio, salen dos trabajos.
+Las filas **seguidas** con la misma clínica, el mismo doctor, el mismo paciente, la misma fecha deseada y la misma caja forman un solo trabajo, con un producto por fila. El color y las observaciones del trabajo se toman de la primera de esas filas: en las demás no cuentan. Si las separas con otra fila en medio, salen dos trabajos.
 :::
 
 ## Pasos para importar
 
-1. En **Importar trabajos**, toca el campo **Archivo CSV** y elige tu archivo.
+1. En **Importar trabajos**, toca el campo **Archivo CSV** y elige tu archivo. El botón de ese campo lo dibuja el navegador en su idioma: en un Chrome en español dice «Seleccionar archivo» (en las capturas sale en inglés por el navegador con que se tomaron).
 2. Toca <Boton>Validar</Boton>. Dentalware revisa todo el archivo, sin crear nada todavía.
 3. Si hay errores, salen en una tabla: la **Fila** del archivo (la 1 es la de los títulos), la **Columna** y el **Mensaje**. Con un solo error no se crea ningún trabajo. Corrige el archivo, guárdalo, vuelve a elegirlo en **Archivo CSV** y toca <Boton>Validar</Boton> otra vez.
    <Captura nombre="administracion/importar-errores" alt="Importar trabajos con trabajos.csv validado y cuatro errores: fila 3, doctor «Dr. Tomás Herrera» no existe en la clínica «Centro Dental Los Álamos»; fila 4, la clínica «Clínica Ejemplo Sur» no existe; fila 5, pieza dental FDI inválida y fecha inválida" />
@@ -63,7 +63,7 @@ Los trabajos se crean todos juntos y salen en **Trabajos** como **Nuevo**, recib
 
 ## Problemas frecuentes
 
-- **«La cabecera no coincide con la plantilla»:** la primera fila cambió, falta o sobra una columna, o el archivo no usa comas. Algunas versiones de Excel, según la configuración de la computadora, guardan el CSV con punto y coma (;) entre las columnas, y Dentalware solo lee comas. Vuelve a partir de la plantilla, o guárdalo desde Google Sheets o LibreOffice Calc.
+- **Al validar sale el aviso «Datos inválidos» y no aparece la tabla de errores:** Dentalware no reconoce la primera fila del archivo. Pasa por dos motivos: cambiaste o borraste el título de alguna columna, o el archivo no usa comas. Algunas versiones de Excel en español, según la configuración de la computadora, guardan el CSV con punto y coma (;) entre las columnas, y Dentalware solo lee comas. Vuelve a partir de la plantilla y guarda el CSV separado por comas; si Excel insiste en el punto y coma, guárdalo desde Google Sheets o LibreOffice Calc.
 - **«La clínica "…" no existe»** o **«El producto "…" no existe»:** el nombre no es el de **Configuración**, o está desactivado. Revisa cómo está escrito allí.
 - **«El doctor "…" no existe en la clínica "…"»:** el doctor existe, pero en otra clínica, o está escrito distinto.
 - **«Pieza dental FDI inválida»** o **«Piezas repetidas»:** revisa las piezas de esa fila. Van en FDI, de la 11 a la 18, de la 21 a la 28, de la 31 a la 38 y de la 41 a la 48, separadas por comas y sin repetir.

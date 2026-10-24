@@ -16,7 +16,7 @@ Administración deja Dentalware listo para que el resto del laboratorio trabaje:
 
 Si el laboratorio empieza a usar Dentalware, configúralo en este orden. Cada paso usa lo que dejó el anterior:
 
-1. **Laboratorio.** El nombre, la dirección y los teléfonos que salen en la orden impresa y en el aviso por WhatsApp: [Datos del laboratorio](./datos-del-laboratorio.md).
+1. **Laboratorio.** El nombre, la dirección y los teléfonos que salen en la orden impresa y en el estado de cuenta; el nombre, además, firma el aviso por WhatsApp: [Datos del laboratorio](./datos-del-laboratorio.md).
 2. **Fases.** Las etapas por las que pasa un trabajo en producción, en su orden: [Fases](./fases.md).
 3. **Categorías y productos.** Lo que fabrica el laboratorio, cómo se cobra, su precio base y cuántos días hábiles tarda: [Productos y precios](./productos-y-precios.md).
 4. **Clínicas y doctores.** Quién manda los trabajos, con su WhatsApp para los avisos y, si hace falta, sus precios propios: [Clínicas y doctores](./clinicas-y-doctores.md).
