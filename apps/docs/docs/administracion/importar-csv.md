@@ -16,7 +16,7 @@ Si tienes muchas órdenes en una planilla (por ejemplo, las pendientes al empeza
 
 1. Abre **Trabajos** y toca <Boton>Importar</Boton>. Se abre **Importar trabajos**.
    <Captura nombre="administracion/importar-dialogo" alt="Diálogo Importar trabajos con el enlace Descargar plantilla, el campo Archivo CSV sin archivo y los botones Cancelar y Validar" telefono />
-2. Toca **Descargar plantilla**. Se descarga `plantilla-trabajos.csv`, con la fila de títulos y una fila de ejemplo.
+2. Toca <Boton>Descargar plantilla</Boton>. Se descarga `plantilla-trabajos.csv`, con la fila de títulos y una fila de ejemplo.
 3. Ábrela en tu programa de planillas (Excel, LibreOffice Calc o Google Sheets). Borra la fila de ejemplo y escribe una fila por cada producto de cada trabajo.
 4. No cambies la primera fila ni el orden de las columnas. Guarda el archivo como CSV.
 

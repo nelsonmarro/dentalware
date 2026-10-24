@@ -43,9 +43,9 @@ Para ver las clínicas desactivadas, enciende **Mostrar inactivas**. Los doctore
 
 ## El WhatsApp desde la ficha del trabajo
 
-Si una clínica no tiene WhatsApp, la ficha de sus trabajos dice «Sin WhatsApp registrado.». Administración ve ahí el enlace **Añadir WhatsApp**:
+Si una clínica no tiene WhatsApp, la ficha de sus trabajos dice «Sin WhatsApp registrado.». Administración ve ahí el enlace <Boton>Añadir WhatsApp</Boton>:
 
-1. Toca **Añadir WhatsApp**. Se abre **Clínicas** con el formulario de esa clínica y el cursor en **WhatsApp**.
+1. Toca <Boton>Añadir WhatsApp</Boton>. Se abre **Clínicas** con el formulario de esa clínica y el cursor en **WhatsApp**.
 2. Escribe el número y toca <Boton>Guardar</Boton>.
 3. Vuelves a la ficha del trabajo, ya con <Boton>Avisar por WhatsApp</Boton>. Si tocas <Boton>Cancelar</Boton>, también vuelves, sin cambios.
 

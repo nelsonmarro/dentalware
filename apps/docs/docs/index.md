@@ -17,7 +17,7 @@ Todo trabajo pasa por cuatro momentos: **recibir** (llega del doctor, con sus pi
 
 Si es la primera vez que usas Dentalware, empieza por **Primeros pasos**: cómo [entrar y salir](./primeros-pasos/entrar-y-salir.md), cómo [instalar la app](./primeros-pasos/instalar-la-app.md) en el teléfono o la computadora y [qué ve cada rol](./primeros-pasos/que-ve-cada-rol.md).
 
-Después, abre la guía de tu rol con las tarjetas de abajo. **Técnico** explica cómo ver tus trabajos, avanzar sus fases y finalizarlos. **Administración** explica cómo dejar listo el laboratorio (clínicas, productos, fases y usuarios) y lo que solo ella hace en las cuentas.
+Después, abre la guía de tu rol con las tarjetas de abajo: recepción registra, sigue, entrega y cobra los trabajos; el técnico los produce por fases; el mensajero los recoge y los entrega; administración deja listo el laboratorio (clínicas, productos, fases y usuarios) y hace lo que solo ella puede en las cuentas.
 
 Cuando tengas una duda, la **Referencia** tiene los [estados del trabajo](./referencia/estados.md), el [glosario](./referencia/glosario.md) y las [preguntas frecuentes](./referencia/preguntas-frecuentes.md).
 

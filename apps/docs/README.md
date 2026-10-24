@@ -126,10 +126,10 @@ llama a `captura(page, '<seccion>/<nombre>', locator, { testInfo })` (o, para la
 alrededor del elemento, que tiene que caber en la ventana), que escribe
 `static/img/capturas/<seccion>/<nombre>.escritorio.png` (1280×800) y `….telefono.png` (Pixel 7), las
 dos a `deviceScaleFactor: 2`.
-Los specs nunca guardan nada: los diálogos se abren, se capturan y se cierran con «Volver». Los botones
+Los specs nunca guardan nada: los diálogos se abren, se capturan y se cierran con «Volver» (o «Cancelar» en los formularios de configuración y en el de importar, que es su botón), sin confirmar nada. Los botones
 de las devtools de TanStack (solo existen en `vite dev`) se ocultan en toda captura.
 
-Tres detalles de la tubería que conviene saber:
+Detalles de la tubería que conviene saber:
 
 - **Fechas en español**: Chromium se lanza con `LANGUAGE=es_EC` y `LANG=es_EC.UTF-8` en
   `launchOptions.env` (`capturas/playwright.config.ts`). El `input type="date"` toma el formato del

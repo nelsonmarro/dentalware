@@ -362,6 +362,8 @@ export async function seedDemo({
       case 'en_proceso_ultima_fase':
         // De la primera fase a la última del catálogo del seed (`STAGES`), una a una.
         await accept()
+        // Avanza hasta la última fase del catálogo del seed normal (`STAGES`): el seed de demostración
+        // corre sobre la BD de test recién sembrada, nunca sobre una con fases propias.
         for (let i = 1; i < STAGES.length; i++) {
           await services.cases.changeStage(id, { direccion: 'avanzar', motivo: null }, ctx)
         }
